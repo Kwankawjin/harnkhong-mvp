@@ -1,0 +1,1199 @@
+/* ========================================================
+   DESIGN SYSTEM & THEME TOKENS
+   ======================================================== */
+:root {
+  /* Phone Canvas Background (Soft pale icy-blue from reference) */
+  --phone-bg: #f2f7fb;
+  --phone-border: rgba(255, 255, 255, 0.08);
+
+  /* Primary Accent: Mint/Teal from reference button */
+  --color-mint: #6ce5b9;
+  --color-mint-hover: #5bd4a8;
+  --color-mint-active: #4ac297;
+  --color-mint-dark-text: #0e201b;
+
+  /* Form Elements */
+  --input-bg: #eef4f8;
+  --input-border: #d4dde6;
+  --input-border-hover: #b0c2d3;
+  --input-border-focus: #5bd4a8;
+  --input-text: #1e293b;
+  --input-placeholder: #8e9faa;
+
+  /* Typography Colors */
+  --text-main: #0a0e14;
+  --text-muted: #4e5d6c;
+  --text-light: #94a3b8;
+
+  /* Showcase Environment Canvas */
+  --canvas-bg: #0f1015;
+  --canvas-grid-color: rgba(255, 255, 255, 0.03);
+
+  /* Default Hardware Finish: Titanium Black */
+  --chassis-metal: linear-gradient(145deg, #2e3038, #18191e, #121316);
+  --chassis-rim: #3d404d;
+  --chassis-outer: #0a0b0d;
+  --chassis-button: #2a2c35;
+  --chassis-glow: rgba(108, 229, 185, 0.08);
+
+  /* Typography */
+  --font-thai: 'Kanit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-en: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Color Variations for Smartphone Frame */
+body.theme-silver {
+  --chassis-metal: linear-gradient(145deg, #dce2e8, #b8c0c8, #9aa2aa);
+  --chassis-rim: #f1f5f9;
+  --chassis-outer: #828a93;
+  --chassis-button: #cbd5e1;
+  --chassis-glow: rgba(255, 255, 255, 0.12);
+}
+
+body.theme-blue {
+  --chassis-metal: linear-gradient(145deg, #1e293b, #0f172a, #0b1120);
+  --chassis-rim: #38bdf8;
+  --chassis-outer: #030712;
+  --chassis-button: #1e3a5f;
+  --chassis-glow: rgba(56, 189, 248, 0.15);
+}
+
+body.theme-purple {
+  --chassis-metal: linear-gradient(145deg, #3b1d54, #241133, #150a1f);
+  --chassis-rim: #c084fc;
+  --chassis-outer: #0f0517;
+  --chassis-button: #4c1d77;
+  --chassis-glow: rgba(192, 132, 252, 0.15);
+}
+
+/* ========================================================
+   BASE RESETS & DEFAULTS
+   ======================================================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  min-height: 100vh;
+  font-family: var(--font-en);
+  background-color: var(--canvas-bg);
+  color: #f8fafc;
+  -webkit-font-smoothing: antialiased;
+  background-image: 
+    radial-gradient(circle at 50% 15%, var(--chassis-glow) 0%, transparent 60%),
+    linear-gradient(to right, var(--canvas-grid-color) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--canvas-grid-color) 1px, transparent 1px);
+  background-size: 100% 100%, 32px 32px, 32px 32px;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+/* ========================================================
+   TOP NAVIGATION & CONTROLS
+   ======================================================== */
+.top-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 28px;
+  background: rgba(18, 19, 26, 0.88);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-badge {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  background: linear-gradient(135deg, #10b981, #06b6d4);
+  color: #022c22;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.35);
+}
+
+.nav-brand h1 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f1f5f9;
+  letter-spacing: -0.02em;
+}
+
+/* Center Flow Stepper */
+.flow-controls {
+  display: flex;
+  align-items: center;
+}
+
+.stepper-pills {
+  display: inline-flex;
+  background: rgba(30, 32, 42, 0.7);
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 4px;
+}
+
+.step-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: #94a3b8;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--font-thai);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.step-pill .pill-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.step-pill:hover {
+  color: #ffffff;
+}
+
+.step-pill.active {
+  background: var(--color-mint);
+  color: var(--color-mint-dark-text);
+  box-shadow: 0 2px 10px rgba(108, 229, 185, 0.4);
+}
+
+.step-pill.active .pill-dot {
+  background: var(--color-mint-dark-text);
+  color: var(--color-mint);
+}
+
+/* Right Nav Actions */
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.view-switcher {
+  display: inline-flex;
+  background: #232530;
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: #94a3b8;
+  border: none;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-thai);
+}
+
+.view-btn.active {
+  background: #373949;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Phone color finishes */
+.phone-color-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #1b1c24;
+  padding: 5px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.color-picker-label {
+  font-size: 11px;
+  color: #64748b;
+  font-family: var(--font-thai);
+  margin-right: 2px;
+}
+
+.color-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.color-dot:hover {
+  transform: scale(1.15);
+}
+
+.color-dot.active {
+  border-color: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.dot-black { background: #26272e; }
+.dot-silver { background: #d0d7de; }
+.dot-blue { background: #0284c7; }
+.dot-purple { background: #9333ea; }
+
+.autofill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(108, 229, 185, 0.15);
+  color: #6ce5b9;
+  border: 1px solid rgba(108, 229, 185, 0.35);
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-thai);
+  transition: all 0.2s ease;
+}
+
+.autofill-btn:hover {
+  background: rgba(108, 229, 185, 0.28);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(108, 229, 185, 0.2);
+}
+
+.btn-icon-reset {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #232530;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-icon-reset:hover {
+  color: #ffffff;
+  background: #2f3140;
+}
+
+/* ========================================================
+   SHOWCASE CANVAS
+   ======================================================== */
+.canvas-showcase {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 30px 16px 50px;
+  overflow-x: auto;
+  min-height: calc(100vh - 70px);
+}
+
+.phones-stage {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 32px;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  width: auto;
+}
+
+/* Mode: Single Device */
+.phones-stage.mode-single .phone-mockup-wrapper {
+  display: none;
+}
+
+.phones-stage.mode-single .phone-mockup-wrapper.active-step {
+  display: flex;
+  animation: phonePopIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Mode: Multi 3 Devices */
+.phones-stage.mode-multi {
+  flex-wrap: nowrap;
+  gap: 28px;
+}
+
+.phones-stage.mode-multi .phone-mockup-wrapper {
+  display: flex !important;
+}
+
+@keyframes phonePopIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ========================================================
+   REALISTIC SMARTPHONE CHASSIS & FRAME
+   ======================================================== */
+.phone-mockup-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.phone-badge-label {
+  font-family: var(--font-thai);
+  font-size: 13px;
+  font-weight: 600;
+  color: #cbd5e1;
+  background: rgba(30, 32, 42, 0.8);
+  padding: 4px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.phone-chassis {
+  position: relative;
+  width: 375px;
+  height: 770px;
+  background: var(--chassis-metal);
+  border-radius: 54px;
+  padding: 12px;
+  box-shadow: 
+    0 0 0 2px var(--chassis-rim),
+    0 0 0 5px var(--chassis-outer),
+    0 25px 60px -15px rgba(0, 0, 0, 0.85),
+    0 12px 24px -8px rgba(0, 0, 0, 0.7),
+    inset 0 1px 2px rgba(255, 255, 255, 0.35),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.phone-chassis:hover {
+  transform: translateY(-4px);
+  box-shadow: 
+    0 0 0 2px var(--chassis-rim),
+    0 0 0 5px var(--chassis-outer),
+    0 35px 70px -15px rgba(0, 0, 0, 0.9),
+    0 16px 30px -8px rgba(0, 0, 0, 0.8),
+    inset 0 1px 2px rgba(255, 255, 255, 0.4);
+}
+
+/* Hardware Buttons */
+.hw-button {
+  position: absolute;
+  background: var(--chassis-button);
+  border-radius: 3px;
+  z-index: 1;
+}
+
+/* Left Buttons */
+.hw-action {
+  left: -7px;
+  top: 110px;
+  width: 5px;
+  height: 26px;
+  box-shadow: -1px 0 2px rgba(0,0,0,0.5);
+}
+
+.hw-volume-up {
+  left: -7px;
+  top: 155px;
+  width: 5px;
+  height: 52px;
+  box-shadow: -1px 0 2px rgba(0,0,0,0.5);
+}
+
+.hw-volume-down {
+  left: -7px;
+  top: 220px;
+  width: 5px;
+  height: 52px;
+  box-shadow: -1px 0 2px rgba(0,0,0,0.5);
+}
+
+/* Right Button */
+.hw-power {
+  right: -7px;
+  top: 175px;
+  width: 5px;
+  height: 75px;
+  box-shadow: 1px 0 2px rgba(0,0,0,0.5);
+}
+
+/* Glass Screen Inside Chassis */
+.phone-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: var(--phone-bg);
+  border-radius: 44px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Glass Glare Sheen */
+.screen-glare {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 60%;
+  height: 40%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
+  z-index: 20;
+  border-radius: 0 44px 0 0;
+}
+
+/* ========================================================
+   iOS STATUS BAR & DYNAMIC ISLAND
+   ======================================================== */
+.phone-status-bar {
+  height: 44px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  z-index: 25;
+  color: #0f172a;
+  user-select: none;
+}
+
+.status-time {
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  width: 55px;
+}
+
+/* Dynamic Island */
+.dynamic-island {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 112px;
+  height: 28px;
+  background: #000000;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.dynamic-island:hover, .dynamic-island.pulsing {
+  width: 140px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.6);
+}
+
+.island-camera {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #1e3a8a, #030712 70%);
+  box-shadow: inset 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+.island-sensor {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #09090b;
+}
+
+.island-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(108, 229, 185, 0.15), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.dynamic-island:hover .island-glow {
+  opacity: 1;
+}
+
+.status-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 65px;
+  justify-content: flex-end;
+}
+
+.badge-5g {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.battery-icon {
+  width: 22px;
+  height: 11px;
+  border: 1.5px solid #0f172a;
+  border-radius: 3px;
+  padding: 1px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.battery-icon::after {
+  content: '';
+  position: absolute;
+  right: -3.5px;
+  top: 2.5px;
+  width: 2px;
+  height: 4px;
+  background: #0f172a;
+  border-radius: 0 1px 1px 0;
+}
+
+.battery-fill {
+  height: 100%;
+  background: #0f172a;
+  border-radius: 1px;
+}
+
+/* ========================================================
+   PHONE VIEWPORT & SCREEN CONTENT
+   ======================================================== */
+.phone-viewport {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  scrollbar-width: none; /* Hide default scrollbar */
+}
+
+.phone-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.screen-content {
+  flex: 1;
+  padding: 24px 24px 28px;
+  display: flex;
+  flex-direction: column;
+}
+
+.screen-title {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.03em;
+  margin-bottom: 22px;
+  line-height: 1.15;
+}
+
+.screen-title.text-center {
+  text-align: center;
+}
+
+.screen-title.text-left {
+  text-align: left;
+}
+
+.thai-title {
+  font-family: var(--font-thai);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+
+.screen-subtitle.thai-sub {
+  font-family: var(--font-thai);
+  font-size: 12.5px;
+  color: #4b5563;
+  margin-bottom: 18px;
+  line-height: 1.35;
+  font-weight: 400;
+}
+
+/* ========================================================
+   FORM CONTROLS & INPUTS
+   ======================================================== */
+.form-body {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  flex: 1;
+}
+
+.input-group {
+  position: relative;
+  width: 100%;
+}
+
+.custom-input {
+  width: 100%;
+  height: 46px;
+  background-color: var(--input-bg);
+  border: 1.5px solid var(--input-border);
+  border-radius: 10px;
+  padding: 0 16px;
+  font-size: 14px;
+  color: var(--input-text);
+  font-family: var(--font-thai);
+  outline: none;
+  transition: all 0.2s ease;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.custom-input::placeholder {
+  color: var(--input-placeholder);
+  font-weight: 400;
+}
+
+.custom-input:hover {
+  border-color: var(--input-border-hover);
+  background-color: #f7fafc;
+}
+
+.custom-input:focus {
+  border-color: var(--input-border-focus);
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(108, 229, 185, 0.25);
+}
+
+/* Password eye button */
+.password-group {
+  display: flex;
+  align-items: center;
+}
+
+.btn-toggle-pw {
+  position: absolute;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+}
+
+.btn-toggle-pw:hover {
+  color: #475569;
+}
+
+/* Input Grid (2 columns for address) */
+.input-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
+.address-form {
+  gap: 10px;
+}
+
+.address-form .custom-input {
+  height: 42px;
+  font-size: 13px;
+  padding: 0 12px;
+}
+
+/* ========================================================
+   PRIMARY BUTTONS
+   ======================================================== */
+.btn-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+  margin-bottom: 10px;
+}
+
+.btn-primary {
+  background-color: var(--color-mint);
+  color: var(--color-mint-dark-text);
+  border: none;
+  font-weight: 700;
+  font-size: 15.5px;
+  letter-spacing: -0.01em;
+  padding: 11px 42px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 3px 10px rgba(108, 229, 185, 0.28);
+  font-family: var(--font-thai);
+  user-select: none;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-mint-hover);
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 16px rgba(108, 229, 185, 0.4);
+}
+
+.btn-primary:active {
+  transform: translateY(1px);
+  background-color: var(--color-mint-active);
+}
+
+/* Full width style for Address confirm button */
+.address-btn-container {
+  margin-top: 6px;
+  margin-bottom: 0;
+  width: 100%;
+}
+
+.address-btn-container .btn-primary {
+  width: 100%;
+  padding: 12px 20px;
+  font-size: 15.5px;
+  border-radius: 10px;
+}
+
+/* ========================================================
+   SOCIAL LOGIN BUTTONS
+   ======================================================== */
+.social-login-circular {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  margin-top: 10px;
+  margin-bottom: 20px;
+}
+
+.circle-social-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.circle-social-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.1);
+  border-color: #cbd5e1;
+}
+
+.circle-social-btn.fb-circle {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.circle-social-btn.fb-circle:hover {
+  transform: scale(1.08);
+}
+
+/* Stacked Pill Social Buttons */
+.social-login-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 4px;
+  margin-bottom: 14px;
+}
+
+.pill-social-btn {
+  display: flex;
+  align-items: center;
+  height: 42px;
+  background-color: var(--input-bg);
+  border: 1.5px solid var(--input-border);
+  border-radius: 10px;
+  padding: 0 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pill-social-btn:hover {
+  background-color: #ffffff;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.04);
+}
+
+.social-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  margin-right: 12px;
+}
+
+.social-text {
+  font-size: 13px;
+  color: #334155;
+  font-weight: 500;
+  font-family: var(--font-en);
+}
+
+/* ========================================================
+   BOTTOM ACTIONS / SWITCH LINKS
+   ======================================================== */
+.bottom-action {
+  text-align: center;
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.link-switch {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+  text-decoration: none;
+  letter-spacing: 0.04em;
+  transition: opacity 0.2s ease;
+  font-family: var(--font-thai);
+}
+
+.link-switch:hover {
+  opacity: 0.75;
+}
+
+.link-switch.muted {
+  font-weight: 500;
+  color: #475569;
+  font-size: 12.5px;
+}
+
+.link-switch.muted u {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* ========================================================
+   HOME INDICATOR
+   ======================================================== */
+.phone-home-indicator {
+  width: 135px;
+  height: 4.5px;
+  background: #1e293b;
+  border-radius: 10px;
+  margin: 6px auto 7px;
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+}
+
+.phone-screen:hover .phone-home-indicator {
+  opacity: 0.85;
+}
+
+/* ========================================================
+   BOTTOM FLOATING MOBILE NAV (FOR SMALL SCREENS)
+   ======================================================== */
+.mobile-nav-bar {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(18, 19, 26, 0.95);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 16px 14px;
+  z-index: 90;
+  justify-content: space-around;
+}
+
+.m-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  font-family: var(--font-thai);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.m-nav-item.active {
+  color: var(--color-mint);
+}
+
+/* ========================================================
+   MODAL / POPUP (Success Dialog)
+   ======================================================== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 15, 0.8);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: fadeIn 0.2s ease forwards;
+}
+
+.modal-card {
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 26px;
+  padding: 30px 24px;
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.5);
+  animation: popUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.modal-icon-wrapper {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: #d1fae5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px;
+}
+
+.modal-title {
+  font-family: var(--font-thai);
+  font-size: 21px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #065f46;
+}
+
+.modal-desc {
+  font-family: var(--font-thai);
+  font-size: 13.5px;
+  color: #475569;
+  margin-bottom: 18px;
+}
+
+.summary-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  text-align: left;
+  font-family: var(--font-thai);
+  font-size: 12.5px;
+  color: #334155;
+  margin-bottom: 20px;
+  max-height: 180px;
+  overflow-y: auto;
+  line-height: 1.55;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.summary-row:last-child {
+  border-bottom: none;
+}
+
+.summary-label {
+  color: #64748b;
+  font-weight: 400;
+}
+
+.summary-val {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.btn-secondary {
+  background: #f1f5f9;
+  color: #475569;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-thai);
+}
+
+.btn-secondary:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+/* ========================================================
+   TOAST NOTIFICATION
+   ======================================================== */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: #1e293b;
+  color: #ffffff;
+  padding: 11px 22px;
+  border-radius: 9999px;
+  font-size: 13.5px;
+  font-family: var(--font-thai);
+  font-weight: 500;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  z-index: 2000;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes popUp {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ========================================================
+   RESPONSIVE DESIGN (FOR SMALL PHONES & TABLETS)
+   ======================================================== */
+@media (max-width: 900px) {
+  .phones-stage.mode-multi {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .top-nav {
+    padding: 12px 14px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .nav-brand {
+    justify-content: center;
+  }
+
+  .flow-controls {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .stepper-pills {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .step-pill {
+    flex: 1;
+    justify-content: center;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .nav-actions {
+    justify-content: center;
+  }
+
+  .canvas-showcase {
+    padding: 16px 8px 70px;
+    align-items: flex-start;
+  }
+
+  .phone-chassis {
+    width: 100%;
+    max-width: 360px;
+    height: 740px;
+    padding: 8px;
+    border-radius: 46px;
+  }
+
+  .hw-button {
+    display: none; /* Hide side hardware buttons on very small mobile viewports */
+  }
+
+  .phone-screen {
+    border-radius: 38px;
+  }
+
+  .mobile-nav-bar {
+    display: flex;
+  }
+}
