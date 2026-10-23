@@ -37,4 +37,3 @@ test('สมาชิกใหม่และค่าใช้จ่ายใ�
   for (const id of g.members) g=approve(g,id,3);
   assert.equal(g.status,'ready');
 });
-
