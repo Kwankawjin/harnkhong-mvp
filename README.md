@@ -4,6 +4,22 @@
 
 เว็บที่เผยแพร่: https://harnkhong-mvp.netlify.app/
 
+ซอร์สโค้ด: https://github.com/Kwankawjin/harnkhong-mvp (Private)
+
+## ทำงานร่วมกัน
+
+เจ้าของ repo เชิญเพื่อนผ่าน **Settings → Collaborators and teams** ก่อน เพราะ repo นี้เป็น Private จากนั้นเพื่อนสามารถรัน:
+
+```bash
+git clone https://github.com/Kwankawjin/harnkhong-mvp.git
+cd harnkhong-mvp
+npm ci
+npm test
+npm run dev
+```
+
+แนะนำให้แยก branch สำหรับงานแต่ละส่วนและเปิด Pull Request เพื่อทบทวนก่อนรวมเข้า `main` การ push ขึ้น GitHub ยังไม่ทำให้ Netlify deploy อัตโนมัติในตอนนี้
+
 ## อัปเดตบน Netlify
 
 ไซต์นี้เผยแพร่ด้วย Netlify Drop แบบ manual deploy และยังไม่ได้เชื่อม Git สำหรับ auto deploy หลังแก้โค้ด ให้รัน `npm test` และ `npm run build` จากนั้นอัปโหลดเนื้อหาใน `dist/` ไปยังโปรเจกต์ `harnkhong-mvp` บน Netlify ไฟล์ `netlify.toml` กำหนดคำสั่ง build และโฟลเดอร์เผยแพร่ ส่วน `public/_redirects` ทำให้เปิด URL หน้าภายในเว็บได้โดยตรง
