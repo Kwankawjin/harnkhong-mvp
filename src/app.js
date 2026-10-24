@@ -44,7 +44,7 @@ let demoQrPng='';
 function isAuthRequired(href) {
   if (!href) return false;
   const path = href.split('?')[0];
-  if (['/my-groups', '/chat', '/profile', '/notifications', '/groups/create', '/seller/dashboard', '/seller/products/new'].includes(path)) {
+  if (['/my-groups', '/my-orders', '/chat', '/profile', '/notifications', '/groups/create', '/seller/dashboard', '/seller/products/new'].includes(path)) {
     return true;
   }
   if (/^\/chat\/[^/]+$/.test(path)) return true;
@@ -217,13 +217,14 @@ function shareApprovalDialog(amount) {
   return `<dialog id="share-approval-dialog" class="payment-dialog" aria-labelledby="share-approval-title"><div class="payment-head"><span class="chip">${t('จำลองเท่านั้น')}</span><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></div><h2 id="share-approval-title">${t('QR ยอดที่ยืนยัน (จำลอง)')}</h2><p>${t('QR ตัวอย่าง สแกนจ่ายไม่ได้')}</p><div class="demo-qr">${demoQr()}</div><small>${t('ยอดที่ยืนยัน')}</small><strong class="payment-amount">${money(amount)}</strong><p>${t('การยืนยันยอดบันทึกว่าคุณยอมรับจำนวนเงินเท่านั้น ไม่ใช่การแจ้งชำระและไม่มีการเก็บเงินจริง')}</p></dialog>`;
 }
 function listingCard(p){
-  const groups = state.groups.filter(g => g.listingId === p.id && g.visibility === 'public' && g.status !== 'cancelled');
+  const groups = state.groups.filter(g => g.listingId === p.id && g.visibility === 'public' && g.status !== 'cancelled' && g.members.length < g.capacity && !g.orderId);
   const g = groups[0];
+  const destination = g ? `/groups/${g.id}` : `/products/${p.id}`;
   const s = seller(p.sellerId);
   return `
     <article class="listing-card">
       <div class="card-media-wrapper">
-        ${a(`/products/${p.id}`, art(p), 'art-link')}
+        ${a(destination, art(p), 'art-link')}
         <div class="card-floating-badge">
           <span class="chip-kind">${escape(t(p.kind))}</span>
           <span class="chip-cat">${escape(t(p.category))}</span>
@@ -234,9 +235,8 @@ function listingCard(p){
         <div class="seller-store-line">
           <span class="seller-store-dot"></span>
           ${a(`/shops/${p.sellerId}`, `<b>${escape(s.name)}</b>`)}
-          <span class="store-rating">★ 4.9</span>
         </div>
-        ${a(`/products/${p.id}`, `<h3 class="listing-title">${escape(p.title)}</h3>`)}
+        ${a(destination, `<h3 class="listing-title">${escape(p.title)}</h3>`)}
         <p class="listing-desc">${escape(p.description)}</p>
         <div class="listing-pricing-box">
           <div class="price-full">
@@ -244,8 +244,8 @@ function listingCard(p){
             <span>${money(p.price)}</span>
           </div>
           <div class="price-split">
-            <small>${g ? t("หารเริ่มต้น") : t("ประมาณต่อคน")}</small>
-            <strong>${money(g ? Math.ceil(totalCost(g.costs) / g.capacity) : Math.ceil(p.price / 4))}<small> ${t("/คน")}</small></strong>
+            <small>${g ? (g.members.includes(state.user?.id) ? t('ยอดปัจจุบันของคุณ') : t("ถ้าคุณเข้าร่วมตอนนี้")) : t("ประมาณเมื่อหาร 4 คน")}</small>
+            <strong>${money(g ? (g.members.includes(state.user?.id) ? shares(g)[state.user.id] : Math.ceil(totalCost(g.costs) / (g.members.length + 1))) : Math.ceil(p.price / 4))}<small> ${t("/คน")}</small></strong>
           </div>
         </div>
         ${g ? `
@@ -260,7 +260,7 @@ function listingCard(p){
           </div>
         `}
         <div class="listing-card-actions">
-          ${a(`/products/${p.id}`, `${t("ดูรายละเอียดและกลุ่ม")} ${icon('arrow', 16)}`, 'button outline full flow-button')}
+          ${a(destination, `${g?t("ดูกลุ่มและเข้าร่วม"):t("ดูรายละเอียดและกลุ่ม")} ${icon('arrow', 16)}`, 'button outline full flow-button')}
         </div>
       </div>
     </article>
@@ -268,68 +268,32 @@ function listingCard(p){
 }
 
 function groupCard(g){
-  const p = listing(g.listingId);
-  const remaining = g.capacity - g.members.length;
-  const pct = Math.round((g.members.length / g.capacity) * 100);
-  const perPerson = Math.ceil(totalCost(g.costs) / g.capacity);
-  return `
-    <article class="group-card">
-      <div class="group-card-header">
-        <div class="group-badges">
-          <span class="chip-visibility">${g.visibility === 'link' ? t("🔒 ลิงก์ส่วนตัว") : t("🌐 กลุ่มสาธารณะ")}</span>
-          <span class="status-pill ${g.status}">${g.status === 'ready' ? t("✓ พร้อมสรุปคำสั่งซื้อ") : t("⏳ รอสมาชิกครบ")}</span>
-        </div>
-        ${remaining === 1 ? `<span class="urgency-badge hot">${icon('fire', 14)} ${t("ว่างที่เดียว!")}</span>` : `<span class="urgency-badge">${t('ว่าง {count} ที่',{count:remaining})}</span>`}
-      </div>
-
-      ${isLocalImage(g.images?.[0])?a(`/groups/${g.id}`,`<img class="group-cover" src="${g.images[0]}" alt="${escape(g.name)}" loading="lazy"/>`):''}
-      ${a(`/groups/${g.id}`, `<h3 class="group-title">${escape(g.name)}</h3>`)}
-      <div class="group-product-name">
-        <span>📦</span>
-        <span>${escape(t(p?.title || t("รายการสินค้า")))}</span>
-      </div>
-
-      <div class="group-members-row">
-        <div class="member-avatars-group">
-          ${g.members.slice(0, 4).map(mid => `<span class="member-avatar-pill" title="${escape(name(mid))}">${escape(name(mid).slice(0, 1))}</span>`).join('')}
-          ${remaining > 0 ? `<span class="member-avatar-pill empty-slot">+${remaining}</span>` : ''}
-        </div>
-        <div class="members-count-label">
-          ${icon('users', 16)}
-          <span>${t('{count}/{capacity} คน',{count:'<b>'+g.members.length+'</b>',capacity:g.capacity})}</span>
-        </div>
-      </div>
-
-      <div class="progress-wrap">
-        <div class="progress-bar-bg">
-          <div class="progress-bar-fill" style="width: ${pct}%"></div>
-        </div>
-        <div class="progress-text-row">
-          <span>${t("ความคืบหน้า")}</span>
-          <span>${pct}%</span>
-        </div>
-      </div>
-
-      <div class="group-pricing-row">
-        <div class="price-original">
-          <small>${t("ราคารวมกลุ่ม")}</small>
-          <span>${money(totalCost(g.costs))}</span>
-        </div>
-        <div class="price-per-person">
-          <small>${t("ตกเพียง")}</small>
-          <strong>${money(perPerson)}<small> ${t("/คน")}</small></strong>
-        </div>
-      </div>
-
-      <div class="group-card-footer">
-        ${a(`/groups/${g.id}`, `${t("ดูกลุ่มและเข้าร่วม")} ${icon('arrow', 16)}`, 'button primary full flow-button')}
-      </div>
-    </article>
-  `;
+  const p=listing(g.listingId);
+  if(!p)return '';
+  const remaining=Math.max(0,g.capacity-g.members.length);
+  const open=remaining>0&&!g.orderId&&g.status!=='cancelled';
+  const isMember=g.members.includes(state.user?.id);
+  const total=totalCost(g.costs);
+  const now=isMember?shares(g)[state.user.id]:Math.ceil(total/(g.members.length+(open?1:0)));
+  const full=Math.ceil(total/g.capacity);
+  const destination=`/groups/${g.id}`;
+  return `<article class="opportunity-card">
+    <div class="opportunity-media">${a(destination,isLocalImage(g.images?.[0])?`<img src="${g.images[0]}" alt="${escape(g.name)}" loading="lazy"/>`:art(p),'opportunity-art-link')}</div>
+    <div class="opportunity-content">
+      <div class="opportunity-topline"><span class="opportunity-category">${escape(t(p.category))}</span><span class="opportunity-spots ${open?'':'is-closed'}">${open?t('ว่าง {count} ที่',{count:remaining}):t('ปิดรับสมาชิก')}</span></div>
+      ${a(destination,`<h3>${escape(g.name)}</h3>`,'opportunity-title')}
+      <p class="opportunity-group-name">${t('สินค้าในกลุ่ม')}: ${escape(t(p.title))}</p>
+      <div class="opportunity-price"><div><small>${isMember?t('ยอดปัจจุบันของคุณ'):open?t('ถ้าคุณเข้าร่วมตอนนี้'):t('ประมาณต่อคนปัจจุบัน')}</small><strong>${money(now)} <span>${t('/คน')}</span></strong></div><div><small>${t('เมื่อครบ {count} คน',{count:g.capacity})}</small><b>${money(full)} ${t('/คน')}</b></div></div>
+      <div class="opportunity-members"><span>${icon('users',17)} ${t('สมาชิก {count} / {capacity} คน',{count:g.members.length,capacity:g.capacity})}</span><div class="opportunity-track" role="progressbar" aria-label="${t('ความคืบหน้า')}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${g.members.length/g.capacity*100}%"></span></div></div>
+      <p class="opportunity-leader">${icon('user',16)} ${t('หัวหน้ากลุ่ม')}: ${escape(name(g.ownerId).replace(/\s*\(หัวหน้ากลุ่ม\)$/,''))}</p>
+      <p class="opportunity-terms">${icon('check',16)} ${t('ยืนยันยอดก่อนสั่งซื้อ')} · ${escape(t(p.terms))}</p>
+      <div class="opportunity-actions">${a(destination,open&&!isMember?t('เข้าร่วมกลุ่ม'):t('ดูกลุ่ม'),`button ${open&&!isMember?'primary':'outline'}`)}${open?`<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t('คัดลอกลิงก์เชิญ')}">${icon('link',17)} ${t('ชวนเพื่อน')}</button>`:''}</div>
+    </div>
+  </article>`;
 }
 
 function home(){
-  const activeGroups = state.groups.filter(g => g.visibility === 'public' && g.members.length < g.capacity);
+  const activeGroups = state.groups.filter(g => g.visibility === 'public' && g.status !== 'cancelled' && !g.orderId && g.members.length < g.capacity);
   const categoriesList = [
     { name: 'ทั้งหมด', symbol: '✳', query: 'ทั้งหมด' },
     { name: 'เครื่องเขียน', symbol: '📄', query: 'เครื่องเขียน' },
@@ -378,12 +342,17 @@ function home(){
       </div>
     </section>
 
+    <section class="section home-open-groups">
+      <div class="section-header"><div><h2>${t('กลุ่มที่เข้าร่วมได้ตอนนี้')}</h2><p>${t('เห็นยอดหลังคุณเข้าร่วม จำนวนที่ว่าง และเงื่อนไขก่อนตัดสินใจ')}</p></div>${a('/explore',`${t('ดูกลุ่มทั้งหมด')} ${icon('arrow',16)}`,'text-link')}</div>
+      ${activeGroups.length?`<div class="group-grid">${activeGroups.slice(0,2).map(groupCard).join('')}</div>`:`<div class="empty"><h3>${t('ยังไม่มีกลุ่มที่เปิดรับ')}</h3>${a('/explore',t('สำรวจรายการ'),'button outline')}</div>`}
+    </section>
+
     <div class="flow-strip">
       <div class="flow-card">
         <span class="flow-badge">1</span>
         <div class="flow-card-copy">
-          <strong>${t("เลือกของที่ต้องการ")}</strong>
-          <p>${t("ค้นหาสินค้าหรือบริการราคายกลัง/แพ็กใหญ่เพื่อความคุ้มค่า")}</p>
+          <strong>${t('เลือกกลุ่มที่เปิดรับ')}</strong>
+          <p>${t('ดูสมาชิก ที่ว่าง และยอดที่ต้องจ่ายของแต่ละกลุ่ม')}</p>
         </div>
       </div>
       <div class="flow-card">
@@ -411,41 +380,15 @@ function home(){
       </div>
       <div class="categories">
         ${categoriesList.map(c => {
-          const count = c.name === 'ทั้งหมด' ? listings().length : listings().filter(l => l.category === c.name).length;
+          const count = c.name === 'ทั้งหมด' ? activeGroups.length : activeGroups.filter(g => listing(g.listingId)?.category === c.name).length;
           return a(`/explore?category=${encodeURIComponent(c.name)}`, `
             <div class="category-left">
               <span class="category-symbol">${c.symbol}</span>
               <span>${t(c.name)}</span>
             </div>
-            <span class="category-count">${t('{count} รายการ',{count})}</span>
+            <span class="category-count">${t('{count} กลุ่ม',{count})}</span>
           `, 'category');
         }).join('')}
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>${t("กลุ่มที่กำลังเปิดรับ")}</h2>
-          <p>${t("เห็นจำนวนสมาชิกและราคาจริงเมื่อหารครบ ไม่ต้องรอช้า")}</p>
-        </div>
-        ${a('/explore', `${t("ดูกลุ่มทั้งหมด")} ${icon('arrow', 16)}`, 'text-link')}
-      </div>
-      <div class="group-grid">
-        ${activeGroups.slice(0, 2).map(groupCard).join('')}
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-header">
-        <div>
-          <h2>${t("เลือกของก่อนเข้ากลุ่ม")}</h2>
-          <p>${t("เปิดดูรายละเอียดสินค้า รีวิว และสร้างกลุ่มใหม่ตามจำนวนคนที่ต้องการ")}</p>
-        </div>
-        ${a('/explore', `${t("สำรวจสินค้าทั้งหมด")} ${icon('arrow', 16)}`, 'text-link')}
-      </div>
-      <div class="listing-grid">
-        ${listings().slice(0, 3).map(listingCard).join('')}
       </div>
     </section>
 
@@ -468,32 +411,11 @@ function home(){
         </div>
         <div class="feature-card">
           <div class="feature-icon-box">${icon('trending', 26)}</div>
-          <h3>${t("ประหยัดสูงสุดถึง 60%")}</h3>
+          <h3>${t("เห็นยอดก่อนตัดสินใจ")}</h3>
           <p>${t("ซื้อของในราคาส่งหรือแพ็กคุ้มค่าร่วมกับผู้อื่น โดยไม่ต้องซื้อมาเก็บไว้คนเดียวเกินความจำเป็น")}</p>
         </div>
       </div>
     </section>
-
-    <div class="stats-section">
-      <div class="stats-grid">
-        <div class="stat-card">
-          <strong>฿1,250+</strong>
-          <span>${t("เฉลี่ยประหยัดต่อคน/เดือน")}</span>
-        </div>
-        <div class="stat-card">
-          <strong>100%</strong>
-          <span>${t("ความโปร่งใสในทุกกลุ่ม")}</span>
-        </div>
-        <div class="stat-card">
-          <strong>4.9 / 5</strong>
-          <span>${t("ความพึงพอใจของสมาชิก")}</span>
-        </div>
-        <div class="stat-card">
-          <strong>2 – 20</strong>
-          <span>${t("รองรับขนาดกลุ่มยืดหยุ่น")}</span>
-        </div>
-      </div>
-    </div>
 
     <section class="cta-section">
       <div class="cta-banner">
@@ -509,47 +431,85 @@ function home(){
     </section>
   `;
 }
-function explore(){const params=new URLSearchParams(location.search),q=params.get('q')||'',category=params.get('category')||'ทั้งหมด';const results=listings().filter(p=>(category==='ทั้งหมด'||p.category===category)&&(`${p.title} ${p.category} ${p.description}`).toLowerCase().includes(q.toLowerCase()));return `${title(t("สำรวจของที่หารได้"),t("ค้นหาสินค้าหรือบริการที่เหมาะกับกลุ่มของคุณ"))}<form class="search-bar" id="search-form"><span>${icon('search')}</span><input name="q" value="${escape(q)}" placeholder="${t("ค้นหาสินค้า บริการ หรือหมวดหมู่")}" aria-label="${t("ค้นหา")}"/><button type="submit">${t("ค้นหา")}</button></form><div class="filter-row">${['ทั้งหมด','เครื่องเขียน','ของใช้','งานพิมพ์'].map(x=>a('/explore?category='+encodeURIComponent(x)+(q?'&q='+encodeURIComponent(q):''),t(x),'filter '+(category===x?'active':''))).join('')}</div><div class="section-header"><h2>${t("ผลการค้นหา")} <small>${t('{count} รายการ',{count:results.length})}</small></h2>${a('/groups/create',`${icon('plus',18)} ${t("สร้างกลุ่ม")}`,'button secondary')}</div>${results.length?`<div class="listing-grid">${results.map(listingCard).join('')}</div>`:`<div class="empty"><h2>${t("ยังไม่พบรายการที่ตรงกัน")}</h2><p>${t("ลองใช้คำค้นอื่น หรือดูทุกหมวด")}</p>${a('/explore',t("ดูทั้งหมด"),'button secondary')}</div>`}`;}
-function productPage(id) {
-  const p=listing(id);
-  if(!p)return notFound();
-  const shop=seller(p.sellerId);
-  const gs=state.groups.filter(g=>g.listingId===id&&g.visibility==='public'&&g.status!=='cancelled');
-  return `<div class="product-page">
-    <nav class="breadcrumb product-breadcrumb" aria-label="${t('เส้นทางนำทาง')}">
-      ${a('/explore',t('สำรวจ'))}<span aria-hidden="true">/</span>
-      <span>${escape(t(p.category))}</span><span aria-hidden="true">/</span>
-      <span aria-current="page">${escape(t(p.title))}</span>
-    </nav>
-    <div class="product-layout">
-      <figure class="product-media">
-        <div class="product-image" role="img" aria-label="${escape(t(p.title))}">${art(p)}</div>
-        <figcaption>${t('ภาพประกอบสินค้าจำลอง')}</figcaption>
-      </figure>
-      <div class="product-info">
-        <h1>${escape(t(p.title))}</h1>
-        <div class="product-price">
-          <div><small>${t('ราคาสินค้ารวม')}</small><strong>${money(p.price)}</strong></div>
-          <p>${t('ยังไม่รวมค่าส่งที่แต่ละกลุ่มกำหนด')}</p>
-        </div>
-        <div class="product-actions">
-          ${a(`/groups/create?product=${p.id}`,`${icon('plus',19)} ${t('สร้างกลุ่มใหม่')}`,'button primary')}
-          ${a(`/chat/${p.sellerId}?product=${p.id}`,`${icon('chat',19)} ${t('ติดต่อผู้ขาย')}`,'button outline')}
-        </div>
-        <div class="product-tags"><span>${escape(t(p.category))}</span><span>${escape(t(p.kind))}</span></div>
-        <p class="product-description">${escape(t(p.description))}</p>
-        <div class="seller-line">${a(`/shops/${p.sellerId}`,`<span class="avatar">${escape(shop.initials)}</span><span><b>${escape(t(shop.name))}</b><small>${t('ดูโปรไฟล์ผู้ขาย')}</small></span>${icon('arrow',18)}`)}</div>
-        <div class="product-terms"><h2>${t('เงื่อนไขสินค้าและการรับของ')}</h2><p>${escape(t(p.terms))}</p></div>
-        <p class="product-demo-note">${t('ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง')}</p>
-      </div>
-    </div>
-    <section class="section product-groups">
-      <div class="section-header"><div><h2>${t('กลุ่มที่เปิดรับ')}</h2><p>${t('เลือกกลุ่มที่เหมาะกับจำนวนคนและค่าใช้จ่าย')}</p></div></div>
-      ${gs.length?`<div class="group-grid">${gs.map(groupCard).join('')}</div>`:`<div class="empty"><h3>${t('ยังไม่มีกลุ่มสาธารณะ')}</h3><p>${t('เริ่มกลุ่มใหม่สำหรับสินค้านี้ได้เลย')}</p>${a(`/groups/create?product=${p.id}`,t('สร้างกลุ่ม'),'button primary')}</div>`}
+function explore(){
+  const params=new URLSearchParams(location.search),q=(params.get('q')||'').trim(),category=params.get('category')||'ทั้งหมด';
+  const matches=p=>(category==='ทั้งหมด'||p.category===category)&&(`${p.title} ${p.category} ${p.description}`).toLowerCase().includes(q.toLowerCase());
+  const openGroups=state.groups.filter(g=>{const p=listing(g.listingId);return p&&g.visibility==='public'&&g.status!=='cancelled'&&!g.orderId&&g.members.length<g.capacity&&(matches(p)||((category==='ทั้งหมด'||p.category===category)&&g.name.toLowerCase().includes(q.toLowerCase())));});
+  return `<div class="explore-page">
+    ${title(t('เข้ากลุ่มที่ใช่ จ่ายในราคาที่ชัดเจน'),t('ดูราคาหลังคุณเข้าร่วม จำนวนที่ว่าง และเงื่อนไขก่อนตัดสินใจ'))}
+    <form class="search-bar" id="search-form"><span>${icon('search')}</span><input type="hidden" name="category" value="${escape(category)}"/><input name="q" value="${escape(q)}" placeholder="${t('ค้นหาสินค้าหรือชื่อกลุ่ม')}" aria-label="${t('ค้นหา')}"/><button type="submit">${t('ค้นหากลุ่ม')}</button></form>
+    <nav class="filter-row" aria-label="${t('หมวดหมู่')}">${['ทั้งหมด','เครื่องเขียน','ของใช้','งานพิมพ์'].map(x=>a('/explore?category='+encodeURIComponent(x)+(q?'&q='+encodeURIComponent(q):''),t(x),'filter '+(category===x?'active':''))).join('')}</nav>
+    <section aria-labelledby="open-groups-heading"><div class="section-header"><div><h2 id="open-groups-heading">${t('กลุ่มที่เข้าร่วมได้')} <small>${t('{count} กลุ่ม',{count:openGroups.length})}</small></h2><p>${t('ยอดเป็นประมาณการก่อนเข้าร่วม และจะคำนวณใหม่เมื่อจำนวนสมาชิกเปลี่ยน')}</p></div></div>
+      ${openGroups.length?`<div class="group-grid">${openGroups.map(groupCard).join('')}</div>`:`<div class="empty"><h3>${t('ยังไม่มีกลุ่มที่เปิดรับ')}</h3><p>${t('ลองค้นหาชื่อกลุ่มหรือหมวดอื่น')}</p>${a('/explore',t('ดูทั้งหมด'),'button outline')}</div>`}
     </section>
   </div>`;
 }
-function groupPage(id){const g=group(id);if(!g)return notFound();const p=listing(g.listingId),sum=totalCost(g.costs),alloc=shares(g),me=state.user?.id,isMember=g.members.includes(me),isOwner=g.ownerId===me,locked=!!g.orderId,full=g.members.length===g.capacity,approved=g.approvals[me]===g.revision;return `<div class="breadcrumb">${a(`/products/${p.id}`,escape(p.title))} / ${t("รายละเอียดกลุ่ม")}</div><div class="group-detail"><div>${title(escape(g.name),escape(p.title))}<div class="detail-tags"><span class="chip">${g.visibility==='link'?t("เฉพาะผู้มีลิงก์"):t("กลุ่มสาธารณะ")}</span><span class="status ${g.status}">${g.status==='ready'?t("พร้อมสรุปคำสั่งซื้อ"):t("รอยืนยันยอด")}</span></div>${gallery(g.images)}<div class="members-card"><div class="section-header"><h2>${t('สมาชิก {count} / {capacity} คน',{count:g.members.length,capacity:g.capacity})}</h2><b>${t('ว่าง {count} ที่',{count:g.capacity-g.members.length})}</b></div><div class="progress"><span style="width:${g.members.length/g.capacity*100}%"></span></div><div class="member-list">${g.members.map(id=>`<div><span class="avatar small">${escape(name(id).slice(0,1))}</span><span>${escape(name(id))}${id===g.ownerId?t(" · หัวหน้ากลุ่ม"):''}</span><strong>${money(alloc[id])}</strong><small>${g.approvals[id]===g.revision?t("ยืนยันแล้ว"):t("รอยืนยัน")}</small></div>`).join('')}</div></div><div class="cost-card"><h2>${t('ค่าใช้จ่ายรอบที่ {revision}',{revision:g.revision})}</h2><div><span>${t("ราคาสินค้า")}</span><b>${money(g.costs.product)}</b></div><div><span>${t("ค่าส่ง")}</span><b>${money(g.costs.delivery)}</b></div><div><span>${t("ค่าบริการ")}</span><b>${money(g.costs.service)}</b></div><div class="total"><span>${t("รวมทั้งหมด")}</span><b>${money(sum)}</b></div><p>${t("หารตามจำนวนสมาชิกปัจจุบัน เศษสตางค์จัดสรรตามลำดับที่เข้ากลุ่ม")}</p></div><div class="activity"><h2>${t("ประวัติการเปลี่ยนยอด")}</h2>${g.history.slice().reverse().map(h=>`<p>${t('รอบ {revision}',{revision:h.revision})} · ${escape(h.reason)}</p>`).join('')}</div></div><aside><div class="summary-card sticky"><small>${isMember?t("ยอดที่คุณต้องยืนยัน"):t("ยอดประมาณเมื่อเข้าร่วม")}</small><strong>${money(isMember?alloc[me]:Math.ceil(sum/(g.members.length+1)))}</strong><p>${isMember?t('ยอดรอบที่ {revision}',{revision:g.revision})+(approved?t(" · คุณยืนยันแล้ว"):t(" · กรุณาตรวจสอบก่อนยืนยัน")):t("ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง")}</p>${!isMember&&!full&&!locked?a(`/groups/${id}/join`,t("เข้าร่วมกลุ่ม"),'button primary full'):''}${isMember&&!approved&&!locked?`<button class="button primary full" data-action="approve" data-id="${id}" data-revision="${g.revision}">${t('ยืนยันยอด {amount}',{amount:money(alloc[me])})}</button>`:''}${isMember&&approved?`<div class="success-line">${icon('check',18)} ${t("คุณยืนยันยอดรอบนี้แล้ว")}</div>`:''}${isMember&&!isOwner&&!locked?`<button class="button outline full" data-action="leave" data-id="${id}">${t("ออกจากกลุ่ม")}</button>`:''}${isOwner&&!locked?`<button class="button outline full" data-action="edit-costs" data-id="${id}">${t("แก้ไขค่าใช้จ่าย")}</button><button class="button outline full" data-action="transfer" data-id="${id}">${t("โอนหัวหน้ากลุ่ม")}</button>`:''}${g.visibility==='link'?`<button class="button outline full" data-action="copy-link" data-id="${id}">${icon('link',18)} ${t("คัดลอกลิงก์เชิญ")}</button>`:''}${locked?`<p class="info-box">${t("กลุ่มถูกล็อกตามยอดคำสั่งซื้อเดโมแล้ว")}</p>`:""}${a(`/orders/${id}`,t("ดูสรุปคำสั่งซื้อเดโม"),'button subtle full')}${!full?`<p class="warning">${t("ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน")}</p>`:!allApproved(g)?`<p class="warning">${t("รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด")}</p>`:''}</div></aside></div>`;}
+function legacyProductRoute(id) {
+  if(!listing(id))return notFound();
+  const groups=state.groups.filter(g=>g.listingId===id&&g.status!=='cancelled'&&(g.visibility==='public'||g.members.includes(state.user?.id)));
+  const target=groups.find(g=>!g.orderId&&g.members.length<g.capacity)||groups[0];
+  if(target){history.replaceState({},'',`/groups/${target.id}`);return groupPage(target.id);}
+  return `<div class="empty"><h1>${t('ยังไม่มีกลุ่มสำหรับรายการนี้')}</h1><p>${t('เลือกกลุ่มที่เปิดรับอยู่จากหน้าสำรวจได้เลย')}</p>${a('/explore',t('สำรวจกลุ่ม'),'button primary')}</div>`;
+}
+function groupPage(id) {
+  const g = group(id);
+  if (!g) return notFound();
+  const p = listing(g.listingId);
+  if (!p) return notFound();
+  const sum = totalCost(g.costs);
+  const alloc = shares(g);
+  const me = state.user?.id;
+  const isMember = g.members.includes(me);
+  const isOwner = g.ownerId === me;
+  const locked = !!g.orderId;
+  const full = g.members.length === g.capacity;
+  const approved = g.approvals[me] === g.revision;
+  const remaining = g.capacity - g.members.length;
+  const estimate = Math.ceil(sum / (g.members.length + (isMember || full ? 0 : 1)));
+  const fullEstimate = Math.ceil(sum / g.capacity);
+  const status = locked ? t('ปิดรับสมาชิก') : full ? (allApproved(g) ? t('พร้อมสรุปคำสั่งซื้อ') : t('รอยืนยันยอด')) : t('กำลังเปิดรับสมาชิก');
+  const actions = `
+    ${!isMember && !full && !locked ? a(`/groups/${id}/join`, t('เข้าร่วมกลุ่ม'), 'button primary full') : ''}
+    ${isMember && !approved && !locked ? `<button class="button primary full" data-action="approve" data-id="${id}" data-revision="${g.revision}">${t('ยืนยันยอด {amount}', {amount: money(alloc[me])})}</button>` : ''}
+    ${isMember && approved ? `<div class="success-line">${icon('check', 18)} ${t('คุณยืนยันยอดรอบนี้แล้ว')}</div>` : ''}
+    ${isMember && !isOwner && !locked ? `<button class="button outline full" data-action="leave" data-id="${id}">${t('ออกจากกลุ่ม')}</button>` : ''}
+    ${isOwner && !locked ? `<button class="button outline full" data-action="edit-costs" data-id="${id}">${t('แก้ไขค่าใช้จ่าย')}</button><button class="button outline full" data-action="transfer" data-id="${id}">${t('โอนหัวหน้ากลุ่ม')}</button>` : ''}
+    ${g.visibility === 'link' ? `<button class="button outline full" data-action="copy-link" data-id="${id}">${icon('link', 18)} ${t('คัดลอกลิงก์เชิญ')}</button>` : ''}
+    ${locked ? `<p class="info-box">${t('กลุ่มถูกล็อกตามยอดคำสั่งซื้อเดโมแล้ว')}</p>` : ''}
+    ${isMember ? a(`/orders/${id}`, t('ดูสรุปคำสั่งซื้อเดโม'), 'button subtle full') : ''}
+  `;
+  return `<div class="group-page">
+    <nav class="breadcrumb product-breadcrumb" aria-label="${t('เส้นทางนำทาง')}">
+      ${a('/explore', t('สำรวจ'))}<span aria-hidden="true">/</span>
+      <span aria-current="page">${escape(g.name)}</span>
+    </nav>
+    <div class="group-detail">
+      <main class="group-detail-main">
+        <section class="group-identity-card" aria-labelledby="group-title">
+          <div class="group-heading-line"><div><h1 id="group-title">${escape(g.name)}</h1><p>${t('กลุ่มสำหรับ')} ${escape(t(p.title))}</p></div><span class="group-state ${full ? 'is-full' : 'is-open'}">${status}</span></div>
+          <div class="group-product-strip">
+            <div class="group-product-art" role="img" aria-label="${escape(t(p.title))}">${art(p)}</div>
+            <div class="group-product-copy"><span>${t('สินค้าในกลุ่ม')}</span><strong>${escape(t(p.title))}</strong><small>${escape(t(p.description))}</small></div>
+            <div class="group-product-price"><span>${t('ราคาสินค้า')}</span><strong>${money(g.costs.product)}</strong></div>
+          </div>
+          <div class="group-identity-footer"><span class="chip">${g.visibility === 'link' ? t('เฉพาะผู้มีลิงก์') : t('กลุ่มสาธารณะ')}</span>${g.images?.length ? gallery(g.images) : ''}</div>
+        </section>
+        <section class="members-card group-members-card" aria-labelledby="members-heading">
+          <div class="group-section-head"><div><h2 id="members-heading">${t('สมาชิก {count} / {capacity} คน', {count: g.members.length, capacity: g.capacity})}</h2><p>${status}</p></div><strong>${remaining ? t('ว่าง {count} ที่', {count: remaining}) : t('สมาชิกครบแล้ว')}</strong></div>
+          <div class="progress" role="progressbar" aria-label="${t('ความคืบหน้า')}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${g.members.length / g.capacity * 100}%"></span></div>
+          <div class="group-member-list">${g.members.map(memberId => `<div class="group-member-row"><span class="avatar small">${escape(name(memberId).slice(0, 1))}</span><div class="group-member-name"><strong>${escape(name(memberId))}</strong>${memberId === g.ownerId && !name(memberId).includes('หัวหน้ากลุ่ม') ? `<small>${t('หัวหน้ากลุ่ม')}</small>` : ''}</div><span class="member-approval ${g.approvals[memberId] === g.revision ? 'approved' : ''}">${g.approvals[memberId] === g.revision ? t('ยืนยันแล้ว') : t('รอยืนยัน')}</span><b>${money(alloc[memberId])}</b></div>`).join('')}
+            ${remaining ? `<div class="group-open-row"><span class="avatar small">${icon('plus', 18)}</span><div><strong>${t('ยังว่างอีก {count} ที่', {count: remaining})}</strong><small>${t('รอสมาชิกเข้าร่วม')}</small></div>${!isMember && !locked ? a(`/groups/${id}/join`, t('เข้าร่วมกลุ่ม'), 'button outline') : ''}</div>` : ''}
+          </div>
+        </section>
+        <section class="cost-card group-cost-card" aria-labelledby="cost-heading"><h2 id="cost-heading">${t('ค่าใช้จ่ายรอบที่ {revision}', {revision: g.revision})}</h2><div><span>${t('ราคาสินค้า')}</span><b>${money(g.costs.product)}</b></div><div><span>${t('ค่าส่ง')}</span><b>${money(g.costs.delivery)}</b></div><div><span>${t('ค่าบริการ')}</span><b>${money(g.costs.service)}</b></div><div class="total"><span>${t('รวมทั้งหมด')}</span><b>${money(sum)}</b></div><p>${t('หารตามจำนวนสมาชิกปัจจุบัน เศษสตางค์จัดสรรตามลำดับที่เข้ากลุ่ม')}</p></section>
+        <details class="group-history"><summary>${t('ประวัติการเปลี่ยนยอด')}</summary>${g.history.slice().reverse().map(h => `<p>${t('รอบ {revision}', {revision: h.revision})} · ${escape(h.reason)}</p>`).join('')}</details>
+      </main>
+      <aside class="group-detail-aside"><div class="summary-card sticky"><small>${isMember ? t('ยอดที่คุณต้องยืนยัน') : full || locked ? t('ประมาณต่อคนปัจจุบัน') : t('ยอดประมาณเมื่อเข้าร่วม')}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full?`<div class="summary-future-price"><span>${t('เมื่อครบ {count} คน',{count:g.capacity})}</span><b>${money(fullEstimate)} ${t('/คน')}</b></div>`:''}<p>${isMember ? t('ยอดรอบที่ {revision}', {revision: g.revision}) + (approved ? t(' · คุณยืนยันแล้ว') : t(' · กรุณาตรวจสอบก่อนยืนยัน')) : full || locked ? t('กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่') : t('ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง')}</p>${actions}${!full ? `<p class="warning">${t('ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน')}</p>` : !allApproved(g) ? `<p class="warning">${t('รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด')}</p>` : ''}</div>
+      <section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t('รายละเอียดสินค้า')}</h2><p>${escape(t(p.description))}</p><p>${escape(t(p.terms))}</p>${a(`/shops/${p.sellerId}`, escape(t(seller(p.sellerId).name)))}${a(`/chat/${p.sellerId}?product=${p.id}`, `${icon('chat', 18)} ${t('ติดต่อผู้ขาย')}`, 'button outline full')}<small>${t('ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง')}</small></section>
+      </aside>
+    </div>
+  </div>`;
+}
 function joinPage(id){const g=group(id);if(!g)return notFound();if(!requireAuth(`/groups/${id}/join`))return authRequiredView(t("ยืนยันการเข้าร่วมกลุ่ม"),t("เข้าสู่ระบบก่อนเพื่อเข้าร่วมกลุ่มและยืนยันยอด"));if(g.members.includes(state.user.id))return `<div class="empty"><h1>${t("คุณอยู่ในกลุ่มนี้แล้ว")}</h1>${a(`/groups/${id}`,t("ดูกลุ่ม"),'button primary')}</div>`;if(g.members.length>=g.capacity)return `<div class="empty"><h1>${t("กลุ่มนี้เต็มแล้ว")}</h1>${a(`/groups/${id}`,t("ดูกลุ่ม"),'button secondary')}</div>`;const p=listing(g.listingId),estimate=Math.ceil(totalCost(g.costs)/(g.members.length+1));return `${title(t("ยืนยันการเข้าร่วม"),escape(g.name))}<div class="narrow"><div class="cost-card"><h2>${escape(p.title)}</h2><div><span>${t("ราคาสินค้า")}</span><b>${money(g.costs.product)}</b></div><div><span>${t("ค่าส่ง")}</span><b>${money(g.costs.delivery)}</b></div><div><span>${t("ค่าบริการ")}</span><b>${money(g.costs.service)}</b></div><div class="total"><span>${t("ยอดประมาณของคุณ")}</span><b>${money(estimate)}</b></div></div><div class="info-box">${t("เมื่อเข้าร่วม ระบบจะคำนวณยอดใหม่และให้สมาชิกทุกคน รวมถึงคุณ ยืนยันยอดรอบใหม่อีกครั้ง ยังไม่มีการเก็บเงินจริง")}</div><button class="button primary full" data-action="join" data-id="${id}">${t("ยืนยันเข้าร่วมกลุ่ม")}</button>${a(`/groups/${id}`,t("กลับไปดูกลุ่ม"),'button outline full')}</div>`;}
 function createPage(){if(!requireAuth(location.pathname+location.search))return authRequiredView(t("สร้างกลุ่มหารใหม่"),t("กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน"));const params=new URLSearchParams(location.search),selected=params.get('product')||listings()[0].id;return `${title(t("สร้างกลุ่มหารใหม่"),t("กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน"))}<form class="form-panel" id="create-form"><section class="image-editor"><h2>${t('รูปกลุ่ม')}</h2><p>${t('เพิ่มได้สูงสุด 4 รูป · JPG, PNG, WebP ไม่เกิน 5 MB ต่อรูป · เก็บในเครื่อง')}</p><label class="image-upload">${icon('plus',20)} ${t('เพิ่มรูป')}<input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></section><label>${t("สินค้า / บริการ")}<select name="listingId" required>${listings().map(p=>`<option value="${p.id}" ${p.id===selected?'selected':''}>${escape(p.title)}</option>`).join('')}</select></label><label>${t("ชื่อกลุ่ม")}<input name="name" maxlength="70" required placeholder="${t("เช่น ทีมอ่านสอบปลายเทอม")}"/></label><div class="form-grid"><label>${t("จำนวนสมาชิกสูงสุด")}<input name="capacity" type="number" min="2" max="20" value="4" required/></label><label>${t("การมองเห็น")}<select name="visibility"><option value="public">${t("กลุ่มสาธารณะ")}</option><option value="link">${t("เฉพาะผู้มีลิงก์")}</option></select></label></div><div class="form-grid"><label>${t("ราคาสินค้า (บาท)")}<input name="product" inputmode="decimal" value="${bahtInput(listing(selected)?.price||0)}" required/></label><label>${t("ค่าส่ง (บาท)")}<input name="delivery" inputmode="decimal" value="0" required/></label></div><label>${t("ค่าบริการ (บาท)")}<input name="service" inputmode="decimal" value="0" required/></label><div class="info-box">${t("ค่าบริการเริ่มต้น 0 บาท กลุ่มเฉพาะลิงก์จะไม่ปรากฏในการค้นหาสาธารณะ")}</div><div id="create-preview" class="preview-cost"></div><button class="button primary full" type="submit">${t("สร้างกลุ่ม")}</button></form>`;}
 function authPage(register=false){
@@ -561,10 +521,60 @@ function myGroups(){if(!requireAuth('/my-groups'))return authRequiredView(t("ก
 function chatList(){if(!requireAuth('/chat'))return authRequiredView(t("แชตกับผู้ขาย"),t("เข้าสู่ระบบเพื่อดูประวัติการสนทนาและติดต่อร้านค้า"));const ids=Object.keys(state.conversations);return `${title(t("แชตกับผู้ขาย"),t("ข้อความทั้งหมดเป็นการจำลองในเบราว์เซอร์นี้"))}<div class="narrow">${ids.length?ids.map(id=>{const s=seller(id),msgs=state.conversations[id];return a(`/chat/${id}`,`<span class="avatar">${escape(s.initials)}</span><span><b>${escape(s.name)}</b><small>${escape(msgs.at(-1)?.body||t("เริ่มต้นสนทนา"))}</small></span>${icon('arrow',18)}`,'conversation-row')}).join(''):`<div class="empty"><h2>${t("ยังไม่มีการสนทนา")}</h2><p>${t("เปิดสินค้าที่สนใจแล้วเลือกติดต่อผู้ขาย")}</p>${a('/explore',t("ดูสินค้า"),'button primary')}</div>`}</div>`;}
 function chatPage(id){if(!requireAuth(location.pathname+location.search))return authRequiredView(t("แชตกับผู้ขาย"),t("เข้าสู่ระบบเพื่อเริ่มต้นการสนทนากับร้านค้านี้"));const s=seller(id),msgs=state.conversations[id]||[],product=new URLSearchParams(location.search).get('product');return `<div class="chat-shell"><div class="chat-head">${a('/chat',icon('back',20))}<span class="avatar">${escape(s.initials)}</span><div><h1>${escape(s.name)}</h1><small>${t("แชตจำลอง · ไม่ส่งถึงผู้ขายจริง")}</small></div></div>${product?`<div class="chat-product">${t("กำลังสอบถามเรื่อง")} ${a(`/products/${product}`,escape(listing(product)?.title||t('สินค้า')))}</div>`:''}<div class="messages">${msgs.length?msgs.map(m=>`<div class="bubble ${m.from==='me'?'mine':'theirs'}">${escape(m.body)}</div>`).join(''):`<div class="chat-empty">${t("เริ่มคุยเรื่องสินค้า เงื่อนไขรับของ หรือค่าส่งได้ที่นี่")}</div>`}</div><form id="chat-form" data-id="${id}" class="chat-input"><input name="body" maxlength="500" required placeholder="${t("พิมพ์ข้อความเดโม...")}" aria-label="${t("ข้อความ")}"/><button class="button primary" type="submit">${t("ส่ง")}</button></form></div>`;}
 function notifications(){if(!requireAuth('/notifications'))return authRequiredView(t("การแจ้งเตือน"),t("เข้าสู่ระบบเพื่อดูการแจ้งเตือนกิจกรรมและยอดสมาชิก"));const notes=state.notifications.filter(n=>n.recipient===state.user.id);return `${title(t("การแจ้งเตือน"),t("เหตุการณ์ในกลุ่มและข้อความจำลองของคุณ"))}<div class="narrow">${notes.length?notes.map(n=>`<button class="notification ${n.read?'':'unread'}" data-action="open-notice" data-id="${n.id}"><span class="notice-dot"></span><span><b>${escape(n.title)}</b><small>${escape(n.body)}</small></span>${icon('arrow',18)}</button>`).join(''):`<div class="empty"><h2>${t("ยังไม่มีการแจ้งเตือน")}</h2><p>${t("เมื่อมีสมาชิกหรือยอดเปลี่ยน รายการจะปรากฏที่นี่")}</p>${a('/explore',t("สำรวจสินค้า"),'button secondary')}</div>`}</div>`;}
-function profile(){if(!requireAuth('/profile'))return authRequiredView(t("บัญชีของฉัน"),t("เข้าสู่ระบบหรือลงทะเบียนเพื่อจัดการข้อมูลส่วนตัว"));const sellerRole=state.user?.role==='seller';return `${title(t("บัญชีของฉัน"),t("จัดการบทบาทและทดลองใช้งานหลายบัญชี"))}<div class="profile-grid"><div class="form-panel"><div class="profile-main"><span class="avatar large">${isLocalImage(state.user.avatar)?`<img src="${state.user.avatar}" alt=""/>`:escape(state.user.name.slice(0,1))}</span><div><h2>${escape(state.user.name)}</h2><p>${sellerRole?t("บัญชีผู้ขายเดโม"):t("สมาชิกเดโม")}</p></div></div>${state.user.bio?`<p class="user-content">${escape(state.user.bio)}</p>`:''}<button class="button outline" data-action="edit-profile">${t('แก้ไขโปรไฟล์')}</button><div class="info-box">${t("บัญชีนี้เป็นตัวจำลอง ไม่มีระบบยืนยันตัวตนหรือข้อมูลส่วนตัวบนเซิร์ฟเวอร์")}</div><h3>${t("สลับบัญชีทดสอบ")}</h3><p>${t("ใช้ทดสอบการยืนยันยอดของสมาชิกแต่ละคน")}</p><div class="account-switch">${Object.entries(demoNames).map(([id,n])=>`<button data-action="switch-user" data-id="${id}" class="button outline">${escape(n)}</button>`).join('')}<button data-action="switch-user" data-id="demo-seller" class="button outline">${t("ผู้ขายเดโม")} · ${escape(seller("s1").name)}</button><button data-action="switch-user" data-id="demo-seller-s2" class="button outline">${t("ผู้ขายเดโม")} · ${escape(seller("s2").name)}</button></div><button class="button subtle" data-action="logout">${t("ออกจากระบบเดโม")}</button><button class="button subtle" data-action="reset-demo">${t("เริ่มข้อมูลเดโมใหม่")}</button></div><div class="form-panel"><h2>${t("ทางลัด")}</h2>${a('/my-groups',t("กลุ่มของฉัน"),'profile-link')}${a('/notifications',t("การแจ้งเตือน"),'profile-link')}${sellerRole?a('/seller/dashboard',t("แดชบอร์ดผู้ขาย"),'profile-link'):''}${a('/explore',t("สำรวจสินค้า"),'profile-link')}</div></div>${profileDialog()}`;}
-function shopPage(id){const s=seller(id),ps=listings().filter(p=>p.sellerId===id);return `<div class="shop-banner"><span class="avatar large">${escape(s.initials)}</span><div><h1>${escape(s.name)}</h1><p>${escape(s.intro)}</p></div></div><div class="section-header"><h2>${t("สินค้าจากร้านนี้")}</h2>${a(`/chat/${id}`,`${icon('chat',18)} ${t("ติดต่อผู้ขาย")}`,'button secondary')}</div><div class="listing-grid">${ps.map(listingCard).join('')}</div>`;}
-function sellerDashboard(){if(!requireAuth('/seller/dashboard'))return authRequiredView(t("แดชบอร์ดผู้ขาย"),t("เข้าสู่ระบบด้วยบัญชีผู้ขายเดโมเพื่อจัดการรายการ"));if(state.user.role!=='seller')return `<div class="empty"><h1>${t("สำหรับผู้ขายเดโม")}</h1><p>${t("เข้าสู่ระบบด้วยบัญชี “ผู้ขายเดโม” เพื่อจัดการรายการ")}</p>${a('/profile',t("สลับบัญชี"),'button primary')}</div>`;return `${title(t("แดชบอร์ดผู้ขาย"),t("จัดการรายการและดูคำถามในโหมดจำลอง"))}<div class="dashboard-actions">${a('/seller/products/new',`${icon('plus',18)} ${t("เพิ่มสินค้า")}`,'button primary')}${a('/chat',t("ดูข้อความ"),'button secondary')}</div><div class="listing-grid">${listings().filter(p=>p.sellerId===sellerIdFor(state.user)).map(listingCard).join('')}</div>${sellerOrders()}`;}
-function newProduct(){if(!requireAuth('/seller/products/new'))return authRequiredView(t("เพิ่มสินค้าใหม่"),t("เข้าสู่ระบบด้วยบัญชีผู้ขายเพื่อลงรายการสินค้าใหม่"));if(state.user.role!=='seller')return sellerDashboard();return `${title(t("เพิ่มสินค้าเดโม"),t("ข้อมูลจะบันทึกเฉพาะเบราว์เซอร์นี้"))}<form class="form-panel" id="product-form"><label>${t("ชื่อสินค้า")}<input name="title" required maxlength="90"/></label><div class="form-grid"><label>${t("หมวดหมู่")}<select name="category"><option value="เครื่องเขียน">${t("เครื่องเขียน")}</option><option value="ของใช้">${t("ของใช้")}</option><option value="งานพิมพ์">${t("งานพิมพ์")}</option></select></label><label>${t("ราคาสินค้า (บาท)")}<input name="price" required inputmode="decimal"/></label></div><label>${t("รายละเอียด")}<textarea name="description" required maxlength="500"></textarea></label><label>${t("เงื่อนไขการรับของ")}<textarea name="terms" required maxlength="500"></textarea></label><div class="info-box">${t("ระบบเดโมไม่มีการอัปโหลดรูปหรือเผยแพร่สินค้าออนไลน์")}</div><button class="button primary full" type="submit">${t("บันทึกรายการเดโม")}</button></form>`;}
+function accountOrderRow(o) {
+  const p = listing(o.listingId);
+  const payment = o.payments[state.user.id];
+  const canReport = orderPermissions(o, state.user).reportPayment;
+  return `<article class="account-order-row">
+    <div class="account-order-art" role="img" aria-label="${escape(t(p?.title || t('รายการสินค้า')))}">${p ? art(p) : icon('calc', 23)}</div>
+    <div class="account-order-info"><strong>${escape(t(p?.title || t('รายการสินค้า')))}</strong><small>${t('กลุ่ม')}: ${escape(group(o.groupId)?.name || o.groupId)}</small><span>${paymentStatus(payment.status)} · ${orderStatus(o.status)}</span></div>
+    <div class="account-order-action"><strong>${money(payment.amountSatang)}</strong>${a(`/orders/${o.groupId}`, canReport ? t('แจ้งชำระเดโม') : t('ดูรายละเอียด'), `button ${canReport ? 'primary' : 'subtle'}`)}</div>
+  </article>`;
+}
+function myOrdersPage() {
+  if (!requireAuth('/my-orders')) return authRequiredView(t('คำสั่งซื้อของฉัน'), t('เข้าสู่ระบบเพื่อดูคำสั่งซื้อเดโมของคุณ'));
+  const orders = state.orders.filter(o => o && typeof o === 'object' && o.members?.includes(state.user.id) && o.payments?.[state.user.id]).sort((a, b) => Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0));
+  return `<div class="account-page account-orders-page">${title(t('คำสั่งซื้อของฉัน'), t('รายการและสถานะการชำระเงินในโหมดเดโม'))}<section class="account-card"><div class="account-card-heading"><h2>${t('รายการทั้งหมด')}</h2>${a('/profile', t('กลับไปบัญชีของฉัน'), 'button subtle')}</div>${orders.length ? orders.map(accountOrderRow).join('') : `<div class="account-empty"><span>${icon('calc', 26)}</span><strong>${t('ยังไม่มีคำสั่งซื้อเดโม')}</strong><p>${t('เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่')}</p>${a('/my-groups', t('ดูกลุ่มของฉัน'), 'button outline')}</div>`}</section></div>`;
+}
+function profile() {
+  if (!requireAuth('/profile')) return authRequiredView(t('บัญชีของฉัน'), t('เข้าสู่ระบบหรือลงทะเบียนเพื่อจัดการข้อมูลส่วนตัว'));
+  const sellerRole = state.user.role === 'seller';
+  const mine = state.groups.filter(g => g.members.includes(state.user.id));
+  const orders = state.orders.filter(o => o && typeof o === 'object' && o.members?.includes(state.user.id) && o.payments?.[state.user.id]).sort((a, b) => Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0));
+  const unpaid = orders.filter(o => o.status === 'pending_payment' && o.payments?.[state.user.id]?.status === 'unpaid');
+  const reported = orders.filter(o => ['payment_reported', 'verification_pending'].includes(o.payments?.[state.user.id]?.status));
+  const verified = orders.filter(o => o.payments?.[state.user.id]?.status === 'verified');
+  const sumPayments = entries => entries.reduce((sum, o) => sum + (o.payments[state.user.id]?.amountSatang || 0), 0);
+  const unpaidAmount = sumPayments(unpaid);
+  const verifiedAmount = sumPayments(verified);
+  const avatar = isLocalImage(state.user.avatar) ? `<img src="${state.user.avatar}" alt=""/>` : escape(state.user.name.slice(0, 1));
+  const stat = (iconName, label, value, sub, tone) => `<div class="account-stat"><span class="account-stat-icon ${tone}">${icon(iconName, 22)}</span><div><small>${label}</small><strong>${value}</strong><span>${sub}</span></div></div>`;
+  const shortcut = (href, iconName, label, sub, tone) => a(href, `<span class="account-shortcut-icon ${tone}">${icon(iconName, 21)}</span><span><strong>${label}</strong><small>${sub}</small></span>${icon('arrow', 18)}`, 'account-shortcut');
+  return `<div class="account-page">
+    ${title(t('บัญชีของฉัน'), t('จัดการบทบาทและทดลองใช้งานหลายบัญชี'))}
+    <div class="account-layout">
+      <div class="account-main">
+        <section class="account-card account-overview" aria-labelledby="account-name">
+          <div class="account-profile-line"><span class="avatar large">${avatar}</span><div><h2 id="account-name">${escape(state.user.name)}</h2><p>${sellerRole ? t('บัญชีผู้ขายเดโม') : t('สมาชิกเดโม')}</p><span class="account-demo-chip">${t('บัญชีจำลอง · เก็บข้อมูลในเบราว์เซอร์นี้')}</span></div><button class="button outline" data-action="edit-profile">${icon('user', 17)} ${t('ตั้งค่าบัญชี')}</button></div>
+          ${state.user.bio ? `<p class="account-bio user-content">${escape(state.user.bio)}</p>` : ''}
+          <div class="account-demo-note">${icon('shield', 21)}<div><strong>${t('บัญชีนี้เป็นตัวจำลอง')}</strong><p>${t('ไม่มีการยืนยันตัวตนจริง ข้อมูลเดโมบันทึกในเบราว์เซอร์นี้เท่านั้น')}</p></div></div>
+          <div class="account-stats">
+            ${stat('users', t('กลุ่มที่เข้าร่วม'), mine.length, t('กลุ่ม'), 'blue')}
+            ${stat('calc', t('คำสั่งซื้อเดโม'), orders.length, t('รายการ'), 'mint')}
+            ${stat('calc', t('ยอดรอแจ้งชำระ'), money(unpaidAmount), t('เดโมเท่านั้น'), 'violet')}
+            ${stat('check', t('ยอดยืนยันเดโมแล้ว'), money(verifiedAmount), t('เดโมเท่านั้น'), 'rose')}
+          </div>
+        </section>
+        <section class="account-card account-summary" aria-labelledby="account-summary-title"><div class="account-card-heading"><div><h2 id="account-summary-title">${t('สรุปยอดของฉัน')}</h2><p>${t('ภาพรวมคำสั่งซื้อเดโมจากทุกกลุ่ม')}</p></div>${a('/my-groups', t('ดูกลุ่มของฉัน'), 'button subtle')}</div><div class="account-summary-grid"><div class="account-summary-tile violet"><span>${t('รอแจ้งชำระ')}</span><strong>${money(unpaidAmount)}</strong><small>${t('{count} รายการ', {count: unpaid.length})}</small></div><div class="account-summary-tile mint"><span>${t('รอตรวจยอดเดโม')}</span><strong>${reported.length}</strong><small>${t('รายการ')}</small></div><div class="account-summary-tile blue"><span>${t('ยืนยันยอดเดโมแล้ว')}</span><strong>${money(verifiedAmount)}</strong><small>${t('{count} รายการ', {count: verified.length})}</small></div></div></section>
+        <details class="account-card account-test-tools"><summary>${t('เครื่องมือทดสอบบัญชี')}</summary><p>${t('ใช้ทดสอบการยืนยันยอดของสมาชิกแต่ละคน')}</p><div class="account-switch">${Object.entries(demoNames).map(([id, n]) => `<button data-action="switch-user" data-id="${id}" class="button outline">${escape(n)}</button>`).join('')}<button data-action="switch-user" data-id="demo-seller" class="button outline">${t('ผู้ขายเดโม')} · ${escape(seller('s1').name)}</button><button data-action="switch-user" data-id="demo-seller-s2" class="button outline">${t('ผู้ขายเดโม')} · ${escape(seller('s2').name)}</button></div><div class="account-test-actions"><button class="button subtle" data-action="logout">${t('ออกจากระบบเดโม')}</button><button class="button subtle" data-action="reset-demo">${t('เริ่มข้อมูลเดโมใหม่')}</button></div></details>
+      </div>
+      <aside class="account-aside">
+        <section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t('รายการคำสั่งซื้อเดโม')}</h2>${a('/my-orders', `${t('ดูทั้งหมด')} ${icon('arrow', 17)}`, 'account-all-link')}</div>${orders.length ? orders.slice(0, 3).map(accountOrderRow).join('') : `<div class="account-empty"><span>${icon('calc', 26)}</span><strong>${t('ยังไม่มีคำสั่งซื้อเดโม')}</strong><p>${t('เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่')}</p>${a('/my-groups', t('ดูกลุ่มของฉัน'), 'button outline')}</div>`}</section>
+        <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t('ทางลัด')}</h2><div class="account-shortcut-grid">${shortcut('/my-groups', 'users', t('กลุ่มของฉัน'), t('ดูและจัดการกลุ่มที่เข้าร่วม'), 'blue')}${shortcut('/notifications', 'bell', t('การแจ้งเตือน'), t('อัปเดตยอดและกิจกรรม'), 'amber')}${shortcut('/explore', 'search', t('สำรวจสินค้า'), t('ค้นหาสินค้าและเข้าร่วมกลุ่ม'), 'violet')}${sellerRole ? shortcut('/seller/dashboard', 'calc', t('แดชบอร์ดผู้ขาย'), t('จัดการรายการของร้าน'), 'mint') : shortcut('/my-orders', 'check', t('รายการชำระเดโม'), t('ดูสถานะคำสั่งซื้อของฉัน'), 'mint')}</div></section>
+      </aside>
+    </div>${profileDialog()}
+  </div>`;
+}
 function sellerOrders(){
   const orders=state.orders.filter(o=>o&&typeof o==='object'&&orderPermissions(o,state.user).seller);
   return `<section class="activity seller-orders"><h2>${t('คำสั่งซื้อของร้าน')}</h2>${orders.length?orders.map(o=>a(`/orders/${o.groupId}`,`<b>${escape(group(o.groupId)?.name||o.id)}</b><span>${orderStatus(o.status)}</span>`,'profile-link')).join(''):`<p>${t('ยังไม่มีคำสั่งซื้อของร้าน')}</p>`}</section>`;
@@ -624,7 +634,7 @@ function orderPage(id){
     ${permissions?.reportPayment?paymentDialog(order):''}${a(`/groups/${id}`,t('กลับไปดูกลุ่ม'),'button outline full')}</div>`;
 }
 function notFound(){return `<div class="empty"><h1>${t("ไม่พบหน้านี้")}</h1><p>${t("ลิงก์อาจไม่ถูกต้องหรือรายการถูกลบ")}</p>${a('/',t("กลับหน้าแรก"),'button primary')}</div>`;}
-function route(){const path=decodeURIComponent(location.pathname);if(path==='/')return home();if(path==='/explore')return explore();if(/^\/products\/[^/]+$/.test(path))return productPage(path.split('/')[2]);if(/^\/groups\/[^/]+\/join$/.test(path))return joinPage(path.split('/')[2]);if(path==='/groups/create')return createPage();if(/^\/groups\/[^/]+$/.test(path))return groupPage(path.split('/')[2]);if(path==='/login')return authPage();if(path==='/register')return authPage(true);if(path==='/my-groups')return myGroups();if(path==='/chat')return chatList();if(/^\/chat\/[^/]+$/.test(path))return chatPage(path.split('/')[2]);if(path==='/notifications')return notifications();if(path==='/profile')return profile();if(/^\/shops\/[^/]+$/.test(path))return shopPage(path.split('/')[2]);if(path==='/seller/dashboard')return sellerDashboard();if(path==='/seller/products/new')return newProduct();if(/^\/orders\/[^/]+$/.test(path))return orderPage(path.split('/')[2]);return notFound();}
+function route(){const path=decodeURIComponent(location.pathname);if(path==='/')return home();if(path==='/explore')return explore();if(/^\/products\/[^/]+$/.test(path))return legacyProductRoute(path.split('/')[2]);if(/^\/groups\/[^/]+\/join$/.test(path))return joinPage(path.split('/')[2]);if(path==='/groups/create')return createPage();if(/^\/groups\/[^/]+$/.test(path))return groupPage(path.split('/')[2]);if(path==='/login')return authPage();if(path==='/register')return authPage(true);if(path==='/my-groups')return myGroups();if(path==='/my-orders')return myOrdersPage();if(path==='/chat')return chatList();if(/^\/chat\/[^/]+$/.test(path))return chatPage(path.split('/')[2]);if(path==='/notifications')return notifications();if(path==='/profile')return profile();if(/^\/shops\/[^/]+$/.test(path))return shopPage(path.split('/')[2]);if(path==='/seller/dashboard')return sellerDashboard();if(path==='/seller/products/new')return newProduct();if(/^\/orders\/[^/]+$/.test(path))return orderPage(path.split('/')[2]);return notFound();}
 function render(){
   const unread=state.user?state.notifications.filter(n=>n.recipient===state.user.id&&!n.read).length:0;
   const nav=[
@@ -645,7 +655,7 @@ function render(){
         </nav>
         <div class="header-actions">
           <select id="locale-select" class="locale-select" aria-label="${t('ภาษา')}"><option value="th" ${locale==='th'?'selected':''}>TH</option><option value="en" ${locale==='en'?'selected':''}>EN</option></select>
-          ${a('/groups/create', `${icon('plus',17)} ${t("สร้างกลุ่ม")}`, 'button primary header-create-btn')}
+          ${/^\/groups\/[^/]+$/.test(location.pathname) ? '' : a('/groups/create', `${icon('plus',17)} ${t("สร้างกลุ่ม")}`, 'button primary header-create-btn')}
           ${a('/notifications',`${icon('bell',22)}${unread?`<i>${unread}</i>`:''}`,'icon-button')}
           ${state.user?a('/profile',`<span class="avatar tiny">${escape(state.user.name.slice(0,1))}</span><span class="header-user-name">${escape(state.user.name)}</span>`,'profile-pill'):`<button type="button" class="button primary header-login-btn" data-action="open-auth" data-step="1">${icon('user',18)} ${t("เข้าสู่ระบบ")}</button>`}
         </div>
@@ -670,7 +680,7 @@ function render(){
           <div class="footer-col">
             <h4>${t("เมนูด่วน")}</h4>
             ${a('/explore', t("สำรวจสินค้า"))}
-            ${a('/groups/create', t("เปิดกลุ่มใหม่"))}
+            ${/^\/groups\/[^/]+$/.test(location.pathname) ? '' : a('/groups/create', t("เปิดกลุ่มใหม่"))}
             ${a('/my-groups', t("กลุ่มของฉัน"))}
             ${a('/chat', t("แชตติดต่อผู้ขาย"))}
           </div>
@@ -896,7 +906,7 @@ document.addEventListener('submit',e=>{
     }catch(err){alertMessage(storageError(err));}
   }else if(f.id==='search-form'){
     e.preventDefault();
-    go('/explore?q='+encodeURIComponent(new FormData(f).get('q').trim()));
+    {const data=new FormData(f),category=data.get('category');go('/explore?q='+encodeURIComponent(String(data.get('q')||'').trim())+(category?'&category='+encodeURIComponent(category):''));}
   }else if(f.id==='create-form'){
     e.preventDefault();
     try{
@@ -952,7 +962,7 @@ document.addEventListener('submit',e=>{
       if(!p.title||!p.description||!p.terms)throw Error(t("กรุณากรอกข้อมูลให้ครบ"));
       state.customListings.unshift(p);
       save();
-      go(`/products/${p.id}`);
+      go(`/groups/create?product=${p.id}`);
       alertMessage(t("เพิ่มรายการเดโมแล้ว"));
     }catch(err){alertMessage(errorMessage(err));}
   }
@@ -984,9 +994,3 @@ document.addEventListener('input',e=>{
 
 window.addEventListener('popstate',render);
 render();
-
-
-
-
-
-
