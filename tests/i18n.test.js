@@ -17,7 +17,7 @@ test('ข้อความสองภาษาครบและตัวแ�
     const key=match[1]??match[2];
     assert.ok(Object.hasOwn(messages.en,key),key);
   }
-  for(const file of ['domain','orders']) {
+  for(const file of ['domain','orders','prototype']) {
     const domain=readFileSync(new URL(`../src/${file}.js`,import.meta.url),'utf8');
     for(const match of domain.matchAll(/fail\('([^']+)'/g)) assert.ok(Object.hasOwn(messages.en,match[1]),match[1]);
   }
