@@ -219,6 +219,57 @@ function paymentDialog(order) {
 function shareApprovalDialog(amount) {
   return `<dialog id="share-approval-dialog" class="payment-dialog" aria-labelledby="share-approval-title"><div class="payment-head"><span class="chip">${t('จำลองเท่านั้น')}</span><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></div><h2 id="share-approval-title">${t('QR ยอดที่ยืนยัน (จำลอง)')}</h2><p>${t('QR ตัวอย่าง สแกนจ่ายไม่ได้')}</p><div class="demo-qr">${demoQr()}</div><small>${t('ยอดที่ยืนยัน')}</small><strong class="payment-amount">${money(amount)}</strong><p>${t('การยืนยันยอดบันทึกว่าคุณยอมรับจำนวนเงินเท่านั้น ไม่ใช่การแจ้งชำระและไม่มีการเก็บเงินจริง')}</p></dialog>`;
 }
+function leaveGroupDialog(g, currentShare) {
+  return `<dialog id="leave-group-dialog" class="leave-group-dialog" aria-labelledby="leave-group-title">
+    <div class="leave-modal-inner">
+      <div class="leave-modal-head">
+        <div class="leave-modal-badge" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </div>
+        <button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button>
+      </div>
+
+      <h2 id="leave-group-title" class="leave-modal-title">${t('ยืนยันออกจากกลุ่ม')}</h2>
+      <p class="leave-modal-subtitle">${t('คุณแน่ใจหรือไม่ว่าต้องการออกจากกลุ่มนี้?')}</p>
+
+      <div class="leave-group-preview">
+        <div class="leave-group-meta">
+          <small>${t('กลุ่ม')}</small>
+          <strong title="${escape(g.name)}">${escape(g.name)}</strong>
+        </div>
+        <div class="leave-group-share-box">
+          <small>${t('ยอดส่วนแบ่งของคุณ')}</small>
+          <strong>${money(currentShare)}</strong>
+        </div>
+      </div>
+
+      <div class="leave-impact-box">
+        <div class="leave-impact-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span>${t('สิ่งที่ควรรู้ก่อนออกจากกลุ่ม')}</span>
+        </div>
+        <ul class="leave-impact-list">
+          <li>${t('สมาชิกที่เหลือจะต้องยืนยันยอดใหม่ เนื่องจากยอดหารจะถูกคำนวณใหม่')}</li>
+          <li>${t('คำยืนยันยอดรอบล่าสุดของคุณจะถูกยกเลิกทันที')}</li>
+          <li>${t('หากออกจากกลุ่มแล้ว ต้องการกลับเข้ากลุ่มใหม่ จะต้องรอให้มีที่ว่าง')}</li>
+        </ul>
+      </div>
+
+      <div class="leave-modal-actions">
+        <button type="button" class="button outline" data-action="close-dialog">${t('ยกเลิก')}</button>
+        <button type="button" class="button danger" data-action="confirm-leave" data-id="${g.id}">${t('ออกจากกลุ่ม')}</button>
+      </div>
+    </div>
+  </dialog>`;
+}
 function listingCard(p){
   const groups = state.groups.filter(g => g.listingId === p.id && g.visibility === 'public' && g.status !== 'cancelled' && g.members.length < g.capacity && !g.orderId);
   const g = groups[0];
@@ -295,14 +346,23 @@ function groupCard(g){
   </article>`;
 }
 
+const CATEGORIES_LIST = [
+  { name: 'ทั้งหมด', symbol: '✳' },
+  { name: 'แอปพลิเคชันและเว็บไซต์', symbol: '🌐' },
+  { name: 'เสื้อผ้าและแฟชั่น', symbol: '👗' },
+  { name: 'เครื่องสำอางและความงาม', symbol: '💄' },
+  { name: 'อาหารและเครื่องดื่ม', symbol: '🍱' },
+  { name: 'ของใช้ทั่วไป', symbol: '🧼' },
+  { name: 'สินค้าดิจิทัล', symbol: '💾' },
+  { name: 'อุปกรณ์อิเล็กทรอนิกส์และไอที', symbol: '💻' },
+  { name: 'สินค้าขายส่ง', symbol: '📦' },
+  { name: 'บริการทั่วไป', symbol: '🛠️' }
+];
+const CATEGORY_NAMES = CATEGORIES_LIST.map(c => c.name);
+
 function home(){
   const activeGroups = state.groups.filter(g => g.visibility === 'public' && g.status !== 'cancelled' && !g.orderId && g.members.length < g.capacity);
-  const categoriesList = [
-    { name: 'ทั้งหมด', symbol: '✳', query: 'ทั้งหมด' },
-    { name: 'เครื่องเขียน', symbol: '📄', query: 'เครื่องเขียน' },
-    { name: 'ของใช้', symbol: '🧼', query: 'ของใช้' },
-    { name: 'งานพิมพ์', symbol: '🖨️', query: 'งานพิมพ์' }
-  ];
+  const categoriesList = CATEGORIES_LIST;
 
   return `
     <section class="hero">
@@ -313,16 +373,16 @@ function home(){
 
         <form class="hero-search" id="search-form">
           <span>${icon('search', 20)}</span>
-          <input name="q" placeholder="${t("ค้นหากระดาษ A4, กล่องข้าว, งานพิมพ์...")}" aria-label="${t("ค้นหาสินค้าหรือบริการ")}"/>
+          <input name="q" placeholder="${t("ค้นหาแอป, เสื้อผ้า, เครื่องสำอาง, อาหาร...")}" aria-label="${t("ค้นหาสินค้าหรือบริการ")}"/>
           <button type="submit">${t("ค้นหา")}</button>
         </form>
 
         <div class="hero-quick-tags">
           <span>${t("ค้นหายอดนิยม:")}</span>
-          <button type="button" class="hero-tag" data-action="quick-search" data-query="กระดาษ">${t("📄 กระดาษ A4")}</button>
-          <button type="button" class="hero-tag" data-action="quick-search" data-query="กล่องข้าว">${t("🍱 กล่องข้าว")}</button>
-          <button type="button" class="hero-tag" data-action="quick-search" data-query="งานพิมพ์">${t("🖨️ โปสเตอร์")}</button>
-          <button type="button" class="hero-tag" data-action="quick-search" data-query="ของใช้">${t("🧼 ของใช้ทั่วไป")}</button>
+          <button type="button" class="hero-tag" data-action="quick-search" data-category="แอปพลิเคชันและเว็บไซต์" data-query="แอปพลิเคชันและเว็บไซต์">${t("🌐 แอปพลิเคชันและเว็บไซต์")}</button>
+          <button type="button" class="hero-tag" data-action="quick-search" data-category="เสื้อผ้าและแฟชั่น" data-query="เสื้อผ้าและแฟชั่น">${t("👗 เสื้อผ้าและแฟชั่น")}</button>
+          <button type="button" class="hero-tag" data-action="quick-search" data-category="เครื่องสำอางและความงาม" data-query="เครื่องสำอางและความงาม">${t("💄 เครื่องสำอางและความงาม")}</button>
+          <button type="button" class="hero-tag" data-action="quick-search" data-category="อาหารและเครื่องดื่ม" data-query="อาหารและเครื่องดื่ม">${t("🍱 อาหารและเครื่องดื่ม")}</button>
         </div>
 
         <div class="hero-points">
@@ -441,7 +501,7 @@ function explore(){
   return `<div class="explore-page">
     ${title(t('เข้ากลุ่มที่ใช่ จ่ายในราคาที่ชัดเจน'),t('ดูราคาหลังคุณเข้าร่วม จำนวนที่ว่าง และเงื่อนไขก่อนตัดสินใจ'))}
     <form class="search-bar" id="search-form"><span>${icon('search')}</span><input type="hidden" name="category" value="${escape(category)}"/><input name="q" value="${escape(q)}" placeholder="${t('ค้นหาสินค้าหรือชื่อกลุ่ม')}" aria-label="${t('ค้นหา')}"/><button type="submit">${t('ค้นหากลุ่ม')}</button></form>
-    <nav class="filter-row" aria-label="${t('หมวดหมู่')}">${['ทั้งหมด','เครื่องเขียน','ของใช้','งานพิมพ์'].map(x=>a('/explore?category='+encodeURIComponent(x)+(q?'&q='+encodeURIComponent(q):''),t(x),'filter '+(category===x?'active':''))).join('')}</nav>
+    <nav class="filter-row" aria-label="${t('หมวดหมู่')}">${CATEGORY_NAMES.map(x=>a('/explore?category='+encodeURIComponent(x)+(q?'&q='+encodeURIComponent(q):''),t(x),'filter '+(category===x?'active':''))).join('')}</nav>
     <section aria-labelledby="open-groups-heading"><div class="section-header"><div><h2 id="open-groups-heading">${t('กลุ่มที่เข้าร่วมได้')} <small>${t('{count} กลุ่ม',{count:openGroups.length})}</small></h2><p>${t('ยอดเป็นประมาณการก่อนเข้าร่วม และจะคำนวณใหม่เมื่อจำนวนสมาชิกเปลี่ยน')}</p></div></div>
       ${openGroups.length?`<div class="group-grid">${openGroups.map(groupCard).join('')}</div>`:`<div class="empty"><h3>${t('ยังไม่มีกลุ่มที่เปิดรับ')}</h3><p>${t('ลองค้นหาชื่อกลุ่มหรือหมวดอื่น')}</p>${a('/explore',t('ดูทั้งหมด'),'button outline')}</div>`}
     </section>
@@ -698,9 +758,10 @@ function render(){
           </div>
           <div class="footer-col">
             <h4>${t("หมวดหมู่")}</h4>
-            ${a('/explore?category=เครื่องเขียน', t('เครื่องเขียน'))}
-            ${a('/explore?category=ของใช้', t("ของใช้ทั่วไป"))}
-            ${a('/explore?category=งานพิมพ์', t("งานพิมพ์/เอกสาร"))}
+            ${a('/explore?category='+encodeURIComponent('แอปพลิเคชันและเว็บไซต์'), t('แอปพลิเคชันและเว็บไซต์'))}
+            ${a('/explore?category='+encodeURIComponent('ของใช้ทั่วไป'), t("ของใช้ทั่วไป"))}
+            ${a('/explore?category='+encodeURIComponent('สินค้าขายส่ง'), t("สินค้าขายส่ง"))}
+            ${a('/explore?category='+encodeURIComponent('บริการทั่วไป'), t("บริการทั่วไป"))}
             ${a('/explore', t("หมวดทั้งหมด"))}
           </div>
           <div class="footer-col">
@@ -803,7 +864,11 @@ document.addEventListener('click',async e=>{
   const action=btn.dataset.action,id=btn.dataset.id;
   try{
     if(action==='quick-search'){
-      go('/explore?q=' + encodeURIComponent(btn.dataset.query || ''));
+      if(btn.dataset.category){
+        go('/explore?category=' + encodeURIComponent(btn.dataset.category));
+      } else {
+        go('/explore?q=' + encodeURIComponent(btn.dataset.query || ''));
+      }
     }
     else if(action==='open-auth'){
       const step = Number(btn.dataset.step) || 1;
@@ -858,7 +923,30 @@ document.addEventListener('click',async e=>{
     }
     else if(action==='reset-demo'){if(!confirm(t("ล้างข้อมูลเดโมในเบราว์เซอร์นี้และเริ่มใหม่?")))return;state=initialState();save();go('/');alertMessage(t("เริ่มข้อมูลเดโมใหม่แล้ว"));}
     else if(action==='join'){const g=joinGroup(group(id),state.user.id);updateGroup(g);g.members.forEach(u=>notice(t("ยอดกลุ่มเปลี่ยน"),t('มีสมาชิกใหม่ กรุณายืนยันยอดรอบ {revision}',{revision:g.revision}),`/groups/${id}`,u));if(g.members.length===g.capacity)g.members.forEach(u=>notice(t("กลุ่มครบสมาชิก"),t("รอทุกคนยืนยันยอดก่อนสรุปคำสั่งซื้อ"),`/groups/${id}`,u));go(`/groups/${id}`);alertMessage(t("เข้าร่วมกลุ่มแล้ว กรุณายืนยันยอดใหม่"));}
-    else if(action==='leave'){if(!confirm(t("ออกจากกลุ่มนี้? สมาชิกที่เหลือจะต้องยืนยันยอดใหม่")))return;const g=leaveGroup(group(id),state.user.id);updateGroup(g);g.members.forEach(u=>notice(t("สมาชิกออกจากกลุ่ม"),t("ยอดเปลี่ยน กรุณายืนยันใหม่"),`/groups/${id}`,u));go('/my-groups');alertMessage(t("ออกจากกลุ่มแล้ว"));}
+    else if(action==='leave'){
+      const current = group(id);
+      if(!current) return;
+      const currentShare = shares(current)[state.user?.id] || 0;
+      document.querySelector('#leave-group-dialog')?.remove();
+      document.body.insertAdjacentHTML('beforeend', leaveGroupDialog(current, currentShare));
+      const dialog = document.querySelector('#leave-group-dialog');
+      dialog.addEventListener('close', () => dialog.remove(), {once: true});
+      dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) dialog.close();
+      });
+      dialog.showModal();
+    }
+    else if(action==='confirm-leave'){
+      const dialog = btn.closest('dialog') || document.querySelector('#leave-group-dialog');
+      if(dialog) dialog.close();
+      const current = group(id);
+      if(!current) return;
+      const g=leaveGroup(current,state.user.id);
+      updateGroup(g);
+      g.members.forEach(u=>notice(t("สมาชิกออกจากกลุ่ม"),t("ยอดเปลี่ยน กรุณายืนยันใหม่"),`/groups/${id}`,u));
+      go('/my-groups');
+      alertMessage(t("ออกจากกลุ่มแล้ว"));
+    }
     else if(action==='approve'){const current=group(id),amount=shares(current)[state.user.id],g=approve(current,state.user.id,Number(btn.dataset.revision));updateGroup(g);if(allApproved(g))g.members.forEach(u=>notice(t("ยืนยันยอดครบแล้ว"),t("กลุ่มพร้อมดูสรุปคำสั่งซื้อเดโม"),`/orders/${id}`,u));render();document.body.insertAdjacentHTML('beforeend',shareApprovalDialog(amount));const dialog=document.querySelector('#share-approval-dialog');dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();alertMessage(t("ยืนยันยอดรอบล่าสุดแล้ว"));}
     else if(action==='copy-link'){await navigator.clipboard.writeText(location.origin+`/groups/${id}`);alertMessage(t("คัดลอกลิงก์เชิญแล้ว"));}
     else if(action==='open-notice'){const n=state.notifications.find(x=>x.id===id);n.read=true;save();go(n.href);}
