@@ -154,6 +154,26 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
   gap: 12px;
 }
 
+.locale-select {
+  width: auto;
+  min-width: 54px;
+  padding: 7px 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--navy);
+  background: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+@media(max-width: 380px) {
+  .header-inner .logo-text small,
+  .header-inner .header-user-name,
+  .header-inner .header-login-btn svg { display: none; }
+  .header-inner .brand { gap: 4px; font-size: 1rem; }
+  .header-inner .header-actions { gap: 4px; }
+}
+
 .header-create-btn,
 .button.header-create-btn {
   display: none !important;
@@ -1444,6 +1464,20 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
 .warning { color: #b45309 !important; font-size: 0.78rem !important; margin: 14px 0 0; }
 
 .narrow { max-width: 680px; margin: 0 auto; }
+.order-detail > section { margin: 20px 0; }
+.order-detail h2, .order-detail h3 { overflow-wrap: anywhere; }
+.order-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.order-actions .button { white-space: normal; }
+.order-payments article, .dispute-entry { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.order-detail .form-panel { margin-top: 14px; padding: 16px; }
+.order-detail summary { cursor: pointer; padding: 14px 0; font-weight: 700; }
+.order-detail p, .order-detail a, .order-detail small { overflow-wrap: anywhere; }
+.order-timeline { padding-left: 20px; }
+.order-timeline li { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.user-content { white-space: pre-wrap; }
+.seller-orders { margin-top: 24px; }
+.seller-orders .profile-link { flex-wrap: wrap; gap: 8px; }
+.button:disabled { cursor: not-allowed; opacity: .55; }
 .form-panel { padding: 24px; max-width: 720px; }
 .form-panel label { display: block; font-size: 0.86rem; font-weight: 700; color: var(--navy); margin: 0 0 18px; }
 .form-panel input, .form-panel select, .form-panel textarea {
