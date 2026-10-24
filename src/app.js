@@ -4,6 +4,8 @@ import {listings as seedListings, sellers, demoNames, initialState} from './data
 import {assertCapacity, createGroup, costBreakdown, totalCost, shares, joinGroup, leaveGroup, approve, changeCosts, parseBaht, allApproved, transferOwner} from './domain.js';
 import {messages, translate, formatSatang, bahtInput} from './i18n.js';
 import {supabase, supabaseConfigured, googleAuthAvailable, refreshAuthProviders, loadAuthenticatedUser, saveAuthenticatedAddress} from './supabase.js';
+import {createAuthSessionSync} from './auth-session.js';
+import {loadSupabaseGroups, resolveSupabaseInvite, createSupabaseGroup, joinSupabaseGroup, leaveSupabaseGroup, approveSupabaseGroup, changeSupabaseDelivery, transferSupabaseGroup, getSupabaseInvite} from './supabase-groups.js';
 import {createOrder,activateOrder,migrateOrders,lockOrderedGroups,orderPermissions,reportPayment,updatePayment,transitionOrder,updateShipment,openDispute,proposeResolution,respondToResolution,DISPUTE_REASONS,sellerIdFor,assertListingSeller} from './orders.js';
 
 const LOCALE_KEY='harnkhong-locale';
@@ -15,11 +17,11 @@ const errorMessage=error=>messages[locale][error.code]??error.message??t('เก
 const KEY='harnkhong-demo-v1';
 let state;
 try { state={...initialState(),...JSON.parse(localStorage.getItem(KEY)||'{}')}; } catch { state=initialState(); }
-if(supabaseConfigured)state={...state,user:null};
+if(supabaseConfigured)state={...state,user:null,profiles:{},groups:[],remoteListings:[],remoteSellers:[],customListings:[],orders:[],notifications:[],conversations:{}};
 const save=(next=state)=>{
   state=next;
-  const stored=supabaseConfigured?{...next,user:null,profiles:{}}:next;
-  localStorage.setItem(KEY,JSON.stringify(stored));
+  if(supabaseConfigured)return;
+  localStorage.setItem(KEY,JSON.stringify(next));
 };
 const restoredOrders=migrateOrders(state.orders,state.groups,[...seedListings,...state.customListings]);
 const restoredGroups=lockOrderedGroups(state.groups,restoredOrders).map(g=>{
@@ -30,9 +32,9 @@ if(restoredOrders.some((o,i)=>o!==state.orders[i])||restoredGroups.some((g,i)=>g
   // Keep the original stored data if upgrading cannot be saved.
   try {save({...state,orders:restoredOrders,groups:restoredGroups});} catch {state={...state,orders:restoredOrders,groups:restoredGroups};}
 }
-const listings=()=>[...seedListings,...state.customListings];
+const listings=()=>supabaseConfigured?state.remoteListings:[...seedListings,...state.customListings];
 const listing=id=>listings().find(x=>x.id===id);
-const seller=id=>sellers.find(x=>x.id===id)||{id,name:t('ร้านตัวอย่าง'),intro:t("ผู้ขายในโหมดเดโม"),initials:'DE'};
+const seller=id=>(supabaseConfigured?state.remoteSellers:sellers).find(x=>x.id===id)||{id,name:t('ร้านตัวอย่าง'),intro:t("ผู้ขายในโหมดเดโม"),initials:'DE'};
 const group=id=>state.groups.find(x=>x.id===id);
 const name=id=>id===state.user?.id?state.user.name:(state.profiles?.[id]?.name||demoNames[id]||t("สมาชิกเดโม"));
 const money=n=>formatSatang(n,locale);
@@ -49,6 +51,10 @@ let imagesLoading=false;
 let profileAvatar='';
 let avatarLoading=false;
 let demoQrPng='';
+let groupsLoading=supabaseConfigured;
+let groupsError=null;
+let syncSupabaseSession=async()=>{};
+let authSessionSync=null;
 
 function isAuthRequired(href) {
   if (!href) return false;
@@ -528,7 +534,14 @@ function legacyProductRoute(id) {
 }
 function groupPage(id) {
   const g = group(id);
-  if (!g) return notFound();
+  if (!g) {
+    if(supabaseConfigured&&new URLSearchParams(location.search).has('invite')){
+      if(state.user)return `<div class="empty"><h1>${t('คำเชิญไม่ถูกต้องหรือหมดอายุ')}</h1>${a('/explore',t('สำรวจกลุ่ม'),'button outline')}</div>`;
+      sessionStorage.setItem('harn-return',location.pathname+location.search);
+      return authRequiredView(t('คำเชิญเข้าร่วมกลุ่ม'),t('เข้าสู่ระบบเพื่อดูรายละเอียดและเข้าร่วมกลุ่มจากลิงก์เชิญ'));
+    }
+    return notFound();
+  }
   const p = listing(g.listingId);
   if (!p) return notFound();
   const costs = costBreakdown(g.costs,g.members.length);
@@ -544,16 +557,17 @@ function groupPage(id) {
   const estimateCount=g.members.length+(isMember||full?0:1);
   const estimate = Math.ceil(totalCost(g.costs,estimateCount) / estimateCount);
   const fullEstimate = Math.ceil(totalCost(g.costs,g.capacity) / g.capacity);
-  const status = locked ? t('ปิดรับสมาชิก') : full ? (allApproved(g) ? t('พร้อมสรุปคำสั่งซื้อ') : t('รอยืนยันยอด')) : t('กำลังเปิดรับสมาชิก');
+  const status = locked ? t('ปิดรับสมาชิก') : full ? (allApproved(g) ? (supabaseConfigured?t('ยอดกลุ่มพร้อมแล้ว'):t('พร้อมสรุปคำสั่งซื้อ')) : t('รอยืนยันยอด')) : t('กำลังเปิดรับสมาชิก');
   const actions = `
     ${!isMember && !full && !locked ? a(`/groups/${id}/join`, t('เข้าร่วมกลุ่ม'), 'button primary full') : ''}
     ${isMember && !approved && !locked ? `<button class="button primary full" data-action="approve" data-id="${id}" data-revision="${g.revision}">${t('ยืนยันยอด {amount}', {amount: money(alloc[me])})}</button>` : ''}
     ${isMember && approved ? `<div class="success-line">${icon('check', 18)} ${t('คุณยืนยันยอดรอบนี้แล้ว')}</div>` : ''}
     ${isMember && !isOwner && !locked ? `<button class="button outline full" data-action="leave" data-id="${id}">${t('ออกจากกลุ่ม')}</button>` : ''}
     ${isOwner && !locked ? `<button class="button outline full" data-action="edit-costs" data-id="${id}">${t('แก้ไขค่าส่งต่อคน')}</button><button class="button outline full" data-action="transfer" data-id="${id}">${t('โอนหัวหน้ากลุ่ม')}</button>` : ''}
-    ${g.visibility === 'link' ? `<button class="button outline full" data-action="copy-link" data-id="${id}">${icon('link', 18)} ${t('คัดลอกลิงก์เชิญ')}</button>` : ''}
+    ${g.visibility === 'link'&&(!supabaseConfigured||isOwner) ? `<button class="button outline full" data-action="copy-link" data-id="${id}">${icon('link', 18)} ${t('คัดลอกลิงก์เชิญ')}</button>` : ''}
     ${locked ? `<p class="info-box">${t('กลุ่มถูกล็อกตามยอดคำสั่งซื้อเดโมแล้ว')}</p>` : ''}
-    ${isMember ? a(`/orders/${id}`, t('ดูสรุปคำสั่งซื้อเดโม'), 'button subtle full') : ''}
+    ${isMember&&!supabaseConfigured ? a(`/orders/${id}`, t('ดูสรุปคำสั่งซื้อเดโม'), 'button subtle full') : ''}
+    ${isMember&&supabaseConfigured ? `<p class="info-box">${t('คำสั่งซื้อของกลุ่มนี้ยังไม่เชื่อมระบบร่วมกัน จึงยังสร้างคำสั่งซื้อหรือแจ้งชำระไม่ได้')}</p>` : ''}
   `;
   return `<div class="group-page">
     <nav class="breadcrumb product-breadcrumb" aria-label="${t('เส้นทางนำทาง')}">
@@ -579,10 +593,10 @@ function groupPage(id) {
           </div>
         </section>
         <section class="cost-card group-cost-card" aria-labelledby="cost-heading"><h2 id="cost-heading">${t('ค่าใช้จ่ายรอบที่ {revision}', {revision: g.revision})}</h2><div><span>${t('ราคาสินค้า')}</span><b>${money(costs.product)}</b></div><div><span>${costs.deliveryPerMember===null?t('ค่าส่ง'):t('ค่าส่ง {amount} × {count} คน',{amount:money(costs.deliveryPerMember),count:g.members.length})}</span><b>${money(costs.delivery)}</b></div><div><span>${costs.deliveryPerMember===null?t('ค่าบริการ'):t('ค่าธรรมเนียมแอป 2%')}</span><b>${money(costs.service)}</b></div><div class="total"><span>${t('รวมทั้งหมด')}</span><b>${money(sum)}</b></div><p>${t('หารตามจำนวนสมาชิกปัจจุบัน เศษสตางค์จัดสรรตามลำดับที่เข้ากลุ่ม')}</p></section>
-        <details class="group-history"><summary>${t('ประวัติการเปลี่ยนยอด')}</summary>${g.history.slice().reverse().map(h => `<p>${t('รอบ {revision}', {revision: h.revision})} · ${escape(h.reason)}</p>`).join('')}</details>
+        <details class="group-history"><summary>${t('ประวัติการเปลี่ยนยอด')}</summary>${g.history.slice().reverse().map(h => `<p>${t('รอบ {revision}', {revision: h.revision})} · ${escape(t(h.reason))}</p>`).join('')}</details>
       </main>
       <aside class="group-detail-aside"><div class="summary-card sticky"><small>${isMember ? t('ยอดที่คุณต้องยืนยัน') : full || locked ? t('ประมาณต่อคนปัจจุบัน') : t('ยอดประมาณเมื่อเข้าร่วม')}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full?`<div class="summary-future-price"><span>${t('เมื่อครบ {count} คน',{count:g.capacity})}</span><b>${money(fullEstimate)} ${t('/คน')}</b></div>`:''}<p>${isMember ? t('ยอดรอบที่ {revision}', {revision: g.revision}) + (approved ? t(' · คุณยืนยันแล้ว') : t(' · กรุณาตรวจสอบก่อนยืนยัน')) : full || locked ? t('กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่') : t('ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง')}</p>${actions}${!full ? `<p class="warning">${t('ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน')}</p>` : !allApproved(g) ? `<p class="warning">${t('รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด')}</p>` : ''}</div>
-      <section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t('รายละเอียดสินค้า')}</h2><p>${escape(t(p.description))}</p><p>${escape(t(p.terms))}</p>${a(`/shops/${p.sellerId}`, escape(t(seller(p.sellerId).name)))}${isMember?a(`/chat/${p.sellerId}?product=${p.id}`, `${icon('chat', 18)} ${t('ติดต่อผู้ขาย')}`, 'button outline full'):''}<small>${t('ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง')}</small></section>
+      <section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t('รายละเอียดสินค้า')}</h2><p>${escape(t(p.description))}</p><p>${escape(t(p.terms))}</p>${a(`/shops/${p.sellerId}`, escape(t(seller(p.sellerId).name)))}${isMember&&!supabaseConfigured?a(`/chat/${p.sellerId}?product=${p.id}`, `${icon('chat', 18)} ${t('ติดต่อผู้ขาย')}`, 'button outline full'):''}<small>${supabaseConfigured?t('แชตกับผู้ขายยังเป็นเดโมในเครื่องนี้'):t('ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง')}</small></section>
       </aside>
     </div>
   </div>`;
@@ -595,7 +609,7 @@ function joinPage(id){
   const p=listing(g.listingId),count=g.members.length+1,costs=costBreakdown(g.costs,count),estimate=Math.ceil(costs.total/count);
   return `${title(t('ยืนยันการเข้าร่วม'),escape(g.name))}<div class="narrow"><div class="cost-card"><h2>${escape(p.title)}</h2><div><span>${t('ราคาสินค้า')}</span><b>${money(costs.product)}</b></div><div><span>${costs.deliveryPerMember===null?t('ค่าส่ง'):t('ค่าส่ง {amount} × {count} คน',{amount:money(costs.deliveryPerMember),count})}</span><b>${money(costs.delivery)}</b></div><div><span>${costs.deliveryPerMember===null?t('ค่าบริการ'):t('ค่าธรรมเนียมแอป 2%')}</span><b>${money(costs.service)}</b></div><div class="total"><span>${t('ยอดประมาณของคุณ')}</span><b>${money(estimate)}</b></div></div><div class="info-box">${t('เมื่อเข้าร่วม ระบบจะคำนวณยอดใหม่และให้สมาชิกทุกคน รวมถึงคุณ ยืนยันยอดรอบใหม่อีกครั้ง ยังไม่มีการเก็บเงินจริง')}</div><button class="button primary full" data-action="join" data-id="${id}">${t('ยืนยันเข้าร่วมกลุ่ม')}</button>${a(`/groups/${id}`,t('กลับไปดูกลุ่ม'),'button outline full')}</div>`;
 }
-function createPage(){if(!requireAuth(location.pathname+location.search))return authRequiredView(t("สร้างกลุ่มหารใหม่"),t("กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน"));const params=new URLSearchParams(location.search),selected=params.get('product')||listings()[0].id;return `${title(t("สร้างกลุ่มหารใหม่"),t("กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน"))}<form class="form-panel" id="create-form"><section class="image-editor"><h2>${t('รูปกลุ่ม')}</h2><p>${t('เพิ่มได้สูงสุด 4 รูป · JPG, PNG, WebP ไม่เกิน 5 MB ต่อรูป · เก็บในเครื่อง')}</p><label class="image-upload">${icon('plus',20)} ${t('เพิ่มรูป')}<input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></section><label>${t("สินค้า / บริการ")}<select name="listingId" required>${listings().map(p=>`<option value="${p.id}" ${p.id===selected?'selected':''}>${escape(p.title)}</option>`).join('')}</select></label><label>${t("ชื่อกลุ่ม")}<input name="name" maxlength="70" required placeholder="${t("เช่น ทีมอ่านสอบปลายเทอม")}"/></label><div class="form-grid"><label>${t("จำนวนสมาชิกสูงสุด")}<input name="capacity" type="number" min="2" max="20" value="4" required/></label><label>${t("การมองเห็น")}<select name="visibility"><option value="public">${t("กลุ่มสาธารณะ")}</option><option value="link">${t("เฉพาะผู้มีลิงก์")}</option></select></label></div><div class="form-grid"><label>${t("ราคาสินค้า (บาท)")}<input name="product" inputmode="decimal" value="${bahtInput(listing(selected)?.price||0)}" required/></label><label>${t("ค่าส่งต่อคน (บาท)")}<input name="delivery" inputmode="decimal" value="0" required/></label></div><div class="info-box">${t("ค่าธรรมเนียมแอป 2% คำนวณอัตโนมัติจากราคาสินค้าและค่าส่งรวม กลุ่มเฉพาะลิงก์จะไม่ปรากฏในการค้นหาสาธารณะ")}</div><div id="create-preview" class="preview-cost"></div><button class="button primary full" type="submit">${t("สร้างกลุ่ม")}</button></form>`;}
+function createPage(){if(!requireAuth(location.pathname+location.search))return authRequiredView(t("สร้างกลุ่มหารใหม่"),t("กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน"));const params=new URLSearchParams(location.search),requested=params.get('product'),selected=listings().some(item=>item.id===requested)?requested:listings()[0].id;return `${title(t("สร้างกลุ่มหารใหม่"),t("กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน"))}<form class="form-panel" id="create-form"><input type="hidden" name="requestId" value="${crypto.randomUUID()}"/>${supabaseConfigured?'':`<section class="image-editor"><h2>${t('รูปกลุ่ม')}</h2><p>${t('เพิ่มได้สูงสุด 4 รูป · JPG, PNG, WebP ไม่เกิน 5 MB ต่อรูป · เก็บในเครื่อง')}</p><label class="image-upload">${icon('plus',20)} ${t('เพิ่มรูป')}<input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></section>`}<label>${t("สินค้า / บริการ")}<select name="listingId" required>${listings().map(p=>`<option value="${p.id}" ${p.id===selected?'selected':''}>${escape(p.title)}</option>`).join('')}</select></label><label>${t("ชื่อกลุ่ม")}<input name="name" maxlength="70" required placeholder="${t("เช่น ทีมอ่านสอบปลายเทอม")}"/></label><div class="form-grid"><label>${t("จำนวนสมาชิกสูงสุด")}<input name="capacity" type="number" min="2" max="20" value="4" required/></label><label>${t("การมองเห็น")}<select name="visibility"><option value="public">${t("กลุ่มสาธารณะ")}</option><option value="link">${t("เฉพาะผู้มีลิงก์")}</option></select></label></div><div class="form-grid"><label>${t("ราคาสินค้า (บาท)")}<input name="product" inputmode="decimal" value="${bahtInput(listing(selected)?.price||0)}" ${supabaseConfigured?'readonly':''} required/></label><label>${t("ค่าส่งต่อคน (บาท)")}<input name="delivery" inputmode="decimal" value="0" required/></label></div><div class="info-box">${t("ค่าธรรมเนียมแอป 2% คำนวณอัตโนมัติจากราคาสินค้าและค่าส่งรวม กลุ่มเฉพาะลิงก์จะไม่ปรากฏในการค้นหาสาธารณะ")}${supabaseConfigured?`<br/>${t('รายการสินค้าและราคามาจาก Supabase; รูปกลุ่มและสินค้าเพิ่มเองยังไม่รองรับในโหมดนี้')}`:''}</div><div id="create-preview" class="preview-cost"></div><button class="button primary full" type="submit">${t("สร้างกลุ่ม")}</button></form>`;}
 function authPage(register=false){
   if(authModalActive)return '';
   if(mockupCurrentStep!==3)mockupCurrentStep=register?2:1;
@@ -687,6 +701,7 @@ function disputePanel(order,permissions){
 function orderPage(id){
   const g=group(id);if(!g)return notFound();
   if(!requireAuth(`/orders/${id}`))return authRequiredView(t('สรุปคำสั่งซื้อเดโม'),t('เข้าสู่ระบบเพื่อดูสรุปคำสั่งซื้อ'));
+  if(supabaseConfigured)return `<div class="empty"><h1>${t('ขั้นตอนคำสั่งซื้อยังไม่เชื่อม')}</h1><p>${t('กลุ่มนี้ใช้ Supabase แต่คำสั่งซื้อและการชำระเงินยังเป็นเดโม จึงยังเปิดขั้นตอนนี้ไม่ได้')}</p>${a(`/groups/${id}`,t('กลับไปดูกลุ่ม'),'button outline')}</div>`;
   const order=orderFor(id), permissions=order?orderPermissions(order,state.user):null;
   if(order&&order.status!=='waiting_for_members'?!permissions.view:!g.members.includes(state.user.id))return `<div class="empty"><h1>${t('orderUnauthorized')}</h1>${a('/my-groups',t('กลุ่มของฉัน'),'button secondary')}</div>`;
   const model=order&&order.status!=='waiting_for_members'?order:g, alloc=shares(model),costs=costBreakdown(model.costs,model.members.length),ready=allApproved(g);
@@ -755,7 +770,7 @@ function render(){
       </div>
     </header>
 
-    <main class="main-wrap" id="main">${route()}</main>
+    <main class="main-wrap" id="main">${groupsLoading?`<div class="empty"><h2>${t('กำลังโหลดกลุ่มจาก Supabase')}</h2></div>`:groupsError?`<div class="empty"><h2>${t('โหลดกลุ่มไม่สำเร็จ')}</h2><p>${escape(authErrorMessage(groupsError))}</p><button class="button primary" data-action="refresh-groups">${t('ลองอีกครั้ง')}</button></div>`:route()}</main>
 
     <nav class="bottom-nav" aria-label="${t("เมนูด้านล่าง")}">
       ${nav.map(([href,ic,label])=>a(href,`${icon(ic,22)}<span>${label}</span>`,location.pathname===href?'active':'')).join('')}
@@ -789,7 +804,7 @@ function render(){
             <h4>${t("ช่วยเหลือ")}</h4>
             <a href="javascript:void(0)" data-action="open-auth" data-step="1">${t("เข้าสู่ระบบ")}</a>
             <a href="javascript:void(0)" data-action="open-auth" data-step="2">${t("สมัครสมาชิก")}</a>
-            <a href="javascript:void(0)" data-action="reset-demo">${t("รีเซ็ตข้อมูลเดโม")}</a>
+            ${supabaseConfigured?'':`<a href="javascript:void(0)" data-action="reset-demo">${t("รีเซ็ตข้อมูลเดโม")}</a>`}
           </div>
         </div>
         <div class="footer-bottom">
@@ -842,6 +857,7 @@ document.addEventListener('change',async e=>{
   finally{if(isGroup)imagesLoading=false;else avatarLoading=false;input.value='';input.disabled=false;submit.disabled=false;}
 });
 document.addEventListener('change',e=>{
+  if(e.target.name==='listingId'&&supabaseConfigured){const price=document.querySelector('#create-form [name="product"]');if(price&&listing(e.target.value))price.value=bahtInput(listing(e.target.value).price);updatePreview();return;}
   if(e.target.id!=='locale-select')return;
   if(imagesLoading||avatarLoading){e.target.value=locale;alertMessage(t('กำลังเตรียมรูป กรุณารอสักครู่'));return;}
   // Rerender labels without discarding drafts, password visibility, or the current auth step.
@@ -956,8 +972,12 @@ document.addEventListener('click',async e=>{
         targetInput.type = targetInput.type === 'password' ? 'text' : 'password';
       }
     }
-    else if(action==='reset-demo'){if(!confirm(t("ล้างข้อมูลเดโมในเบราว์เซอร์นี้และเริ่มใหม่?")))return;state=initialState();save();go('/');alertMessage(t("เริ่มข้อมูลเดโมใหม่แล้ว"));}
-    else if(action==='join'){const g=joinGroup(group(id),state.user.id);updateGroup(g);g.members.forEach(u=>notice(t("ยอดกลุ่มเปลี่ยน"),t('มีสมาชิกใหม่ กรุณายืนยันยอดรอบ {revision}',{revision:g.revision}),`/groups/${id}`,u));if(g.members.length===g.capacity)g.members.forEach(u=>notice(t("กลุ่มครบสมาชิก"),t("รอทุกคนยืนยันยอดก่อนสรุปคำสั่งซื้อ"),`/groups/${id}`,u));go(`/groups/${id}`);alertMessage(t("เข้าร่วมกลุ่มแล้ว กรุณายืนยันยอดใหม่"));}
+    else if(action==='reset-demo'){if(supabaseConfigured)throw Object.assign(new Error(),{code:'supabaseDemoResetDisabled'});if(!confirm(t("ล้างข้อมูลเดโมในเบราว์เซอร์นี้และเริ่มใหม่?")))return;state=initialState();save();go('/');alertMessage(t("เริ่มข้อมูลเดโมใหม่แล้ว"));}
+    else if(action==='refresh-groups'){await refreshSupabaseGroups();}
+    else if(action==='join'){
+      if(supabaseConfigured){const token=new URLSearchParams(location.search).get('invite');await joinSupabaseGroup(id,token);await refreshSupabaseGroups();go(`/groups/${id}`);alertMessage(t('เข้าร่วมกลุ่มแล้ว กรุณายืนยันยอดใหม่'));}
+      else{const g=joinGroup(group(id),state.user.id);updateGroup(g);g.members.forEach(u=>notice(t("ยอดกลุ่มเปลี่ยน"),t('มีสมาชิกใหม่ กรุณายืนยันยอดรอบ {revision}',{revision:g.revision}),`/groups/${id}`,u));if(g.members.length===g.capacity)g.members.forEach(u=>notice(t("กลุ่มครบสมาชิก"),t("รอทุกคนยืนยันยอดก่อนสรุปคำสั่งซื้อ"),`/groups/${id}`,u));go(`/groups/${id}`);alertMessage(t("เข้าร่วมกลุ่มแล้ว กรุณายืนยันยอดใหม่"));}
+    }
     else if(action==='leave'){
       const current = group(id);
       if(!current) return;
@@ -976,18 +996,28 @@ document.addEventListener('click',async e=>{
       if(dialog) dialog.close();
       const current = group(id);
       if(!current) return;
-      const g=leaveGroup(current,state.user.id);
-      updateGroup(g);
-      g.members.forEach(u=>notice(t("สมาชิกออกจากกลุ่ม"),t("ยอดเปลี่ยน กรุณายืนยันใหม่"),`/groups/${id}`,u));
+      if(supabaseConfigured){await leaveSupabaseGroup(id);await refreshSupabaseGroups();}
+      else{const g=leaveGroup(current,state.user.id);updateGroup(g);g.members.forEach(u=>notice(t("สมาชิกออกจากกลุ่ม"),t("ยอดเปลี่ยน กรุณายืนยันใหม่"),`/groups/${id}`,u));}
       go('/my-groups');
       alertMessage(t("ออกจากกลุ่มแล้ว"));
     }
-    else if(action==='approve'){const current=group(id),amount=shares(current)[state.user.id],g=approve(current,state.user.id,Number(btn.dataset.revision));updateGroup(g);if(allApproved(g))g.members.forEach(u=>notice(t("ยืนยันยอดครบแล้ว"),t("กลุ่มพร้อมดูสรุปคำสั่งซื้อเดโม"),`/orders/${id}`,u));render();document.body.insertAdjacentHTML('beforeend',shareApprovalDialog(amount));const dialog=document.querySelector('#share-approval-dialog');dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();alertMessage(t("ยืนยันยอดรอบล่าสุดแล้ว"));}
-    else if(action==='copy-link'){await navigator.clipboard.writeText(location.origin+`/groups/${id}`);alertMessage(t("คัดลอกลิงก์เชิญแล้ว"));}
+    else if(action==='approve'){
+      const current=group(id),amount=shares(current)[state.user.id];
+      if(supabaseConfigured){await approveSupabaseGroup(id,Number(btn.dataset.revision));await refreshSupabaseGroups();render();}
+      else{const g=approve(current,state.user.id,Number(btn.dataset.revision));updateGroup(g);if(allApproved(g))g.members.forEach(u=>notice(t("ยืนยันยอดครบแล้ว"),t("กลุ่มพร้อมดูสรุปคำสั่งซื้อเดโม"),`/orders/${id}`,u));render();document.body.insertAdjacentHTML('beforeend',shareApprovalDialog(amount));const dialog=document.querySelector('#share-approval-dialog');dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();}
+      alertMessage(t("ยืนยันยอดรอบล่าสุดแล้ว"));
+    }
+    else if(action==='copy-link'){
+      const token=supabaseConfigured?await getSupabaseInvite(id):null;
+      await navigator.clipboard.writeText(location.origin+`/groups/${id}`+(token?`?invite=${encodeURIComponent(token)}`:''));alertMessage(t("คัดลอกลิงก์เชิญแล้ว"));
+    }
     else if(action==='open-notice'){const n=state.notifications.find(x=>x.id===id);n.read=true;save();go(n.href);}
     else if(action==='logout'){
+      authSessionSync?.invalidate();
       if(supabaseConfigured){const {error}=await supabase.auth.signOut();if(error)throw error;}
-      state.user=null;save();go('/');alertMessage(t("ออกจากระบบแล้ว"));
+      state.user=null;state.groups=supabaseConfigured?[]:state.groups;state.profiles=supabaseConfigured?{}:state.profiles;save();
+      if(supabaseConfigured)await syncSupabaseSession(null);
+      go('/');alertMessage(t("ออกจากระบบแล้ว"));
     }
     else if(action==='switch-user'){if(supabaseConfigured)throw Object.assign(new Error(),{code:'orderUnauthorized'});const user=state.profiles?.[id]||(['demo-seller','demo-seller-s2'].includes(id)?{id,name:seller(id==='demo-seller'?'s1':'s2').name,role:'seller',sellerId:id==='demo-seller'?'s1':'s2'}:{id,name:demoNames[id],role:'member'});save({...state,user});render();alertMessage(t("สลับบัญชีทดสอบแล้ว"));}
     else if(action==='payment-report'){
@@ -1009,9 +1039,18 @@ document.addEventListener('click',async e=>{
       const next=respondToResolution(orderFor(id),state.user,btn.dataset.dispute,btn.dataset.accept==='true');
       orderChanged(next,next.status==='refunded'?t('บันทึกผลคืนเงินจำลองแล้ว ไม่ได้คืนเงินจริง'):t('บันทึกคำตอบข้อเสนอแล้ว'));
     }
-    else if(action==='edit-costs'){const g=group(id);const value=prompt(t("ค่าส่งต่อคนใหม่ (บาท)"),bahtInput(g.costs.delivery));if(value===null)return;const next=changeCosts(g,state.user.id,{delivery:parseBaht(value)});updateGroup(next);next.members.forEach(u=>notice(t("ค่าใช้จ่ายเปลี่ยน"),t("ค่าส่งเปลี่ยน กรุณายืนยันยอดใหม่"),`/groups/${id}`,u));render();alertMessage(t("ปรับยอดและเริ่มรอบยืนยันใหม่แล้ว"));}
-    else if(action==='transfer'){const g=group(id),members=g.members.filter(u=>u!==state.user.id);if(!members.length)throw Error(t("ยังไม่มีสมาชิกให้โอนสิทธิ์"));const choice=prompt(t('พิมพ์ ID สมาชิกที่จะเป็นหัวหน้าคนใหม่: {members}',{members:members.join(', ')}),members[0]);if(choice===null)return;updateGroup(transferOwner(g,state.user.id,choice));render();alertMessage(t("โอนหัวหน้ากลุ่มแล้ว"));}
-  }catch(err){alertMessage(supabaseConfigured?authErrorMessage(err):errorMessage(err));}
+    else if(action==='edit-costs'){
+      const g=group(id),value=prompt(t("ค่าส่งต่อคนใหม่ (บาท)"),bahtInput(g.costs.delivery));if(value===null)return;
+      if(supabaseConfigured){await changeSupabaseDelivery(id,parseBaht(value));await refreshSupabaseGroups();}
+      else{const next=changeCosts(g,state.user.id,{delivery:parseBaht(value)});updateGroup(next);next.members.forEach(u=>notice(t("ค่าใช้จ่ายเปลี่ยน"),t("ค่าส่งเปลี่ยน กรุณายืนยันยอดใหม่"),`/groups/${id}`,u));render();}
+      alertMessage(t("ปรับยอดและเริ่มรอบยืนยันใหม่แล้ว"));
+    }
+    else if(action==='transfer'){
+      const g=group(id),members=g.members.filter(u=>u!==state.user.id);if(!members.length)throw Error(t("ยังไม่มีสมาชิกให้โอนสิทธิ์"));const choice=prompt(t('พิมพ์ ID สมาชิกที่จะเป็นหัวหน้าคนใหม่: {members}',{members:members.join(', ')}),members[0]);if(choice===null)return;
+      if(supabaseConfigured){await transferSupabaseGroup(id,choice);await refreshSupabaseGroups();}else updateGroup(transferOwner(g,state.user.id,choice));
+      render();alertMessage(t("โอนหัวหน้ากลุ่มแล้ว"));
+    }
+  }catch(err){if(supabaseConfigured){try{await refreshSupabaseGroups();}catch{/* Keep the explicit mutation error visible. */}}alertMessage(supabaseConfigured?authErrorMessage(err):errorMessage(err));}
 });
 document.addEventListener('submit',async e=>{
   const f=e.target;
@@ -1023,24 +1062,21 @@ document.addEventListener('submit',async e=>{
         const password=document.getElementById('mockup-login-pw').value;
         const {data,error}=await supabase.auth.signInWithPassword({email,password});
         if(error)throw error;
-        const user=await loadAuthenticatedUser(data.user);
-        state={...state,user};
-        if(user.address)finishAuth(user);else{tempSignupData=user;setMockupStep(3,f);}
+        await syncSupabaseSession(data.session);
       }else if(supabaseConfigured&&f.id==='mockup-signup-form'){
         if(document.getElementById('mockup-signup-pw').value!==document.getElementById('mockup-signup-confirm-pw').value)throw Object.assign(new Error(),{code:'authPasswordMismatch'});
         const email=document.getElementById('mockup-signup-email').value.trim();
         const password=document.getElementById('mockup-signup-pw').value;
         const display_name=document.getElementById('mockup-signup-name').value.trim();
         if(!display_name)throw Object.assign(new Error(),{code:'prototypeInvalidProfile'});
-        const {data,error}=await supabase.auth.signUp({email,password,options:{data:{display_name},emailRedirectTo:location.origin}});
+        const {data,error}=await supabase.auth.signUp({email,password,options:{data:{display_name},emailRedirectTo:location.href}});
         if(error)throw error;
         if(!data.session){
           authModalActive=false;mockupCurrentStep=1;render();
           alertMessage(t('ตรวจอีเมลเพื่อยืนยันบัญชีก่อนเข้าสู่ระบบ'));
           return;
         }
-        const user=await loadAuthenticatedUser(data.user);
-        state={...state,user};tempSignupData=user;setMockupStep(3,f);
+        await syncSupabaseSession(data.session);
       }else if(supabaseConfigured&&f.id==='mockup-address-form'){
         if(!state.user?.id)throw Object.assign(new Error(),{code:'orderUnauthorized'});
         const address=Object.fromEntries(['house-no','village-no','province','district','subdistrict','alley','road','postal-code','phone'].map(key=>[key.replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase()),document.getElementById('mockup-'+key).value.trim()]));
@@ -1071,7 +1107,9 @@ document.addEventListener('submit',async e=>{
         if(!name||name.length>70||bio.length>160)throw Object.assign(new Error(),{code:'prototypeInvalidProfile'});
         const {error}=await supabase.from('profiles').update({display_name:name,bio}).eq('id',state.user.id);
         if(error)throw error;
-        state={...state,user:{...state.user,name,bio}};
+        const {data:profile,error:readError}=await supabase.from('profiles').select('display_name,bio').eq('id',state.user.id).single();
+        if(readError)throw readError;
+        state={...state,user:{...state.user,name:profile.display_name,bio:profile.bio}};
         render();alertMessage(t('บันทึกโปรไฟล์แล้ว'));
         return;
       }
@@ -1090,6 +1128,13 @@ document.addEventListener('submit',async e=>{
       if(imagesLoading)throw Error(t('กำลังเตรียมรูป กรุณารอสักครู่'));
       if(!state.user)throw Object.assign(new Error(),{code:'orderUnauthorized'});
       if(!listing(d.get('listingId')))throw Error(t('ไม่พบสินค้า กรุณาเลือกสินค้าใหม่'));
+      if(supabaseConfigured){
+        const groupId=await createSupabaseGroup({listingId:d.get('listingId'),name:d.get('name'),visibility:d.get('visibility'),capacity:Number(d.get('capacity')),delivery:parseBaht(d.get('delivery')),requestId:d.get('requestId')});
+        await refreshSupabaseGroups();
+        go(`/groups/${groupId}`);
+        alertMessage(t('สร้างกลุ่มแล้ว'));
+        return;
+      }
       const g=createGroup({id:'g'+Date.now(),listingId:d.get('listingId'),name:d.get('name'),ownerId:state.user.id,visibility:d.get('visibility'),capacity:Number(d.get('capacity')),costs:formCosts(d)});
       g.images=[...groupImages];
       const notification={id:crypto.randomUUID(),recipient:state.user.id,title:t('สร้างกลุ่มแล้ว'),body:t('ชวนสมาชิกเข้าร่วมเพื่อเริ่มหารค่าใช้จ่าย'),href:`/groups/${g.id}`,read:false,at:new Date().toISOString()};
@@ -1171,6 +1216,15 @@ document.addEventListener('input',e=>{
 function authErrorMessage(error){
   const code=error?.code||'';
   const message=String(error?.message||'').toLowerCase();
+  if(error?.code==='groupTotalMismatch')return t('ข้อมูลยอดจากฐานข้อมูลไม่ตรงกับสูตรแอป กรุณาติดต่อผู้ดูแล');
+  if(error?.code==='groupTotalOutOfRange'||message.includes('group_total_out_of_range'))return t('ยอดรวมเกินขอบเขตที่รองรับ');
+  if(message.includes('invite_invalid'))return t('คำเชิญไม่ถูกต้องหรือหมดอายุ');
+  if(message.includes('full_group'))return t('กลุ่มเต็มแล้ว');
+  if(message.includes('already_member'))return t('คุณเป็นสมาชิกกลุ่มนี้แล้ว');
+  if(message.includes('owner_must_transfer'))return t('หัวหน้ากลุ่มต้องโอนสิทธิ์ก่อนออก');
+  if(message.includes('owner_only'))return t('เฉพาะหัวหน้ากลุ่มแก้ไขค่าใช้จ่ายได้');
+  if(message.includes('stale_revision'))return t('ยอดมีการเปลี่ยน กรุณาโหลดข้อมูลล่าสุด');
+  if(message.includes('failed to fetch')||message.includes('networkerror'))return t('เชื่อมต่อ Supabase ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง');
   if(code==='authPasswordMismatch')return t('รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน');
   if(code==='googleProviderDisabled')return t('ยังไม่ได้เปิดใช้ Google OAuth');
   if(code==='invalid_credentials'||message.includes('invalid login credentials'))return t('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
@@ -1181,20 +1235,49 @@ function authErrorMessage(error){
   return t('เกิดข้อผิดพลาด กรุณาลองใหม่');
 }
 
-async function syncSupabaseSession(session){
+async function fetchSupabaseState(authUser){
+  const user=authUser?await loadAuthenticatedUser(authUser):null;
+  const snapshot=await loadSupabaseGroups(authUser?.id||null);
+  const inviteToken=new URLSearchParams(location.search).get('invite');
+  const routeGroup=location.pathname.match(/^\/groups\/([^/]+)/)?.[1];
+  if(authUser&&inviteToken&&routeGroup){
+    try{const invite=await resolveSupabaseInvite(routeGroup,inviteToken,authUser.id);
+      if(invite){snapshot.groups=[invite.group,...snapshot.groups.filter(group=>group.id!==invite.group.id)];Object.assign(snapshot.names,invite.names);}
+    }catch(error){if(!String(error?.message||'').toLowerCase().includes('invite_invalid'))throw error;}
+  }
+  return {user,snapshot};
+}
+
+async function refreshSupabaseGroups(){
   if(!supabaseConfigured)return;
-  if(!session?.user){
-    state={...state,user:null};render();return;
-  }
+  groupsLoading=true;groupsError=null;render();
   try{
-    const user=await loadAuthenticatedUser(session.user);
-    state={...state,user};
-    if(!user.address){tempSignupData=user;mockupCurrentStep=3;authModalActive=true;render();return;}
-    if(['/login','/register'].includes(location.pathname))finishAuth(user);
-    else render();
-  }catch(error){
-    state={...state,user:null};render();alertMessage(authErrorMessage(error));
-  }
+    const snapshot=await loadSupabaseGroups(state.user?.id||null);
+    const inviteToken=new URLSearchParams(location.search).get('invite');
+    const routeGroup=location.pathname.match(/^\/groups\/([^/]+)/)?.[1];
+    if(state.user&&inviteToken&&routeGroup){
+      try{const invite=await resolveSupabaseInvite(routeGroup,inviteToken,state.user.id);
+        if(invite){snapshot.groups=[invite.group,...snapshot.groups.filter(group=>group.id!==invite.group.id)];Object.assign(snapshot.names,invite.names);}
+      }catch(error){if(!String(error?.message||'').toLowerCase().includes('invite_invalid'))throw error;}
+    }
+    state={...state,groups:snapshot.groups,profiles:snapshot.names,remoteListings:snapshot.listings,remoteSellers:snapshot.sellers};groupsLoading=false;groupsError=null;render();
+    return snapshot;
+  }catch(error){groupsLoading=false;groupsError=error;render();throw error;}
+}
+
+if(supabaseConfigured){
+  authSessionSync=createAuthSessionSync({
+    loadUser:fetchSupabaseState,
+    applyUser:result=>{
+      state={...state,user:result.user,groups:result.snapshot.groups,profiles:result.snapshot.names,remoteListings:result.snapshot.listings,remoteSellers:result.snapshot.sellers};
+      groupsLoading=false;groupsError=null;
+      if(result.user&&!result.user.address){tempSignupData=result.user;mockupCurrentStep=3;authModalActive=true;render();return;}
+      if(result.user&&['/login','/register'].includes(location.pathname))finishAuth(result.user);
+      else{if(!result.user){authModalActive=false;tempSignupData={};}render();}
+    },
+    onError:error=>{state={...state,user:null,groups:[],profiles:{}};groupsLoading=false;groupsError=error;render();alertMessage(authErrorMessage(error));},
+  });
+  syncSupabaseSession=session=>authSessionSync.sync(session);
 }
 
 window.addEventListener('popstate',render);
@@ -1203,9 +1286,6 @@ if(supabaseConfigured){
   refreshAuthProviders().then(()=>{if(authModalActive||location.pathname==='/login'||location.pathname==='/register')render();});
   supabase.auth.onAuthStateChange((event,session)=>{
     if(event!=='INITIAL_SESSION')setTimeout(()=>void syncSupabaseSession(session),0);
-  });
-  supabase.auth.getSession().then(({data,error})=>{
-    if(error)alertMessage(authErrorMessage(error));
-    else void syncSupabaseSession(data.session);
+    else void syncSupabaseSession(session);
   });
 }
