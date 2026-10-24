@@ -9,9 +9,9 @@ export const listings = [
   {id:'p4',title:'ชุดอุปกรณ์ทำความสะอาด',category:'ของใช้',kind:'สินค้า',price:56000,sellerId:'s1',art:'clean',mark:'SET',description:'ชุดของใช้ส่วนกลางสำหรับหอพักหรือออฟฟิศขนาดเล็ก',terms:'สินค้าเป็นชุดเดียว กรุณาตกลงการรับของร่วมกัน'}
 ];
 export const initialGroups = [
-  {id:'g1',listingId:'p1',name:'ทีมอ่านสอบปลายเทอม',ownerId:'demo-owner',visibility:'public',capacity:4,members:['demo-owner','demo-may','demo-nan'],costs:{product:64500,delivery:4000,service:0},revision:1,approvals:{},status:'awaiting_approval',history:[{revision:1,reason:'สร้างกลุ่ม',at:'2026-10-23T00:00:00.000Z'}]},
-  {id:'g2',listingId:'p2',name:'หารกล่องข้าวงานอีเวนต์',ownerId:'demo-owner',visibility:'public',capacity:5,members:['demo-owner','demo-may'],costs:{product:89000,delivery:0,service:0},revision:1,approvals:{},status:'awaiting_approval',history:[{revision:1,reason:'สร้างกลุ่ม',at:'2026-10-23T00:00:00.000Z'}]},
-  {id:'g3',listingId:'p3',name:'โปสเตอร์ชมรม',ownerId:'demo-nan',visibility:'link',capacity:3,members:['demo-nan','demo-may'],costs:{product:120000,delivery:0,service:0},revision:1,approvals:{},status:'awaiting_approval',history:[{revision:1,reason:'สร้างกลุ่ม',at:'2026-10-23T00:00:00.000Z'}]}
+  {id:'g1',listingId:'p1',name:'ทีมอ่านสอบปลายเทอม',ownerId:'demo-owner',visibility:'public',capacity:4,members:['demo-owner','demo-may','demo-nan'],costs:{product:64500,delivery:4000,mode:'per_member_v2'},revision:1,approvals:{},status:'awaiting_approval',history:[{revision:1,reason:'สร้างกลุ่ม',at:'2026-10-23T00:00:00.000Z'}]},
+  {id:'g2',listingId:'p2',name:'หารกล่องข้าวงานอีเวนต์',ownerId:'demo-owner',visibility:'public',capacity:5,members:['demo-owner','demo-may'],costs:{product:89000,delivery:0,mode:'per_member_v2'},revision:1,approvals:{},status:'awaiting_approval',history:[{revision:1,reason:'สร้างกลุ่ม',at:'2026-10-23T00:00:00.000Z'}]},
+  {id:'g3',listingId:'p3',name:'โปสเตอร์ชมรม',ownerId:'demo-nan',visibility:'link',capacity:3,members:['demo-nan','demo-may'],costs:{product:120000,delivery:0,mode:'per_member_v2'},revision:1,approvals:{},status:'awaiting_approval',history:[{revision:1,reason:'สร้างกลุ่ม',at:'2026-10-23T00:00:00.000Z'}]}
 ];
 export const demoNames = {'demo-owner':'ต้น (หัวหน้ากลุ่ม)','demo-may':'เมย์','demo-nan':'แนน'};
 export function initialState() { return {user:null,role:'member',groups:initialGroups,customListings:[],notifications:[],conversations:{},orders:[]}; }

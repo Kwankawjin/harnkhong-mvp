@@ -39,6 +39,13 @@ test('create requires leader, full membership and current confirmations; snapsho
   assert.equal(order.mode,'demo');
   assert.equal(order.actualPaymentVerification,'unavailable');
 });
+test('new orders snapshot per-member delivery and automatic app fees', () => {
+  const input={...group(),costs:{product:10001,delivery:1000,mode:'per_member_v2'}};
+  const order=createOrder(input,product,owner,{now:start});
+  assert.equal(order.totalSatang,12241);
+  assert.deepEqual(Object.fromEntries(Object.entries(order.payments).map(([id,payment])=>[id,payment.amountSatang])),{a:6121,b:6120});
+  assert.equal(order.costs.service,undefined);
+});
 
 test('member reporting is separate from amount approval and cannot verify or report for another member', () => {
   const original = make(), order = reportPayment(original,member);

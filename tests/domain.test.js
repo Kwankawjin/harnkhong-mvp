@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {allocate, parseBaht, totalCost, createGroup, joinGroup, leaveGroup, approve, changeCosts, transferOwner, allApproved} from '../src/domain.js';
+import {allocate, parseBaht, costBreakdown, totalCost, shares, createGroup, joinGroup, leaveGroup, approve, changeCosts, transferOwner, allApproved} from '../src/domain.js';
 const group = () => ({id:'g',ownerId:'a',members:['a','b','c','d'],capacity:4,costs:{product:40000,delivery:0,service:0},revision:1,approvals:{a:1,b:1,c:1,d:1},status:'ready',history:[]});
 const newGroup = () => ({id:'new',listingId:'p1',name:' กลุ่มใหม่ ',ownerId:'a',visibility:'public',capacity:4,costs:{product:101,delivery:1,service:0}});
 
@@ -16,7 +16,9 @@ test('สร้างกลุ่มสาธารณะและเฉพา�
     assert.deepEqual(g.approvals, {});
     assert.equal(g.status, 'awaiting_approval');
     assert.equal(g.history[0].revision, 1);
-    assert.deepEqual(allocate(totalCost(g.costs), g.members), {a:102});
+    assert.deepEqual(shares(g), {a:104});
+    assert.equal(g.costs.mode,'per_member_v2');
+    assert.equal(g.costs.service,undefined);
     assert.deepEqual(input, snapshot);
     g.costs.product = 5;
     assert.equal(input.costs.product, 101);
@@ -37,7 +39,7 @@ test('ปฏิเสธผลรวมเกิน safe integer แม้แต
   const costs = {product:Number.MAX_SAFE_INTEGER, delivery:1, service:0};
   assert.throws(() => totalCost(costs), {code:'invalidSatang'});
   assert.throws(() => createGroup({...newGroup(), costs}), {code:'invalidSatang'});
-  assert.throws(() => changeCosts(group(), 'a', costs), {code:'invalidSatang'});
+  assert.throws(() => changeCosts(group(), 'a', {delivery:Number.MAX_SAFE_INTEGER}), {code:'invalidSatang'});
   for (const amount of [-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER+1, '100']) assert.throws(() => allocate(amount, ['a']), {code:'invalidSatang'});
   assert.equal(parseBaht('0.29'), 29);
   assert.equal(parseBaht('90071992547409.91'), Number.MAX_SAFE_INTEGER);
@@ -56,6 +58,16 @@ test('ปฏิเสธเงินผิดรูปแบบ', () => {
   for (const bad of ['-1','1.234','abc','Infinity']) assert.throws(()=>parseBaht(bad));
   assert.throws(()=>allocate(-1,['a'])); assert.throws(()=>allocate(1,[])); assert.throws(()=>allocate(1,['a','a']));
   assert.equal(totalCost({product:40000,delivery:4000,service:0}),44000);
+});
+test('ค่าส่งคิดต่อสมาชิกและค่าธรรมเนียมแอป 2% คำนวณอัตโนมัติ', () => {
+  const costs={product:64500,delivery:4000,mode:'per_member_v2'};
+  assert.deepEqual(costBreakdown(costs,4),{product:64500,delivery:16000,deliveryPerMember:4000,service:1610,total:82110});
+  const g={...group(),costs,members:['a','b','c','d']};
+  assert.deepEqual(shares(g),{a:20528,b:20528,c:20527,d:20527});
+  assert.equal(Object.values(shares(g)).reduce((sum,amount)=>sum+amount,0),totalCost(costs,4));
+  const changed=changeCosts(g,'a',{delivery:5000,service:999999,product:1});
+  assert.deepEqual(changed.costs,{product:64500,delivery:5000,mode:'per_member_v2'});
+  assert.equal(costBreakdown(changed.costs,4).service,1690);
 });
 test('ออกจากกลุ่มแล้วแก้ revision และล้างการยืนยัน', () => {
   const left=leaveGroup(group(),'d');

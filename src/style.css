@@ -2289,8 +2289,11 @@ dialog:not([open]), [hidden] { display: none !important; }
 .opportunity-price b { color: var(--navy); font-size: 1.05rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .opportunity-terms { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-height: 38px; color: var(--text-sub); font-size: .76rem; line-height: 1.5; margin: 14px 0; }
 .opportunity-terms svg { display: inline; vertical-align: -3px; color: var(--blue); }
-.opportunity-actions { display: flex; align-items: center; gap: 10px; margin-top: auto; }
-.opportunity-actions .button { flex: 1; min-width: 0; min-height: 45px; }
+.opportunity-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 10px; margin-top: auto; }
+.opportunity-actions .button { min-width: 0; min-height: 45px; }
+.opportunity-actions .opportunity-view { grid-column: 1 / -1; }
+.opportunity-actions .opportunity-chat:last-child { grid-column: 1 / -1; }
+.opportunity-actions .opportunity-view + .opportunity-share { grid-column: 1 / -1; }
 .opportunity-share { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 45px; padding: 0 5px; border: 0; background: none; color: var(--blue); font-size: .83rem; font-weight: 750; white-space: nowrap; }
 .opportunity-share:hover { color: var(--blue-hover); text-decoration: underline; text-underline-offset: 3px; }
 .summary-future-price { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; margin: 7px 0 10px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--text-sub); font-size: .83rem; }

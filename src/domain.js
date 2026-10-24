@@ -19,14 +19,27 @@ export function parseBaht(value) {
   const [baht, satang = ''] = text.split('.');
   return assertSatang(Number(baht) * 100 + Number(satang.padEnd(2, '0')));
 }
-export const totalCost = costs => assertSatang(assertSatang(costs?.product) + assertSatang(costs?.delivery) + assertSatang(costs?.service));
+export function costBreakdown(costs, memberCount = 1) {
+  const product = assertSatang(costs?.product), delivery = assertSatang(costs?.delivery);
+  if (costs?.mode === 'per_member_v2') {
+    if (!Number.isSafeInteger(memberCount) || memberCount < 1 || memberCount > 20) fail('invalidMembers', 'จำนวนสมาชิกไม่ถูกต้อง');
+    const deliveryTotal = assertSatang(delivery * memberCount);
+    const subtotal = assertSatang(product + deliveryTotal);
+    const service = assertSatang(Number((BigInt(subtotal) * 2n + 50n) / 100n));
+    return {product, delivery:deliveryTotal, deliveryPerMember:delivery, service, total:assertSatang(subtotal + service)};
+  }
+  const service = assertSatang(costs?.service);
+  return {product, delivery, deliveryPerMember:null, service, total:assertSatang(product + delivery + service)};
+}
+export const totalCost = (costs, memberCount = 1) => costBreakdown(costs, memberCount).total;
 export function createGroup({id, listingId, name, ownerId, visibility, capacity, costs}) {
   [id, listingId, ownerId].forEach(assertId);
   if (typeof name !== 'string' || !name.trim()) fail('invalidName', 'กรุณาตั้งชื่อกลุ่ม');
   if (!['public', 'link'].includes(visibility)) fail('invalidVisibility', 'กรุณาเลือกกลุ่มสาธารณะหรือเฉพาะลิงก์');
   assertCapacity(capacity);
-  totalCost(costs);
-  return {id, listingId, name:name.trim(), ownerId, visibility, capacity, costs:{...costs}, members:[ownerId], revision:1, approvals:{}, status:'awaiting_approval', history:[{revision:1, reason:'สร้างกลุ่ม', at:new Date().toISOString()}]};
+  const nextCosts = {product:costs?.product, delivery:costs?.delivery, mode:'per_member_v2'};
+  totalCost(nextCosts, capacity);
+  return {id, listingId, name:name.trim(), ownerId, visibility, capacity, costs:nextCosts, members:[ownerId], revision:1, approvals:{}, status:'awaiting_approval', history:[{revision:1, reason:'สร้างกลุ่ม', at:new Date().toISOString()}]};
 }
 export function allocate(total, members) {
   assertSatang(total);
@@ -35,7 +48,11 @@ export function allocate(total, members) {
   const base = Math.floor(total / members.length), remainder = total % members.length;
   return Object.fromEntries(members.map((id, index) => [id, base + (index < remainder ? 1 : 0)]));
 }
-export const shares = group => allocate(totalCost(group.costs), group.members);
+export function shares(group) {
+  const breakdown = costBreakdown(group.costs, group.members.length);
+  const base = allocate(breakdown.total - (breakdown.deliveryPerMember ?? 0) * group.members.length, group.members);
+  return breakdown.deliveryPerMember === null ? base : Object.fromEntries(group.members.map(id => [id, base[id] + breakdown.deliveryPerMember]));
+}
 export const allApproved = group => group.members.length === group.capacity && group.members.every(id => group.approvals[id] === group.revision);
 function revise(group, patch, reason) {
   return {...group, ...patch, revision: group.revision + 1, approvals: {}, status: 'awaiting_approval', history: [...group.history, {revision: group.revision + 1, reason, at: new Date().toISOString()}]};
@@ -65,8 +82,9 @@ export function transferOwner(group, actorId, nextOwnerId) {
 export function changeCosts(group, actorId, costs) {
   assertEditable(group);
   if (group.ownerId !== actorId) fail('ownerOnly', 'เฉพาะหัวหน้ากลุ่มแก้ไขค่าใช้จ่ายได้');
-  totalCost(costs);
-  return revise(group, {costs}, 'ค่าใช้จ่ายเปลี่ยน');
+  const nextCosts = {product:group.costs.product, delivery:costs?.delivery, mode:'per_member_v2'};
+  totalCost(nextCosts, group.capacity);
+  return revise(group, {costs:nextCosts}, 'ค่าใช้จ่ายเปลี่ยน');
 }
 export function approve(group, userId, revision) {
   assertEditable(group);

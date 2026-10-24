@@ -1,4 +1,4 @@
-import {allApproved, allocate, totalCost} from './domain.js';
+import {allApproved, shares, totalCost} from './domain.js';
 
 // shortcut: identities, clocks and storage are browser-local; enforce these rules on a server before real use.
 export const ORDER_TRANSITIONS = Object.freeze({
@@ -78,9 +78,9 @@ function snapshot(group, product, hours) {
   return {
     id:group.id,groupId:group.id,listingId:product.id,sellerId:product.sellerId,ownerId:group.ownerId,
     members:[...group.members],capacity:group.capacity,groupRevision:group.revision,costs:{...group.costs},
-    approvals:{...group.approvals},totalSatang:totalCost(group.costs),mode:'demo',actualPaymentVerification:'unavailable',
+    approvals:{...group.approvals},totalSatang:totalCost(group.costs,group.members.length),mode:'demo',actualPaymentVerification:'unavailable',
     inspectionHours:inspectionHours(hours),inspection:null,shipment:null,disputes:[],refund:null,history:[],
-    payments:Object.fromEntries(Object.entries(allocate(totalCost(group.costs),group.members)).map(([id,amountSatang]) => [id,{amountSatang,status:'unpaid',verificationMode:null}])),
+    payments:Object.fromEntries(Object.entries(shares(group)).map(([id,amountSatang]) => [id,{amountSatang,status:'unpaid',verificationMode:null}])),
   };
 }
 export function createOrder(group, product, actor, {hours = 24, now = new Date()} = {}) {
