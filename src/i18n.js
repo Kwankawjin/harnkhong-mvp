@@ -30,6 +30,8 @@ const labels = {
   'เปิด QR จำลองและแจ้งชำระ':'Open demo QR and report payment',
   'QR สำหรับทดลองจ่าย':'Demo payment QR', 'QR ตัวอย่าง สแกนจ่ายไม่ได้':'Sample QR · Cannot be scanned for payment',
   'ยอดส่วนแบ่งของคุณ':'Your share', 'ดาวน์โหลด PNG ตัวอย่าง':'Download sample PNG',
+  'QR ยอดที่ยืนยัน (จำลอง)':'Approved share QR (demo)', 'ยอดที่ยืนยัน':'Approved share',
+  'การยืนยันยอดบันทึกว่าคุณยอมรับจำนวนเงินเท่านั้น ไม่ใช่การแจ้งชำระและไม่มีการเก็บเงินจริง':'Approving your share only records your agreement. It does not report a payment or collect real money.',
   'ไม่มีบัญชีรับเงินหรือคำสั่งโอน การกดแจ้งชำระเพียงส่งสถานะรอตรวจยอดเดโม':'There is no recipient account or transfer instruction. Reporting only sends a demo payment report for review.',
   'หารของด้วยกัน':'Share the cost',
   'หน้าแรก':'Home', 'สำรวจ':'Explore', 'กลุ่มของฉัน':'My groups', 'แชต':'Chat', 'บัญชี':'Account',
