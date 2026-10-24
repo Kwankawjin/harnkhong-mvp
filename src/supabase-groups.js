@@ -11,36 +11,23 @@ function mapBundle({group, members = [], approvals = [], events = []}) {
   return {group:mapDatabaseGroup(group,memberIds,approved,events),names};
 }
 
-async function loadGroupBundles(groups, userId) {
-  if (!groups.length) return {groups:[],names:{}};
-  const ids = groups.map(group=>group.id);
-  const queries = [
-    supabase.from('group_members').select('group_id,user_id,display_name,joined_at').in('group_id',ids).order('joined_at'),
-    supabase.from('group_events').select('group_id,revision,event_type,created_at').in('group_id',ids).order('id'),
-  ];
-  if (userId) queries.push(supabase.from('group_approvals').select('group_id,user_id,revision').in('group_id',ids));
-  const results = await Promise.all(queries);
-  for (const result of results) if (result.error) throw result.error;
-  const [memberRows,eventRows,approvalRows=[]] = results.map(result=>result.data||[]);
-  const bundles = groups.map(group=>mapBundle({
-    group,
-    members:memberRows.filter(row=>row.group_id===group.id),
-    approvals:approvalRows.filter(row=>row.group_id===group.id),
-    events:eventRows.filter(row=>row.group_id===group.id),
-  }));
-  return {groups:bundles.map(bundle=>bundle.group),names:Object.assign({},...bundles.map(bundle=>bundle.names))};
-}
-
-export async function loadSupabaseGroups(userId) {
+export async function loadSupabaseGroups(client = supabase) {
   const [groupResult,productResult,shopResult] = await Promise.all([
-    supabase.from('groups').select('id,listing_id,owner_id,name,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,created_at').order('created_at',{ascending:false}),
-    supabase.from('products').select('id,seller_id,title,category,kind,price_satang,art,mark,description,terms').eq('active',true),
-    supabase.from('shops').select('id,name,intro,initials'),
+    // Embed related rows so totals and membership come from one database snapshot.
+    client.from('groups').select('id,listing_id,owner_id,name,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,created_at,members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)')
+      .order('created_at',{ascending:false}).order('joined_at',{referencedTable:'members'}).order('id',{referencedTable:'events'}),
+    client.from('products').select('id,seller_id,title,category,kind,price_satang,art,mark,description,terms').eq('active',true),
+    client.from('shops').select('id,name,intro,initials'),
   ]);
   for (const result of [groupResult,productResult,shopResult]) if (result.error) throw result.error;
-  const bundle=await loadGroupBundles(groupResult.data||[],userId);
+  const bundles=(groupResult.data||[]).map(row=>mapBundle({
+    group:row,
+    members:row.members||[],
+    approvals:(row.members||[]).flatMap(member=>member.approvals?[{...member.approvals,user_id:member.user_id}]:[]),
+    events:row.events||[],
+  }));
   return {
-    ...bundle,
+    groups:bundles.map(bundle=>bundle.group),names:Object.assign({},...bundles.map(bundle=>bundle.names)),
     listings:(productResult.data||[]).map(row=>{
       const price=Number(row.price_satang);
       if(!Number.isSafeInteger(price)||price<0)throw Object.assign(new Error('Product price exceeds supported amount'),{code:'groupTotalOutOfRange'});

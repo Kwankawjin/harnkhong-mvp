@@ -12,7 +12,7 @@ export function createAuthSessionSync({loadUser, applyUser, onError}) {
       try {
         const user = await loadUser(authUser);
         if (request !== generation) return;
-        applyUser(user);
+        return applyUser(user);
       } catch (error) {
         if (request !== generation) return;
         onError(error);
