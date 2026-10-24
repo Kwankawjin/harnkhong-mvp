@@ -3,6 +3,7 @@ import {demoAccount,editProfile,readLocalImage,isLocalImage,MAX_GROUP_IMAGES} fr
 import {listings as seedListings, sellers, demoNames, initialState} from './data.js';
 import {assertCapacity, createGroup, costBreakdown, totalCost, shares, joinGroup, leaveGroup, approve, changeCosts, parseBaht, allApproved, transferOwner} from './domain.js';
 import {messages, translate, formatSatang, bahtInput} from './i18n.js';
+import {supabase, supabaseConfigured, googleAuthAvailable, refreshAuthProviders, loadAuthenticatedUser, saveAuthenticatedAddress} from './supabase.js';
 import {createOrder,activateOrder,migrateOrders,lockOrderedGroups,orderPermissions,reportPayment,updatePayment,transitionOrder,updateShipment,openDispute,proposeResolution,respondToResolution,DISPUTE_REASONS,sellerIdFor,assertListingSeller} from './orders.js';
 
 const LOCALE_KEY='harnkhong-locale';
@@ -14,7 +15,12 @@ const errorMessage=error=>messages[locale][error.code]??error.message??t('เก
 const KEY='harnkhong-demo-v1';
 let state;
 try { state={...initialState(),...JSON.parse(localStorage.getItem(KEY)||'{}')}; } catch { state=initialState(); }
-const save=(next=state)=>{localStorage.setItem(KEY,JSON.stringify(next));state=next;};
+if(supabaseConfigured)state={...state,user:null};
+const save=(next=state)=>{
+  state=next;
+  const stored=supabaseConfigured?{...next,user:null,profiles:{}}:next;
+  localStorage.setItem(KEY,JSON.stringify(stored));
+};
 const restoredOrders=migrateOrders(state.orders,state.groups,[...seedListings,...state.customListings]);
 const restoredGroups=lockOrderedGroups(state.groups,restoredOrders).map(g=>{
   if(g.orderId||g.costs?.mode==='per_member_v2')return g;
@@ -94,7 +100,8 @@ function fillMockupDemo() {
   alertMessage(t('กรอกข้อมูลตัวอย่างใน Mockup เรียบร้อยแล้ว'));
 }
 function finishAuth(user) {
-  save({...state,user,profiles:{...state.profiles,[user.id]:user}});
+  if(supabaseConfigured)state={...state,user};
+  else save({...state,user,profiles:{...state.profiles,[user.id]:user}});
   tempSignupData={};authModalActive=false;mockupCurrentStep=1;
   const back=sessionStorage.getItem('harn-return')||'/';sessionStorage.removeItem('harn-return');
   go(['/login','/register'].includes(back.split('?')[0])?'/':back);
@@ -105,14 +112,14 @@ function renderPhoneMockup(initialStep=1,isModal=true) {
   mockupCurrentStep=initialStep;
   const step=initialStep===3&&!tempSignupData.email?2:initialStep;
   const input=(id,label,type='text',extra='')=>`<label>${label}<span class="auth-input"><input id="${id}" type="${type}" required ${extra}/>${type==='password'?`<button type="button" data-action="toggle-mockup-pw" data-target="${id}" aria-label="${t('แสดงหรือซ่อนรหัสผ่าน')}">${icon('eye',17)}</button>`:''}</span></label>`;
-  const google=`<button type="button" class="button google-button full" data-action="mockup-social" data-provider="Google"><b aria-hidden="true">G</b> ${t('ดำเนินการด้วย Google (จำลอง)')}</button><div class="auth-divider"><span>${t('หรือใช้อีเมล')}</span></div>`;
+  const google=supabaseConfigured?`${googleAuthAvailable?`<button type="button" class="button google-button full" data-action="supabase-google"><b aria-hidden="true">G</b> ${t('ดำเนินการด้วย Google')}</button>`:`<button type="button" class="button google-button full" disabled><b aria-hidden="true">G</b> ${t('ยังไม่ได้เปิดใช้ Google OAuth')}</button>`}<div class="auth-divider"><span>${t('หรือใช้อีเมล')}</span></div>`:`<button type="button" class="button google-button full" data-action="mockup-social" data-provider="Google"><b aria-hidden="true">G</b> ${t('ดำเนินการด้วย Google (จำลอง)')}</button><div class="auth-divider"><span>${t('หรือใช้อีเมล')}</span></div>`;
   const addressFields=[['house-no','บ้านเลขที่',true],['village-no','หมู่',false],['province','จังหวัด',true],['district','อำเภอ',true],['subdistrict','ตำบล',true],['alley','ซอย',false],['road','ถนน',false],['postal-code','รหัสไปรษณีย์',true],['phone','เบอร์มือถือ',true]];
   return `<div class="auth-switch ${step!==1?'is-signup':''}">
     ${isModal?`<button class="dialog-close" type="button" data-action="close-auth" aria-label="${t('ปิดหน้าต่าง')}">✕</button>`:''}
-    <aside class="auth-welcome"><span class="auth-wordmark">Harn<span>Khong</span></span><div><h2>${t('หารของด้วยกัน')}</h2><p>${t('เลือกของที่ชอบ แล้วชวนเพื่อนมาหารด้วยกัน')}</p><span class="auth-welcome-line"></span><p>${t('บัญชีทดลอง · ไม่มีการยืนยันตัวตนจริง')}</p></div><span>${t('เริ่มต้นด้วยกันได้ง่าย ๆ')}</span></aside>
+    <aside class="auth-welcome"><span class="auth-wordmark">Harn<span>Khong</span></span><div><h2>${t('หารของด้วยกัน')}</h2><p>${t('เลือกของที่ชอบ แล้วชวนเพื่อนมาหารด้วยกัน')}</p><span class="auth-welcome-line"></span><p>${t(supabaseConfigured?'ยืนยันตัวตนด้วย Supabase Auth':'บัญชีทดลอง · ไม่มีการยืนยันตัวตนจริง')}</p></div><span>${t('เริ่มต้นด้วยกันได้ง่าย ๆ')}</span></aside>
     <div class="auth-forms">
       <section class="mockup-screen ${step===1?'active':''}" ${step!==1?'hidden':''}>
-        <h2 tabindex="-1">${t('ยินดีต้อนรับกลับ')}</h2><p>${t('เข้าสู่ระบบเดโมเพื่อไปต่อกับกลุ่มของคุณ')}</p>${google}
+        <h2 tabindex="-1">${t('ยินดีต้อนรับกลับ')}</h2><p>${t(supabaseConfigured?'เข้าสู่ระบบเพื่อไปต่อกับกลุ่มของคุณ':'เข้าสู่ระบบเดโมเพื่อไปต่อกับกลุ่มของคุณ')}</p>${google}
         <form id="mockup-login-form" class="auth-form">
           ${input('mockup-login-email',t('อีเมล'),'email','autocomplete="email" maxlength="254"')}
           ${input('mockup-login-pw',t('รหัสผ่าน'),'password','autocomplete="current-password"')}
@@ -120,20 +127,20 @@ function renderPhoneMockup(initialStep=1,isModal=true) {
         </form><p class="auth-switch-prompt">${t('ยังไม่มีบัญชี?')} <button type="button" data-action="mockup-step" data-step="2">${t('สมัครสมาชิก')}</button></p>
       </section>
       <section class="mockup-screen ${step===2?'active':''}" ${step!==2?'hidden':''}>
-        <h2 tabindex="-1">${t('สร้างบัญชีของคุณ')}</h2><p>${t('สมัครเสร็จแล้วไปกรอกที่อยู่สำหรับเดโม')}</p>${google}
+        <h2 tabindex="-1">${t('สร้างบัญชีของคุณ')}</h2><p>${t(supabaseConfigured?'สมัครแล้วตรวจอีเมลเพื่อยืนยันบัญชี':'สมัครเสร็จแล้วไปกรอกที่อยู่สำหรับเดโม')}</p>${google}
         <form id="mockup-signup-form" class="auth-form">
           ${input('mockup-signup-name',t('ชื่อ'),'text','autocomplete="name" maxlength="70"')}
           ${input('mockup-signup-email',t('อีเมล'),'email','autocomplete="email" maxlength="254"')}
-          ${input('mockup-signup-pw',t('รหัสผ่าน'),'password','autocomplete="new-password"')}
+          ${input('mockup-signup-pw',t('รหัสผ่าน'),'password','autocomplete="new-password" minlength="8"')}
           ${input('mockup-signup-confirm-pw',t('ยืนยันรหัสผ่าน'),'password','autocomplete="new-password"')}
           <button class="button primary full" type="submit">${t('ต่อไป (กรอกที่อยู่)')} ${icon('arrow',18)}</button>
         </form><p class="auth-switch-prompt">${t('มีบัญชีอยู่แล้ว?')} <button type="button" data-action="mockup-step" data-step="1">${t('เข้าสู่ระบบ')}</button></p>
       </section>
       <section class="mockup-screen ${step===3?'active':''}" ${step!==3?'hidden':''}>
-        <small>${t('ขั้นตอนที่ 2 จาก 2')}</small><h2 tabindex="-1">${t('กรอกที่อยู่')}</h2><p>${t('ใช้ข้อมูลตัวอย่างเท่านั้น ข้อมูลบันทึกในเบราว์เซอร์นี้')}</p>
-        <form id="mockup-address-form" class="auth-form"><div class="form-grid">${addressFields.map(([id,label,required])=>`<label>${t(label)}<input id="mockup-${id}" ${required?'required':''} ${id==='phone'?'type="tel" maxlength="12" pattern="[0-9 -]{9,12}" autocomplete="tel"':id==='postal-code'?'inputmode="numeric" pattern="[0-9]{5}" maxlength="5" autocomplete="postal-code"':'maxlength="100"'}/></label>`).join('')}</div><label>${t('เลขบัตรประชาชน (ไม่บังคับ ใช้ข้อมูลจำลองเท่านั้น)')}<input id="mockup-id-card" maxlength="17" inputmode="numeric" autocomplete="off"/></label><button class="button primary full" type="submit">${t('ยืนยันข้อมูล')}</button><button class="button subtle full" type="button" data-action="mockup-step" data-step="2">${t('กลับไปแก้ข้อมูลบัญชี')}</button></form>
+        <small>${t('ขั้นตอนที่ 2 จาก 2')}</small><h2 tabindex="-1">${t('กรอกที่อยู่')}</h2><p>${t(supabaseConfigured?'ที่อยู่ส่วนนี้เห็นได้เฉพาะคุณ':'ใช้ข้อมูลตัวอย่างเท่านั้น ข้อมูลบันทึกในเบราว์เซอร์นี้')}</p>
+        <form id="mockup-address-form" class="auth-form"><div class="form-grid">${addressFields.map(([id,label,required])=>`<label>${t(label)}<input id="mockup-${id}" ${required?'required':''} ${id==='phone'?'type="tel" maxlength="12" pattern="[0-9 -]{9,12}" autocomplete="tel"':id==='postal-code'?'inputmode="numeric" pattern="[0-9]{5}" maxlength="5" autocomplete="postal-code"':'maxlength="100"'}/></label>`).join('')}</div>${supabaseConfigured?'':`<label>${t('เลขบัตรประชาชน (ไม่บังคับ ใช้ข้อมูลจำลองเท่านั้น)')}<input id="mockup-id-card" maxlength="17" inputmode="numeric" autocomplete="off"/></label>`}<button class="button primary full" type="submit">${t('ยืนยันข้อมูล')}</button><button class="button subtle full" type="button" data-action="mockup-step" data-step="2">${t('กลับไปแก้ข้อมูลบัญชี')}</button></form>
       </section>
-      <footer class="auth-demo-note"><span>${t('เดโมเท่านั้น ไม่เก็บรหัสผ่าน ไม่เชื่อม Google หรือฐานข้อมูล')}</span><button type="button" data-action="mockup-autofill">${t('ข้อมูลตัวอย่าง')}</button></footer>
+      <footer class="auth-demo-note"><span>${t(supabaseConfigured?'รหัสผ่านจัดการโดย Supabase Auth':'เดโมเท่านั้น ไม่เก็บรหัสผ่าน ไม่เชื่อม Google หรือฐานข้อมูล')}</span>${supabaseConfigured?'':`<button type="button" data-action="mockup-autofill">${t('ข้อมูลตัวอย่าง')}</button>`}</footer>
     </div>
   </div>`;
 }
@@ -141,6 +148,11 @@ function renderPhoneMockup(initialStep=1,isModal=true) {
 function requireAuth(path){
   if(!state.user){
     sessionStorage.setItem('harn-return', path);
+    return false;
+  }
+  if(supabaseConfigured&&!state.user.address){
+    sessionStorage.setItem('harn-return',path);
+    tempSignupData=state.user;mockupCurrentStep=3;
     return false;
   }
   return true;
@@ -155,7 +167,7 @@ function authRequiredView(title = t("เข้าสู่ระบบเพื�
         <p>${escape(desc)}</p>
       </div>
       <div class="auth-page-wrapper" style="padding-top:0;">
-        ${renderPhoneMockup(1, false)}
+        ${renderPhoneMockup(supabaseConfigured&&state.user&&!state.user.address?3:1, false)}
       </div>
       <div class="auth-return-center">
         <a href="/" data-link class="auth-return-link">← ${t("กลับสู่หน้าหลัก HarnKhong")}</a>
@@ -200,7 +212,7 @@ function gallery(images=[],editable=false) {
 }
 function profileDialog() {
   const user=state.user;
-  return `<dialog id="profile-dialog" class="profile-dialog" aria-labelledby="profile-dialog-title"><form id="profile-form" class="auth-form"><header><div><h2 id="profile-dialog-title">${t('แก้ไขโปรไฟล์')}</h2><p>${t('ปรับข้อมูลที่แสดงในบัญชีเดโมของคุณ')}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></header><div class="profile-cover"></div><div class="profile-avatar-editor"><span class="avatar large" id="profile-avatar-preview">${isLocalImage(user.avatar)?`<img src="${user.avatar}" alt=""/>`:escape(user.name.slice(0,1))}</span><label class="button outline">${t('เปลี่ยนรูป')}<input id="profile-avatar" type="file" accept="image/jpeg,image/png,image/webp"/></label><button class="button subtle" type="button" data-action="avatar-remove">${t('ลบรูป')}</button></div><p id="avatar-status" role="status"></p><p class="field-help">${t('JPG, PNG, WebP ไม่เกิน 5 MB · บันทึกเฉพาะในเครื่อง')}</p><label>${t('ชื่อ')}<input name="name" value="${escape(user.name)}" maxlength="70" required autocomplete="name"/></label><label>${t('อีเมล')}<input name="email" type="email" value="${escape(user.email||'')}" maxlength="254" autocomplete="email"/></label><label>${t('เกี่ยวกับฉัน')}<textarea name="bio" maxlength="160" rows="3">${escape(user.bio||'')}</textarea></label><small id="bio-counter">${(user.bio||'').length} / 160</small><footer class="dialog-footer"><button type="button" class="button outline" data-action="close-dialog">${t('ยกเลิก')}</button><button type="submit" class="button primary">${t('บันทึกการเปลี่ยนแปลง')}</button></footer></form></dialog>`;
+  return `<dialog id="profile-dialog" class="profile-dialog" aria-labelledby="profile-dialog-title"><form id="profile-form" class="auth-form"><header><div><h2 id="profile-dialog-title">${t('แก้ไขโปรไฟล์')}</h2><p>${t(supabaseConfigured?'แก้ไขชื่อและข้อมูลแนะนำตัว':'ปรับข้อมูลที่แสดงในบัญชีเดโมของคุณ')}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></header>${supabaseConfigured?'':`<div class="profile-cover"></div><div class="profile-avatar-editor"><span class="avatar large" id="profile-avatar-preview">${isLocalImage(user.avatar)?`<img src="${user.avatar}" alt=""/>`:escape(user.name.slice(0,1))}</span><label class="button outline">${t('เปลี่ยนรูป')}<input id="profile-avatar" type="file" accept="image/jpeg,image/png,image/webp"/></label><button class="button subtle" type="button" data-action="avatar-remove">${t('ลบรูป')}</button></div><p id="avatar-status" role="status"></p><p class="field-help">${t('JPG, PNG, WebP ไม่เกิน 5 MB · บันทึกเฉพาะในเครื่อง')}</p>`}<label>${t('ชื่อ')}<input name="name" value="${escape(user.name)}" maxlength="70" required autocomplete="name"/></label><label>${t('อีเมล')}<input name="email" type="email" value="${escape(user.email||'')}" maxlength="254" autocomplete="email" ${supabaseConfigured?'readonly':''}/></label><label>${t('เกี่ยวกับฉัน')}<textarea name="bio" maxlength="160" rows="3">${escape(user.bio||'')}</textarea></label><small id="bio-counter">${(user.bio||'').length} / 160</small><footer class="dialog-footer"><button type="button" class="button outline" data-action="close-dialog">${t('ยกเลิก')}</button><button type="submit" class="button primary">${t('บันทึกการเปลี่ยนแปลง')}</button></footer></form></dialog>`;
 }
 // shortcut: a deliberately non-scannable QR illustration, replace only with a payment provider's verified flow.
 function demoQr() {
@@ -627,9 +639,9 @@ function profile() {
     <div class="account-layout">
       <div class="account-main">
         <section class="account-card account-overview" aria-labelledby="account-name">
-          <div class="account-profile-line"><span class="avatar large">${avatar}</span><div><h2 id="account-name">${escape(state.user.name)}</h2><p>${sellerRole ? t('บัญชีผู้ขายเดโม') : t('สมาชิกเดโม')}</p><span class="account-demo-chip">${t('บัญชีจำลอง · เก็บข้อมูลในเบราว์เซอร์นี้')}</span></div><button class="button outline" data-action="edit-profile">${icon('user', 17)} ${t('ตั้งค่าบัญชี')}</button></div>
+          <div class="account-profile-line"><span class="avatar large">${avatar}</span><div><h2 id="account-name">${escape(state.user.name)}</h2><p>${sellerRole ? t('บัญชีผู้ขายเดโม') : t(supabaseConfigured?'สมาชิก':'สมาชิกเดโม')}</p><span class="account-demo-chip">${t(supabaseConfigured?'บัญชี Supabase Auth':'บัญชีจำลอง · เก็บข้อมูลในเบราว์เซอร์นี้')}</span></div><button class="button outline" data-action="edit-profile">${icon('user', 17)} ${t('ตั้งค่าบัญชี')}</button>${supabaseConfigured?`<button class="button subtle" data-action="logout">${t('ออกจากระบบ')}</button>`:''}</div>
           ${state.user.bio ? `<p class="account-bio user-content">${escape(state.user.bio)}</p>` : ''}
-          <div class="account-demo-note">${icon('shield', 21)}<div><strong>${t('บัญชีนี้เป็นตัวจำลอง')}</strong><p>${t('ไม่มีการยืนยันตัวตนจริง ข้อมูลเดโมบันทึกในเบราว์เซอร์นี้เท่านั้น')}</p></div></div>
+          <div class="account-demo-note">${icon('shield', 21)}<div><strong>${t(supabaseConfigured?'ข้อมูลตัวอย่างของกลุ่มยังอยู่ในเครื่อง':'บัญชีนี้เป็นตัวจำลอง')}</strong><p>${t(supabaseConfigured?'บัญชีและที่อยู่ใช้ Supabase Auth แต่กลุ่ม คำสั่งซื้อ และแชตยังเป็นข้อมูลเดโมในเบราว์เซอร์นี้':'ไม่มีการยืนยันตัวตนจริง ข้อมูลเดโมบันทึกในเบราว์เซอร์นี้เท่านั้น')}</p></div></div>
           <div class="account-stats">
             ${stat('users', t('กลุ่มที่เข้าร่วม'), mine.length, t('กลุ่ม'), 'blue')}
             ${stat('calc', t('คำสั่งซื้อเดโม'), orders.length, t('รายการ'), 'mint')}
@@ -638,7 +650,7 @@ function profile() {
           </div>
         </section>
         <section class="account-card account-summary" aria-labelledby="account-summary-title"><div class="account-card-heading"><div><h2 id="account-summary-title">${t('สรุปยอดของฉัน')}</h2><p>${t('ภาพรวมคำสั่งซื้อเดโมจากทุกกลุ่ม')}</p></div>${a('/my-groups', t('ดูกลุ่มของฉัน'), 'button subtle')}</div><div class="account-summary-grid"><div class="account-summary-tile violet"><span>${t('รอแจ้งชำระ')}</span><strong>${money(unpaidAmount)}</strong><small>${t('{count} รายการ', {count: unpaid.length})}</small></div><div class="account-summary-tile mint"><span>${t('รอตรวจยอดเดโม')}</span><strong>${reported.length}</strong><small>${t('รายการ')}</small></div><div class="account-summary-tile blue"><span>${t('ยืนยันยอดเดโมแล้ว')}</span><strong>${money(verifiedAmount)}</strong><small>${t('{count} รายการ', {count: verified.length})}</small></div></div></section>
-        <details class="account-card account-test-tools"><summary>${t('เครื่องมือทดสอบบัญชี')}</summary><p>${t('ใช้ทดสอบการยืนยันยอดของสมาชิกแต่ละคน')}</p><div class="account-switch">${Object.entries(demoNames).map(([id, n]) => `<button data-action="switch-user" data-id="${id}" class="button outline">${escape(n)}</button>`).join('')}<button data-action="switch-user" data-id="demo-seller" class="button outline">${t('ผู้ขายเดโม')} · ${escape(seller('s1').name)}</button><button data-action="switch-user" data-id="demo-seller-s2" class="button outline">${t('ผู้ขายเดโม')} · ${escape(seller('s2').name)}</button></div><div class="account-test-actions"><button class="button subtle" data-action="logout">${t('ออกจากระบบเดโม')}</button><button class="button subtle" data-action="reset-demo">${t('เริ่มข้อมูลเดโมใหม่')}</button></div></details>
+        ${supabaseConfigured?'':`<details class="account-card account-test-tools"><summary>${t('เครื่องมือทดสอบบัญชี')}</summary><p>${t('ใช้ทดสอบการยืนยันยอดของสมาชิกแต่ละคน')}</p><div class="account-switch">${Object.entries(demoNames).map(([id, n]) => `<button data-action="switch-user" data-id="${id}" class="button outline">${escape(n)}</button>`).join('')}<button data-action="switch-user" data-id="demo-seller" class="button outline">${t('ผู้ขายเดโม')} · ${escape(seller('s1').name)}</button><button data-action="switch-user" data-id="demo-seller-s2" class="button outline">${t('ผู้ขายเดโม')} · ${escape(seller('s2').name)}</button></div><div class="account-test-actions"><button class="button subtle" data-action="logout">${t('ออกจากระบบเดโม')}</button><button class="button subtle" data-action="reset-demo">${t('เริ่มข้อมูลเดโมใหม่')}</button></div></details>`}
       </div>
       <aside class="account-aside">
         <section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t('รายการคำสั่งซื้อเดโม')}</h2>${a('/my-orders', `${t('ดูทั้งหมด')} ${icon('arrow', 17)}`, 'account-all-link')}</div>${orders.length ? orders.slice(0, 3).map(accountOrderRow).join('') : `<div class="account-empty"><span>${icon('calc', 26)}</span><strong>${t('ยังไม่มีคำสั่งซื้อเดโม')}</strong><p>${t('เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่')}</p>${a('/my-groups', t('ดูกลุ่มของฉัน'), 'button outline')}</div>`}</section>
@@ -895,10 +907,17 @@ document.addEventListener('click',async e=>{
     }
     else if(action==='close-auth'){ closeAuthModal(); }
     else if(action==='mockup-step'){ setMockupStep(Number(btn.dataset.step), btn); }
-    else if(action==='mockup-autofill'){ fillMockupDemo(); }
+    else if(action==='mockup-autofill'&&!supabaseConfigured){ fillMockupDemo(); }
     else if(action==='mockup-social'){
+      if(supabaseConfigured)throw new Error(t('โปรดเข้าสู่ระบบด้วย Google ผ่านปุ่ม Supabase Auth'));
       const user=demoAccount(state.profiles,'google.demo@example.com','Google Demo');
       if(user.address)finishAuth(user);else{tempSignupData=user;setMockupStep(3,btn);}
+    }
+    else if(action==='supabase-google'){
+      if(!supabaseConfigured||!googleAuthAvailable)throw Object.assign(new Error(),{code:'googleProviderDisabled'});
+      const redirectTo=location.origin+((sessionStorage.getItem('harn-return')||'/').startsWith('/')?sessionStorage.getItem('harn-return')||'/':'/');
+      const {error}=await supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo}});
+      if(error)throw error;
     }
     else if(action==='close-dialog'){btn.closest('dialog')?.close();}
     else if(action==='edit-profile'){
@@ -966,8 +985,11 @@ document.addEventListener('click',async e=>{
     else if(action==='approve'){const current=group(id),amount=shares(current)[state.user.id],g=approve(current,state.user.id,Number(btn.dataset.revision));updateGroup(g);if(allApproved(g))g.members.forEach(u=>notice(t("ยืนยันยอดครบแล้ว"),t("กลุ่มพร้อมดูสรุปคำสั่งซื้อเดโม"),`/orders/${id}`,u));render();document.body.insertAdjacentHTML('beforeend',shareApprovalDialog(amount));const dialog=document.querySelector('#share-approval-dialog');dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();alertMessage(t("ยืนยันยอดรอบล่าสุดแล้ว"));}
     else if(action==='copy-link'){await navigator.clipboard.writeText(location.origin+`/groups/${id}`);alertMessage(t("คัดลอกลิงก์เชิญแล้ว"));}
     else if(action==='open-notice'){const n=state.notifications.find(x=>x.id===id);n.read=true;save();go(n.href);}
-    else if(action==='logout'){state.user=null;save();go('/');alertMessage(t("ออกจากระบบแล้ว"));}
-    else if(action==='switch-user'){const user=state.profiles?.[id]||(['demo-seller','demo-seller-s2'].includes(id)?{id,name:seller(id==='demo-seller'?'s1':'s2').name,role:'seller',sellerId:id==='demo-seller'?'s1':'s2'}:{id,name:demoNames[id],role:'member'});save({...state,user});render();alertMessage(t("สลับบัญชีทดสอบแล้ว"));}
+    else if(action==='logout'){
+      if(supabaseConfigured){const {error}=await supabase.auth.signOut();if(error)throw error;}
+      state.user=null;save();go('/');alertMessage(t("ออกจากระบบแล้ว"));
+    }
+    else if(action==='switch-user'){if(supabaseConfigured)throw Object.assign(new Error(),{code:'orderUnauthorized'});const user=state.profiles?.[id]||(['demo-seller','demo-seller-s2'].includes(id)?{id,name:seller(id==='demo-seller'?'s1':'s2').name,role:'seller',sellerId:id==='demo-seller'?'s1':'s2'}:{id,name:demoNames[id],role:'member'});save({...state,user});render();alertMessage(t("สลับบัญชีทดสอบแล้ว"));}
     else if(action==='payment-report'){
       if(!confirm(t('ยืนยันแจ้งชำระจำลอง ไม่ใช่หลักฐานการโอนเงินจริง?')))return;
       orderChanged(reportPayment(orderFor(id),state.user),t('แจ้งชำระแล้ว รอหัวหน้ากลุ่มตรวจยอดเดโม'));
@@ -989,14 +1011,42 @@ document.addEventListener('click',async e=>{
     }
     else if(action==='edit-costs'){const g=group(id);const value=prompt(t("ค่าส่งต่อคนใหม่ (บาท)"),bahtInput(g.costs.delivery));if(value===null)return;const next=changeCosts(g,state.user.id,{delivery:parseBaht(value)});updateGroup(next);next.members.forEach(u=>notice(t("ค่าใช้จ่ายเปลี่ยน"),t("ค่าส่งเปลี่ยน กรุณายืนยันยอดใหม่"),`/groups/${id}`,u));render();alertMessage(t("ปรับยอดและเริ่มรอบยืนยันใหม่แล้ว"));}
     else if(action==='transfer'){const g=group(id),members=g.members.filter(u=>u!==state.user.id);if(!members.length)throw Error(t("ยังไม่มีสมาชิกให้โอนสิทธิ์"));const choice=prompt(t('พิมพ์ ID สมาชิกที่จะเป็นหัวหน้าคนใหม่: {members}',{members:members.join(', ')}),members[0]);if(choice===null)return;updateGroup(transferOwner(g,state.user.id,choice));render();alertMessage(t("โอนหัวหน้ากลุ่มแล้ว"));}
-  }catch(err){alertMessage(errorMessage(err));}
+  }catch(err){alertMessage(supabaseConfigured?authErrorMessage(err):errorMessage(err));}
 });
-document.addEventListener('submit',e=>{
+document.addEventListener('submit',async e=>{
   const f=e.target;
   if(['mockup-login-form','mockup-signup-form','mockup-address-form'].includes(f.id)){
     e.preventDefault();
     try{
-      if(f.id==='mockup-login-form'){
+      if(supabaseConfigured&&f.id==='mockup-login-form'){
+        const email=document.getElementById('mockup-login-email').value.trim();
+        const password=document.getElementById('mockup-login-pw').value;
+        const {data,error}=await supabase.auth.signInWithPassword({email,password});
+        if(error)throw error;
+        const user=await loadAuthenticatedUser(data.user);
+        state={...state,user};
+        if(user.address)finishAuth(user);else{tempSignupData=user;setMockupStep(3,f);}
+      }else if(supabaseConfigured&&f.id==='mockup-signup-form'){
+        if(document.getElementById('mockup-signup-pw').value!==document.getElementById('mockup-signup-confirm-pw').value)throw Object.assign(new Error(),{code:'authPasswordMismatch'});
+        const email=document.getElementById('mockup-signup-email').value.trim();
+        const password=document.getElementById('mockup-signup-pw').value;
+        const display_name=document.getElementById('mockup-signup-name').value.trim();
+        if(!display_name)throw Object.assign(new Error(),{code:'prototypeInvalidProfile'});
+        const {data,error}=await supabase.auth.signUp({email,password,options:{data:{display_name},emailRedirectTo:location.origin}});
+        if(error)throw error;
+        if(!data.session){
+          authModalActive=false;mockupCurrentStep=1;render();
+          alertMessage(t('ตรวจอีเมลเพื่อยืนยันบัญชีก่อนเข้าสู่ระบบ'));
+          return;
+        }
+        const user=await loadAuthenticatedUser(data.user);
+        state={...state,user};tempSignupData=user;setMockupStep(3,f);
+      }else if(supabaseConfigured&&f.id==='mockup-address-form'){
+        if(!state.user?.id)throw Object.assign(new Error(),{code:'orderUnauthorized'});
+        const address=Object.fromEntries(['house-no','village-no','province','district','subdistrict','alley','road','postal-code','phone'].map(key=>[key.replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase()),document.getElementById('mockup-'+key).value.trim()]));
+        await saveAuthenticatedAddress(state.user.id,address);
+        finishAuth({...state.user,address});
+      }else if(f.id==='mockup-login-form'){
         const user=demoAccount(state.profiles,document.getElementById('mockup-login-email').value);
         if(user.address)finishAuth(user);else{tempSignupData=user;setMockupStep(3,f);}
       }else if(f.id==='mockup-signup-form'){
@@ -1010,12 +1060,22 @@ document.addEventListener('submit',e=>{
         const address=Object.fromEntries(['id-card','house-no','village-no','province','district','subdistrict','alley','road','postal-code','phone'].map(key=>[key.replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase()),document.getElementById('mockup-'+key).value.trim()]));
         finishAuth({...tempSignupData,address});
       }
-    }catch(err){alertMessage(storageError(err));}
+    }catch(err){alertMessage(supabaseConfigured?authErrorMessage(err):storageError(err));}
   }else if(f.id==='profile-form'){
     e.preventDefault();
     try{
       if(avatarLoading)throw Error(t('กำลังเตรียมรูป กรุณารอสักครู่'));
-      const d=new FormData(f),user=editProfile(state.user,{name:d.get('name'),email:d.get('email'),bio:d.get('bio'),avatar:profileAvatar});
+      const d=new FormData(f);
+      if(supabaseConfigured){
+        const name=String(d.get('name')||'').trim(),bio=String(d.get('bio')||'').trim();
+        if(!name||name.length>70||bio.length>160)throw Object.assign(new Error(),{code:'prototypeInvalidProfile'});
+        const {error}=await supabase.from('profiles').update({display_name:name,bio}).eq('id',state.user.id);
+        if(error)throw error;
+        state={...state,user:{...state.user,name,bio}};
+        render();alertMessage(t('บันทึกโปรไฟล์แล้ว'));
+        return;
+      }
+      const user=editProfile(state.user,{name:d.get('name'),email:d.get('email'),bio:d.get('bio'),avatar:profileAvatar});
       if(user.email&&Object.values(state.profiles||{}).some(profile=>profile.id!==user.id&&profile.email?.toLowerCase()===user.email))throw Error(t('อีเมลนี้ใช้กับบัญชีเดโมอื่นแล้ว'));
       save({...state,user,profiles:{...state.profiles,[user.id]:user}});
       render();alertMessage(t('บันทึกโปรไฟล์แล้ว'));
@@ -1108,5 +1168,44 @@ document.addEventListener('input',e=>{
   }
 });
 
+function authErrorMessage(error){
+  const code=error?.code||'';
+  const message=String(error?.message||'').toLowerCase();
+  if(code==='authPasswordMismatch')return t('รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน');
+  if(code==='googleProviderDisabled')return t('ยังไม่ได้เปิดใช้ Google OAuth');
+  if(code==='invalid_credentials'||message.includes('invalid login credentials'))return t('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+  if(code==='user_already_exists'||message.includes('user already registered'))return t('อีเมลนี้มีบัญชีแล้ว กรุณาเข้าสู่ระบบ');
+  if(code==='email_not_confirmed'||message.includes('email not confirmed'))return t('กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ');
+  if(code==='weak_password'||message.includes('password should be'))return t('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
+  if(error?.code==='orderUnauthorized')return t('orderUnauthorized');
+  return t('เกิดข้อผิดพลาด กรุณาลองใหม่');
+}
+
+async function syncSupabaseSession(session){
+  if(!supabaseConfigured)return;
+  if(!session?.user){
+    state={...state,user:null};render();return;
+  }
+  try{
+    const user=await loadAuthenticatedUser(session.user);
+    state={...state,user};
+    if(!user.address){tempSignupData=user;mockupCurrentStep=3;authModalActive=true;render();return;}
+    if(['/login','/register'].includes(location.pathname))finishAuth(user);
+    else render();
+  }catch(error){
+    state={...state,user:null};render();alertMessage(authErrorMessage(error));
+  }
+}
+
 window.addEventListener('popstate',render);
 render();
+if(supabaseConfigured){
+  refreshAuthProviders().then(()=>{if(authModalActive||location.pathname==='/login'||location.pathname==='/register')render();});
+  supabase.auth.onAuthStateChange((event,session)=>{
+    if(event!=='INITIAL_SESSION')setTimeout(()=>void syncSupabaseSession(session),0);
+  });
+  supabase.auth.getSession().then(({data,error})=>{
+    if(error)alertMessage(authErrorMessage(error));
+    else void syncSupabaseSession(data.session);
+  });
+}
