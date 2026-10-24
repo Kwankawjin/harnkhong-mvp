@@ -45,7 +45,7 @@ const labels = {
   'เข้ากลุ่มที่ใช่ จ่ายในราคาที่ชัดเจน':'Find the right group. Know your share.',
   'ดูราคาหลังคุณเข้าร่วม จำนวนที่ว่าง และเงื่อนไขก่อนตัดสินใจ':'See the price after you join, open spots, and terms before deciding.',
   'ค้นหาสินค้าหรือชื่อกลุ่ม':'Search products or group names', 'ค้นหากลุ่ม':'Find groups',
-  'หมวดหมู่':'Categories', 'กลุ่มที่เข้าร่วมได้':'Groups accepting members',
+  'หมวดหมู่':'Categories', 'เลื่อนหมวดหมู่ไปซ้าย':'Scroll categories left', 'เลื่อนหมวดหมู่ไปขวา':'Scroll categories right', 'กลุ่มที่เข้าร่วมได้':'Groups accepting members',
   '{count} กลุ่ม':'{count} groups',
   'ยอดเป็นประมาณการก่อนเข้าร่วม และจะคำนวณใหม่เมื่อจำนวนสมาชิกเปลี่ยน':'Shares are estimates and recalculate when membership changes.',
   'ลองค้นหาอีกครั้ง หรือเริ่มกลุ่มสำหรับสินค้าที่สนใจ':'Try another search or start a group for a product you like.',

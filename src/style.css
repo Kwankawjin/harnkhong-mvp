@@ -1371,13 +1371,26 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
 }
 .search-bar button:hover { background: var(--blue-hover); }
 
+.filter-carousel { position: relative; margin: 18px 0 28px; }
 .filter-row {
   display: flex;
   overflow-x: auto;
   gap: 8px;
-  margin: 18px 0 28px;
-  padding-bottom: 4px;
+  padding: 4px 0;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
 }
+.filter-row::-webkit-scrollbar { display: none; }
+.filter-carousel.can-scroll-next .filter-row { mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 90px), transparent 100%); }
+.filter-carousel.can-scroll-prev .filter-row { mask-image: linear-gradient(to right, transparent 0%, #000 70px, #000 100%); }
+.filter-carousel.can-scroll-prev.can-scroll-next .filter-row { mask-image: linear-gradient(to right, transparent 0%, #000 70px, #000 calc(100% - 90px), transparent 100%); }
+.filter-scroll-button { position: absolute; z-index: 1; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid #e2e7ee; border-radius: 50%; background: #fff; box-shadow: 0 2px 7px rgb(10 36 68 / 10%); color: #8492a1; cursor: pointer; }
+.filter-scroll-button[hidden] { display: none; }
+.filter-scroll-button:hover { color: var(--blue); border-color: #bed5f6; }
+.filter-scroll-button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.filter-scroll-button span { font: 400 28px/1 Arial, sans-serif; margin-top: -3px; }
+.filter-scroll-prev { left: 2px; }
+.filter-scroll-next { right: 2px; }
 .filter {
   padding: 8px 18px;
   border-radius: var(--radius-pill);
@@ -2044,14 +2057,14 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
   .search-bar { padding: 5px 5px 5px 14px; }
   .search-bar input { font-size: 16px !important; }
   .search-bar button { padding: 8px 16px; font-size: 0.85rem; }
+  .filter-carousel { margin: 12px 0 20px; }
   .filter-row {
     display: flex;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     gap: 6px;
-    margin: 12px 0 20px;
-    padding-bottom: 4px;
+    padding: 4px 0;
   }
   .filter-row::-webkit-scrollbar { display: none; }
   .filter { padding: 7px 14px; font-size: 0.82rem; flex-shrink: 0; }

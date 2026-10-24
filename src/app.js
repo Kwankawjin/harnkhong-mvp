@@ -501,7 +501,7 @@ function explore(){
   return `<div class="explore-page">
     ${title(t('เข้ากลุ่มที่ใช่ จ่ายในราคาที่ชัดเจน'),t('ดูราคาหลังคุณเข้าร่วม จำนวนที่ว่าง และเงื่อนไขก่อนตัดสินใจ'))}
     <form class="search-bar" id="search-form"><span>${icon('search')}</span><input type="hidden" name="category" value="${escape(category)}"/><input name="q" value="${escape(q)}" placeholder="${t('ค้นหาสินค้าหรือชื่อกลุ่ม')}" aria-label="${t('ค้นหา')}"/><button type="submit">${t('ค้นหากลุ่ม')}</button></form>
-    <nav class="filter-row" aria-label="${t('หมวดหมู่')}">${CATEGORY_NAMES.map(x=>a('/explore?category='+encodeURIComponent(x)+(q?'&q='+encodeURIComponent(q):''),t(x),'filter '+(category===x?'active':''))).join('')}</nav>
+    <div class="filter-carousel"><button type="button" class="filter-scroll-button filter-scroll-prev" data-action="scroll-filter" data-direction="prev" aria-label="${t('เลื่อนหมวดหมู่ไปซ้าย')}" hidden><span aria-hidden="true">‹</span></button><nav class="filter-row" aria-label="${t('หมวดหมู่')}">${CATEGORY_NAMES.map(x=>a('/explore?category='+encodeURIComponent(x)+(q?'&q='+encodeURIComponent(q):''),t(x),'filter '+(category===x?'active':''))).join('')}</nav><button type="button" class="filter-scroll-button filter-scroll-next" data-action="scroll-filter" data-direction="next" aria-label="${t('เลื่อนหมวดหมู่ไปขวา')}" hidden><span aria-hidden="true">›</span></button></div>
     <section aria-labelledby="open-groups-heading"><div class="section-header"><div><h2 id="open-groups-heading">${t('กลุ่มที่เข้าร่วมได้')} <small>${t('{count} กลุ่ม',{count:openGroups.length})}</small></h2><p>${t('ยอดเป็นประมาณการก่อนเข้าร่วม และจะคำนวณใหม่เมื่อจำนวนสมาชิกเปลี่ยน')}</p></div></div>
       ${openGroups.length?`<div class="group-grid">${openGroups.map(groupCard).join('')}</div>`:`<div class="empty"><h3>${t('ยังไม่มีกลุ่มที่เปิดรับ')}</h3><p>${t('ลองค้นหาชื่อกลุ่มหรือหมวดอื่น')}</p>${a('/explore',t('ดูทั้งหมด'),'button outline')}</div>`}
     </section>
@@ -707,6 +707,15 @@ function orderPage(id){
 }
 function notFound(){return `<div class="empty"><h1>${t("ไม่พบหน้านี้")}</h1><p>${t("ลิงก์อาจไม่ถูกต้องหรือรายการถูกลบ")}</p>${a('/',t("กลับหน้าแรก"),'button primary')}</div>`;}
 function route(){const path=decodeURIComponent(location.pathname);if(path==='/')return home();if(path==='/explore')return explore();if(/^\/products\/[^/]+$/.test(path))return legacyProductRoute(path.split('/')[2]);if(/^\/groups\/[^/]+\/join$/.test(path))return joinPage(path.split('/')[2]);if(path==='/groups/create')return createPage();if(/^\/groups\/[^/]+$/.test(path))return groupPage(path.split('/')[2]);if(path==='/login')return authPage();if(path==='/register')return authPage(true);if(path==='/my-groups')return myGroups();if(path==='/my-orders')return myOrdersPage();if(path==='/chat')return chatList();if(/^\/chat\/[^/]+$/.test(path))return chatPage(path.split('/')[2]);if(path==='/notifications')return notifications();if(path==='/profile')return profile();if(/^\/shops\/[^/]+$/.test(path))return shopPage(path.split('/')[2]);if(path==='/seller/dashboard')return sellerDashboard();if(path==='/seller/products/new')return newProduct();if(/^\/orders\/[^/]+$/.test(path))return orderPage(path.split('/')[2]);return notFound();}
+function updateFilterCarousel(){
+  const carousel=document.querySelector('.filter-carousel'),row=carousel?.querySelector('.filter-row');
+  if(!row)return;
+  const previous=row.scrollLeft>2,next=row.scrollLeft+row.clientWidth<row.scrollWidth-2;
+  carousel.classList.toggle('can-scroll-prev',previous);
+  carousel.classList.toggle('can-scroll-next',next);
+  carousel.querySelector('.filter-scroll-prev').hidden=!previous;
+  carousel.querySelector('.filter-scroll-next').hidden=!next;
+}
 function render(){
   const unread=state.user?state.notifications.filter(n=>n.recipient===state.user.id&&!n.read).length:0;
   const nav=[
@@ -782,6 +791,8 @@ function render(){
   `;
 
   if(document.querySelector('#create-form'))updatePreview();
+  const filterRow=document.querySelector('.filter-row');
+  if(filterRow){filterRow.addEventListener('scroll',updateFilterCarousel,{passive:true});updateFilterCarousel();}
   const authDialog=document.querySelector('#auth-modal-overlay');
   if(authDialog){authDialog.showModal();authDialog.addEventListener('cancel',e=>{e.preventDefault();closeAuthModal();});}
   document.documentElement.lang=locale;
@@ -791,6 +802,7 @@ function render(){
   document.querySelector('.header-actions a[href="/notifications"]').setAttribute('aria-label',t('การแจ้งเตือน'));
 }
 const formCosts=d=>({product:parseBaht(d.get('product')),delivery:parseBaht(d.get('delivery')),mode:'per_member_v2'});
+window.addEventListener('resize',updateFilterCarousel,{passive:true});
 function updatePreview(){const f=document.querySelector('#create-form'),box=document.querySelector('#create-preview');if(!f||!box)return;try{const d=new FormData(f),count=assertCapacity(Number(d.get('capacity'))),costs=costBreakdown(formCosts(d),count);box.innerHTML=`<small>${t('ประมาณเมื่อสมาชิกครบ {count} คน',{count})}</small><strong>${money(Math.ceil(costs.total/count))} ${t("/ คน")}</strong><p>${t('รวมค่าส่งต่อคนและค่าธรรมเนียมแอป 2% แล้ว')}</p>`;}catch(e){box.innerHTML=`<small>${escape(errorMessage(e))}</small>`;}}
 
 const storageError=error=>error?.name==='QuotaExceededError'?t('พื้นที่ในเครื่องไม่พอ ข้อมูลเดิมยังอยู่ กรุณาลดจำนวนรูปแล้วลองใหม่'):errorMessage(error);
@@ -863,7 +875,11 @@ document.addEventListener('click',async e=>{
   const btn=e.target.closest('[data-action]');if(!btn)return;
   const action=btn.dataset.action,id=btn.dataset.id;
   try{
-    if(action==='quick-search'){
+    if(action==='scroll-filter'){
+      const row=btn.closest('.filter-carousel')?.querySelector('.filter-row');
+      row?.scrollBy({left:(btn.dataset.direction==='next'?1:-1)*Math.max(180,row.clientWidth*0.7),behavior:'smooth'});
+    }
+    else if(action==='quick-search'){
       if(btn.dataset.category){
         go('/explore?category=' + encodeURIComponent(btn.dataset.category));
       } else {
