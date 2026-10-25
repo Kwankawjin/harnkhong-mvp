@@ -1021,7 +1021,8 @@ document.addEventListener('click',async e=>{
     else if(action==='approve'){
       const current=group(id),amount=shares(current)[state.user.id];
       if(supabaseConfigured){await approveSupabaseGroup(id,Number(btn.dataset.revision));if(!await refreshSupabaseGroups(actionSession))return;render();}
-      else{const g=approve(current,state.user.id,Number(btn.dataset.revision));updateGroup(g);if(allApproved(g))g.members.forEach(u=>notice(t("ยืนยันยอดครบแล้ว"),t("กลุ่มพร้อมดูสรุปคำสั่งซื้อเดโม"),`/orders/${id}`,u));render();document.body.insertAdjacentHTML('beforeend',shareApprovalDialog(amount));const dialog=document.querySelector('#share-approval-dialog');dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();}
+      else{const g=approve(current,state.user.id,Number(btn.dataset.revision));updateGroup(g);if(allApproved(g))g.members.forEach(u=>notice(t("ยืนยันยอดครบแล้ว"),t("กลุ่มพร้อมดูสรุปคำสั่งซื้อเดโม"),`/orders/${id}`,u));render();}
+      document.body.insertAdjacentHTML('beforeend',shareApprovalDialog(amount));const dialog=document.querySelector('#share-approval-dialog');dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();
       alertMessage(t("ยืนยันยอดรอบล่าสุดแล้ว"));
     }
     else if(action==='copy-link'){
