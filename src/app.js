@@ -343,6 +343,7 @@ function listingCard(p){
 function groupCard(g){
   const p=listing(g.listingId);
   if(!p)return '';
+  const category=g.category||p.category;
   const remaining=Math.max(0,g.capacity-g.members.length);
   const open=remaining>0&&!g.orderId&&g.status!=='cancelled';
   const isMember=g.members.includes(state.user?.id);
@@ -351,16 +352,16 @@ function groupCard(g){
   const full=Math.ceil(totalCost(g.costs,g.capacity)/g.capacity);
   const destination=`/groups/${g.id}`;
   return `<article class="opportunity-card">
-    <div class="opportunity-media">${a(destination,isLocalImage(g.images?.[0])?`<img src="${g.images[0]}" alt="${escape(g.name)}" loading="lazy"/>`:art(p),'opportunity-art-link')}</div>
+    <div class="opportunity-media">${a(destination,isLocalImage(g.images?.[0])?`<img src="${g.images[0]}" alt="${escape(g.name)}" loading="lazy"/>`:art({...p,category}),'opportunity-art-link')}</div>
     <div class="opportunity-content">
-      <div class="opportunity-topline"><span class="opportunity-category">${escape(t(p.category))}</span><span class="opportunity-spots ${open?'':'is-closed'}">${open?t('ว่าง {count} ที่',{count:remaining}):t('ปิดรับสมาชิก')}</span></div>
+      <div class="opportunity-topline"><span class="opportunity-category">${escape(t(category))}</span><span class="opportunity-spots ${open?'':'is-closed'}">${open?t('ว่าง {count} ที่',{count:remaining}):t('ปิดรับสมาชิก')}</span></div>
       ${a(destination,`<h3>${escape(g.name)}</h3>`,'opportunity-title')}
-      <p class="opportunity-group-name">${t('สินค้าในกลุ่ม')}: ${escape(t(p.title))}</p>
+      <p class="opportunity-group-name">${t('หมวดหมู่')}: ${escape(t(category))}</p>
       <div class="opportunity-price"><div><small>${isMember?t('ยอดปัจจุบันของคุณ'):open?t('ถ้าคุณเข้าร่วมตอนนี้'):t('ประมาณต่อคนปัจจุบัน')}</small><strong>${money(now)} <span>${t('/คน')}</span></strong></div><div><small>${t('เมื่อครบ {count} คน',{count:g.capacity})}</small><b>${money(full)} ${t('/คน')}</b></div></div>
       <div class="opportunity-members"><span>${icon('users',17)} ${t('สมาชิก {count} / {capacity} คน',{count:g.members.length,capacity:g.capacity})}</span><div class="opportunity-track" role="progressbar" aria-label="${t('ความคืบหน้า')}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${g.members.length/g.capacity*100}%"></span></div></div>
       <p class="opportunity-leader">${icon('user',16)} ${t('หัวหน้ากลุ่ม')}: ${escape(name(g.ownerId).replace(/\s*\(หัวหน้ากลุ่ม\)$/,''))}</p>
-      <p class="opportunity-terms">${icon('check',16)} ${t('ยืนยันยอดก่อนสั่งซื้อ')} · ${escape(t(p.terms))}</p>
-      <div class="opportunity-actions">${a(destination,open&&!isMember?t('เข้าร่วมกลุ่ม'):t('ดูกลุ่ม'),`button opportunity-view ${open&&!isMember?'primary':'outline'}`)}${isMember?a(`/chat/${p.sellerId}?product=${p.id}`,`${icon('chat',17)} ${t('แชท')}`,'button outline opportunity-chat'):''}${open||isMember?`<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t('คัดลอกลิงก์เชิญ')}">${icon('link',17)} ${t('ชวนเพื่อน')}</button>`:''}</div>
+      <p class="opportunity-terms">${icon('check',16)} ${t('ยืนยันยอดก่อนสั่งซื้อ')}</p>
+      <div class="opportunity-actions">${a(destination,open&&!isMember?t('เข้าร่วมกลุ่ม'):t('ดูกลุ่ม'),`button opportunity-view ${open&&!isMember?'primary':'outline'}`)}${open||isMember?`<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t('คัดลอกลิงก์เชิญ')}">${icon('link',17)} ${t('ชวนเพื่อน')}</button>`:''}</div>
     </div>
   </article>`;
 }
@@ -375,10 +376,11 @@ const CATEGORIES_LIST = [
   { name: 'สินค้าดิจิทัล', symbol: '💾' },
   { name: 'อุปกรณ์อิเล็กทรอนิกส์และไอที', symbol: '💻' },
   { name: 'สินค้าขายส่ง', symbol: '📦' },
-  { name: 'บริการทั่วไป', symbol: '🛠️' }
+  { name: 'บริการทั่วไป', symbol: '🛠️' },
+  { name: 'อื่น ๆ (ระบุชื่อเอง)', symbol: '✨' }
 ];
 const CATEGORY_NAMES = CATEGORIES_LIST.map(c => c.name);
-const CREATE_CATEGORY_NAMES = [...CATEGORY_NAMES.filter(name => name !== 'ทั้งหมด'), 'อื่น ๆ (ระบุชื่อเอง)'];
+const CREATE_CATEGORY_NAMES = CATEGORY_NAMES.filter(name => name !== 'ทั้งหมด');
 
 function home(){
   const activeGroups = state.groups.filter(g => g.visibility === 'public' && g.status !== 'cancelled' && !g.orderId && g.members.length < g.capacity);
@@ -463,7 +465,10 @@ function home(){
       </div>
       <div class="categories">
         ${categoriesList.map(c => {
-          const count = c.name === 'ทั้งหมด' ? activeGroups.length : activeGroups.filter(g => listing(g.listingId)?.category === c.name).length;
+          const count = c.name === 'ทั้งหมด' ? activeGroups.length : activeGroups.filter(g => {
+            const groupCategory=g.category||listing(g.listingId)?.category;
+            return c.name==='อื่น ๆ (ระบุชื่อเอง)'?!CREATE_CATEGORY_NAMES.includes(groupCategory):groupCategory===c.name;
+          }).length;
           return a(`/explore?category=${encodeURIComponent(c.name)}`, `
             <div class="category-left">
               <span class="category-symbol">${c.symbol}</span>
@@ -516,8 +521,8 @@ function home(){
 }
 function explore(){
   const params=new URLSearchParams(location.search),q=(params.get('q')||'').trim(),category=params.get('category')||'ทั้งหมด';
-  const matches=p=>(category==='ทั้งหมด'||p.category===category)&&(`${p.title} ${p.category} ${p.description}`).toLowerCase().includes(q.toLowerCase());
-  const openGroups=state.groups.filter(g=>{const p=listing(g.listingId);return p&&g.visibility==='public'&&g.status!=='cancelled'&&!g.orderId&&g.members.length<g.capacity&&(matches(p)||((category==='ทั้งหมด'||p.category===category)&&g.name.toLowerCase().includes(q.toLowerCase())));});
+  const matches=g=>{const p=listing(g.listingId),groupCategory=g.category||p?.category||'',isOther=category==='อื่น ๆ (ระบุชื่อเอง)'&&!CREATE_CATEGORY_NAMES.includes(groupCategory);return (category==='ทั้งหมด'||groupCategory===category||isOther)&&(`${g.name} ${groupCategory}`).toLowerCase().includes(q.toLowerCase());};
+  const openGroups=state.groups.filter(g=>g.visibility==='public'&&g.status!=='cancelled'&&!g.orderId&&g.members.length<g.capacity&&matches(g));
   return `<div class="explore-page">
     ${title(t('เข้ากลุ่มที่ใช่ จ่ายในราคาที่ชัดเจน'),t('ดูราคาหลังคุณเข้าร่วม จำนวนที่ว่าง และเงื่อนไขก่อนตัดสินใจ'))}
     <form class="search-bar" id="search-form"><span>${icon('search')}</span><input type="hidden" name="category" value="${escape(category)}"/><input name="q" value="${escape(q)}" placeholder="${t('ค้นหาสินค้าหรือชื่อกลุ่ม')}" aria-label="${t('ค้นหา')}"/><button type="submit">${t('ค้นหากลุ่ม')}</button></form>
@@ -546,6 +551,7 @@ function groupPage(id) {
   }
   const p = listing(g.listingId);
   if (!p) return notFound();
+  const groupCategory=g.category||p.category;
   const costs = costBreakdown(g.costs,g.members.length);
   const sum = costs.total;
   const alloc = shares(g);
@@ -579,10 +585,10 @@ function groupPage(id) {
     <div class="group-detail">
       <main class="group-detail-main">
         <section class="group-identity-card" aria-labelledby="group-title">
-          <div class="group-heading-line"><div><h1 id="group-title">${escape(g.name)}</h1><p>${t('กลุ่มสำหรับ')} ${escape(t(p.title))}</p></div><span class="group-state ${full ? 'is-full' : 'is-open'}">${status}</span></div>
+          <div class="group-heading-line"><div><h1 id="group-title">${escape(g.name)}</h1><p>${t('หมวดหมู่')}: ${escape(t(groupCategory))}</p></div><span class="group-state ${full ? 'is-full' : 'is-open'}">${status}</span></div>
           <div class="group-product-strip">
-            <div class="group-product-art" role="img" aria-label="${escape(t(p.title))}">${art(p)}</div>
-            <div class="group-product-copy"><span>${t('สินค้าในกลุ่ม')}</span><strong>${escape(t(p.title))}</strong><small>${escape(t(p.description))}</small></div>
+            <div class="group-product-art" role="img" aria-label="${escape(t(groupCategory))}">${art({...p,category:groupCategory})}</div>
+            <div class="group-product-copy"><span>${t('สินค้าในกลุ่ม')}</span><strong>${escape(g.name)}</strong><small>${escape(t(groupCategory))}</small></div>
             <div class="group-product-price"><span>${t('ราคาสินค้า')}</span><strong>${money(g.costs.product)}</strong></div>
           </div>
           <div class="group-identity-footer"><span class="chip">${g.visibility === 'link' ? t('เฉพาะผู้มีลิงก์') : t('กลุ่มสาธารณะ')}</span>${g.images?.length ? gallery(g.images) : ''}</div>
@@ -598,7 +604,7 @@ function groupPage(id) {
         <details class="group-history"><summary>${t('ประวัติการเปลี่ยนยอด')}</summary>${g.history.slice().reverse().map(h => `<p>${t('รอบ {revision}', {revision: h.revision})} · ${escape(t(h.reason))}</p>`).join('')}</details>
       </main>
       <aside class="group-detail-aside"><div class="summary-card sticky"><small>${isMember ? t('ยอดที่คุณต้องยืนยัน') : full || locked ? t('ประมาณต่อคนปัจจุบัน') : t('ยอดประมาณเมื่อเข้าร่วม')}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full?`<div class="summary-future-price"><span>${t('เมื่อครบ {count} คน',{count:g.capacity})}</span><b>${money(fullEstimate)} ${t('/คน')}</b></div>`:''}<p>${isMember ? t('ยอดรอบที่ {revision}', {revision: g.revision}) + (approved ? t(' · คุณยืนยันแล้ว') : t(' · กรุณาตรวจสอบก่อนยืนยัน')) : full || locked ? t('กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่') : t('ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง')}</p>${actions}${!full ? `<p class="warning">${t('ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน')}</p>` : !allApproved(g) ? `<p class="warning">${t('รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด')}</p>` : ''}</div>
-      <section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t('รายละเอียดสินค้า')}</h2><p>${escape(t(p.description))}</p><p>${escape(t(p.terms))}</p>${a(`/shops/${p.sellerId}`, escape(t(seller(p.sellerId).name)))}${isMember&&!supabaseConfigured?a(`/chat/${p.sellerId}?product=${p.id}`, `${icon('chat', 18)} ${t('ติดต่อผู้ขาย')}`, 'button outline full'):''}<small>${supabaseConfigured?t('แชตกับผู้ขายยังเป็นเดโมในเครื่องนี้'):t('ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง')}</small></section>
+      <section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t('รายละเอียดสินค้า')}</h2><p>${escape(g.name)}</p><p>${escape(t(groupCategory))}</p><small>${supabaseConfigured?t('แชตกับผู้ขายยังเป็นเดโมในเครื่องนี้'):t('ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง')}</small></section>
       </aside>
     </div>
   </div>`;
@@ -608,10 +614,10 @@ function joinPage(id){
   if(!requireAuth(`/groups/${id}/join`))return authRequiredView(t('ยืนยันการเข้าร่วมกลุ่ม'),t('เข้าสู่ระบบก่อนเพื่อเข้าร่วมกลุ่มและยืนยันยอด'));
   if(g.members.includes(state.user.id))return `<div class="empty"><h1>${t('คุณอยู่ในกลุ่มนี้แล้ว')}</h1>${a(`/groups/${id}`,t('ดูกลุ่ม'),'button primary')}</div>`;
   if(g.members.length>=g.capacity)return `<div class="empty"><h1>${t('กลุ่มนี้เต็มแล้ว')}</h1>${a(`/groups/${id}`,t('ดูกลุ่ม'),'button secondary')}</div>`;
-  const p=listing(g.listingId),count=g.members.length+1,costs=costBreakdown(g.costs,count),estimate=Math.ceil(costs.total/count);
-  return `${title(t('ยืนยันการเข้าร่วม'),escape(g.name))}<div class="narrow"><div class="cost-card"><h2>${escape(p.title)}</h2><div><span>${t('ราคาสินค้า')}</span><b>${money(costs.product)}</b></div><div><span>${costs.deliveryPerMember===null?t('ค่าส่ง'):t('ค่าส่ง {amount} × {count} คน',{amount:money(costs.deliveryPerMember),count})}</span><b>${money(costs.delivery)}</b></div><div><span>${costs.deliveryPerMember===null?t('ค่าบริการ'):t('ค่าธรรมเนียมแอป 2%')}</span><b>${money(costs.service)}</b></div><div class="total"><span>${t('ยอดประมาณของคุณ')}</span><b>${money(estimate)}</b></div></div><div class="info-box">${t('เมื่อเข้าร่วม ระบบจะคำนวณยอดใหม่และให้สมาชิกทุกคน รวมถึงคุณ ยืนยันยอดรอบใหม่อีกครั้ง ยังไม่มีการเก็บเงินจริง')}</div><button class="button primary full" data-action="join" data-id="${id}">${t('ยืนยันเข้าร่วมกลุ่ม')}</button>${a(`/groups/${id}`,t('กลับไปดูกลุ่ม'),'button outline full')}</div>`;
+  const count=g.members.length+1,costs=costBreakdown(g.costs,count),estimate=Math.ceil(costs.total/count);
+  return `${title(t('ยืนยันการเข้าร่วม'),escape(g.name))}<div class="narrow"><div class="cost-card"><h2>${escape(g.name)}</h2><div><span>${t('ราคาสินค้า')}</span><b>${money(costs.product)}</b></div><div><span>${costs.deliveryPerMember===null?t('ค่าส่ง'):t('ค่าส่ง {amount} × {count} คน',{amount:money(costs.deliveryPerMember),count})}</span><b>${money(costs.delivery)}</b></div><div><span>${costs.deliveryPerMember===null?t('ค่าบริการ'):t('ค่าธรรมเนียมแอป 2%')}</span><b>${money(costs.service)}</b></div><div class="total"><span>${t('ยอดประมาณของคุณ')}</span><b>${money(estimate)}</b></div></div><div class="info-box">${t('เมื่อเข้าร่วม ระบบจะคำนวณยอดใหม่และให้สมาชิกทุกคน รวมถึงคุณ ยืนยันยอดรอบใหม่อีกครั้ง ยังไม่มีการเก็บเงินจริง')}</div><button class="button primary full" data-action="join" data-id="${id}">${t('ยืนยันเข้าร่วมกลุ่ม')}</button>${a(`/groups/${id}`,t('กลับไปดูกลุ่ม'),'button outline full')}</div>`;
 }
-function createPage(){if(!requireAuth(location.pathname+location.search))return authRequiredView(t("สร้างกลุ่มหารใหม่"),t("กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน"));const params=new URLSearchParams(location.search),requested=params.get('product'),allListings=listings(),selected=allListings.some(item=>item.id===requested)?requested:allListings[0]?.id,selectedCategory=listing(selected)?.category||CREATE_CATEGORY_NAMES[0];return `${title(t("สร้างกลุ่มหารใหม่"),t("กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน"))}<form class="form-panel" id="create-form"><input type="hidden" name="requestId" value="${crypto.randomUUID()}"/><input type="hidden" name="listingId" value="${selected||''}"/>${supabaseConfigured?'':`<section class="image-editor"><h2>${t('รูปกลุ่ม')}</h2><p>${t('เพิ่มได้สูงสุด 4 รูป · JPG, PNG, WebP ไม่เกิน 5 MB ต่อรูป · เก็บในเครื่อง')}</p><label class="image-upload">${icon('plus',20)} ${t('เพิ่มรูป')}<input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></section>`}<label>${t('หมวดหมู่')}<select name="category" required>${CREATE_CATEGORY_NAMES.map(category=>`<option value="${escape(category)}" ${category===selectedCategory?'selected':''}>${t(category)}</option>`).join('')}</select></label><label id="other-category-wrap" hidden>${t('ระบุชื่อหมวดหมู่')}<input name="otherCategory" maxlength="60" placeholder="${t('ระบุชื่อหมวดหมู่')}"/></label><p id="category-listing-status" class="field-hint" role="status"></p><label>${t("ชื่อกลุ่ม")}<input name="name" maxlength="70" required placeholder="${t("เช่น ทีมอ่านสอบปลายเทอม")}"/></label><div class="form-grid"><label>${t("จำนวนสมาชิกสูงสุด")}<input name="capacity" type="number" min="2" max="20" value="4" required/></label><label>${t("การมองเห็น")}<select name="visibility"><option value="public">${t("กลุ่มสาธารณะ")}</option><option value="link">${t("เฉพาะผู้มีลิงก์")}</option></select></label></div><div class="form-grid"><label>${t("ราคาสินค้า (บาท)")}<input name="product" inputmode="decimal" value="${bahtInput(listing(selected)?.price||0)}" required/></label><label>${t("ค่าส่งต่อคน (บาท)")}<input name="delivery" inputmode="decimal" value="0" required/></label></div><div class="info-box">${t("ค่าธรรมเนียมแอป 2% คำนวณอัตโนมัติจากราคาสินค้าและค่าส่งรวม กลุ่มเฉพาะลิงก์จะไม่ปรากฏในการค้นหาสาธารณะ")}</div><div id="create-preview" class="preview-cost"></div><button class="button primary full" type="submit">${t("สร้างกลุ่ม")}</button></form>`;}
+function createPage(){if(!requireAuth(location.pathname+location.search))return authRequiredView(t("สร้างกลุ่มหารใหม่"),t("กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน"));const params=new URLSearchParams(location.search),requested=params.get('product'),allListings=listings(),requestedListing=allListings.find(item=>item.id===requested),selected=requestedListing?.id||allListings[0]?.id,selectedCategory=requestedListing?.category||CREATE_CATEGORY_NAMES[0];return `${title(t("สร้างกลุ่มหารใหม่"),t("กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน"))}<form class="form-panel" id="create-form"><input type="hidden" name="requestId" value="${crypto.randomUUID()}"/><input type="hidden" name="listingId" value="${selected||''}"/>${supabaseConfigured?'':`<section class="image-editor"><h2>${t('รูปกลุ่ม')}</h2><p>${t('เพิ่มได้สูงสุด 4 รูป · JPG, PNG, WebP ไม่เกิน 5 MB ต่อรูป · เก็บในเครื่อง')}</p><label class="image-upload">${icon('plus',20)} ${t('เพิ่มรูป')}<input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></section>`}<label>${t('หมวดหมู่')}<select name="category" required>${CREATE_CATEGORY_NAMES.map(category=>`<option value="${escape(category)}" ${category===selectedCategory?'selected':''}>${t(category)}</option>`).join('')}</select></label><label id="other-category-wrap" hidden>${t('ระบุชื่อหมวดหมู่')}<input name="otherCategory" maxlength="60" placeholder="${t('ระบุชื่อหมวดหมู่')}"/></label><label>${t("ชื่อกลุ่ม")}<input name="name" maxlength="70" required placeholder="${t("เช่น ทีมอ่านสอบปลายเทอม")}"/></label><div class="form-grid"><label>${t("จำนวนสมาชิกสูงสุด")}<input name="capacity" type="number" min="2" max="20" value="4" required/></label><label>${t("การมองเห็น")}<select name="visibility"><option value="public">${t("กลุ่มสาธารณะ")}</option><option value="link">${t("เฉพาะผู้มีลิงก์")}</option></select></label></div><div class="form-grid"><label>${t("ราคาสินค้า (บาท)")}<input name="product" inputmode="decimal" value="${bahtInput(listing(selected)?.price||0)}" required/></label><label>${t("ค่าส่งต่อคน (บาท)")}<input name="delivery" inputmode="decimal" value="0" required/></label></div><div class="info-box">${t("ค่าธรรมเนียมแอป 2% คำนวณอัตโนมัติจากราคาสินค้าและค่าส่งรวม กลุ่มเฉพาะลิงก์จะไม่ปรากฏในการค้นหาสาธารณะ")}</div><div id="create-preview" class="preview-cost"></div><button class="button primary full" type="submit">${t("สร้างกลุ่ม")}</button></form>`;}
 function authPage(register=false){
   if(authModalActive)return '';
   if(mockupCurrentStep!==3)mockupCurrentStep=register?2:1;
@@ -860,15 +866,13 @@ document.addEventListener('change',async e=>{
 });
 document.addEventListener('change',e=>{
   if(e.target.name==='category'){
-    const form=document.querySelector('#create-form'),listingInput=form?.querySelector('[name="listingId"]'),otherWrap=form?.querySelector('#other-category-wrap'),otherInput=form?.querySelector('[name="otherCategory"]'),status=form?.querySelector('#category-listing-status'),submit=form?.querySelector('[type="submit"]');
+    const form=document.querySelector('#create-form'),listingInput=form?.querySelector('[name="listingId"]'),otherWrap=form?.querySelector('#other-category-wrap'),otherInput=form?.querySelector('[name="otherCategory"]');
     if(!form||!listingInput)return;
     const isOther=e.target.value==='อื่น ๆ (ระบุชื่อเอง)';
     otherWrap.hidden=!isOther;otherInput.required=isOther;
-    const matches=listings().filter(item=>item.category===e.target.value);
-    listingInput.value=matches[0]?.id||'';
-    status.textContent=matches.length?'':t('ยังไม่มีสินค้าในหมวดหมู่นี้');
-    submit.disabled=!matches.length;
-    if(matches.length){const price=form.querySelector('[name="product"]');if(price)price.value=bahtInput(matches[0].price);}
+    const available=listings(),matches=available.filter(item=>item.category===e.target.value),fallback=matches[0]||available[0];
+    listingInput.value=fallback?.id||'';
+    const price=form.querySelector('[name="product"]');if(price)price.value=bahtInput(matches[0]?.price||0);
     updatePreview();return;
   }
   if(e.target.id!=='locale-select')return;
@@ -1146,13 +1150,17 @@ document.addEventListener('submit',async e=>{
       if(!state.user)throw Object.assign(new Error(),{code:'orderUnauthorized'});
       if(!listing(d.get('listingId')))throw Error(t('ไม่พบสินค้า กรุณาเลือกสินค้าใหม่'));
       if(supabaseConfigured){
-        const groupId=await createSupabaseGroup({listingId:d.get('listingId'),name:d.get('name'),visibility:d.get('visibility'),capacity:Number(d.get('capacity')),price:parseBaht(d.get('product')),delivery:parseBaht(d.get('delivery')),requestId:d.get('requestId')});
+        const customCategory=d.get('category')==='อื่น ๆ (ระบุชื่อเอง)'?String(d.get('otherCategory')||'').trim():'';
+        const category=customCategory||String(d.get('category'));
+        const groupId=await createSupabaseGroup({listingId:d.get('listingId'),name:d.get('name'),category,visibility:d.get('visibility'),capacity:Number(d.get('capacity')),price:parseBaht(d.get('product')),delivery:parseBaht(d.get('delivery')),requestId:d.get('requestId')});
         if(!await refreshSupabaseGroups(actionSession))return;
         go(`/groups/${groupId}`);
         alertMessage(t('สร้างกลุ่มแล้ว'));
         return;
       }
+      const customCategory=d.get('category')==='อื่น ๆ (ระบุชื่อเอง)'?String(d.get('otherCategory')||'').trim():'';
       const g=createGroup({id:'g'+Date.now(),listingId:d.get('listingId'),name:d.get('name'),ownerId:state.user.id,visibility:d.get('visibility'),capacity:Number(d.get('capacity')),costs:formCosts(d)});
+      g.category=customCategory||String(d.get('category'));
       g.images=[...groupImages];
       const notification={id:crypto.randomUUID(),recipient:state.user.id,title:t('สร้างกลุ่มแล้ว'),body:t('ชวนสมาชิกเข้าร่วมเพื่อเริ่มหารค่าใช้จ่าย'),href:`/groups/${g.id}`,read:false,at:new Date().toISOString()};
       save({...state,groups:[g,...state.groups],notifications:[notification,...state.notifications]});

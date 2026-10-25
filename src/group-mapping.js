@@ -17,7 +17,7 @@ export function mapDatabaseGroup(row, members = [], approvals = {}, history = []
     throw Object.assign(new Error('Database and app group totals differ'), {code:'groupTotalMismatch'});
   }
   return {
-    id:row.id, listingId:row.listing_id, name:row.name, ownerId:row.owner_id,
+    id:row.id, listingId:row.listing_id, name:row.name, category:row.category, ownerId:row.owner_id,
     visibility:row.visibility, capacity:Number(row.capacity), costs, members,
     revision:Number(row.revision), approvals, status:row.status, orderId:null,
     history:history.map(event=>({revision:Number(event.revision),reason:eventReason[event.event_type]||'มีการอัปเดตกลุ่ม',at:event.created_at})),
