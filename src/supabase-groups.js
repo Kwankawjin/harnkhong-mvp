@@ -56,8 +56,8 @@ async function runMutation(name,args,requestId=crypto.randomUUID()) {
   return data;
 }
 
-export async function createSupabaseGroup({listingId,name,visibility,capacity,delivery,requestId}) {
-  return runMutation('create_group',{p_listing:listingId,p_name:name,p_visibility:visibility,p_capacity:capacity,p_delivery:delivery},requestId);
+export async function createSupabaseGroup({listingId,name,visibility,capacity,price,delivery,requestId}) {
+  return runMutation('create_group',{p_listing:listingId,p_name:name,p_visibility:visibility,p_capacity:capacity,p_delivery:delivery,p_price:price},requestId);
 }
 export async function joinSupabaseGroup(groupId,token=null) {
   return runMutation('join_group',{p_group:groupId,p_token:token});
