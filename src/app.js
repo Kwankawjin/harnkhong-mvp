@@ -610,7 +610,13 @@ function groupPage(id) {
   </div>`;
 }
 function joinPage(id){
-  const g=group(id);if(!g)return notFound();
+  const g=group(id);if(!g){
+    if(supabaseConfigured&&new URLSearchParams(location.search).has('invite')){
+      if(!state.user){sessionStorage.setItem('harn-return',location.pathname+location.search);return authRequiredView(t('ยืนยันการเข้าร่วมกลุ่ม'),t('เข้าสู่ระบบเพื่อดูรายละเอียดและเข้าร่วมกลุ่มจากลิงก์เชิญ'));}
+      return `<div class="empty"><h1>${t('คำเชิญไม่ถูกต้องหรือหมดอายุ')}</h1>${a('/explore',t('สำรวจกลุ่ม'),'button outline')}</div>`;
+    }
+    return notFound();
+  }
   if(!requireAuth(`/groups/${id}/join`))return authRequiredView(t('ยืนยันการเข้าร่วมกลุ่ม'),t('เข้าสู่ระบบก่อนเพื่อเข้าร่วมกลุ่มและยืนยันยอด'));
   if(g.members.includes(state.user.id))return `<div class="empty"><h1>${t('คุณอยู่ในกลุ่มนี้แล้ว')}</h1>${a(`/groups/${id}`,t('ดูกลุ่ม'),'button primary')}</div>`;
   if(g.members.length>=g.capacity)return `<div class="empty"><h1>${t('กลุ่มนี้เต็มแล้ว')}</h1>${a(`/groups/${id}`,t('ดูกลุ่ม'),'button secondary')}</div>`;
@@ -1026,8 +1032,23 @@ document.addEventListener('click',async e=>{
       alertMessage(t("ยืนยันยอดรอบล่าสุดแล้ว"));
     }
     else if(action==='copy-link'){
-      const token=supabaseConfigured?await getSupabaseInvite(id):null;
-      await navigator.clipboard.writeText(location.origin+`/groups/${id}`+(token?`?invite=${encodeURIComponent(token)}`:''));alertMessage(t("คัดลอกลิงก์เชิญแล้ว"));
+      const current=group(id);
+      if(!current)throw new Error(t('ไม่พบกลุ่ม'));
+      const token=supabaseConfigured&&current.visibility==='link'?await getSupabaseInvite(id):null;
+      const inviteUrl=new URL(`/groups/${encodeURIComponent(id)}`,location.href);
+      if(token)inviteUrl.searchParams.set('invite',token);
+      const value=inviteUrl.href;
+      let copied=false;
+      if(navigator.clipboard?.writeText){
+        try{await navigator.clipboard.writeText(value);copied=true;}catch{/* Try the legacy clipboard API below. */}
+      }
+      if(!copied){
+        const input=document.createElement('textarea');input.value=value;input.setAttribute('readonly','');
+        input.style.position='fixed';input.style.left='0';input.style.top='0';input.style.opacity='0';document.body.append(input);input.focus();input.select();input.setSelectionRange(0,input.value.length);
+        copied=document.execCommand('copy');input.remove();
+      }
+      if(!copied)throw new Error(t('คัดลอกลิงก์ไม่สำเร็จ'));
+      alertMessage(t("คัดลอกลิงก์เชิญแล้ว"));
     }
     else if(action==='open-notice'){const n=state.notifications.find(x=>x.id===id);n.read=true;save();go(n.href);}
     else if(action==='logout'){
@@ -1263,7 +1284,7 @@ function authErrorMessage(error){
 
 async function fetchSupabaseState(authUser){
   const inviteToken=new URLSearchParams(location.search).get('invite');
-  const routeGroup=location.pathname.match(/^\/groups\/([^/]+)/)?.[1];
+  const routeGroup=location.pathname.match(/^\/groups\/([^/]+)(?:\/join)?$/)?.[1];
   const user=authUser?await loadAuthenticatedUser(authUser):null;
   const snapshot=await loadSupabaseGroups();
   if(authUser&&inviteToken&&routeGroup){
