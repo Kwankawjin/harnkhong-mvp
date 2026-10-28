@@ -1284,6 +1284,7 @@ function authErrorMessage(error){
   const message=String(error?.message||'').toLowerCase();
   if(error?.code==='groupTotalMismatch')return t('ข้อมูลยอดจากฐานข้อมูลไม่ตรงกับสูตรแอป กรุณาติดต่อผู้ดูแล');
   if(code==='PGRST202'&&(message.includes('remove_group_member')||message.includes('delete_group')))return t('ฐานข้อมูลยังไม่มีระบบจัดการห้อง กรุณารัน migration ล่าสุดของ Supabase');
+  if(message.includes('group_locked'))return t('ฐานข้อมูลยังใช้กติกาเตะสมาชิกเวอร์ชันเก่า กรุณารัน migration ล่าสุดของ Supabase');
   if(error?.code==='groupHasMembers'||message.includes('group_has_members'))return t('ลบห้องได้เฉพาะเมื่อไม่มีสมาชิกคนอื่นอยู่');
   if(error?.code==='groupTotalOutOfRange'||message.includes('group_total_out_of_range'))return t('ยอดรวมเกินขอบเขตที่รองรับ');
   if(message.includes('invite_invalid'))return t('คำเชิญไม่ถูกต้องหรือหมดอายุ');

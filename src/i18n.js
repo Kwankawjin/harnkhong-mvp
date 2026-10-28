@@ -22,6 +22,7 @@ const labels = {
   'นำสมาชิกออกจากห้องแล้ว ยอดและการยืนยันถูกอัปเดต':'Member removed. Totals and approvals have been updated.', 'ลบห้องแล้ว':'Group deleted',
   'ลบห้องได้เฉพาะเมื่อไม่มีสมาชิกคนอื่นอยู่':'A group can be deleted only when no other members are in it.',
   'ฐานข้อมูลยังไม่มีระบบจัดการห้อง กรุณารัน migration ล่าสุดของ Supabase':'The database is missing group management functions. Apply the latest Supabase migration.',
+  'ฐานข้อมูลยังใช้กติกาเตะสมาชิกเวอร์ชันเก่า กรุณารัน migration ล่าสุดของ Supabase':'The database still has the old member removal rule. Apply the latest Supabase migration.',
   'ยืนยันเตะสมาชิก {name} ออกจากห้อง?':'Remove {name} from this group?',
   'ยืนยันลบห้อง {name}? ลบได้เฉพาะห้องที่ไม่มีสมาชิกคนอื่นอยู่':'Delete {name}? You can delete a group only when no other members are in it.',
   'นำสมาชิกออกจากห้องแล้ว ยอดและการยืนยันถูกอัปเดต':'Member removed. Totals and approvals have been updated.',
