@@ -657,16 +657,6 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
   font-size: 1.15rem;
   flex-shrink: 0;
 }
-.category:nth-child(1) .category-symbol { background: #edf5fe; color: #0968e3; }
-.category:nth-child(2) .category-symbol { background: #e0f2fe; color: #0284c7; }
-.category:nth-child(3) .category-symbol { background: #fce7f3; color: #db2777; }
-.category:nth-child(4) .category-symbol { background: #f3e8ff; color: #9333ea; }
-.category:nth-child(5) .category-symbol { background: #fff7ed; color: #ea580c; }
-.category:nth-child(6) .category-symbol { background: #e6fcf5; color: #059669; }
-.category:nth-child(7) .category-symbol { background: #ede9fe; color: #6366f1; }
-.category:nth-child(8) .category-symbol { background: #f1f5f9; color: #334155; }
-.category:nth-child(9) .category-symbol { background: #fef3c7; color: #d97706; }
-.category:nth-child(10) .category-symbol { background: #ccfbf1; color: #0d9488; }
 .category-count {
   font-size: 0.72rem;
   font-weight: 600;
@@ -2571,5 +2561,142 @@ dialog:not([open]), [hidden] { display: none !important; }
   .opportunity-price > div + div { padding-left: 9px; }
   .opportunity-price strong { font-size: 1.3rem; }
   .opportunity-share { font-size: .77rem; }
+}
+
+/* Category photo bento */
+.category-bento {
+  display: grid;
+  grid-template-columns: repeat(12,minmax(0,1fr));
+  grid-auto-rows: clamp(200px,17vw,260px);
+  gap: 14px;
+}
+.category-bento .category {
+  position: relative;
+  isolation: isolate;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 20px;
+  background: #171717;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  transition: transform .24s ease, box-shadow .24s ease;
+}
+.category-bento .category::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  content: '';
+  background: linear-gradient(180deg,rgba(0,0,0,.02) 34%,rgba(0,0,0,.12) 53%,rgba(0,0,0,.8) 100%);
+  transition: background .24s ease;
+}
+.category-bento .category:hover,
+.category-bento .category:focus-visible {
+  z-index: 2;
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 16px 34px rgba(8,20,34,.23);
+  transform: translateY(-3px);
+}
+.category-bento .category-photo {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform .55s cubic-bezier(.2,.7,.2,1), filter .3s ease;
+}
+.category-bento .category:hover .category-photo,
+.category-bento .category:focus-visible .category-photo { transform: scale(1.055); filter: saturate(1.08); }
+.category-bento .category-symbol {
+  position: absolute;
+  z-index: 2;
+  bottom: 18px;
+  left: 18px;
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  flex: none;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 15px;
+  background: rgba(255,255,255,.13);
+  color: #fff;
+  font-size: 1.55rem;
+  line-height: 1;
+  backdrop-filter: blur(10px);
+}
+.category-bento .category-copy {
+  position: absolute;
+  z-index: 2;
+  right: 16px;
+  bottom: 18px;
+  left: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  color: #fff;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity .22s ease, transform .22s ease;
+}
+.category-bento .category-copy > strong { max-width: 100%; font-size: clamp(.9rem,1.25vw,1.18rem); line-height: 1.28; font-weight: 750; text-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.category-bento .category-count {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 4px 12px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 999px;
+  background: rgba(255,255,255,.14);
+  color: #fff;
+  font-size: .84rem;
+  font-weight: 600;
+  line-height: 1.2;
+  backdrop-filter: blur(10px);
+}
+.category-bento .category:hover .category-copy,
+.category-bento .category:focus-visible .category-copy { opacity: 1; transform: translateY(0); }
+.category--apps { grid-column: 1 / span 3; grid-row: 1 / span 2; }
+.category--fashion { grid-column: 4 / span 6; grid-row: 1; }
+.category--beauty { grid-column: 10 / span 3; grid-row: 1 / span 2; }
+.category--food { grid-column: 4 / span 6; grid-row: 2; }
+.category--electronics { grid-column: 1 / span 4; grid-row: 3; }
+.category--wholesale { grid-column: 5 / span 4; grid-row: 3; }
+.category--services { grid-column: 9 / span 4; grid-row: 3; }
+.category--all { grid-column: 1 / span 3; grid-row: 4; }
+.category--home { grid-column: 4 / span 3; grid-row: 4; }
+.category--digital { grid-column: 7 / span 3; grid-row: 4; }
+.category--other { grid-column: 10 / span 3; grid-row: 4; }
+@media(max-width: 1199px) {
+  .category-bento { grid-template-columns: repeat(2,minmax(0,1fr)); grid-auto-rows: auto; gap: 12px; }
+  .category-bento .category { grid-column: auto; grid-row: auto; aspect-ratio: 1.35; border-radius: 16px; }
+  .category-bento .category-symbol { bottom: 12px; left: 12px; width: 46px; height: 46px; border-radius: 13px; font-size: 1.3rem; }
+  .category-bento .category-copy { right: 10px; bottom: 12px; left: 68px; gap: 6px; }
+  .category-bento .category-copy > strong { font-size: .95rem; }
+  .category-bento .category-count { min-height: 26px; padding: 3px 9px; font-size: .76rem; }
+}
+@media(hover:none) {
+  .category-bento .category-copy { opacity: 1; transform: none; }
+}
+@media(max-width: 480px) {
+  .category-bento { gap: 9px; }
+  .category-bento .category { aspect-ratio: 1.12; border-radius: 14px; }
+  .category-bento .category-symbol { bottom: 10px; left: 10px; width: 40px; height: 40px; border-radius: 11px; font-size: 1.15rem; }
+  .category-bento .category-copy { right: 7px; bottom: 10px; left: 57px; gap: 5px; }
+  .category-bento .category-copy > strong { font-size: .8rem; }
+  .category-bento .category-count { min-height: 24px; padding: 2px 8px; font-size: .7rem; }
+}
+@media(prefers-reduced-motion: reduce) {
+  .category-bento .category,
+  .category-bento .category-photo,
+  .category-bento .category-copy,
+  .category-bento .category::before { transition: none; }
 }
 

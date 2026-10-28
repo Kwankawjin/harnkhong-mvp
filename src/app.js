@@ -363,7 +363,7 @@ function groupCard(g){
       <div class="opportunity-members"><span>${icon('users',17)} ${t('สมาชิก {count} / {capacity} คน',{count:g.members.length,capacity:g.capacity})}</span><div class="opportunity-track" role="progressbar" aria-label="${t('ความคืบหน้า')}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${g.members.length/g.capacity*100}%"></span></div></div>
       <p class="opportunity-leader">${icon('user',16)} ${t('หัวหน้ากลุ่ม')}: ${escape(name(g.ownerId).replace(/\s*\(หัวหน้ากลุ่ม\)$/,''))}</p>
       <p class="opportunity-terms">${icon('check',16)} ${t('ยืนยันยอดก่อนสั่งซื้อ')}</p>
-      <div class="opportunity-actions">${a(destination,open&&!isMember?t('เข้าร่วมกลุ่ม'):t('ดูกลุ่ม'),`button opportunity-view ${open&&!isMember?'primary':'outline'}`)}${open||isMember?`<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t('คัดลอกลิงก์เชิญ')}">${icon('link',17)} ${t('ชวนเพื่อน')}</button>`:''}</div>
+      <div class="opportunity-actions">${a(destination,open&&!isMember?t('ดูรายละเอียดกลุ่ม'):t('ดูกลุ่ม'),`button opportunity-view ${open&&!isMember?'primary':'outline'}`)}${open||isMember?`<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t('คัดลอกลิงก์เชิญ')}">${icon('link',17)} ${t('ชวนเพื่อน')}</button>`:''}</div>
     </div>
   </article>`;
 }
@@ -383,6 +383,19 @@ const CATEGORIES_LIST = [
 ];
 const CATEGORY_NAMES = CATEGORIES_LIST.map(c => c.name);
 const CREATE_CATEGORY_NAMES = CATEGORY_NAMES.filter(name => name !== 'ทั้งหมด');
+const CATEGORY_PHOTOS = {
+  'ทั้งหมด':'all',
+  'แอปพลิเคชันและเว็บไซต์':'apps',
+  'เสื้อผ้าและแฟชั่น':'fashion',
+  'เครื่องสำอางและความงาม':'beauty',
+  'อาหารและเครื่องดื่ม':'food',
+  'ของใช้ทั่วไป':'home',
+  'สินค้าดิจิทัล':'digital',
+  'อุปกรณ์อิเล็กทรอนิกส์และไอที':'electronics',
+  'สินค้าขายส่ง':'wholesale',
+  'บริการทั่วไป':'services',
+  'อื่น ๆ (ระบุชื่อเอง)':'other'
+};
 
 function home(){
   const activeGroups = state.groups.filter(g => g.visibility === 'public' && g.status !== 'cancelled' && !g.orderId && g.members.length < g.capacity);
@@ -465,19 +478,18 @@ function home(){
           <p>${t("เลือกหมวดหมู่ที่ใช่ แล้วดูว่ามีกลุ่มไหนกำลังเปิดรับอยู่")}</p>
         </div>
       </div>
-      <div class="categories">
+      <div class="categories category-bento">
         ${categoriesList.map(c => {
           const count = c.name === 'ทั้งหมด' ? activeGroups.length : activeGroups.filter(g => {
             const groupCategories=g.categories?.length?g.categories:[g.category||listing(g.listingId)?.category];
             return c.name==='อื่น ๆ (ระบุชื่อเอง)'?groupCategories.some(groupCategory=>!CREATE_CATEGORY_NAMES.includes(groupCategory)):groupCategories.includes(c.name);
           }).length;
+          const photo=CATEGORY_PHOTOS[c.name]||'other';
           return a(`/explore?category=${encodeURIComponent(c.name)}`, `
-            <div class="category-left">
-              <span class="category-symbol">${c.symbol}</span>
-              <span>${t(c.name)}</span>
-            </div>
-            <span class="category-count">${t('{count} กลุ่ม',{count})}</span>
-          `, 'category');
+            <img class="category-photo" src="/images/categories/${photo}.jpg" alt="" loading="lazy" decoding="async" aria-hidden="true"/>
+            <span class="category-symbol" aria-hidden="true">${c.symbol}</span>
+            <span class="category-copy"><strong>${t(c.name)}</strong><span class="category-count">${t('{count} กลุ่ม',{count})}</span></span>
+          `, `category category--${photo}`);
         }).join('')}
       </div>
     </section>

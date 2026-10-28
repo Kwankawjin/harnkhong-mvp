@@ -211,7 +211,7 @@ const labels = {
   'ราคาสินค้ารวม':'Total product price', 'ยังไม่รวมค่าส่งที่แต่ละกลุ่มกำหนด':'Delivery fees set by each group are not included.', 'ติดต่อผู้ขาย':'Contact seller',
   'กลุ่มที่เปิดรับ':'Open groups', 'เลือกกลุ่มที่เหมาะกับจำนวนคนและค่าใช้จ่าย':'Choose a group with the right size and costs.',
   'ยังไม่มีกลุ่มสาธารณะ':'No public groups yet', 'เริ่มกลุ่มใหม่สำหรับสินค้านี้ได้เลย':'Start a new group for this product.',
-  'รายละเอียดกลุ่ม':'Group details', 'เฉพาะผู้มีลิงก์':'Link only', 'กลุ่มสาธารณะ':'Public group',
+  'รายละเอียดกลุ่ม':'Group details', 'ดูรายละเอียดกลุ่ม':'View group details', 'เฉพาะผู้มีลิงก์':'Link only', 'กลุ่มสาธารณะ':'Public group',
   'กลุ่มสำหรับ':'Group for', 'สินค้าในกลุ่ม':'Group product', 'กำลังเปิดรับสมาชิก':'Open for members',
   'ปิดรับสมาชิก':'Membership closed', 'สมาชิกครบแล้ว':'Group is full', 'ยังว่างอีก {count} ที่':'{count} spots left',
   'รอสมาชิกเข้าร่วม':'Waiting for members', 'หัวหน้ากลุ่ม':'Group leader', 'รายละเอียดสินค้า':'Product details',
