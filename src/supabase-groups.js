@@ -14,7 +14,7 @@ function mapBundle({group, members = [], approvals = [], events = []}) {
 export async function loadSupabaseGroups(client = supabase) {
   const [groupResult,productResult,shopResult] = await Promise.all([
     // Embed related rows so totals and membership come from one database snapshot.
-    client.from('groups').select('id,listing_id,owner_id,name,category,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,created_at,members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)')
+    client.from('groups').select('id,listing_id,owner_id,name,category,categories,images,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,created_at,members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)')
       .order('created_at',{ascending:false}).order('joined_at',{referencedTable:'members'}).order('id',{referencedTable:'events'}),
     client.from('products').select('id,seller_id,title,category,kind,price_satang,art,mark,description,terms').eq('active',true),
     client.from('shops').select('id,name,intro,initials'),
@@ -56,8 +56,8 @@ async function runMutation(name,args,requestId=crypto.randomUUID()) {
   return data;
 }
 
-export async function createSupabaseGroup({listingId,name,category,visibility,capacity,price,delivery,requestId}) {
-  return runMutation('create_group',{p_listing:listingId,p_name:name,p_category:category,p_visibility:visibility,p_capacity:capacity,p_delivery:delivery,p_price:price},requestId);
+export async function createSupabaseGroup({listingId,name,categories,images=[],visibility,capacity,price,delivery,requestId}) {
+  return runMutation('create_group_with_metadata',{p_listing:listingId,p_name:name,p_categories:categories,p_images:images,p_visibility:visibility,p_capacity:capacity,p_delivery:delivery,p_price:price},requestId);
 }
 export async function joinSupabaseGroup(groupId,token=null) {
   return runMutation('join_group',{p_group:groupId,p_token:token});

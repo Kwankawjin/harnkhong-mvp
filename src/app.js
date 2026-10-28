@@ -42,11 +42,12 @@ const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>'
 const icon=(id,size=22)=>`<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-${id}"/></svg>`;
 const icons=`<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden"><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="7"/><path d="m16 16 5 5"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M2 20v-2a6 6 0 0 1 12 0v2zM17 11a3 3 0 1 0-1-5.8M16 15a5 5 0 0 1 6 5"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 4h16v13H8l-4 3z"/><path d="M8 9h8M8 13h5"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 9h18c0-1-3-2-3-9ZM10 21h4"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol><symbol id="i-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol><symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/></symbol><symbol id="i-calc" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/></symbol><symbol id="i-trending" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol><symbol id="i-fire" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol></svg>`;
 const a=(href,label,cls='')=>`<a href="${href}" data-link class="${cls}">${label}</a>`;
-function go(path){if(location.pathname==='/groups/create'&&path.split('?')[0]!=='/groups/create')groupImages=[];history.pushState({},'',path);render();window.scrollTo(0,0);}
+function go(path){if(location.pathname==='/groups/create'&&path.split('?')[0]!=='/groups/create'){groupImages=[];selectedCreateCategories=[];}history.pushState({},'',path);render();window.scrollTo(0,0);}
 let authModalActive = false;
 let mockupCurrentStep = 1;
 let tempSignupData = {};
 let groupImages=[];
+let selectedCreateCategories=[];
 let imagesLoading=false;
 let profileAvatar='';
 let avatarLoading=false;
@@ -344,6 +345,7 @@ function groupCard(g){
   const p=listing(g.listingId);
   if(!p)return '';
   const category=g.category||p.category;
+  const categories=g.categories?.length?g.categories:[category];
   const remaining=Math.max(0,g.capacity-g.members.length);
   const open=remaining>0&&!g.orderId&&g.status!=='cancelled';
   const isMember=g.members.includes(state.user?.id);
@@ -354,7 +356,7 @@ function groupCard(g){
   return `<article class="opportunity-card">
     <div class="opportunity-media">${a(destination,isLocalImage(g.images?.[0])?`<img src="${g.images[0]}" alt="${escape(g.name)}" loading="lazy"/>`:art({...p,category}),'opportunity-art-link')}</div>
     <div class="opportunity-content">
-      <div class="opportunity-topline"><span class="opportunity-category">${escape(t(category))}</span><span class="opportunity-spots ${open?'':'is-closed'}">${open?t('ว่าง {count} ที่',{count:remaining}):t('ปิดรับสมาชิก')}</span></div>
+      <div class="opportunity-topline"><span class="opportunity-category">${categories.slice(0,2).map(item=>escape(t(item))).join(' · ')}${categories.length>2?` +${categories.length-2}`:''}</span><span class="opportunity-spots ${open?'':'is-closed'}">${open?t('ว่าง {count} ที่',{count:remaining}):t('ปิดรับสมาชิก')}</span></div>
       ${a(destination,`<h3>${escape(g.name)}</h3>`,'opportunity-title')}
       <p class="opportunity-group-name">${t('หมวดหมู่')}: ${escape(t(category))}</p>
       <div class="opportunity-price"><div><small>${isMember?t('ยอดปัจจุบันของคุณ'):open?t('ถ้าคุณเข้าร่วมตอนนี้'):t('ประมาณต่อคนปัจจุบัน')}</small><strong>${money(now)} <span>${t('/คน')}</span></strong></div><div><small>${t('เมื่อครบ {count} คน',{count:g.capacity})}</small><b>${money(full)} ${t('/คน')}</b></div></div>
@@ -466,8 +468,8 @@ function home(){
       <div class="categories">
         ${categoriesList.map(c => {
           const count = c.name === 'ทั้งหมด' ? activeGroups.length : activeGroups.filter(g => {
-            const groupCategory=g.category||listing(g.listingId)?.category;
-            return c.name==='อื่น ๆ (ระบุชื่อเอง)'?!CREATE_CATEGORY_NAMES.includes(groupCategory):groupCategory===c.name;
+            const groupCategories=g.categories?.length?g.categories:[g.category||listing(g.listingId)?.category];
+            return c.name==='อื่น ๆ (ระบุชื่อเอง)'?groupCategories.some(groupCategory=>!CREATE_CATEGORY_NAMES.includes(groupCategory)):groupCategories.includes(c.name);
           }).length;
           return a(`/explore?category=${encodeURIComponent(c.name)}`, `
             <div class="category-left">
@@ -521,7 +523,7 @@ function home(){
 }
 function explore(){
   const params=new URLSearchParams(location.search),q=(params.get('q')||'').trim(),category=params.get('category')||'ทั้งหมด';
-  const matches=g=>{const p=listing(g.listingId),groupCategory=g.category||p?.category||'',isOther=category==='อื่น ๆ (ระบุชื่อเอง)'&&!CREATE_CATEGORY_NAMES.includes(groupCategory);return (category==='ทั้งหมด'||groupCategory===category||isOther)&&(`${g.name} ${groupCategory}`).toLowerCase().includes(q.toLowerCase());};
+  const matches=g=>{const p=listing(g.listingId),groupCategories=g.categories?.length?g.categories:[g.category||p?.category||''],isOther=category==='อื่น ๆ (ระบุชื่อเอง)'&&groupCategories.some(groupCategory=>!CREATE_CATEGORY_NAMES.includes(groupCategory));return (category==='ทั้งหมด'||groupCategories.includes(category)||isOther)&&(`${g.name} ${groupCategories.join(' ')}`).toLowerCase().includes(q.toLowerCase());};
   const openGroups=state.groups.filter(g=>g.visibility==='public'&&g.status!=='cancelled'&&!g.orderId&&g.members.length<g.capacity&&matches(g));
   return `<div class="explore-page">
     ${title(t('เข้ากลุ่มที่ใช่ จ่ายในราคาที่ชัดเจน'),t('ดูราคาหลังคุณเข้าร่วม จำนวนที่ว่าง และเงื่อนไขก่อนตัดสินใจ'))}
@@ -552,6 +554,7 @@ function groupPage(id) {
   const p = listing(g.listingId);
   if (!p) return notFound();
   const groupCategory=g.category||p.category;
+  const groupCategories=g.categories?.length?g.categories:[groupCategory];
   const costs = costBreakdown(g.costs,g.members.length);
   const sum = costs.total;
   const alloc = shares(g);
@@ -571,7 +574,7 @@ function groupPage(id) {
     ${isMember && !approved && !locked ? `<button class="button primary full" data-action="approve" data-id="${id}" data-revision="${g.revision}">${t('ยืนยันยอด {amount}', {amount: money(alloc[me])})}</button>` : ''}
     ${isMember && approved ? `<div class="success-line">${icon('check', 18)} ${t('คุณยืนยันยอดรอบนี้แล้ว')}</div>` : ''}
     ${isMember && !isOwner && !locked ? `<button class="button outline full" data-action="leave" data-id="${id}">${t('ออกจากกลุ่ม')}</button>` : ''}
-    ${isOwner && !locked ? `<button class="button outline full" data-action="edit-costs" data-id="${id}">${t('แก้ไขค่าส่งต่อคน')}</button><button class="button outline full" data-action="transfer" data-id="${id}">${t('โอนหัวหน้ากลุ่ม')}</button><button class="button outline full" data-action="delete-group" data-id="${id}">${t('ลบห้อง')}</button>` : ''}
+    ${isOwner && !locked ? `<button class="button outline full" data-action="edit-costs" data-id="${id}">${t('แก้ไขค่าส่งต่อคน')}</button><button class="button outline full" data-action="transfer" data-id="${id}">${t('โอนหัวหน้ากลุ่ม')}</button><button class="button danger-soft full" data-action="delete-group" data-id="${id}">${t('ลบห้อง')}</button>` : ''}
     ${g.visibility === 'link'&&(!supabaseConfigured||isOwner) ? `<button class="button outline full" data-action="copy-link" data-id="${id}">${icon('link', 18)} ${t('คัดลอกลิงก์เชิญ')}</button>` : ''}
     ${locked ? `<p class="info-box">${t('กลุ่มถูกล็อกตามยอดคำสั่งซื้อเดโมแล้ว')}</p>` : ''}
     ${isMember&&!supabaseConfigured ? a(`/orders/${id}`, t('ดูสรุปคำสั่งซื้อเดโม'), 'button subtle full') : ''}
@@ -585,7 +588,7 @@ function groupPage(id) {
     <div class="group-detail">
       <main class="group-detail-main">
         <section class="group-identity-card" aria-labelledby="group-title">
-          <div class="group-heading-line"><div><h1 id="group-title">${escape(g.name)}</h1><p>${t('หมวดหมู่')}: ${escape(t(groupCategory))}</p></div><span class="group-state ${full ? 'is-full' : 'is-open'}">${status}</span></div>
+          <div class="group-heading-line"><div><h1 id="group-title">${escape(g.name)}</h1><p>${t('หมวดหมู่')}: ${groupCategories.map(category=>escape(t(category))).join(' · ')}</p></div><span class="group-state ${full ? 'is-full' : 'is-open'}">${status}</span></div>
           <div class="group-product-strip">
             <div class="group-product-art" role="img" aria-label="${escape(t(groupCategory))}">${art({...p,category:groupCategory})}</div>
             <div class="group-product-copy"><span>${t('สินค้าในกลุ่ม')}</span><strong>${escape(g.name)}</strong><small>${escape(t(groupCategory))}</small></div>
@@ -596,7 +599,7 @@ function groupPage(id) {
         <section class="members-card group-members-card" aria-labelledby="members-heading">
           <div class="group-section-head"><div><h2 id="members-heading">${t('สมาชิก {count} / {capacity} คน', {count: g.members.length, capacity: g.capacity})}</h2><p>${status}</p></div><strong>${remaining ? t('ว่าง {count} ที่', {count: remaining}) : t('สมาชิกครบแล้ว')}</strong></div>
           <div class="progress" role="progressbar" aria-label="${t('ความคืบหน้า')}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${g.members.length / g.capacity * 100}%"></span></div>
-          <div class="group-member-list">${g.members.map(memberId => `<div class="group-member-row"><span class="avatar small">${escape(name(memberId).slice(0, 1))}</span><div class="group-member-name"><strong>${escape(name(memberId))}</strong>${memberId === g.ownerId && !name(memberId).includes('หัวหน้ากลุ่ม') ? `<small>${t('หัวหน้ากลุ่ม')}</small>` : ''}</div><span class="member-approval ${g.approvals[memberId] === g.revision ? 'approved' : ''}">${g.approvals[memberId] === g.revision ? t('ยืนยันแล้ว') : t('รอยืนยัน')}</span><b>${money(alloc[memberId])}</b>${isOwner&&!locked&&memberId!==me?`<button class="button outline" data-action="kick-member" data-id="${id}" data-member="${memberId}">${t('เตะออก')}</button>`:''}</div>`).join('')}
+          <div class="group-member-list">${g.members.map(memberId => `<div class="group-member-row"><span class="avatar small">${escape(name(memberId).slice(0, 1))}</span><div class="group-member-name"><strong>${escape(name(memberId))}</strong>${memberId === g.ownerId && !name(memberId).includes('หัวหน้ากลุ่ม') ? `<small>${t('หัวหน้ากลุ่ม')}</small>` : ''}</div><span class="member-approval ${g.approvals[memberId] === g.revision ? 'approved' : ''}">${g.approvals[memberId] === g.revision ? t('ยืนยันแล้ว') : t('รอยืนยัน')}</span><b>${money(alloc[memberId])}</b>${isOwner&&!locked&&memberId!==me?`<button class="button danger-soft" data-action="kick-member" data-id="${id}" data-member="${memberId}">${t('เตะออก')}</button>`:''}</div>`).join('')}
             ${remaining ? `<div class="group-open-row"><span class="avatar small">${icon('plus', 18)}</span><div><strong>${t('ยังว่างอีก {count} ที่', {count: remaining})}</strong><small>${t('รอสมาชิกเข้าร่วม')}</small></div>${!isMember && !locked ? a(`/groups/${id}/join`, t('เข้าร่วมกลุ่ม'), 'button outline') : ''}</div>` : ''}
           </div>
         </section>
@@ -604,7 +607,7 @@ function groupPage(id) {
         <details class="group-history"><summary>${t('ประวัติการเปลี่ยนยอด')}</summary>${g.history.slice().reverse().map(h => `<p>${t('รอบ {revision}', {revision: h.revision})} · ${escape(t(h.reason))}</p>`).join('')}</details>
       </main>
       <aside class="group-detail-aside"><div class="summary-card sticky"><small>${isMember ? t('ยอดที่คุณต้องยืนยัน') : full || locked ? t('ประมาณต่อคนปัจจุบัน') : t('ยอดประมาณเมื่อเข้าร่วม')}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full?`<div class="summary-future-price"><span>${t('เมื่อครบ {count} คน',{count:g.capacity})}</span><b>${money(fullEstimate)} ${t('/คน')}</b></div>`:''}<p>${isMember ? t('ยอดรอบที่ {revision}', {revision: g.revision}) + (approved ? t(' · คุณยืนยันแล้ว') : t(' · กรุณาตรวจสอบก่อนยืนยัน')) : full || locked ? t('กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่') : t('ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง')}</p>${actions}${!full ? `<p class="warning">${t('ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน')}</p>` : !allApproved(g) ? `<p class="warning">${t('รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด')}</p>` : ''}</div>
-      <section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t('รายละเอียดสินค้า')}</h2><p>${escape(g.name)}</p><p>${escape(t(groupCategory))}</p><small>${supabaseConfigured?t('แชตกับผู้ขายยังเป็นเดโมในเครื่องนี้'):t('ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง')}</small></section>
+      <section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t('รายละเอียดสินค้า')}</h2><p>${escape(g.name)}</p><p>${groupCategories.map(category=>escape(t(category))).join(' · ')}</p><small>${supabaseConfigured?t('แชตกับผู้ขายยังเป็นเดโมในเครื่องนี้'):t('ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง')}</small></section>
       </aside>
     </div>
   </div>`;
@@ -623,7 +626,40 @@ function joinPage(id){
   const count=g.members.length+1,costs=costBreakdown(g.costs,count),estimate=Math.ceil(costs.total/count);
   return `${title(t('ยืนยันการเข้าร่วม'),escape(g.name))}<div class="narrow"><div class="cost-card"><h2>${escape(g.name)}</h2><div><span>${t('ราคาสินค้า')}</span><b>${money(costs.product)}</b></div><div><span>${costs.deliveryPerMember===null?t('ค่าส่ง'):t('ค่าส่ง {amount} × {count} คน',{amount:money(costs.deliveryPerMember),count})}</span><b>${money(costs.delivery)}</b></div><div><span>${costs.deliveryPerMember===null?t('ค่าบริการ'):t('ค่าธรรมเนียมแอป 2%')}</span><b>${money(costs.service)}</b></div><div class="total"><span>${t('ยอดประมาณของคุณ')}</span><b>${money(estimate)}</b></div></div><div class="info-box">${t('เมื่อเข้าร่วม ระบบจะคำนวณยอดใหม่และให้สมาชิกทุกคน รวมถึงคุณ ยืนยันยอดรอบใหม่อีกครั้ง ยังไม่มีการเก็บเงินจริง')}</div><button class="button primary full" data-action="join" data-id="${id}">${t('ยืนยันเข้าร่วมกลุ่ม')}</button>${a(`/groups/${id}`,t('กลับไปดูกลุ่ม'),'button outline full')}</div>`;
 }
-function createPage(){if(!requireAuth(location.pathname+location.search))return authRequiredView(t("สร้างกลุ่มหารใหม่"),t("กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน"));const params=new URLSearchParams(location.search),requested=params.get('product'),allListings=listings(),requestedListing=allListings.find(item=>item.id===requested),selected=requestedListing?.id||allListings[0]?.id,selectedCategory=requestedListing?.category||CREATE_CATEGORY_NAMES[0];return `${title(t("สร้างกลุ่มหารใหม่"),t("กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน"))}<form class="form-panel" id="create-form"><input type="hidden" name="requestId" value="${crypto.randomUUID()}"/><input type="hidden" name="listingId" value="${selected||''}"/>${supabaseConfigured?'':`<section class="image-editor"><h2>${t('รูปกลุ่ม')}</h2><p>${t('เพิ่มได้สูงสุด 4 รูป · JPG, PNG, WebP ไม่เกิน 5 MB ต่อรูป · เก็บในเครื่อง')}</p><label class="image-upload">${icon('plus',20)} ${t('เพิ่มรูป')}<input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></section>`}<label>${t('หมวดหมู่')}<select name="category" required>${CREATE_CATEGORY_NAMES.map(category=>`<option value="${escape(category)}" ${category===selectedCategory?'selected':''}>${t(category)}</option>`).join('')}</select></label><label id="other-category-wrap" hidden>${t('ระบุชื่อหมวดหมู่')}<input name="otherCategory" maxlength="60" placeholder="${t('ระบุชื่อหมวดหมู่')}"/></label><label>${t("ชื่อกลุ่ม")}<input name="name" maxlength="70" required placeholder="${t("เช่น ทีมอ่านสอบปลายเทอม")}"/></label><div class="form-grid"><label>${t("จำนวนสมาชิกสูงสุด")}<input name="capacity" type="number" min="2" max="20" value="4" required/></label><label>${t("การมองเห็น")}<select name="visibility"><option value="public">${t("กลุ่มสาธารณะ")}</option><option value="link">${t("เฉพาะผู้มีลิงก์")}</option></select></label></div><div class="form-grid"><label>${t("ราคาสินค้า (บาท)")}<input name="product" inputmode="decimal" value="${bahtInput(listing(selected)?.price||0)}" required/></label><label>${t("ค่าส่งต่อคน (บาท)")}<input name="delivery" inputmode="decimal" value="0" required/></label></div><div class="info-box">${t("ค่าธรรมเนียมแอป 2% คำนวณอัตโนมัติจากราคาสินค้าและค่าส่งรวม กลุ่มเฉพาะลิงก์จะไม่ปรากฏในการค้นหาสาธารณะ")}</div><div id="create-preview" class="preview-cost"></div><button class="button primary full" type="submit">${t("สร้างกลุ่ม")}</button></form>`;}
+function createPage(){
+  if(!requireAuth(location.pathname+location.search))return authRequiredView(t('สร้างกลุ่มหารใหม่'),t('กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน'));
+  const params=new URLSearchParams(location.search),requested=params.get('product'),allListings=listings(),requestedListing=allListings.find(item=>item.id===requested);
+  const selected=requestedListing?.id||allListings[0]?.id,initialCategory=requestedListing?.category||CREATE_CATEGORY_NAMES[0];
+  if(!selectedCreateCategories.length)selectedCreateCategories=[initialCategory];
+  const selectedCategory=selectedCreateCategories[0],selectedListing=allListings.find(item=>item.category===selectedCategory)||listing(selected);
+  const categoryTags=selectedCreateCategories.map(category=>`<button type="button" class="selected-category" data-action="remove-category" data-category="${escape(category)}" aria-label="${t('นำหมวดหมู่ออก {category}',{category:t(category)})}">${escape(t(category))}<span aria-hidden="true">×</span></button>`).join('');
+  return `${title(t('สร้างกลุ่มหารใหม่'),t('กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน'))}<form class="form-panel" id="create-form">
+    <input type="hidden" name="requestId" value="${crypto.randomUUID()}"/><input type="hidden" name="listingId" value="${selectedListing?.id||selected||''}"/><input type="hidden" name="category" value="${escape(selectedCategory)}"/>
+    <section class="image-editor"><h2>${t('รูปกลุ่ม')}</h2><p>${t('เพิ่มได้สูงสุด 4 รูป · JPG, PNG, WebP ไม่เกิน 5 MB ต่อรูป · รูปจะบันทึกพร้อมกลุ่ม')}</p><label class="image-upload">${icon('plus',20)} ${t('เพิ่มรูป')}<input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></section>
+    <fieldset class="category-picker"><legend>${t('เลือกหมวดหมู่')}</legend><div class="selected-categories" id="selected-categories">${categoryTags}</div><div class="category-options">${CREATE_CATEGORY_NAMES.map(category=>`<button type="button" class="category-option ${selectedCreateCategories.includes(category)?'selected':''}" data-action="toggle-category" data-category="${escape(category)}" aria-pressed="${selectedCreateCategories.includes(category)}">${t(category)}</button>`).join('')}</div></fieldset>
+    <label id="other-category-wrap" ${selectedCreateCategories.includes('อื่น ๆ (ระบุชื่อเอง)')?'':'hidden'}>${t('ระบุชื่อหมวดหมู่')}<input name="otherCategory" maxlength="60" ${selectedCreateCategories.includes('อื่น ๆ (ระบุชื่อเอง)')?'required':''} placeholder="${t('ระบุชื่อหมวดหมู่')}"/></label>
+    <label>${t('ชื่อกลุ่ม')}<input name="name" maxlength="70" required placeholder="${t('เช่น ทีมอ่านสอบปลายเทอม')}"/></label>
+    <div class="form-grid"><label>${t('จำนวนสมาชิกสูงสุด')}<input name="capacity" type="number" min="2" max="20" value="4" required/></label><label>${t('การมองเห็น')}<select name="visibility"><option value="public">${t('กลุ่มสาธารณะ')}</option><option value="link">${t('เฉพาะผู้มีลิงก์')}</option></select></label></div>
+    <div class="form-grid"><label>${t('ราคาสินค้า (บาท)')}<input name="product" inputmode="decimal" value="${bahtInput(selectedListing?.price||0)}" required/></label><label>${t('ค่าส่งต่อคน (บาท)')}<input name="delivery" inputmode="decimal" value="0" required/></label></div>
+    <div class="info-box">${t('ค่าธรรมเนียมแอป 2% คำนวณอัตโนมัติจากราคาสินค้าและค่าส่งรวม กลุ่มเฉพาะลิงก์จะไม่ปรากฏในการค้นหาสาธารณะ')}</div><div id="create-preview" class="preview-cost"></div><button class="button primary full" type="submit">${t('สร้างกลุ่ม')}</button>
+  </form>`;
+}
+function syncCreateCategoryUI(){
+  const form=document.querySelector('#create-form');if(!form)return;
+  const primary=form.querySelector('[name="category"]'),first=selectedCreateCategories[0]||'';
+  primary.value=first;
+  const tags=form.querySelector('#selected-categories');
+  tags.innerHTML=selectedCreateCategories.map(category=>`<button type="button" class="selected-category" data-action="remove-category" data-category="${escape(category)}" aria-label="${t('นำหมวดหมู่ออก {category}',{category:t(category)})}">${escape(t(category))}<span aria-hidden="true">×</span></button>`).join('')||`<span class="category-selection-hint">${t('เลือกอย่างน้อย 1 หมวดหมู่')}</span>`;
+  form.querySelectorAll('[data-action="toggle-category"]').forEach(button=>{const active=selectedCreateCategories.includes(button.dataset.category);button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));});
+  const otherSelected=selectedCreateCategories.includes('อื่น ๆ (ระบุชื่อเอง)'),otherWrap=form.querySelector('#other-category-wrap'),otherInput=form.querySelector('[name="otherCategory"]');
+  otherWrap.hidden=!otherSelected;otherInput.required=otherSelected;
+  const listingsForCategory=listings().filter(item=>item.category===first),nextListing=listingsForCategory[0]||listings()[0];
+  if(nextListing){form.querySelector('[name="listingId"]').value=nextListing.id;form.querySelector('[name="product"]').value=bahtInput(nextListing.price);}
+  updatePreview();
+}
+function getCreateCategoryValues(form){
+  return selectedCreateCategories.map(category=>category==='อื่น ๆ (ระบุชื่อเอง)'?String(new FormData(form).get('otherCategory')||'').trim():category).filter(Boolean);
+}
 function authPage(register=false){
   if(authModalActive)return '';
   if(mockupCurrentStep!==3)mockupCurrentStep=register?2:1;
@@ -652,6 +688,8 @@ function profile() {
   if (!requireAuth('/profile')) return authRequiredView(t('บัญชีของฉัน'), t('เข้าสู่ระบบหรือลงทะเบียนเพื่อจัดการข้อมูลส่วนตัว'));
   const sellerRole = state.user.role === 'seller';
   const mine = state.groups.filter(g => g.members.includes(state.user.id));
+  const approvedGroups=mine.filter(g=>g.approvals?.[state.user.id]===g.revision);
+  const approvedGroupShare=approvedGroups.reduce((sum,g)=>sum+(shares(g)[state.user.id]||0),0);
   const orders = state.orders.filter(o => o && typeof o === 'object' && o.members?.includes(state.user.id) && o.payments?.[state.user.id]).sort((a, b) => Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0));
   const unpaid = orders.filter(o => o.status === 'pending_payment' && o.payments?.[state.user.id]?.status === 'unpaid');
   const reported = orders.filter(o => ['payment_reported', 'verification_pending'].includes(o.payments?.[state.user.id]?.status));
@@ -675,9 +713,10 @@ function profile() {
             ${stat('calc', t('คำสั่งซื้อเดโม'), orders.length, t('รายการ'), 'mint')}
             ${stat('calc', t('ยอดรอแจ้งชำระ'), money(unpaidAmount), t('เดโมเท่านั้น'), 'violet')}
             ${stat('check', t('ยอดยืนยันเดโมแล้ว'), money(verifiedAmount), t('เดโมเท่านั้น'), 'rose')}
+            ${stat('check', t('ยอดส่วนแบ่งที่ยืนยัน'), money(approvedGroupShare), t('{count} กลุ่ม · ยังไม่ใช่ยอดชำระเงินจริง',{count:approvedGroups.length}), 'mint')}
           </div>
         </section>
-        <section class="account-card account-summary" aria-labelledby="account-summary-title"><div class="account-card-heading"><div><h2 id="account-summary-title">${t('สรุปยอดของฉัน')}</h2><p>${t('ภาพรวมคำสั่งซื้อเดโมจากทุกกลุ่ม')}</p></div>${a('/my-groups', t('ดูกลุ่มของฉัน'), 'button subtle')}</div><div class="account-summary-grid"><div class="account-summary-tile violet"><span>${t('รอแจ้งชำระ')}</span><strong>${money(unpaidAmount)}</strong><small>${t('{count} รายการ', {count: unpaid.length})}</small></div><div class="account-summary-tile mint"><span>${t('รอตรวจยอดเดโม')}</span><strong>${reported.length}</strong><small>${t('รายการ')}</small></div><div class="account-summary-tile blue"><span>${t('ยืนยันยอดเดโมแล้ว')}</span><strong>${money(verifiedAmount)}</strong><small>${t('{count} รายการ', {count: verified.length})}</small></div></div></section>
+        <section class="account-card account-summary" aria-labelledby="account-summary-title"><div class="account-card-heading"><div><h2 id="account-summary-title">${t('สรุปยอดของฉัน')}</h2><p>${t('ยอดยืนยันกลุ่มและคำสั่งซื้อเดโม')}</p></div>${a('/my-groups', t('ดูกลุ่มของฉัน'), 'button subtle')}</div><div class="account-summary-grid"><div class="account-summary-tile violet"><span>${t('รอแจ้งชำระ')}</span><strong>${money(unpaidAmount)}</strong><small>${t('{count} รายการ', {count: unpaid.length})}</small></div><div class="account-summary-tile mint"><span>${t('รอตรวจยอดเดโม')}</span><strong>${reported.length}</strong><small>${t('รายการ')}</small></div><div class="account-summary-tile blue"><span>${t('ยืนยันยอดเดโมแล้ว')}</span><strong>${money(verifiedAmount)}</strong><small>${t('{count} รายการ', {count: verified.length})}</small></div><div class="account-summary-tile rose"><span>${t('ยอดส่วนแบ่งที่ยืนยัน')}</span><strong>${money(approvedGroupShare)}</strong><small>${t('{count} กลุ่ม · ยังไม่ใช่ยอดชำระเงินจริง',{count:approvedGroups.length})}</small></div></div></section>
         ${supabaseConfigured?'':`<details class="account-card account-test-tools"><summary>${t('เครื่องมือทดสอบบัญชี')}</summary><p>${t('ใช้ทดสอบการยืนยันยอดของสมาชิกแต่ละคน')}</p><div class="account-switch"><button data-action="switch-user" data-id="demo-owner" class="button outline">${escape(demoNames['demo-owner'])}</button>${Object.entries(demoNames).filter(([id])=>id!=='demo-owner').map(([id, n]) => `<button data-action="switch-user" data-id="${id}" class="button outline">${escape(n)}</button>`).join('')}<button data-action="switch-user" data-id="demo-seller" class="button outline">${t('ผู้ขายเดโม')} · ${escape(seller('s1').name)}</button><button data-action="switch-user" data-id="demo-seller-s2" class="button outline">${t('ผู้ขายเดโม')} · ${escape(seller('s2').name)}</button></div><div class="account-test-actions"><button class="button subtle" data-action="logout">${t('ออกจากระบบเดโม')}</button><button class="button subtle" data-action="reset-demo">${t('เริ่มข้อมูลเดโมใหม่')}</button></div></details>`}
       </div>
       <aside class="account-aside">
@@ -866,21 +905,15 @@ document.addEventListener('change',async e=>{
     if(!input.isConnected)return;
     if(isGroup){groupImages.push(...images);document.querySelector('#image-draft').innerHTML=gallery(groupImages,true);}
     else{profileAvatar=images[0];updateAvatarPreview();}
-    status.textContent=t('รูปพร้อมแล้ว กดบันทึกเพื่อเก็บในเครื่อง');
+    status.textContent=t('รูปพร้อมแล้ว จะบันทึกพร้อมกลุ่ม');
   }catch(err){status.textContent=storageError(err);}
   finally{if(isGroup)imagesLoading=false;else avatarLoading=false;input.value='';input.disabled=false;submit.disabled=false;}
 });
+document.addEventListener('dragover',e=>{const target=e.target.closest('.image-upload');if(target){e.preventDefault();target.classList.add('is-dragging');}});
+document.addEventListener('dragleave',e=>{const target=e.target.closest('.image-upload');if(target&&!target.contains(e.relatedTarget))target.classList.remove('is-dragging');});
+document.addEventListener('drop',e=>{const target=e.target.closest('.image-upload');if(!target)return;e.preventDefault();target.classList.remove('is-dragging');const input=target.querySelector('input[type="file"]');if(!input||!e.dataTransfer?.files?.length)return;input.files=e.dataTransfer.files;input.dispatchEvent(new Event('change',{bubbles:true}));});
 document.addEventListener('change',e=>{
-  if(e.target.name==='category'){
-    const form=document.querySelector('#create-form'),listingInput=form?.querySelector('[name="listingId"]'),otherWrap=form?.querySelector('#other-category-wrap'),otherInput=form?.querySelector('[name="otherCategory"]');
-    if(!form||!listingInput)return;
-    const isOther=e.target.value==='อื่น ๆ (ระบุชื่อเอง)';
-    otherWrap.hidden=!isOther;otherInput.required=isOther;
-    const available=listings(),matches=available.filter(item=>item.category===e.target.value),fallback=matches[0]||available[0];
-    listingInput.value=fallback?.id||'';
-    const price=form.querySelector('[name="product"]');if(price)price.value=bahtInput(matches[0]?.price||0);
-    updatePreview();return;
-  }
+  if(e.target.name==='otherCategory'){const form=e.target.form;if(form?.querySelector('[name="category"]')?.value==='อื่น ๆ (ระบุชื่อเอง)')updatePreview();return;}
   if(e.target.id!=='locale-select')return;
   if(imagesLoading||avatarLoading){e.target.value=locale;alertMessage(t('กำลังเตรียมรูป กรุณารอสักครู่'));return;}
   // Rerender labels without discarding drafts, password visibility, or the current auth step.
@@ -975,6 +1008,12 @@ document.addEventListener('click',async e=>{
       else{galleryEl.querySelector('.gallery-main img').src=btn.querySelector('img').src;galleryEl.querySelector('.gallery-main img').alt=t('ดูรูปที่ {number}',{number:index+1});galleryEl.querySelector('.gallery-counter').textContent=`${index+1} / ${galleryEl.querySelectorAll('[data-action="gallery-select"]').length}`;galleryEl.querySelectorAll('[data-action="gallery-select"]').forEach(button=>button.setAttribute('aria-pressed',String(button===btn)));}
     }
     else if(action==='image-remove'){if(imagesLoading)return;groupImages.splice(Number(btn.dataset.index),1);document.querySelector('#image-draft').innerHTML=gallery(groupImages,true);}
+    else if(action==='toggle-category'||action==='remove-category'){
+      const category=btn.dataset.category;
+      if(action==='toggle-category')selectedCreateCategories=selectedCreateCategories.includes(category)?selectedCreateCategories.filter(item=>item!==category):[...selectedCreateCategories,category];
+      else selectedCreateCategories=selectedCreateCategories.filter(item=>item!==category);
+      syncCreateCategoryUI();
+    }
     else if(action==='payment-open'){
       if(!orderPermissions(orderFor(id),state.user).reportPayment)throw Object.assign(new Error(),{code:'orderUnauthorized'});
       const dialog=document.querySelector('#payment-dialog');dialog.showModal();
@@ -1189,23 +1228,24 @@ document.addEventListener('submit',async e=>{
       const d=new FormData(f);
       if(imagesLoading)throw Error(t('กำลังเตรียมรูป กรุณารอสักครู่'));
       if(!state.user)throw Object.assign(new Error(),{code:'orderUnauthorized'});
+      const categories=[...new Set(getCreateCategoryValues(f))];
+      if(!categories.length)throw new Error(t('เลือกอย่างน้อย 1 หมวดหมู่'));
+      if(categories.some(category=>category.length>60))throw new Error(t('ชื่อหมวดหมู่ต้องไม่เกิน 60 ตัวอักษร'));
       if(!listing(d.get('listingId')))throw Error(t('ไม่พบสินค้า กรุณาเลือกสินค้าใหม่'));
       if(supabaseConfigured){
-        const customCategory=d.get('category')==='อื่น ๆ (ระบุชื่อเอง)'?String(d.get('otherCategory')||'').trim():'';
-        const category=customCategory||String(d.get('category'));
-        const groupId=await createSupabaseGroup({listingId:d.get('listingId'),name:d.get('name'),category,visibility:d.get('visibility'),capacity:Number(d.get('capacity')),price:parseBaht(d.get('product')),delivery:parseBaht(d.get('delivery')),requestId:d.get('requestId')});
+        const groupId=await createSupabaseGroup({listingId:d.get('listingId'),name:d.get('name'),categories,images:groupImages,visibility:d.get('visibility'),capacity:Number(d.get('capacity')),price:parseBaht(d.get('product')),delivery:parseBaht(d.get('delivery')),requestId:d.get('requestId')});
         if(!await refreshSupabaseGroups(actionSession))return;
         go(`/groups/${groupId}`);
         alertMessage(t('สร้างกลุ่มแล้ว'));
         return;
       }
-      const customCategory=d.get('category')==='อื่น ๆ (ระบุชื่อเอง)'?String(d.get('otherCategory')||'').trim():'';
       const g=createGroup({id:'g'+Date.now(),listingId:d.get('listingId'),name:d.get('name'),ownerId:state.user.id,visibility:d.get('visibility'),capacity:Number(d.get('capacity')),costs:formCosts(d)});
-      g.category=customCategory||String(d.get('category'));
+      g.category=categories[0];g.categories=categories;
       g.images=[...groupImages];
       const notification={id:crypto.randomUUID(),recipient:state.user.id,title:t('สร้างกลุ่มแล้ว'),body:t('ชวนสมาชิกเข้าร่วมเพื่อเริ่มหารค่าใช้จ่าย'),href:`/groups/${g.id}`,read:false,at:new Date().toISOString()};
       save({...state,groups:[g,...state.groups],notifications:[notification,...state.notifications]});
       groupImages=[];
+      selectedCreateCategories=[];
       go(`/groups/${g.id}`);
       alertMessage(t("สร้างกลุ่มแล้ว"));
     }catch(err){alertMessage(storageError(err));}
