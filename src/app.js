@@ -796,6 +796,13 @@ function updateFilterCarousel(){
   carousel.querySelector('.filter-scroll-prev').hidden=!previous;
   carousel.querySelector('.filter-scroll-next').hidden=!next;
 }
+function groupsLoadingSkeleton(){
+  return `<section class="groups-loading" role="status" aria-live="polite" aria-busy="true" aria-label="${t('กำลังโหลดกลุ่มจาก Supabase')}">
+    <span class="sr-only">${t('กำลังโหลดกลุ่มจาก Supabase')}</span>
+    <div class="groups-skeleton-grid" aria-hidden="true">${Array.from({length:6},()=>`<article class="groups-skeleton-card"><span class="skeleton-block skeleton-media"></span><span class="skeleton-block skeleton-line skeleton-line-long"></span><span class="skeleton-block skeleton-line skeleton-line-short"></span></article>`).join('')}</div>
+    <span class="groups-skeleton-mark" aria-hidden="true">${icon('search',28)}</span>
+  </section>`;
+}
 function render(){
   const unread=state.user?state.notifications.filter(n=>n.recipient===state.user.id&&!n.read).length:0;
   const nav=[
@@ -823,7 +830,7 @@ function render(){
       </div>
     </header>
 
-    <main class="main-wrap" id="main">${groupsLoading?`<div class="empty"><h2>${t('กำลังโหลดกลุ่มจาก Supabase')}</h2></div>`:groupsError?`<div class="empty"><h2>${t('โหลดกลุ่มไม่สำเร็จ')}</h2><p>${escape(authErrorMessage(groupsError))}</p><button class="button primary" data-action="refresh-groups">${t('ลองอีกครั้ง')}</button></div>`:route()}</main>
+    <main class="main-wrap" id="main">${groupsLoading?groupsLoadingSkeleton():groupsError?`<div class="empty"><h2>${t('โหลดกลุ่มไม่สำเร็จ')}</h2><p>${escape(authErrorMessage(groupsError))}</p><button class="button primary" data-action="refresh-groups">${t('ลองอีกครั้ง')}</button></div>`:route()}</main>
 
     <nav class="bottom-nav" aria-label="${t("เมนูด้านล่าง")}">
       ${nav.map(([href,ic,label])=>a(href,`${icon(ic,22)}<span>${label}</span>`,location.pathname===href?'active':'')).join('')}

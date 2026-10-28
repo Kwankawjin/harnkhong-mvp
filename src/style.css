@@ -1655,6 +1655,22 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
 .empty h1, .empty h2, .empty h3 { margin-bottom: 6px; color: var(--navy); }
 .empty p { margin-bottom: 22px; color: var(--text-sub); }
 
+.groups-loading { position: relative; margin: 28px 0; }
+.groups-skeleton-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+.groups-skeleton-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 20px; overflow: hidden; background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 3px 10px rgba(9,40,71,.035); }
+.skeleton-block { position: relative; display: block; flex: none; overflow: hidden; background: #e5e7eb; border-radius: 7px; }
+.skeleton-block::after { position: absolute; inset: 0; content: ''; background: linear-gradient(100deg,transparent 15%,rgba(255,255,255,.55) 48%,transparent 78%); background-size: 220% 100%; animation: skeletonShimmer 1.6s ease-in-out infinite; }
+.skeleton-media { width: 100%; aspect-ratio: 1.72; min-height: 126px; border-radius: 9px; }
+.skeleton-line { height: 15px; }
+.skeleton-line-long { width: 76%; }
+.skeleton-line-short { width: 49%; }
+.groups-skeleton-mark { position: absolute; top: 50%; left: 50%; display: grid; width: 76px; height: 76px; place-items: center; color: var(--blue); background: rgba(226,238,255,.88); border: 1px solid rgba(255,255,255,.86); border-radius: 50%; box-shadow: 0 12px 34px rgba(9,40,71,.12); transform: translate(-50%,-50%); pointer-events: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@keyframes skeletonShimmer { to { background-position: -220% 0; } }
+@media(max-width: 859px) { .groups-skeleton-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width: 520px) { .groups-skeleton-grid { grid-template-columns: 1fr; } .groups-skeleton-card { padding: 16px; } .skeleton-media { aspect-ratio: 1.85; min-height: 116px; } }
+@media(prefers-reduced-motion: reduce) { .skeleton-block::after { animation: none; } }
+
 .chat-shell {
   max-width: 750px;
   margin: 0 auto;
