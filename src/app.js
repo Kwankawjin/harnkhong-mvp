@@ -5,7 +5,7 @@ import {assertCapacity, createGroup, costBreakdown, totalCost, shares, joinGroup
 import {messages, translate, formatSatang, bahtInput} from './i18n.js';
 import {supabase, supabaseConfigured, googleAuthAvailable, refreshAuthProviders, loadAuthenticatedUser, saveAuthenticatedAddress} from './supabase.js';
 import {createAuthSessionSync} from './auth-session.js';
-import {loadSupabaseGroups, resolveSupabaseInvite, createSupabaseGroup, joinSupabaseGroup, leaveSupabaseGroup, approveSupabaseGroup, changeSupabaseDelivery, transferSupabaseGroup, getSupabaseInvite} from './supabase-groups.js';
+import {loadSupabaseGroups, resolveSupabaseInvite, createSupabaseGroup, joinSupabaseGroup, leaveSupabaseGroup, approveSupabaseGroup, changeSupabaseDelivery, transferSupabaseGroup, removeSupabaseGroupMember, deleteSupabaseGroup, getSupabaseInvite} from './supabase-groups.js';
 import {createOrder,activateOrder,migrateOrders,lockOrderedGroups,orderPermissions,reportPayment,updatePayment,transitionOrder,updateShipment,openDispute,proposeResolution,respondToResolution,DISPUTE_REASONS,sellerIdFor,assertListingSeller} from './orders.js';
 
 const LOCALE_KEY='harnkhong-locale';
@@ -571,7 +571,7 @@ function groupPage(id) {
     ${isMember && !approved && !locked ? `<button class="button primary full" data-action="approve" data-id="${id}" data-revision="${g.revision}">${t('ยืนยันยอด {amount}', {amount: money(alloc[me])})}</button>` : ''}
     ${isMember && approved ? `<div class="success-line">${icon('check', 18)} ${t('คุณยืนยันยอดรอบนี้แล้ว')}</div>` : ''}
     ${isMember && !isOwner && !locked ? `<button class="button outline full" data-action="leave" data-id="${id}">${t('ออกจากกลุ่ม')}</button>` : ''}
-    ${isOwner && !locked ? `<button class="button outline full" data-action="edit-costs" data-id="${id}">${t('แก้ไขค่าส่งต่อคน')}</button><button class="button outline full" data-action="transfer" data-id="${id}">${t('โอนหัวหน้ากลุ่ม')}</button>` : ''}
+    ${isOwner && !locked ? `<button class="button outline full" data-action="edit-costs" data-id="${id}">${t('แก้ไขค่าส่งต่อคน')}</button><button class="button outline full" data-action="transfer" data-id="${id}">${t('โอนหัวหน้ากลุ่ม')}</button><button class="button outline full" data-action="delete-group" data-id="${id}">${t('ลบห้อง')}</button>` : ''}
     ${g.visibility === 'link'&&(!supabaseConfigured||isOwner) ? `<button class="button outline full" data-action="copy-link" data-id="${id}">${icon('link', 18)} ${t('คัดลอกลิงก์เชิญ')}</button>` : ''}
     ${locked ? `<p class="info-box">${t('กลุ่มถูกล็อกตามยอดคำสั่งซื้อเดโมแล้ว')}</p>` : ''}
     ${isMember&&!supabaseConfigured ? a(`/orders/${id}`, t('ดูสรุปคำสั่งซื้อเดโม'), 'button subtle full') : ''}
@@ -596,7 +596,7 @@ function groupPage(id) {
         <section class="members-card group-members-card" aria-labelledby="members-heading">
           <div class="group-section-head"><div><h2 id="members-heading">${t('สมาชิก {count} / {capacity} คน', {count: g.members.length, capacity: g.capacity})}</h2><p>${status}</p></div><strong>${remaining ? t('ว่าง {count} ที่', {count: remaining}) : t('สมาชิกครบแล้ว')}</strong></div>
           <div class="progress" role="progressbar" aria-label="${t('ความคืบหน้า')}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${g.members.length / g.capacity * 100}%"></span></div>
-          <div class="group-member-list">${g.members.map(memberId => `<div class="group-member-row"><span class="avatar small">${escape(name(memberId).slice(0, 1))}</span><div class="group-member-name"><strong>${escape(name(memberId))}</strong>${memberId === g.ownerId && !name(memberId).includes('หัวหน้ากลุ่ม') ? `<small>${t('หัวหน้ากลุ่ม')}</small>` : ''}</div><span class="member-approval ${g.approvals[memberId] === g.revision ? 'approved' : ''}">${g.approvals[memberId] === g.revision ? t('ยืนยันแล้ว') : t('รอยืนยัน')}</span><b>${money(alloc[memberId])}</b></div>`).join('')}
+          <div class="group-member-list">${g.members.map(memberId => `<div class="group-member-row"><span class="avatar small">${escape(name(memberId).slice(0, 1))}</span><div class="group-member-name"><strong>${escape(name(memberId))}</strong>${memberId === g.ownerId && !name(memberId).includes('หัวหน้ากลุ่ม') ? `<small>${t('หัวหน้ากลุ่ม')}</small>` : ''}</div><span class="member-approval ${g.approvals[memberId] === g.revision ? 'approved' : ''}">${g.approvals[memberId] === g.revision ? t('ยืนยันแล้ว') : t('รอยืนยัน')}</span><b>${money(alloc[memberId])}</b>${isOwner&&!locked&&memberId!==me?`<button class="button outline" data-action="kick-member" data-id="${id}" data-member="${memberId}">${t('เตะออก')}</button>`:''}</div>`).join('')}
             ${remaining ? `<div class="group-open-row"><span class="avatar small">${icon('plus', 18)}</span><div><strong>${t('ยังว่างอีก {count} ที่', {count: remaining})}</strong><small>${t('รอสมาชิกเข้าร่วม')}</small></div>${!isMember && !locked ? a(`/groups/${id}/join`, t('เข้าร่วมกลุ่ม'), 'button outline') : ''}</div>` : ''}
           </div>
         </section>
@@ -1024,6 +1024,25 @@ document.addEventListener('click',async e=>{
       go('/my-groups');
       alertMessage(t("ออกจากกลุ่มแล้ว"));
     }
+    else if(action==='kick-member'){
+      const current=group(id),memberId=btn.dataset.member;
+      if(!current||current.ownerId!==state.user?.id||!current.members.includes(memberId))return;
+      if(!confirm(t('ยืนยันเตะสมาชิก {name} ออกจากห้อง?',{name:name(memberId)})))return;
+      if(supabaseConfigured){await removeSupabaseGroupMember(id,memberId);if(!await refreshSupabaseGroups(actionSession))return;}
+      else{updateGroup(leaveGroup(current,memberId));current.members.filter(u=>u!==memberId).forEach(u=>notice(t('สมาชิกออกจากกลุ่ม'),t('ยอดเปลี่ยน กรุณายืนยันใหม่'),`/groups/${id}`,u));}
+      render();alertMessage(t('นำสมาชิกออกจากห้องแล้ว ยอดและการยืนยันถูกอัปเดต'));
+    }
+    else if(action==='delete-group'){
+      const current=group(id);
+      if(!current||current.ownerId!==state.user?.id)return;
+      if(!confirm(t('ยืนยันลบห้อง {name}? ลบได้เฉพาะห้องที่ไม่มีสมาชิกคนอื่นอยู่',{name:current.name})))return;
+      if(supabaseConfigured){await deleteSupabaseGroup(id);if(!await refreshSupabaseGroups(actionSession))return;}
+      else{
+        if(current.members.length>1)throw Object.assign(new Error(t('ลบห้องได้เฉพาะเมื่อไม่มีสมาชิกคนอื่นอยู่')),{code:'groupHasMembers'});
+        save({...state,groups:state.groups.filter(g=>g.id!==id),orders:state.orders.filter(o=>o.groupId!==id)});
+      }
+      go('/my-groups');alertMessage(t('ลบห้องแล้ว'));
+    }
     else if(action==='approve'){
       const current=group(id),amount=shares(current)[state.user.id];
       if(supabaseConfigured){await approveSupabaseGroup(id,Number(btn.dataset.revision));if(!await refreshSupabaseGroups(actionSession))return;render();}
@@ -1264,11 +1283,13 @@ function authErrorMessage(error){
   const code=error?.code||'';
   const message=String(error?.message||'').toLowerCase();
   if(error?.code==='groupTotalMismatch')return t('ข้อมูลยอดจากฐานข้อมูลไม่ตรงกับสูตรแอป กรุณาติดต่อผู้ดูแล');
+  if(error?.code==='groupHasMembers'||message.includes('group_has_members'))return t('ลบห้องได้เฉพาะเมื่อไม่มีสมาชิกคนอื่นอยู่');
   if(error?.code==='groupTotalOutOfRange'||message.includes('group_total_out_of_range'))return t('ยอดรวมเกินขอบเขตที่รองรับ');
   if(message.includes('invite_invalid'))return t('คำเชิญไม่ถูกต้องหรือหมดอายุ');
   if(message.includes('full_group'))return t('กลุ่มเต็มแล้ว');
   if(message.includes('already_member'))return t('คุณเป็นสมาชิกกลุ่มนี้แล้ว');
   if(message.includes('owner_must_transfer'))return t('หัวหน้ากลุ่มต้องโอนสิทธิ์ก่อนออก');
+  if(message.includes('group_has_members'))return t('ลบห้องได้เฉพาะเมื่อไม่มีสมาชิกคนอื่นอยู่');
   if(message.includes('owner_only'))return t('เฉพาะหัวหน้ากลุ่มแก้ไขค่าใช้จ่ายได้');
   if(message.includes('stale_revision'))return t('ยอดมีการเปลี่ยน กรุณาโหลดข้อมูลล่าสุด');
   if(message.includes('failed to fetch')||message.includes('networkerror'))return t('เชื่อมต่อ Supabase ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง');

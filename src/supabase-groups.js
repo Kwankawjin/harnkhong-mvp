@@ -74,6 +74,12 @@ export async function changeSupabaseDelivery(groupId,delivery) {
 export async function transferSupabaseGroup(groupId,nextOwnerId) {
   return runMutation('transfer_group_owner',{p_group:groupId,p_next_owner:nextOwnerId});
 }
+export async function removeSupabaseGroupMember(groupId,memberId) {
+  return runMutation('remove_group_member',{p_group:groupId,p_member:memberId});
+}
+export async function deleteSupabaseGroup(groupId) {
+  return runMutation('delete_group',{p_group:groupId});
+}
 export async function getSupabaseInvite(groupId) {
   const {data,error}=await supabase.rpc('get_group_invite',{p_group:groupId});
   if(error)throw error;
