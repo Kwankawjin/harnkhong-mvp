@@ -3164,12 +3164,20 @@ dialog:not([open]), [hidden] { display: none !important; }
 :root[data-theme="dark"] .home-hero .hero-search {
   color: #102a43;
   background: #fff;
-  border-color: #fff;
-  box-shadow: 0 10px 30px rgba(0,0,0,.52), 0 0 0 3px rgba(0,0,0,.12);
+  border-color: #d5e2ed;
+  box-shadow: 0 10px 30px rgba(0,0,0,.52), 0 0 0 1px rgba(255,255,255,.34);
 }
 :root .home-hero .hero-search {
   background: #fff;
-  border-color: #fff;
+  border-color: #d5e2ed;
+}
+:root .home-hero .hero-search:focus-within {
+  border-color: #0968e3;
+  box-shadow: 0 12px 36px rgba(9,104,227,.22), 0 0 0 2px rgba(9,104,227,.12);
+}
+:root[data-theme="dark"] .home-hero .hero-search:focus-within {
+  border-color: #0968e3;
+  box-shadow: 0 12px 36px rgba(0,0,0,.52), 0 0 0 3px rgba(9,104,227,.22);
 }
 :root .home-hero .hero-search input {
   color: #102a43;
