@@ -2714,6 +2714,34 @@ dialog:not([open]), [hidden] { display: none !important; }
 
 /* Group-first discovery: keep the share and available spots visible together. */
 .home-open-groups { margin-top: 28px; }
+@media(min-width:960px) {
+  .home-hero {
+    width: 100vw;
+    max-width: none;
+    min-height: 330px;
+    margin-left: calc(50% - 50vw);
+    padding: 42px 28px 38px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    justify-content: center;
+  }
+  .home-hero .hero-text {
+    width: min(100%, 760px);
+    max-width: 760px;
+    align-items: center;
+    text-align: center;
+  }
+  .home-hero h1 { margin: 12px 0 8px; font-size: clamp(2.7rem,4vw,3.8rem); }
+  .home-hero p { max-width: 620px; margin-bottom: 18px; }
+  .home-hero .hero-search { width: min(100%, 700px); }
+  .home-hero .hero-quick-tags,
+  .home-hero .hero-points { justify-content: center; }
+  .home-hero .hero-visual { width: 22%; right: 2%; opacity: .58; }
+  .home-hero .hero-visual img { height: 82%; right: 0; bottom: -3%; }
+  .home-hero .hero-halo { width: 260px; height: 260px; right: 0; top: 28px; }
+  .home-hero .hero-mini { display: none; }
+}
 .explore-page > .page-heading { margin: 0 0 18px; }
 .explore-page > .page-heading h1 { font-size: clamp(2rem,3.6vw,2.8rem); }
 .explore-page > .page-heading h1 { max-width: 760px; }
@@ -2904,7 +2932,7 @@ dialog:not([open]), [hidden] { display: none !important; }
 }
 .category-section .section-header,
 .category-section .category-bento {
-  max-width: 1340px;
+  max-width: 1216px;
   margin-right: auto;
   margin-left: auto;
 }

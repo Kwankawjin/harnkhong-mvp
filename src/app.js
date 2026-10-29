@@ -418,7 +418,7 @@ function home(){
     <section class="hero home-hero">
       <div class="hero-text">
         <span class="home-kicker">${icon('sparkles', 15)} ${t("แพลตฟอร์มหารของและบริการที่โปร่งใส")}</span>
-        <h1>${t("ของดี ๆ")}<br><em>${t("หารกันได้!")}</em></h1>
+        <h1>${t("ของดี ๆ")} <em>${t("หารกันได้!")}</em></h1>
         <p>${t("ชวนเพื่อนเปิดกลุ่มซื้อสินค้าราคาส่ง ของใช้จำเป็น หรือแพ็กเกจสุดคุ้ม คำนวณเศษสตางค์เป๊ะ เห็นยอดโปร่งใสก่อนตกลงสั่งซื้อจริง")}</p>
 
         <form class="hero-search" id="search-form">
