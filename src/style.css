@@ -77,16 +77,16 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
   -webkit-backdrop-filter: blur(18px);
   border-bottom: 1px solid rgba(225, 235, 244, 0.85);
   box-shadow: 0 4px 20px rgba(9, 40, 71, 0.04);
-  transition: all 0.2s ease;
+  transition: width .32s cubic-bezier(.2,.8,.2,1), top .32s cubic-bezier(.2,.8,.2,1), margin .32s cubic-bezier(.2,.8,.2,1), border-radius .32s cubic-bezier(.2,.8,.2,1), background-color .24s ease, border-color .24s ease, box-shadow .32s ease;
 }
 .site-header.is-scrolled {
   width: min(calc(100% - 32px), 1280px);
   top: 48px;
   margin: 0 auto;
-  border: 1px solid rgba(225, 235, 244, 0.9);
+  border: 1px solid rgba(211, 225, 238, 0.7);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 10px 30px rgba(9, 40, 71, 0.12);
+  box-shadow: 0 8px 24px rgba(9, 40, 71, 0.08);
 }
 .site-header.is-scrolled .header-inner { min-height: 58px; }
 .mobile-menu-toggle { display: none; }
@@ -102,6 +102,7 @@ body.mobile-menu-open { overflow: hidden; }
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+  transition: min-height .32s cubic-bezier(.2,.8,.2,1);
 }
 
 .brand {
@@ -2423,9 +2424,9 @@ body.mobile-menu-open { overflow: hidden; }
 @media(min-width: 960px) { .mobile-menu-toggle, .mobile-menu { display: none !important; } }
 
 :root[data-theme="dark"] .site-header.is-scrolled {
-  background: rgba(11, 19, 26, .82);
-  border-color: rgba(60, 82, 98, .8);
-  box-shadow: 0 12px 34px rgba(0,0,0,.36);
+  background: rgba(11, 19, 26, .94);
+  border-color: rgba(82, 103, 118, .48);
+  box-shadow: 0 8px 22px rgba(0,0,0,.2);
 }
 :root[data-theme="dark"] .site-header.menu-open { background: rgba(7,11,15,.98); }
 :root[data-theme="dark"] .mobile-menu.is-open { background: rgba(7,11,15,.98); border-color: #263543; }
@@ -3394,7 +3395,7 @@ dialog:not([open]), [hidden] { display: none !important; }
 :root[data-theme="dark"] #app,
 :root[data-theme="dark"] .main-wrap { color: var(--ink); }
 :root[data-theme="dark"] .site-header { background: rgba(7,11,15,.94); border-color: var(--line); }
-:root[data-theme="dark"] .site-header.is-scrolled { background: rgba(11,19,26,.84); }
+:root[data-theme="dark"] .site-header.is-scrolled { background: rgba(11,19,26,.94); border-color: rgba(82,103,118,.48); box-shadow: 0 8px 22px rgba(0,0,0,.2); }
 :root[data-theme="dark"] .brand,
 :root[data-theme="dark"] .page-heading h1,
 :root[data-theme="dark"] .product-info h1,
