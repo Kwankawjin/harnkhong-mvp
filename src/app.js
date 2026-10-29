@@ -15,6 +15,41 @@ const THEME_KEY='harnkhong-theme';
 let theme='light';
 try { if(localStorage.getItem(THEME_KEY)==='dark')theme='dark'; } catch { /* Keep the light theme when storage is unavailable. */ }
 let mobileMenuOpen=false;
+let heroHeadlineInterval=null;
+let heroHeadlineFrame=null;
+function headlineGraphemes(value,language){
+  if(typeof Intl.Segmenter==='function')return [...new Intl.Segmenter(language,{granularity:'grapheme'}).segment(value)].map(part=>part.segment);
+  return Array.from(value);
+}
+function startHeroHeadlineRotation(){
+  clearInterval(heroHeadlineInterval);clearInterval(heroHeadlineFrame);
+  const visible=document.querySelector('[data-dynamic-headline]');
+  if(!visible)return;
+  let phrases=[];
+  try{phrases=JSON.parse(visible.dataset.headlines||'[]');}catch{return;}
+  if(phrases.length<2||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const language=document.documentElement.lang||'th';
+  const split=value=>headlineGraphemes(value,language);
+  const glyphs=phrases.flatMap(split).filter(glyph=>glyph.trim());
+  const accessible=document.querySelector('[data-headline-accessible]');
+  let index=0;
+  const scrambleTo=phrase=>{
+    clearInterval(heroHeadlineFrame);
+    const target=split(phrase);
+    const steps=24;
+    let frame=0;
+    heroHeadlineFrame=setInterval(()=>{
+      frame++;
+      const revealed=Math.min(target.length,Math.floor(frame/steps*target.length));
+      visible.textContent=target.map((glyph,position)=>position<revealed||!glyph.trim()?glyph:glyphs[Math.floor(Math.random()*glyphs.length)]||glyph).join('');
+      if(frame>=steps){clearInterval(heroHeadlineFrame);visible.textContent=phrase;if(accessible)accessible.textContent=phrase;}
+    },38);
+  };
+  heroHeadlineInterval=setInterval(()=>{
+    index=(index+1)%phrases.length;
+    scrambleTo(phrases[index]);
+  },4800);
+}
 const t=(key,values)=>translate(locale,key,values);
 const errorMessage=error=>messages[locale][error.code]??error.message??t('เกิดข้อผิดพลาด กรุณาลองใหม่');
 
@@ -417,11 +452,18 @@ function home(){
     'สินค้าขายส่ง',
     'บริการทั่วไป'
   ].includes(c.name));
+  const headlines=[
+    t('หารของดี ๆ ให้คุ้มกว่าเดิม!'),
+    t('หารของ ราคาก็คุ้มขึ้น!'),
+    t('หารแพ็กเกจ จ่ายเท่าที่ใช้!'),
+    t('หารกันง่าย จ่ายกันชัด!'),
+    t('อยากหารอะไร ก็เริ่มได้เลย!')
+  ];
 
   return `
     <section class="hero home-hero">
       <div class="hero-text">
-        <h1>${t("ของดี ๆ")} <em>${t("หารกันได้!")}</em></h1>
+        <h1><span class="sr-only" data-headline-accessible>${headlines[0]}</span><em class="dynamic-headline" aria-hidden="true" data-headlines="${escape(JSON.stringify(headlines))}">${headlines[0]}</em></h1>
         <p>${t("ชวนเพื่อนเปิดกลุ่มซื้อสินค้าราคาส่ง ของใช้จำเป็น หรือแพ็กเกจสุดคุ้ม คำนวณเศษสตางค์เป๊ะ เห็นยอดโปร่งใสก่อนตกลงสั่งซื้อจริง")}</p>
 
         <form class="hero-search" id="search-form">
@@ -1006,6 +1048,7 @@ function render(){
     ${authModalActive?`<dialog class="auth-modal-overlay" id="auth-modal-overlay" aria-label="${t('เข้าสู่ระบบ')}">${renderPhoneMockup(mockupCurrentStep,true)}</dialog>`:''}
   `;
 
+  startHeroHeadlineRotation();
   if(document.querySelector('#create-form'))updatePreview();
   const filterRow=document.querySelector('.filter-row');
   if(filterRow){filterRow.addEventListener('scroll',updateFilterCarousel,{passive:true});updateFilterCarousel();}

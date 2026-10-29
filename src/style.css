@@ -406,6 +406,7 @@ body.mobile-menu-open { overflow: hidden; }
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+.home-hero h1 .dynamic-headline { overflow-wrap: anywhere; }
 
 .hero p {
   color: #3f698e;
