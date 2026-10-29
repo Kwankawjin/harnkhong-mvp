@@ -368,7 +368,7 @@ function groupCard(g){
       <div class="opportunity-members"><span>${icon('users',17)} ${t('สมาชิก {count} / {capacity} คน',{count:g.members.length,capacity:g.capacity})}</span><div class="opportunity-track" role="progressbar" aria-label="${t('ความคืบหน้า')}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${g.members.length/g.capacity*100}%"></span></div></div>
       <p class="opportunity-leader">${icon('user',16)} ${t('หัวหน้ากลุ่ม')}: ${escape(name(g.ownerId).replace(/\s*\(หัวหน้ากลุ่ม\)$/,''))}</p>
       <p class="opportunity-terms">${icon('check',16)} ${t('ยืนยันยอดก่อนสั่งซื้อ')}</p>
-      <div class="opportunity-actions">${a(destination,open&&!isMember?t('ดูรายละเอียดกลุ่ม'):t('ดูกลุ่ม'),`button opportunity-view ${open&&!isMember?'primary':'outline'}`)}${open||isMember?`${a(`/groups/${g.id}/chat`,`${icon('chat',17)} ${t('แชทกลุ่ม')}`,'opportunity-chat')}<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t('คัดลอกลิงก์เชิญ')}">${icon('link',17)} ${t('ชวนเพื่อน')}</button>`:''}</div>
+      <div class="opportunity-actions">${a(destination,open&&!isMember?t('ดูรายละเอียดกลุ่ม'):t('ดูกลุ่ม'),`button opportunity-view ${open&&!isMember?'primary':'outline'}`)}${isMember?`${a(`/groups/${g.id}/chat`,`${icon('chat',17)} ${t('แชทกลุ่ม')}`,'opportunity-chat')}<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t('คัดลอกลิงก์เชิญ')}">${icon('link',17)} ${t('ชวนเพื่อน')}</button>`:''}</div>
     </div>
   </article>`;
 }
@@ -598,7 +598,7 @@ function groupPage(id) {
     ${!isMember && !full && !locked ? a(`/groups/${id}/join`, `<span>${t('เข้าร่วมกลุ่ม')}</span><span class="btn-arrow">${icon('arrow', 18)}</span>`, 'button primary full summary-action-btn') : ''}
     ${isMember && !approved && !locked ? `<button class="button primary full summary-action-btn" data-action="approve" data-id="${id}" data-revision="${g.revision}"><span>${t('ยืนยันยอด {amount}', {amount: money(alloc[me])})}</span><span class="btn-arrow">${icon('arrow', 18)}</span></button>` : ''}
     ${isMember && approved ? `<div class="success-line">${icon('check', 18)} ${t('คุณยืนยันยอดรอบนี้แล้ว')}</div>` : ''}
-    ${a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon('chat', 19)} <span>${t('แชทกลุ่ม')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span>`, 'button outline full summary-action-btn')}
+    ${isMember?a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon('chat', 19)} <span>${t('แชทกลุ่ม')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span>`, 'button outline full summary-action-btn'):''}
     ${isMember && !isOwner && !locked ? `<button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${id}"><span class="summary-btn-left">${icon('back', 19)} <span>${t('ออกจากกลุ่ม')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span></button>` : ''}
     ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="edit-costs" data-id="${id}"><span class="summary-btn-left">${icon('edit', 19)} <span>${t('แก้ไขค่าส่งต่อคน')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span></button><button class="button danger-soft full summary-action-btn" data-action="delete-group" data-id="${id}"><span class="summary-btn-left">${icon('trash', 19)} <span>${t('ลบห้อง')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span></button>` : ''}
     ${g.visibility === 'link'&&(!supabaseConfigured||isOwner) ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${id}"><span class="summary-btn-left">${icon('link', 18)} <span>${t('คัดลอกลิงก์เชิญ')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span></button>` : ''}
@@ -737,6 +737,7 @@ function chatList(){
 function groupChatPage(id){
   const g=group(id);
   if(!g)return notFound();
+  if(!state.user||!g.members.includes(state.user.id))return notFound();
   const p=listing(g.listingId);
   const me=state.user?.id;
   const isMember=g.members.includes(me);
@@ -768,16 +769,10 @@ function groupChatPage(id){
         </div>`;
       }).join(''):`<div class="chat-empty">${icon('chat',32)}<p><strong>${t("เริ่มคุยกับสมาชิกในกลุ่มได้ที่นี่")}</strong></p><small>${t("พูดคุย ปรึกษาเรื่องสินค้า นัดรับ หรือแชร์รายละเอียดกับสมาชิกในกลุ่มได้ที่นี่")}</small></div>`}
     </div>
-    ${!state.user?`<div class="group-chat-join-prompt">
-      <p>${t("เข้าสู่ระบบเพื่อร่วมพูดคุยในแชทกลุ่มนี้")}</p>
-      <button type="button" class="button primary" data-action="open-auth" data-step="1">${icon('user',18)} ${t("เข้าสู่ระบบ")}</button>
-    </div>`:isMember?`<form id="group-chat-form" data-id="${id}" class="chat-input group-chat-input">
+    ${isMember?`<form id="group-chat-form" data-id="${id}" class="chat-input group-chat-input">
       <input name="body" maxlength="500" required placeholder="${t("พิมพ์ข้อความถึงสมาชิกในกลุ่ม...")}" aria-label="${t("ข้อความ")}" autocomplete="off"/>
       <button class="button primary" type="submit">${t("ส่ง")}</button>
-    </form>`:`<div class="group-chat-join-prompt">
-      <p>${t("คุณยังไม่ได้เป็นสมาชิกกลุ่มนี้ เข้าร่วมเพื่อพูดคุย")}</p>
-      ${a(`/groups/${id}/join`,t("เข้าร่วมกลุ่ม"),'button primary')}
-    </div>`}
+    </form>`:''}
   </div>`;
 }
 function chatPage(id){if(!requireAuth(location.pathname+location.search))return authRequiredView(t("แชตกับผู้ขาย"),t("เข้าสู่ระบบเพื่อเริ่มต้นการสนทนากับร้านค้านี้"));const s=seller(id),msgs=state.conversations[id]||[],product=new URLSearchParams(location.search).get('product');return `<div class="chat-shell"><div class="chat-head">${a('/chat',icon('back',20))}<span class="avatar">${escape(s.initials)}</span><div><h1>${escape(s.name)}</h1><small>${t("แชตจำลอง · ไม่ส่งถึงผู้ขายจริง")}</small></div></div>${product?`<div class="chat-product">${t("กำลังสอบถามเรื่อง")} ${a(`/products/${product}`,escape(listing(product)?.title||t('สินค้า')))}</div>`:''}<div class="messages">${msgs.length?msgs.map(m=>`<div class="bubble ${m.from==='me'?'mine':'theirs'}">${escape(m.body)}</div>`).join(''):`<div class="chat-empty">${t("เริ่มคุยเรื่องสินค้า เงื่อนไขรับของ หรือค่าส่งได้ที่นี่")}</div>`}</div><form id="chat-form" data-id="${id}" class="chat-input"><input name="body" maxlength="500" required placeholder="${t("พิมพ์ข้อความเดโม...")}" aria-label="${t("ข้อความ")}"/><button class="button primary" type="submit">${t("ส่ง")}</button></form></div>`;}
