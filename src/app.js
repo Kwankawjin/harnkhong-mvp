@@ -24,7 +24,7 @@ function headlineGraphemes(value,language){
 }
 function startHeroHeadlineRotation(){
   clearTimeout(heroHeadlineTimeout);cancelAnimationFrame(heroHeadlineFrame);
-  const visible=document.querySelector('[data-dynamic-headline]');
+  const visible=document.querySelector('.dynamic-headline[data-headlines]');
   if(!visible)return;
   let phrases=[];
   try{phrases=JSON.parse(visible.dataset.headlines||'[]');}catch{return;}
