@@ -14,6 +14,7 @@ try { if(localStorage.getItem(LOCALE_KEY)==='en')locale='en'; } catch { /* Keep 
 const THEME_KEY='harnkhong-theme';
 let theme='light';
 try { if(localStorage.getItem(THEME_KEY)==='dark')theme='dark'; } catch { /* Keep the light theme when storage is unavailable. */ }
+let mobileMenuOpen=false;
 const t=(key,values)=>translate(locale,key,values);
 const errorMessage=error=>messages[locale][error.code]??error.message??t('เกิดข้อผิดพลาด กรุณาลองใหม่');
 
@@ -917,6 +918,8 @@ function groupsLoadingSkeleton(){
 }
 function render(){
   document.documentElement.dataset.theme=theme;
+  document.body.classList.toggle('mobile-menu-open',mobileMenuOpen);
+  const headerScrolled=window.scrollY>10;
   const unread=state.user?state.notifications.filter(n=>n.recipient===state.user.id&&!n.read).length:0;
   const nav=[
     ['/','home',t("หน้าแรก")],
@@ -929,7 +932,7 @@ function render(){
 
   document.querySelector('#app').innerHTML=`
     ${icons}
-    <header class="site-header">
+    <header class="site-header${headerScrolled?' is-scrolled':''}${mobileMenuOpen?' menu-open':''}">
       <div class="header-inner">
         ${a('/',`<span class="logo-mark">H</span><span class="logo-text">HarnKhong<small>${t("หารของด้วยกัน")}</small></span>`,'brand')}
         <nav class="desktop-nav" aria-label="${t("เมนูหลัก")}">
@@ -942,6 +945,16 @@ function render(){
           ${a('/notifications',`${icon('bell',22)}<span class="sr-only">${t('การแจ้งเตือน')}</span>${unread?`<i>${unread}</i>`:''}`,'icon-button header-notifications-btn')}
           <select id="locale-select" class="locale-select" aria-label="${t('ภาษา')}"><option value="th" ${locale==='th'?'selected':''}>TH</option><option value="en" ${locale==='en'?'selected':''}>EN</option></select>
           ${state.user?a('/profile',`<span class="avatar tiny">${escape(state.user.name.slice(0,1))}</span><span class="header-user-name">${escape(state.user.name)}</span>`,'profile-pill'):`<button type="button" class="button primary header-login-btn" data-action="open-auth" data-step="1">${icon('user',18)} ${t("เข้าสู่ระบบ")}</button>`}
+          <button type="button" class="icon-button mobile-menu-toggle" data-action="mobile-menu-toggle" aria-label="${mobileMenuOpen?t('ปิดเมนู'):t('เปิดเมนู')}" aria-expanded="${mobileMenuOpen}" aria-controls="mobile-menu"><span></span><span></span></button>
+        </div>
+      </div>
+      <div class="mobile-menu${mobileMenuOpen?' is-open':''}" id="mobile-menu" aria-hidden="${!mobileMenuOpen}">
+        <nav aria-label="${t('เมนูหลัก')}">
+          ${nav.map(([href,ic,label])=>a(href,`${icon(ic,21)}<span>${label}</span>`,(location.pathname===href?'active':''))).join('')}
+        </nav>
+        <div class="mobile-menu-actions">
+          ${/^\/groups\/[^/]+$/.test(location.pathname)?'':a('/groups/create',`${icon('plus',18)} ${t('เปิดกลุ่ม')}`,'button primary')}
+          ${state.user?a('/profile',`${icon('user',18)} ${t('บัญชี')}`,'button outline'):`<button type="button" class="button primary" data-action="open-auth" data-step="1">${icon('user',18)} ${t('เข้าสู่ระบบ')}</button>`}
         </div>
       </div>
     </header>
@@ -1071,6 +1084,7 @@ document.addEventListener('click',async e=>{
   if(link){
     e.preventDefault();
     const href=link.getAttribute('href');
+    if(link.closest('.mobile-menu')){mobileMenuOpen=false;document.body.classList.remove('mobile-menu-open');}
     if(!state.user && isAuthRequired(href)){
       sessionStorage.setItem('harn-return', href);
       openAuthModal(1);
@@ -1161,6 +1175,9 @@ document.addEventListener('click',async e=>{
       theme=theme==='dark'?'light':'dark';
       try{localStorage.setItem(THEME_KEY,theme);}catch{/* Apply the selected theme for this page view. */}
       document.documentElement.dataset.theme=theme;render();
+    }
+    else if(action==='mobile-menu-toggle'){
+      mobileMenuOpen=!mobileMenuOpen;render();
     }
     else if(action==='reset-demo'){if(supabaseConfigured)throw Object.assign(new Error(),{code:'supabaseDemoResetDisabled'});if(!confirm(t("ล้างข้อมูลเดโมในเบราว์เซอร์นี้และเริ่มใหม่?")))return;state=initialState();save();go('/');alertMessage(t("เริ่มข้อมูลเดโมใหม่แล้ว"));}
     else if(action==='refresh-groups'){await refreshSupabaseGroups();}
@@ -1570,6 +1587,14 @@ if(supabaseConfigured){
   syncSupabaseSession=session=>{beginSupabaseSession(session);return authSessionSync.sync(session);};
 }
 
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&mobileMenuOpen){mobileMenuOpen=false;document.body.classList.remove('mobile-menu-open');render();}
+});
+window.addEventListener('scroll',()=>{
+  const header=document.querySelector('.site-header');
+  if(!header)return;
+  header.classList.toggle('is-scrolled',window.scrollY>10);
+},{passive:true});
 window.addEventListener('popstate',render);
 render();
 if(supabaseConfigured){
