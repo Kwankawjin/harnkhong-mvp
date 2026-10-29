@@ -17,8 +17,13 @@ try { if(localStorage.getItem(THEME_KEY)==='dark')theme='dark'; } catch { /* Kee
 let mobileMenuOpen=false;
 let heroHeadlineTimeout=null;
 let heroHeadlineIndex=0;
+let heroHeadlineAnimation=null;
+let heroHeadlineResizeHandler=null;
 function startHeroHeadlineLoop(){
   clearTimeout(heroHeadlineTimeout);
+  heroHeadlineAnimation?.cancel();
+  heroHeadlineAnimation=null;
+  if(heroHeadlineResizeHandler)window.removeEventListener('resize',heroHeadlineResizeHandler);
   const visible=document.querySelector('[data-text-loop]');
   if(!visible)return;
   let phrases=[];
@@ -28,18 +33,57 @@ function startHeroHeadlineLoop(){
   const accessible=document.querySelector('[data-headline-accessible]');
   const staticText=visible.dataset.staticText||'';
   const current=visible.querySelector('.headline-rotator-current');
-  const cycle=()=>{
+  const windowElement=visible.querySelector('.headline-rotator-window');
+  const measure=visible.querySelector('.headline-rotator-measure');
+  const staticElement=visible.parentElement.querySelector('.hero-headline-static');
+  const cursor=visible.parentElement.querySelector('.headline-rotator-cursor');
+  const heading=visible.closest('h1');
+  heroHeadlineResizeHandler=()=>{
+    if(!heading||!staticElement||!windowElement||!measure)return;
+    const available=Math.max(80,heading.clientWidth-staticElement.getBoundingClientRect().width-(cursor?.offsetWidth||0)-12);
+    windowElement.style.maxWidth=`${available}px`;
+    measure.style.maxWidth=`${available}px`;
+  };
+  heroHeadlineResizeHandler();
+  window.addEventListener('resize',heroHeadlineResizeHandler,{passive:true});
+  const cycle=async()=>{
     heroHeadlineIndex=(heroHeadlineIndex+1)%phrases.length;
     const phrase=phrases[heroHeadlineIndex];
-    if(current)current.textContent=phrase;
-    if(accessible)accessible.textContent=`${staticText} ${phrase}`;
-    if(!reduceMotion&&current)current.animate(
-      [{opacity:0,transform:'translateY(0.22em)'},{opacity:1,transform:'translateY(0)'}],
-      {duration:420,easing:'cubic-bezier(0.16,1,0.3,1)'}
+    if(!current||!windowElement||!measure)return;
+    if(reduceMotion){
+      current.textContent=phrase;
+      measure.textContent=phrase;
+      if(accessible)accessible.textContent=`${staticText} ${phrase}`;
+      heroHeadlineTimeout=setTimeout(cycle,3000);
+      return;
+    }
+    const previousWidth=windowElement.getBoundingClientRect().width;
+    heroHeadlineAnimation=windowElement.animate(
+      [{width:`${previousWidth}px`,opacity:1},{width:'0px',opacity:0}],
+      {duration:220,easing:'ease-in',fill:'forwards'}
     );
-    heroHeadlineTimeout=setTimeout(cycle,2600);
+    await heroHeadlineAnimation.finished.catch(()=>{});
+    if(!visible.isConnected)return;
+    heroHeadlineAnimation.cancel();
+    current.textContent=phrase;
+    measure.textContent=phrase;
+    windowElement.style.width='0px';
+    windowElement.style.opacity='0';
+    windowElement.getBoundingClientRect();
+    const nextWidth=measure.getBoundingClientRect().width;
+    heroHeadlineAnimation=windowElement.animate(
+      [{width:'0px',opacity:0},{width:`${nextWidth}px`,opacity:1}],
+      {duration:580,easing:'cubic-bezier(0.16,1,0.3,1)',fill:'forwards'}
+    );
+    await heroHeadlineAnimation.finished.catch(()=>{});
+    if(!visible.isConnected)return;
+    heroHeadlineAnimation.cancel();
+    windowElement.style.width='auto';
+    windowElement.style.opacity='1';
+    if(accessible)accessible.textContent=`${staticText} ${phrase}`;
+    heroHeadlineTimeout=setTimeout(cycle,2200);
   };
-  heroHeadlineTimeout=setTimeout(cycle,2200);
+  heroHeadlineTimeout=setTimeout(cycle,3000);
 }
 const t=(key,values)=>translate(locale,key,values);
 const errorMessage=error=>messages[locale][error.code]??error.message??t('เกิดข้อผิดพลาด กรุณาลองใหม่');
@@ -449,12 +493,12 @@ function home(){
     t('ง่าย จ่ายชัด ทุกยอดโปร่งใส!')
   ];
   const activeHeadlineIndex=heroHeadlineIndex%headlines.length;
-  const rotatingHeadline=phrases=>phrases.map(phrase=>`<span class="headline-rotator-measure" aria-hidden="true">${phrase}</span>`).join('');
+  const currentHeadline=headlines[activeHeadlineIndex];
 
   return `
     <section class="hero home-hero">
       <div class="hero-text">
-        <h1><span class="sr-only" data-headline-accessible>${t('หาร')} ${headlines[activeHeadlineIndex]}</span><span class="dynamic-headline"><span class="hero-headline-static" aria-hidden="true">${t('หาร')}</span> <em class="headline-rotator" aria-hidden="true" data-text-loop="${escape(JSON.stringify(headlines))}" data-static-text="${t('หาร')}">${rotatingHeadline(headlines)}<span class="headline-rotator-current">${headlines[activeHeadlineIndex]}</span></em></span></h1>
+        <h1><span class="sr-only" data-headline-accessible>${t('หาร')} ${currentHeadline}</span><span class="dynamic-headline"><span class="hero-headline-static" aria-hidden="true">${t('หาร')}</span> <em class="headline-rotator" aria-hidden="true" data-text-loop="${escape(JSON.stringify(headlines))}" data-static-text="${t('หาร')}"><span class="headline-rotator-window"><span class="headline-rotator-highlight"></span><span class="headline-rotator-current">${currentHeadline}</span></span><span class="headline-rotator-measure">${currentHeadline}</span></em><span class="headline-rotator-cursor" aria-hidden="true"></span></span></h1>
         <p>${t("ชวนเพื่อนเปิดกลุ่มซื้อสินค้าราคาส่ง ของใช้จำเป็น หรือแพ็กเกจสุดคุ้ม คำนวณเศษสตางค์เป๊ะ เห็นยอดโปร่งใสก่อนตกลงสั่งซื้อจริง")}</p>
 
         <form class="hero-search" id="search-form">
