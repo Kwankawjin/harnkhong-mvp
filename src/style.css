@@ -81,7 +81,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
 }
 .site-header.is-scrolled {
   width: min(calc(100% - 32px), 1280px);
-  top: 0;
+  top: 48px;
   margin: 0 auto;
   border: 1px solid rgba(225, 235, 244, 0.9);
   border-radius: 14px;
@@ -2169,7 +2169,7 @@ body.mobile-menu-open { overflow: hidden; }
 
   /* Header & Navigation */
   .site-header { width: 100%; overflow: visible; }
-  .site-header.is-scrolled { width: 100%; margin: 0; border-radius: 0 0 14px 14px; }
+  .site-header.is-scrolled { width: calc(100% - 16px); margin: 0 auto; border-radius: 14px; }
   .site-header.menu-open { position: fixed; inset: 0; width: 100%; height: 100dvh; margin: 0; border-radius: 0; background: rgba(255,255,255,.97); overflow-y: auto; }
   .header-inner {
     padding: 10px 14px;
@@ -3598,58 +3598,3 @@ dialog:not([open]), [hidden] { display: none !important; }
 :root[data-theme="dark"] .home-hero .hero-search { color: #102a43; background: #fff; border-color: #d5e2ed; }
 :root[data-theme="dark"] .home-hero .hero-search input { color: #102a43; background: transparent; }
 
-/* Compact capsule header based on the supplied reference. */
-.site-header {
-  width: min(calc(100% - 48px), 1120px);
-  margin: 14px auto 0;
-  overflow: visible;
-  color: #f5f5f5;
-  background: rgba(18, 18, 18, .96);
-  border: 1px solid #343434;
-  border-radius: 14px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, .2);
-}
-.header-inner { max-width: none; min-height: 62px; padding: 0 12px; gap: 18px; }
-.site-header .brand { color: #f7f7f7; font-size: 1.25rem; }
-.site-header .logo-text small { color: #b8c3cf; }
-.site-header .logo-mark { width: 36px; height: 36px; border-radius: 10px; }
-.site-header .desktop-nav { gap: 4px; margin-left: auto; margin-right: 10px; }
-.site-header .nav-link { color: #d7d7d7; padding: 9px 13px; }
-.site-header .nav-link:hover,
-.site-header .nav-link.active { color: #fff; background: #252525; }
-.site-header .header-actions { gap: 9px; }
-.site-header .icon-button,
-.site-header .header-chat-btn,
-.site-header .header-notifications-btn,
-.site-header .theme-toggle { color: #ededed; background: #242424; border-color: #3a3a3a; }
-.site-header .icon-button:hover,
-.site-header .header-chat-btn:hover,
-.site-header .header-notifications-btn:hover { color: #fff; background: #333; }
-.site-header .locale-select { color: #f5f5f5; background: #202020; border-color: #3a3a3a; }
-.site-header .header-create-btn.button,
-.site-header .button.header-create-btn { color: #171717; background: #ededed; border-color: #ededed; }
-.site-header .header-create-btn.button:hover,
-.site-header .button.header-create-btn:hover { color: #111; background: #fff; border-color: #fff; }
-.site-header .header-login-btn { color: #f4f4f4; background: #151515; border: 1px solid #3a3a3a; box-shadow: none; }
-.site-header .profile-pill { color: #f4f4f4; background: #242424; border-color: #3a3a3a; }
-.site-header .profile-pill:hover { background: #333; }
-.site-header.is-scrolled { width: min(calc(100% - 48px), 1080px); margin: 0 auto; border-color: #3a3a3a; border-radius: 14px; background: rgba(18,18,18,.97); }
-.site-header.is-scrolled .header-inner { min-height: 58px; }
-.site-header .mobile-menu-toggle { color: #f1f1f1; background: #242424; border-color: #3a3a3a; }
-.site-header .mobile-menu.is-open { color: #f4f4f4; background: #121212; border-color: #343434; }
-.site-header .mobile-menu nav a { color: #e4e4e4; }
-.site-header .mobile-menu nav a.active { color: #fff; background: #252525; }
-.site-header .mobile-menu nav a svg { color: #a9ceff; }
-.site-header .mobile-menu .button.outline { color: #ededed; background: #202020; border-color: #414141; }
-:root[data-theme="dark"] .site-header,
-:root[data-theme="dark"] .site-header.is-scrolled { color: #f5f5f5; background: rgba(13,15,17,.97); border-color: #303b43; }
-@media(max-width: 639px) {
-  .site-header { width: calc(100% - 24px); margin: 10px auto 0; border-radius: 13px; }
-  .site-header.is-scrolled { width: calc(100% - 16px); margin: 0 auto; border-radius: 13px; }
-  .site-header.menu-open { position: fixed; inset: 0; width: 100%; height: 100dvh; margin: 0; border-radius: 0; background: #121212; }
-  .site-header .header-inner { min-height: 58px; padding: 0 9px; gap: 7px; }
-  .site-header .brand { gap: 7px; font-size: 1.08rem; }
-  .site-header .logo-mark { width: 32px; height: 32px; }
-  .site-header .header-actions { gap: 6px; }
-  .site-header .mobile-menu.is-open { inset: 58px 0 0; min-height: calc(100dvh - 58px); }
-}

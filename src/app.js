@@ -1593,7 +1593,7 @@ document.addEventListener('keydown',e=>{
 window.addEventListener('scroll',()=>{
   const header=document.querySelector('.site-header');
   if(!header)return;
-  header.classList.toggle('is-scrolled',window.scrollY>10);
+  header.classList.toggle('is-scrolled',window.scrollY>48);
 },{passive:true});
 window.addEventListener('popstate',render);
 render();
