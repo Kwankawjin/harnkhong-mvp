@@ -415,7 +415,7 @@ function home(){
   ].includes(c.name));
 
   return `
-    <section class="hero">
+    <section class="hero home-hero">
       <div class="hero-text">
         <span class="home-kicker">${icon('sparkles', 15)} ${t("แพลตฟอร์มหารของและบริการที่โปร่งใส")}</span>
         <h1>${t("ของดี ๆ")}<br><em>${t("หารกันได้!")}</em></h1>
