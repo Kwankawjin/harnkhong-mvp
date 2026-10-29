@@ -418,6 +418,7 @@ body.mobile-menu-open { overflow: hidden; }
 .headline-rotator-measure {
   width: max-content;
   visibility: hidden;
+  white-space: normal;
   overflow-wrap: anywhere;
   pointer-events: none;
 }
@@ -437,10 +438,18 @@ body.mobile-menu-open { overflow: hidden; }
 }
 .headline-rotator-current {
   position: relative;
-  display: block;
+  display: inline;
+  white-space: normal;
   background: linear-gradient(135deg, #0968e3, #0a9b88);
   background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+.headline-rotator-measure::after {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 1em;
+  margin-left: 0.08em;
 }
 .headline-rotator-cursor {
   display: inline-block;

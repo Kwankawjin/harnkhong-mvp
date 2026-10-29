@@ -501,7 +501,7 @@ function home(){
   return `
     <section class="hero home-hero">
       <div class="hero-text">
-        <h1><span class="sr-only" data-headline-accessible>${t('หาร')} ${currentHeadline}</span><span class="dynamic-headline headline-loop" aria-hidden="true" data-text-loop="${escape(JSON.stringify(headlines))}" data-static-text="${t('หาร')}"><span class="hero-headline-static">${t('หาร')}</span><span class="headline-rotator-slot"><span class="headline-rotator-measure">${widestHeadline}</span><span class="headline-rotator-window"><span class="headline-rotator-highlight"></span><span class="headline-rotator-current">${currentHeadline}</span></span></span><span class="headline-rotator-cursor"></span></span></h1>
+        <h1><span class="sr-only" data-headline-accessible>${t('หาร')} ${currentHeadline}</span><span class="dynamic-headline headline-loop" aria-hidden="true" data-text-loop="${escape(JSON.stringify(headlines))}" data-static-text="${t('หาร')}"><span class="hero-headline-static">${t('หาร')}</span><span class="headline-rotator-slot"><span class="headline-rotator-measure">${widestHeadline}</span><span class="headline-rotator-window"><span class="headline-rotator-highlight"></span><span class="headline-rotator-current">${currentHeadline}</span><span class="headline-rotator-cursor"></span></span></span></span></h1>
         <p>${t("ชวนเพื่อนเปิดกลุ่มซื้อสินค้าราคาส่ง ของใช้จำเป็น หรือแพ็กเกจสุดคุ้ม คำนวณเศษสตางค์เป๊ะ เห็นยอดโปร่งใสก่อนตกลงสั่งซื้อจริง")}</p>
 
         <form class="hero-search" id="search-form">
