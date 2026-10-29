@@ -410,7 +410,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
   border: 2px solid #c9e2f6;
   background: #ffffff;
   border-radius: var(--radius-pill);
-  box-shadow: 0 10px 30px rgba(9, 93, 176, 0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(9, 93, 176, 0.08);
   transition: all 0.2s ease;
 }
 .hero-search:focus-within {
@@ -3155,6 +3155,16 @@ dialog:not([open]), [hidden] { display: none !important; }
   border-color: #24404a;
 }
 :root[data-theme="dark"] .home-hero { background: transparent; border-color: transparent; }
+:root[data-theme="dark"] .home-hero .hero-search {
+  color: #102a43;
+  background: #fff;
+  border-color: #fff;
+  box-shadow: 0 10px 30px rgba(0,0,0,.52), 0 0 0 3px rgba(0,0,0,.12);
+}
+:root[data-theme="dark"] .home-hero .hero-search input {
+  color: #102a43;
+  background: transparent;
+}
 :root[data-theme="dark"] .hero h1,
 :root[data-theme="dark"] .hero p,
 :root[data-theme="dark"] .hero-points,
