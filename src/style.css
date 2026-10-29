@@ -2855,7 +2855,7 @@ dialog:not([open]), [hidden] { display: none !important; }
     align-items: center;
     text-align: center;
   }
-  .home-hero h1 { margin: 12px 0 8px; font-size: clamp(2.7rem,4vw,3.8rem); }
+  .home-hero h1 { width: calc(100vw - 48px); max-width: none; display: flex; justify-content: center; margin: 12px 0 8px; font-size: clamp(2.7rem,4vw,3.8rem); }
   .home-hero p { max-width: 620px; margin-bottom: 18px; }
   .home-hero .hero-search { width: min(100%, 700px); }
   .home-hero .hero-quick-tags,
