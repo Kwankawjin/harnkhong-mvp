@@ -290,6 +290,11 @@ function leaveGroupDialog(g, currentShare) {
     </div>
   </dialog>`;
 }
+function transferGroupDialog(g) {
+  const members=g.members.filter(userId=>userId!==state.user?.id);
+  const options=members.map(userId=>`<option value="${escape(userId)}">${escape(name(userId))}</option>`).join('');
+  return `<dialog id="transfer-group-dialog" class="payment-dialog" aria-labelledby="transfer-group-title"><div class="payment-head"><span class="chip">${t('โอนหัวหน้ากลุ่ม')}</span><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></div><h2 id="transfer-group-title">${t('เลือกหัวหน้ากลุ่มคนใหม่')}</h2><p>${t('สมาชิกใหม่จะได้รับสิทธิ์จัดการกลุ่มแทนคุณ')}</p><form id="transfer-group-form" data-id="${escape(g.id)}"><label>${t('สมาชิก')}<select name="memberId" required>${options}</select></label><footer class="dialog-footer"><button type="button" class="button outline" data-action="close-dialog">${t('ยกเลิก')}</button><button type="submit" class="button primary">${t('ยืนยันโอนสิทธิ์')}</button></footer></form></dialog>`;
+}
 function listingCard(p){
   const groups = state.groups.filter(g => g.listingId === p.id && g.visibility === 'public' && g.status !== 'cancelled' && g.members.length < g.capacity && !g.orderId);
   const g = groups[0];
@@ -1170,14 +1175,25 @@ document.addEventListener('click',async e=>{
       alertMessage(t("ปรับยอดและเริ่มรอบยืนยันใหม่แล้ว"));
     }
     else if(action==='transfer'){
-      const g=group(id),members=g.members.filter(u=>u!==state.user.id);if(!members.length)throw Error(t("ยังไม่มีสมาชิกให้โอนสิทธิ์"));const choice=prompt(t('พิมพ์ ID สมาชิกที่จะเป็นหัวหน้าคนใหม่: {members}',{members:members.join(', ')}),members[0]);if(choice===null)return;
-      if(supabaseConfigured){await transferSupabaseGroup(id,choice);if(!await refreshSupabaseGroups(actionSession))return;}else updateGroup(transferOwner(g,state.user.id,choice));
-      render();alertMessage(t("โอนหัวหน้ากลุ่มแล้ว"));
+      const g=group(id),members=g.members.filter(u=>u!==state.user.id);if(!members.length)throw Error(t("ยังไม่มีสมาชิกให้โอนสิทธิ์"));
+      document.querySelector('#transfer-group-dialog')?.remove();document.body.insertAdjacentHTML('beforeend',transferGroupDialog(g));
+      const dialog=document.querySelector('#transfer-group-dialog');dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();});dialog.showModal();
     }
   }catch(err){if(supabaseConfigured){if(actionSession!==activeSupabaseSession)return;try{await refreshSupabaseGroups(actionSession);}catch{/* Keep the explicit mutation error visible. */}}alertMessage(supabaseConfigured?authErrorMessage(err):errorMessage(err));}
 });
 document.addEventListener('submit',async e=>{
   const f=e.target,actionSession=activeSupabaseSession;
+  if(f.id==='transfer-group-form'){
+    e.preventDefault();
+    try{
+      const id=f.dataset.id,memberId=new FormData(f).get('memberId'),g=group(id),dialog=f.closest('dialog');
+      if(!g||g.ownerId!==state.user?.id||!g.members.includes(memberId)||memberId===state.user.id)throw new Error(t('โอนหัวหน้ากลุ่มไม่ได้'));
+      if(supabaseConfigured){await transferSupabaseGroup(id,memberId);if(!await refreshSupabaseGroups(actionSession))return;}
+      else updateGroup(transferOwner(g,state.user.id,memberId));
+      dialog?.close();render();alertMessage(t('โอนหัวหน้ากลุ่มแล้ว'));
+    }catch(err){if(supabaseConfigured){if(actionSession!==activeSupabaseSession)return;try{await refreshSupabaseGroups(actionSession);}catch{/* Keep the explicit mutation error visible. */}}alertMessage(supabaseConfigured?authErrorMessage(err):errorMessage(err));}
+    return;
+  }
   if(['mockup-login-form','mockup-signup-form','mockup-address-form'].includes(f.id)){
     e.preventDefault();
     try{
