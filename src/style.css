@@ -408,18 +408,25 @@ body.mobile-menu-open { overflow: hidden; }
 }
 .home-hero h1 .dynamic-headline { overflow-wrap: anywhere; }
 .hero-headline-static { color: var(--navy); white-space: nowrap; }
-.headline-rotator {
-  position: relative;
-  display: inline-block;
-  vertical-align: baseline;
-  font-style: normal;
+.headline-loop { display: inline-flex; align-items: baseline; gap: 0.08em; white-space: nowrap; vertical-align: baseline; }
+.headline-rotator-slot { display: inline-grid; min-width: 0; vertical-align: baseline; }
+.headline-rotator-measure,
+.headline-rotator-window {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.headline-rotator-measure {
+  width: max-content;
+  visibility: hidden;
+  overflow-wrap: anywhere;
+  pointer-events: none;
 }
 .headline-rotator-window {
   position: relative;
-  display: inline-block;
+  display: block;
+  justify-self: start;
   overflow: hidden;
   overflow-wrap: anywhere;
-  vertical-align: baseline;
 }
 .headline-rotator-highlight {
   position: absolute;
@@ -428,14 +435,12 @@ body.mobile-menu-open { overflow: hidden; }
   background: linear-gradient(90deg, rgba(8, 104, 216, 0), rgba(8, 104, 216, 0.08) 58%, rgba(25, 182, 183, 0.19));
   pointer-events: none;
 }
-.headline-rotator-current { position: relative; display: block; }
-.headline-rotator-measure {
-  position: absolute;
-  inset: 0 auto auto 0;
-  width: max-content;
-  visibility: hidden;
-  overflow-wrap: anywhere;
-  pointer-events: none;
+.headline-rotator-current {
+  position: relative;
+  display: block;
+  background: linear-gradient(135deg, #0968e3, #0a9b88);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 .headline-rotator-cursor {
   display: inline-block;

@@ -35,12 +35,13 @@ function startHeroHeadlineLoop(){
   const current=visible.querySelector('.headline-rotator-current');
   const windowElement=visible.querySelector('.headline-rotator-window');
   const measure=visible.querySelector('.headline-rotator-measure');
-  const staticElement=visible.parentElement.querySelector('.hero-headline-static');
-  const cursor=visible.parentElement.querySelector('.headline-rotator-cursor');
+  const staticElement=visible.querySelector('.hero-headline-static');
+  const cursor=visible.querySelector('.headline-rotator-cursor');
   const heading=visible.closest('h1');
   heroHeadlineResizeHandler=()=>{
     if(!heading||!staticElement||!windowElement||!measure)return;
-    const available=Math.max(80,heading.clientWidth-staticElement.getBoundingClientRect().width-(cursor?.offsetWidth||0)-12);
+    const headingWidth=window.innerWidth>=960?Math.max(heading.clientWidth,window.innerWidth*0.78):heading.clientWidth;
+    const available=Math.max(80,headingWidth-staticElement.getBoundingClientRect().width-(cursor?.offsetWidth||0)-12);
     windowElement.style.maxWidth=`${available}px`;
     measure.style.maxWidth=`${available}px`;
   };
@@ -52,7 +53,6 @@ function startHeroHeadlineLoop(){
     if(!current||!windowElement||!measure)return;
     if(reduceMotion){
       current.textContent=phrase;
-      measure.textContent=phrase;
       if(accessible)accessible.textContent=`${staticText} ${phrase}`;
       heroHeadlineTimeout=setTimeout(cycle,3000);
       return;
@@ -66,11 +66,13 @@ function startHeroHeadlineLoop(){
     if(!visible.isConnected)return;
     heroHeadlineAnimation.cancel();
     current.textContent=phrase;
+    const reservedText=measure.textContent;
     measure.textContent=phrase;
+    const nextWidth=measure.getBoundingClientRect().width;
+    measure.textContent=reservedText;
     windowElement.style.width='0px';
     windowElement.style.opacity='0';
     windowElement.getBoundingClientRect();
-    const nextWidth=measure.getBoundingClientRect().width;
     heroHeadlineAnimation=windowElement.animate(
       [{width:'0px',opacity:0},{width:`${nextWidth}px`,opacity:1}],
       {duration:580,easing:'cubic-bezier(0.16,1,0.3,1)',fill:'forwards'}
@@ -494,11 +496,12 @@ function home(){
   ];
   const activeHeadlineIndex=heroHeadlineIndex%headlines.length;
   const currentHeadline=headlines[activeHeadlineIndex];
+  const widestHeadline=headlines.reduce((longest,phrase)=>phrase.length>longest.length?phrase:longest,headlines[0]);
 
   return `
     <section class="hero home-hero">
       <div class="hero-text">
-        <h1><span class="sr-only" data-headline-accessible>${t('หาร')} ${currentHeadline}</span><span class="dynamic-headline"><span class="hero-headline-static" aria-hidden="true">${t('หาร')}</span> <em class="headline-rotator" aria-hidden="true" data-text-loop="${escape(JSON.stringify(headlines))}" data-static-text="${t('หาร')}"><span class="headline-rotator-window"><span class="headline-rotator-highlight"></span><span class="headline-rotator-current">${currentHeadline}</span></span><span class="headline-rotator-measure">${currentHeadline}</span></em><span class="headline-rotator-cursor" aria-hidden="true"></span></span></h1>
+        <h1><span class="sr-only" data-headline-accessible>${t('หาร')} ${currentHeadline}</span><span class="dynamic-headline headline-loop" aria-hidden="true" data-text-loop="${escape(JSON.stringify(headlines))}" data-static-text="${t('หาร')}"><span class="hero-headline-static">${t('หาร')}</span><span class="headline-rotator-slot"><span class="headline-rotator-measure">${widestHeadline}</span><span class="headline-rotator-window"><span class="headline-rotator-highlight"></span><span class="headline-rotator-current">${currentHeadline}</span></span></span><span class="headline-rotator-cursor"></span></span></h1>
         <p>${t("ชวนเพื่อนเปิดกลุ่มซื้อสินค้าราคาส่ง ของใช้จำเป็น หรือแพ็กเกจสุดคุ้ม คำนวณเศษสตางค์เป๊ะ เห็นยอดโปร่งใสก่อนตกลงสั่งซื้อจริง")}</p>
 
         <form class="hero-search" id="search-form">
