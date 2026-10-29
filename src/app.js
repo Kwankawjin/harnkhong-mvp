@@ -17,6 +17,7 @@ try { if(localStorage.getItem(THEME_KEY)==='dark')theme='dark'; } catch { /* Kee
 let mobileMenuOpen=false;
 let heroHeadlineTimeout=null;
 let heroHeadlineFrame=null;
+let heroHeadlineIndex=0;
 function headlineGraphemes(value,language){
   if(typeof Intl.Segmenter==='function')return [...new Intl.Segmenter(language,{granularity:'grapheme'}).segment(value)].map(part=>part.segment);
   return Array.from(value);
@@ -33,15 +34,14 @@ function startHeroHeadlineRotation(){
   const split=value=>headlineGraphemes(value,language);
   const accessible=document.querySelector('[data-headline-accessible]');
   const scrambleChars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*+-=';
-  let index=0;
   const cycle=()=>{
-    index=(index+1)%phrases.length;
-    scrambleTo(phrases[index]);
+    heroHeadlineIndex=(heroHeadlineIndex+1)%phrases.length;
+    scrambleTo(phrases[heroHeadlineIndex]);
   };
   const scrambleTo=phrase=>{
-    if(reduceMotion){visible.textContent=phrase;if(accessible)accessible.textContent=phrase;heroHeadlineTimeout=setTimeout(cycle,3400);return;}
+    if(reduceMotion){visible.textContent=phrase;if(accessible)accessible.textContent=phrase;heroHeadlineTimeout=setTimeout(cycle,2200);return;}
     const target=split(phrase);
-    const duration=1050;
+    const duration=760;
     let startedAt=0;
     let lastTick=0;
     const animate=now=>{
@@ -54,13 +54,13 @@ function startHeroHeadlineRotation(){
           if(!glyph.trim()||position<resolved)return glyph;
           return scrambleChars[Math.floor(Math.random()*scrambleChars.length)];
         }).join('');
-        if(progress>=1){visible.textContent=phrase;if(accessible)accessible.textContent=phrase;heroHeadlineTimeout=setTimeout(cycle,2800);return;}
+        if(progress>=1){visible.textContent=phrase;if(accessible)accessible.textContent=phrase;heroHeadlineTimeout=setTimeout(cycle,1000);return;}
       }
       heroHeadlineFrame=requestAnimationFrame(animate);
     };
     heroHeadlineFrame=requestAnimationFrame(animate);
   };
-  heroHeadlineTimeout=setTimeout(cycle,2200);
+  heroHeadlineTimeout=setTimeout(cycle,850);
 }
 const t=(key,values)=>translate(locale,key,values);
 const errorMessage=error=>messages[locale][error.code]??error.message??t('เกิดข้อผิดพลาด กรุณาลองใหม่');
