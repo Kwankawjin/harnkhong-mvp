@@ -15,14 +15,14 @@ const THEME_KEY='harnkhong-theme';
 let theme='light';
 try { if(localStorage.getItem(THEME_KEY)==='dark')theme='dark'; } catch { /* Keep the light theme when storage is unavailable. */ }
 let mobileMenuOpen=false;
-let heroHeadlineInterval=null;
-let heroHeadlineScrambleInterval=null;
+let heroHeadlineTimeout=null;
+let heroHeadlineFrame=null;
 function headlineGraphemes(value,language){
   if(typeof Intl.Segmenter==='function')return [...new Intl.Segmenter(language,{granularity:'grapheme'}).segment(value)].map(part=>part.segment);
   return Array.from(value);
 }
 function startHeroHeadlineRotation(){
-  clearInterval(heroHeadlineInterval);clearInterval(heroHeadlineScrambleInterval);
+  clearTimeout(heroHeadlineTimeout);cancelAnimationFrame(heroHeadlineFrame);
   const visible=document.querySelector('[data-dynamic-headline]');
   if(!visible)return;
   let phrases=[];
@@ -31,26 +31,36 @@ function startHeroHeadlineRotation(){
   const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
   const language=document.documentElement.lang||'th';
   const split=value=>headlineGraphemes(value,language);
-  const glyphs=phrases.flatMap(split).filter(glyph=>glyph.trim());
   const accessible=document.querySelector('[data-headline-accessible]');
+  const scrambleChars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*+-=';
   let index=0;
-  const scrambleTo=phrase=>{
-    if(reduceMotion){visible.textContent=phrase;if(accessible)accessible.textContent=phrase;return;}
-    clearInterval(heroHeadlineScrambleInterval);
-    const target=split(phrase);
-    const steps=24;
-    let frame=0;
-    heroHeadlineScrambleInterval=setInterval(()=>{
-      frame++;
-      const revealed=Math.min(target.length,Math.floor(frame/steps*target.length));
-      visible.textContent=target.map((glyph,position)=>position<revealed||!glyph.trim()?glyph:glyphs[Math.floor(Math.random()*glyphs.length)]||glyph).join('');
-      if(frame>=steps){clearInterval(heroHeadlineScrambleInterval);visible.textContent=phrase;if(accessible)accessible.textContent=phrase;}
-    },38);
-  };
-  heroHeadlineInterval=setInterval(()=>{
+  const cycle=()=>{
     index=(index+1)%phrases.length;
     scrambleTo(phrases[index]);
-  },3800);
+  };
+  const scrambleTo=phrase=>{
+    if(reduceMotion){visible.textContent=phrase;if(accessible)accessible.textContent=phrase;heroHeadlineTimeout=setTimeout(cycle,3400);return;}
+    const target=split(phrase);
+    const duration=1050;
+    let startedAt=0;
+    let lastTick=0;
+    const animate=now=>{
+      if(!startedAt)startedAt=now;
+      if(now-lastTick>=34){
+        lastTick=now;
+        const progress=Math.min(1,(now-startedAt)/duration);
+        const resolved=Math.floor(progress*target.length);
+        visible.textContent=target.map((glyph,position)=>{
+          if(!glyph.trim()||position<resolved)return glyph;
+          return scrambleChars[Math.floor(Math.random()*scrambleChars.length)];
+        }).join('');
+        if(progress>=1){visible.textContent=phrase;if(accessible)accessible.textContent=phrase;heroHeadlineTimeout=setTimeout(cycle,2800);return;}
+      }
+      heroHeadlineFrame=requestAnimationFrame(animate);
+    };
+    heroHeadlineFrame=requestAnimationFrame(animate);
+  };
+  heroHeadlineTimeout=setTimeout(cycle,2200);
 }
 const t=(key,values)=>translate(locale,key,values);
 const errorMessage=error=>messages[locale][error.code]??error.message??t('เกิดข้อผิดพลาด กรุณาลองใหม่');
@@ -455,11 +465,9 @@ function home(){
     'บริการทั่วไป'
   ].includes(c.name));
   const headlines=[
-    t('หารของดี ๆ ให้คุ้มกว่าเดิม!'),
-    t('หารของ ราคาก็คุ้มขึ้น!'),
-    t('หารแพ็กเกจ จ่ายเท่าที่ใช้!'),
-    t('หารกันง่าย จ่ายกันชัด!'),
-    t('อยากหารอะไร ก็เริ่มได้เลย!')
+    t('ของดี ๆ คุ้มกว่าเดิม!'),
+    t('แชร์ความคุ้ม จ่ายน้อยลง!'),
+    t('ทุกยอดชัดเจน ทุกขั้นตอนโปร่งใส!')
   ];
 
   return `
