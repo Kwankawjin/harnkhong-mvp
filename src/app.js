@@ -920,6 +920,7 @@ function render(){
     ['/chat','chat',t("แชต")],
     ['/profile','user',t("บัญชี")]
   ];
+  const desktopNav=nav.slice(0,3);
 
   document.querySelector('#app').innerHTML=`
     ${icons}
@@ -927,12 +928,13 @@ function render(){
       <div class="header-inner">
         ${a('/',`<span class="logo-mark">H</span><span class="logo-text">HarnKhong<small>${t("หารของด้วยกัน")}</small></span>`,'brand')}
         <nav class="desktop-nav" aria-label="${t("เมนูหลัก")}">
-          ${nav.map(([href,,label])=>a(href,label,'nav-link '+(location.pathname===href?'active':''))).join('')}
+          ${desktopNav.map(([href,,label])=>a(href,label,'nav-link '+(location.pathname===href?'active':''))).join('')}
         </nav>
         <div class="header-actions">
+          ${/^\/groups\/[^/]+$/.test(location.pathname) ? '' : a('/groups/create',`${icon('plus',17)} ${t("เปิดกลุ่ม")}`,'button primary header-create-btn')}
+          ${a('/chat',`${icon('chat',21)}<span class="sr-only">${t('แชต')}</span>`,'icon-button header-chat-btn')}
+          ${a('/notifications',`${icon('bell',22)}<span class="sr-only">${t('การแจ้งเตือน')}</span>${unread?`<i>${unread}</i>`:''}`,'icon-button header-notifications-btn')}
           <select id="locale-select" class="locale-select" aria-label="${t('ภาษา')}"><option value="th" ${locale==='th'?'selected':''}>TH</option><option value="en" ${locale==='en'?'selected':''}>EN</option></select>
-          ${/^\/groups\/[^/]+$/.test(location.pathname) ? '' : a('/groups/create', `${icon('plus',17)} ${t("สร้างกลุ่ม")}`, 'button primary header-create-btn')}
-          ${a('/notifications',`${icon('bell',22)}${unread?`<i>${unread}</i>`:''}`,'icon-button')}
           ${state.user?a('/profile',`<span class="avatar tiny">${escape(state.user.name.slice(0,1))}</span><span class="header-user-name">${escape(state.user.name)}</span>`,'profile-pill'):`<button type="button" class="button primary header-login-btn" data-action="open-auth" data-step="1">${icon('user',18)} ${t("เข้าสู่ระบบ")}</button>`}
         </div>
       </div>

@@ -81,9 +81,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
 }
 
 .header-inner {
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 12px 24px;
+  min-height: 72px;
+  padding: 0 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -125,27 +126,26 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
 .desktop-nav {
   display: none;
   align-items: center;
-  gap: 8px;
-  background: rgba(240, 246, 252, 0.7);
-  padding: 4px;
-  border-radius: var(--radius-pill);
-  border: 1px solid rgba(225, 235, 244, 0.6);
+  gap: 10px;
+  margin-right: auto;
+  margin-left: 24px;
+  background: transparent;
+  padding: 0;
+  border: 0;
 }
 
 .nav-link {
-  font-size: 0.92rem;
+  font-size: 0.94rem;
   font-weight: 600;
-  color: var(--text-sub);
-  padding: 8px 18px;
-  border-radius: var(--radius-pill);
+  color: #59636f;
+  padding: 10px 15px;
+  border-radius: 9px;
   transition: all 0.18s ease;
 }
-.nav-link:hover { color: var(--blue); background: rgba(255, 255, 255, 0.8); }
+.nav-link:hover { color: var(--blue); background: #f4f7fb; }
 .nav-link.active {
   color: var(--blue);
-  background: #ffffff;
   font-weight: 700;
-  box-shadow: 0 2px 8px rgba(9, 104, 227, 0.1);
 }
 
 .header-actions {
@@ -183,6 +183,22 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
   gap: 6px;
   border-radius: var(--radius-pill);
 }
+.header-create-btn.button,
+.button.header-create-btn {
+  min-height: 40px;
+  padding: 0 20px;
+  color: #fff;
+  background: #151a22;
+  border-color: #151a22;
+  box-shadow: none;
+  font-weight: 700;
+}
+.header-create-btn.button:hover,
+.button.header-create-btn:hover { background: #2a303a; border-color: #2a303a; transform: none; }
+.header-chat-btn,
+.header-notifications-btn { width: 42px; height: 42px; background: #f6f8fb; color: #333c47; }
+.header-chat-btn:hover,
+.header-notifications-btn:hover { background: #eaf2fd; color: var(--blue); }
 
 .header-login-btn {
   height: 40px;
@@ -2152,6 +2168,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
   .logo-mark { width: 32px; height: 32px; border-radius: 9px; font-size: 0.95rem; }
   .logo-text small { font-size: 0.62rem; }
   .header-actions { gap: 8px; flex-shrink: 0; }
+  .header-chat-btn { display: none; }
   .header-user-name { max-width: 78px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; }
   .header-login-btn { height: 36px; padding: 0 12px; font-size: 0.8rem; gap: 4px; }
   .profile-pill { padding: 3px 8px 3px 3px; gap: 5px; }
