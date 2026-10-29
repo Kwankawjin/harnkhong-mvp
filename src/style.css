@@ -407,7 +407,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); outl
   gap: 8px;
   width: min(100%, 500px);
   padding: 6px 6px 6px 18px;
-  border: 2px solid #c9e2f6;
+  border: 2px solid #ffffff;
   background: #ffffff;
   border-radius: var(--radius-pill);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(9, 93, 176, 0.08);
@@ -3123,6 +3123,12 @@ dialog:not([open]), [hidden] { display: none !important; }
     linear-gradient(145deg, #080d12, #050709 72%);
   background-attachment: fixed;
 }
+:root:not([data-theme="dark"]) body {
+  background-image:
+    radial-gradient(ellipse at 18% 13%, rgba(11,105,122,.18), transparent 38%),
+    radial-gradient(ellipse at 78% 48%, rgba(9,42,52,.08), transparent 42%);
+  background-attachment: fixed;
+}
 :root[data-theme="dark"] .site-header,
 :root[data-theme="dark"] .bottom-nav,
 :root[data-theme="dark"] .site-footer {
@@ -3160,6 +3166,14 @@ dialog:not([open]), [hidden] { display: none !important; }
   background: #fff;
   border-color: #fff;
   box-shadow: 0 10px 30px rgba(0,0,0,.52), 0 0 0 3px rgba(0,0,0,.12);
+}
+:root .home-hero .hero-search {
+  background: #fff;
+  border-color: #fff;
+}
+:root .home-hero .hero-search input {
+  color: #102a43;
+  background: transparent;
 }
 :root[data-theme="dark"] .home-hero .hero-search input {
   color: #102a43;
