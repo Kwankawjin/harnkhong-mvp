@@ -11,6 +11,9 @@ import {createOrder,activateOrder,migrateOrders,lockOrderedGroups,orderPermissio
 const LOCALE_KEY='harnkhong-locale';
 let locale='th';
 try { if(localStorage.getItem(LOCALE_KEY)==='en')locale='en'; } catch { /* Keep Thai when storage is unavailable. */ }
+const THEME_KEY='harnkhong-theme';
+let theme='light';
+try { if(localStorage.getItem(THEME_KEY)==='dark')theme='dark'; } catch { /* Keep the light theme when storage is unavailable. */ }
 const t=(key,values)=>translate(locale,key,values);
 const errorMessage=error=>messages[locale][error.code]??error.message??t('เกิดข้อผิดพลาด กรุณาลองใหม่');
 
@@ -913,6 +916,7 @@ function groupsLoadingSkeleton(){
   </section>`;
 }
 function render(){
+  document.documentElement.dataset.theme=theme;
   const unread=state.user?state.notifications.filter(n=>n.recipient===state.user.id&&!n.read).length:0;
   const nav=[
     ['/','home',t("หน้าแรก")],
@@ -933,6 +937,7 @@ function render(){
         </nav>
         <div class="header-actions">
           ${/^\/groups\/[^/]+$/.test(location.pathname) ? '' : a('/groups/create',`${icon('plus',17)} ${t("เปิดกลุ่ม")}`,'button primary header-create-btn')}
+          <button type="button" class="icon-button theme-toggle" data-action="theme-toggle" aria-label="${locale==='th'?(theme==='dark'?'เปลี่ยนเป็นธีมสว่าง':'เปลี่ยนเป็นธีมมืด'):(theme==='dark'?'Switch to light theme':'Switch to dark theme')}" title="${locale==='th'?(theme==='dark'?'เปลี่ยนเป็นธีมสว่าง':'เปลี่ยนเป็นธีมมืด'):(theme==='dark'?'Switch to light theme':'Switch to dark theme')}">${theme==='dark'?'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>':'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 13.2A8.7 8.7 0 0 1 10.8 3.2 8.8 8.8 0 1 0 20.8 13.2Z"/></svg>'}</button>
           ${a('/chat',`${icon('chat',21)}<span class="sr-only">${t('แชต')}</span>`,'icon-button header-chat-btn')}
           ${a('/notifications',`${icon('bell',22)}<span class="sr-only">${t('การแจ้งเตือน')}</span>${unread?`<i>${unread}</i>`:''}`,'icon-button header-notifications-btn')}
           <select id="locale-select" class="locale-select" aria-label="${t('ภาษา')}"><option value="th" ${locale==='th'?'selected':''}>TH</option><option value="en" ${locale==='en'?'selected':''}>EN</option></select>
@@ -1151,6 +1156,11 @@ document.addEventListener('click',async e=>{
       if(targetInput){
         targetInput.type = targetInput.type === 'password' ? 'text' : 'password';
       }
+    }
+    else if(action==='theme-toggle'){
+      theme=theme==='dark'?'light':'dark';
+      try{localStorage.setItem(THEME_KEY,theme);}catch{/* Apply the selected theme for this page view. */}
+      document.documentElement.dataset.theme=theme;render();
     }
     else if(action==='reset-demo'){if(supabaseConfigured)throw Object.assign(new Error(),{code:'supabaseDemoResetDisabled'});if(!confirm(t("ล้างข้อมูลเดโมในเบราว์เซอร์นี้และเริ่มใหม่?")))return;state=initialState();save();go('/');alertMessage(t("เริ่มข้อมูลเดโมใหม่แล้ว"));}
     else if(action==='refresh-groups'){await refreshSupabaseGroups();}
