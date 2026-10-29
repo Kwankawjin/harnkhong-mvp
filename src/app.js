@@ -16,51 +16,30 @@ let theme='light';
 try { if(localStorage.getItem(THEME_KEY)==='dark')theme='dark'; } catch { /* Keep the light theme when storage is unavailable. */ }
 let mobileMenuOpen=false;
 let heroHeadlineTimeout=null;
-let heroHeadlineFrame=null;
 let heroHeadlineIndex=0;
-function headlineGraphemes(value,language){
-  if(typeof Intl.Segmenter==='function')return [...new Intl.Segmenter(language,{granularity:'grapheme'}).segment(value)].map(part=>part.segment);
-  return Array.from(value);
-}
-function startHeroHeadlineRotation(){
-  clearTimeout(heroHeadlineTimeout);cancelAnimationFrame(heroHeadlineFrame);
-  const visible=document.querySelector('.dynamic-headline[data-headlines]');
+function startHeroHeadlineLoop(){
+  clearTimeout(heroHeadlineTimeout);
+  const visible=document.querySelector('[data-text-loop]');
   if(!visible)return;
   let phrases=[];
-  try{phrases=JSON.parse(visible.dataset.headlines||'[]');}catch{return;}
+  try{phrases=JSON.parse(visible.dataset.textLoop||'[]');}catch{return;}
   if(phrases.length<2)return;
   const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const language=document.documentElement.lang||'th';
-  const split=value=>headlineGraphemes(value,language);
   const accessible=document.querySelector('[data-headline-accessible]');
-  const scrambleChars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*+-=';
+  const staticText=visible.dataset.staticText||'';
+  const current=visible.querySelector('.headline-rotator-current');
   const cycle=()=>{
     heroHeadlineIndex=(heroHeadlineIndex+1)%phrases.length;
-    scrambleTo(phrases[heroHeadlineIndex]);
+    const phrase=phrases[heroHeadlineIndex];
+    if(current)current.textContent=phrase;
+    if(accessible)accessible.textContent=`${staticText} ${phrase}`;
+    if(!reduceMotion&&current)current.animate(
+      [{opacity:0,transform:'translateY(0.22em)'},{opacity:1,transform:'translateY(0)'}],
+      {duration:420,easing:'cubic-bezier(0.16,1,0.3,1)'}
+    );
+    heroHeadlineTimeout=setTimeout(cycle,2600);
   };
-  const scrambleTo=phrase=>{
-    if(reduceMotion){visible.textContent=phrase;if(accessible)accessible.textContent=phrase;heroHeadlineTimeout=setTimeout(cycle,2200);return;}
-    const target=split(phrase);
-    const duration=760;
-    let startedAt=0;
-    let lastTick=0;
-    const animate=now=>{
-      if(!startedAt)startedAt=now;
-      if(now-lastTick>=34){
-        lastTick=now;
-        const progress=Math.min(1,(now-startedAt)/duration);
-        const resolved=Math.floor(progress*target.length);
-        visible.textContent=target.map((glyph,position)=>{
-          if(!glyph.trim()||position<resolved)return glyph;
-          return scrambleChars[Math.floor(Math.random()*scrambleChars.length)];
-        }).join('');
-        if(progress>=1){visible.textContent=phrase;if(accessible)accessible.textContent=phrase;heroHeadlineTimeout=setTimeout(cycle,1000);return;}
-      }
-      heroHeadlineFrame=requestAnimationFrame(animate);
-    };
-    heroHeadlineFrame=requestAnimationFrame(animate);
-  };
-  heroHeadlineTimeout=setTimeout(cycle,850);
+  heroHeadlineTimeout=setTimeout(cycle,2200);
 }
 const t=(key,values)=>translate(locale,key,values);
 const errorMessage=error=>messages[locale][error.code]??error.message??t('เกิดข้อผิดพลาด กรุณาลองใหม่');
@@ -465,15 +444,17 @@ function home(){
     'บริการทั่วไป'
   ].includes(c.name));
   const headlines=[
-    t('ของดี ๆ คุ้มกว่าเดิม!'),
-    t('แชร์ความคุ้ม จ่ายน้อยลง!'),
-    t('ทุกยอดชัดเจน ทุกขั้นตอนโปร่งใส!')
+    t('ของดี ๆ ให้คุ้มกว่าเดิม!'),
+    t('แพ็กเกจ แชร์ความคุ้ม!'),
+    t('ง่าย จ่ายชัด ทุกยอดโปร่งใส!')
   ];
+  const activeHeadlineIndex=heroHeadlineIndex%headlines.length;
+  const rotatingHeadline=phrases=>phrases.map(phrase=>`<span class="headline-rotator-measure" aria-hidden="true">${phrase}</span>`).join('');
 
   return `
     <section class="hero home-hero">
       <div class="hero-text">
-        <h1><span class="sr-only" data-headline-accessible>${headlines[0]}</span><em class="dynamic-headline" aria-hidden="true" data-headlines="${escape(JSON.stringify(headlines))}">${headlines[0]}</em></h1>
+        <h1><span class="sr-only" data-headline-accessible>${t('หาร')} ${headlines[activeHeadlineIndex]}</span><span class="dynamic-headline"><span class="hero-headline-static" aria-hidden="true">${t('หาร')}</span> <em class="headline-rotator" aria-hidden="true" data-text-loop="${escape(JSON.stringify(headlines))}" data-static-text="${t('หาร')}">${rotatingHeadline(headlines)}<span class="headline-rotator-current">${headlines[activeHeadlineIndex]}</span></em></span></h1>
         <p>${t("ชวนเพื่อนเปิดกลุ่มซื้อสินค้าราคาส่ง ของใช้จำเป็น หรือแพ็กเกจสุดคุ้ม คำนวณเศษสตางค์เป๊ะ เห็นยอดโปร่งใสก่อนตกลงสั่งซื้อจริง")}</p>
 
         <form class="hero-search" id="search-form">
@@ -1058,7 +1039,7 @@ function render(){
     ${authModalActive?`<dialog class="auth-modal-overlay" id="auth-modal-overlay" aria-label="${t('เข้าสู่ระบบ')}">${renderPhoneMockup(mockupCurrentStep,true)}</dialog>`:''}
   `;
 
-  startHeroHeadlineRotation();
+  startHeroHeadlineLoop();
   if(document.querySelector('#create-form'))updatePreview();
   const filterRow=document.querySelector('.filter-row');
   if(filterRow){filterRow.addEventListener('scroll',updateFilterCarousel,{passive:true});updateFilterCarousel();}

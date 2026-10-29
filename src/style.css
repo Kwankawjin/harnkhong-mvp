@@ -407,6 +407,17 @@ body.mobile-menu-open { overflow: hidden; }
   -webkit-text-fill-color: transparent;
 }
 .home-hero h1 .dynamic-headline { overflow-wrap: anywhere; }
+.hero-headline-static { color: var(--navy); white-space: nowrap; }
+.headline-rotator {
+  display: inline-grid;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  vertical-align: baseline;
+}
+.headline-rotator-measure,
+.headline-rotator-current { grid-area: 1 / 1; min-width: 0; }
+.headline-rotator-measure { visibility: hidden; pointer-events: none; }
+.headline-rotator-current { display: block; }
 
 .hero p {
   color: #3f698e;
