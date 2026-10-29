@@ -2883,7 +2883,7 @@ dialog:not([open]), [hidden] { display: none !important; }
   width: 100vw;
   margin-left: calc(50% - 50vw);
   padding: 34px clamp(20px,3.2vw,48px) 40px;
-  background: #0b0b0d;
+  background: #fff;
 }
 .category-section .section-header,
 .category-section .category-bento {
@@ -2892,8 +2892,8 @@ dialog:not([open]), [hidden] { display: none !important; }
   margin-left: auto;
 }
 .category-section .section-header { margin-bottom: 20px; }
-.category-section .section-header h2 { color: #f8fafc; }
-.category-section .section-header p { color: #a7adb7; }
+.category-section .section-header h2 { color: #102a43; }
+.category-section .section-header p { color: #6b7d90; }
 .category-bento {
   display: grid;
   grid-template-columns: repeat(12,minmax(0,1fr));
