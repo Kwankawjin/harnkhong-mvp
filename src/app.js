@@ -368,7 +368,7 @@ function groupCard(g){
       <div class="opportunity-members"><span>${icon('users',17)} ${t('สมาชิก {count} / {capacity} คน',{count:g.members.length,capacity:g.capacity})}</span><div class="opportunity-track" role="progressbar" aria-label="${t('ความคืบหน้า')}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${g.members.length/g.capacity*100}%"></span></div></div>
       <p class="opportunity-leader">${icon('user',16)} ${t('หัวหน้ากลุ่ม')}: ${escape(name(g.ownerId).replace(/\s*\(หัวหน้ากลุ่ม\)$/,''))}</p>
       <p class="opportunity-terms">${icon('check',16)} ${t('ยืนยันยอดก่อนสั่งซื้อ')}</p>
-      <div class="opportunity-actions">${a(destination,open&&!isMember?t('ดูรายละเอียดกลุ่ม'):t('ดูกลุ่ม'),`button opportunity-view ${open&&!isMember?'primary':'outline'}`)}${open||isMember?`<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t('คัดลอกลิงก์เชิญ')}">${icon('link',17)} ${t('ชวนเพื่อน')}</button>`:''}</div>
+      <div class="opportunity-actions">${a(destination,open&&!isMember?t('ดูรายละเอียดกลุ่ม'):t('ดูกลุ่ม'),`button opportunity-view ${open&&!isMember?'primary':'outline'}`)}${open||isMember?`${a(`/groups/${g.id}/chat`,`${icon('chat',17)} ${t('แชทกลุ่ม')}`,'opportunity-chat')}<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t('คัดลอกลิงก์เชิญ')}">${icon('link',17)} ${t('ชวนเพื่อน')}</button>`:''}</div>
     </div>
   </article>`;
 }
@@ -598,8 +598,9 @@ function groupPage(id) {
     ${!isMember && !full && !locked ? a(`/groups/${id}/join`, `<span>${t('เข้าร่วมกลุ่ม')}</span><span class="btn-arrow">${icon('arrow', 18)}</span>`, 'button primary full summary-action-btn') : ''}
     ${isMember && !approved && !locked ? `<button class="button primary full summary-action-btn" data-action="approve" data-id="${id}" data-revision="${g.revision}"><span>${t('ยืนยันยอด {amount}', {amount: money(alloc[me])})}</span><span class="btn-arrow">${icon('arrow', 18)}</span></button>` : ''}
     ${isMember && approved ? `<div class="success-line">${icon('check', 18)} ${t('คุณยืนยันยอดรอบนี้แล้ว')}</div>` : ''}
+    ${a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon('chat', 19)} <span>${t('แชทกลุ่ม')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span>`, 'button outline full summary-action-btn')}
     ${isMember && !isOwner && !locked ? `<button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${id}"><span class="summary-btn-left">${icon('back', 19)} <span>${t('ออกจากกลุ่ม')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span></button>` : ''}
-    ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="edit-costs" data-id="${id}"><span class="summary-btn-left">${icon('edit', 19)} <span>${t('แก้ไขค่าส่งต่อคน')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span></button><button class="button outline full summary-action-btn" data-action="transfer" data-id="${id}"><span class="summary-btn-left">${icon('users', 19)} <span>${t('โอนหัวหน้ากลุ่ม')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span></button><button class="button danger-soft full summary-action-btn" data-action="delete-group" data-id="${id}"><span class="summary-btn-left">${icon('trash', 19)} <span>${t('ลบห้อง')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span></button>` : ''}
+    ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="edit-costs" data-id="${id}"><span class="summary-btn-left">${icon('edit', 19)} <span>${t('แก้ไขค่าส่งต่อคน')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span></button><button class="button danger-soft full summary-action-btn" data-action="delete-group" data-id="${id}"><span class="summary-btn-left">${icon('trash', 19)} <span>${t('ลบห้อง')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span></button>` : ''}
     ${g.visibility === 'link'&&(!supabaseConfigured||isOwner) ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${id}"><span class="summary-btn-left">${icon('link', 18)} <span>${t('คัดลอกลิงก์เชิญ')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span></button>` : ''}
     ${locked ? `<div class="summary-info-box"><span class="info-icon">${icon('info', 22)}</span><span class="info-divider"></span><span>${t('กลุ่มถูกล็อกตามยอดคำสั่งซื้อเดโมแล้ว')}</span></div>` : ''}
     ${isMember&&!supabaseConfigured ? a(`/orders/${id}`, `<span class="summary-btn-left">${icon('calc', 19)} <span>${t('ดูสรุปคำสั่งซื้อเดโม')}</span></span><span class="btn-arrow">${icon('arrow', 18)}</span>`, 'button subtle full summary-action-btn') : ''}
@@ -691,7 +692,94 @@ function authPage(register=false){
   return `<div class="auth-page-wrapper">${renderPhoneMockup(mockupCurrentStep===3?3:register?2:1, false)}<a href="/" data-link class="auth-return-link">← ${t("กลับสู่หน้าหลัก HarnKhong")}</a></div>`;
 }
 function myGroups(){if(!requireAuth('/my-groups'))return authRequiredView(t("กลุ่มของฉัน"),t("ติดตามสมาชิกและยอดที่ต้องยืนยันในแต่ละกลุ่ม เข้าสู่ระบบหรือลงทะเบียนเพื่อเริ่มต้น"));const gs=state.groups.filter(g=>g.members.includes(state.user.id));return `${title(t("กลุ่มของฉัน"),t("ติดตามสมาชิกและยอดที่ต้องยืนยันในแต่ละกลุ่ม"))}<div class="section-header"><h2>${t('{count} กลุ่ม',{count:gs.length})}</h2>${a('/groups/create',`${icon('plus',18)} ${t("สร้างกลุ่ม")}`,'button secondary')}</div>${gs.length?`<div class="group-grid">${gs.map(groupCard).join('')}</div>`:`<div class="empty"><h2>${t("ยังไม่มีกลุ่มที่เข้าร่วม")}</h2><p>${t("ลองสำรวจสินค้าที่อยากหารก่อน")}</p>${a('/explore',t("ไปสำรวจ"),'button primary')}</div>`}`;}
-function chatList(){if(!requireAuth('/chat'))return authRequiredView(t("แชตกับผู้ขาย"),t("เข้าสู่ระบบเพื่อดูประวัติการสนทนาและติดต่อร้านค้า"));const ids=Object.keys(state.conversations);return `${title(t("แชตกับผู้ขาย"),t("ข้อความทั้งหมดเป็นการจำลองในเบราว์เซอร์นี้"))}<div class="narrow">${ids.length?ids.map(id=>{const s=seller(id),msgs=state.conversations[id];return a(`/chat/${id}`,`<span class="avatar">${escape(s.initials)}</span><span><b>${escape(s.name)}</b><small>${escape(msgs.at(-1)?.body||t("เริ่มต้นสนทนา"))}</small></span>${icon('arrow',18)}`,'conversation-row')}).join(''):`<div class="empty"><h2>${t("ยังไม่มีการสนทนา")}</h2><p>${t("เปิดสินค้าที่สนใจแล้วเลือกติดต่อผู้ขาย")}</p>${a('/explore',t("ดูสินค้า"),'button primary')}</div>`}</div>`;}
+function getGroupMessages(groupId){
+  const defaultGroupMessages={
+    g1:[
+      {id:'gm1',sender:'นที',senderId:'u2',text:'สวัสดีครับทุกคน มีใครพร้อมโอนเงินรอบนี้บ้างครับ',time:'14:20'},
+      {id:'gm2',sender:'พิม',senderId:'u3',text:'เราพร้อมโอนค่ะ รอของครบคน',time:'14:25'}
+    ]
+  };
+  try{
+    const raw=localStorage.getItem(`hk_group_chat_${groupId}`);
+    if(raw)return JSON.parse(raw);
+  }catch{}
+  return defaultGroupMessages[groupId]||[];
+}
+function saveGroupMessage(groupId,msg){
+  const list=getGroupMessages(groupId);
+  list.push(msg);
+  try{
+    localStorage.setItem(`hk_group_chat_${groupId}`,JSON.stringify(list));
+  }catch{}
+  return list;
+}
+function chatList(){
+  if(!requireAuth('/chat'))return authRequiredView(t("แชตกับผู้ขาย"),t("เข้าสู่ระบบเพื่อดูประวัติการสนทนาและติดต่อร้านค้า"));
+  const ids=Object.keys(state.conversations);
+  const myGs=state.groups.filter(g=>g.members.includes(state.user.id));
+  return `${title(t("แชต"),t("ข้อความทั้งหมดเป็นการจำลองในเบราว์เซอร์นี้"))}
+  <div class="narrow">
+    <div class="chat-section-header">
+      <h2>${t("แชทกลุ่มของฉัน")}</h2>
+    </div>
+    ${myGs.length?myGs.map(g=>{
+      const msgs=getGroupMessages(g.id);
+      const lastMsg=msgs.at(-1);
+      return a(`/groups/${g.id}/chat`,`<span class="avatar">${escape(g.name.slice(0,1))}</span><span><b>${escape(g.name)}</b><small>${escape(lastMsg?.text||lastMsg?.body||t("เริ่มคุยกับสมาชิกในกลุ่มได้ที่นี่"))}</small></span>${icon('arrow',18)}`,'conversation-row');
+    }).join(''):`<div class="empty" style="padding:16px 0;"><h2>${t("ยังไม่มีกลุ่มที่เข้าร่วม")}</h2><p>${t("ลองสำรวจสินค้าที่อยากหารก่อน")}</p>${a('/explore',t("ไปสำรวจ"),'button outline')}</div>`}
+
+    <div class="chat-section-header" style="margin-top:24px;">
+      <h2>${t("แชตกับผู้ขาย")}</h2>
+    </div>
+    ${ids.length?ids.map(id=>{const s=seller(id),msgs=state.conversations[id];return a(`/chat/${id}`,`<span class="avatar">${escape(s.initials)}</span><span><b>${escape(s.name)}</b><small>${escape(msgs.at(-1)?.body||t("เริ่มต้นสนทนา"))}</small></span>${icon('arrow',18)}`,'conversation-row')}).join(''):`<div class="empty"><h2>${t("ยังไม่มีการสนทนา")}</h2><p>${t("เปิดสินค้าที่สนใจแล้วเลือกติดต่อผู้ขาย")}</p>${a('/explore',t("ดูสินค้า"),'button primary')}</div>`}
+  </div>`;
+}
+function groupChatPage(id){
+  const g=group(id);
+  if(!g)return notFound();
+  const p=listing(g.listingId);
+  const me=state.user?.id;
+  const isMember=g.members.includes(me);
+  const msgs=getGroupMessages(id);
+  const destination=`/groups/${id}`;
+  return `<div class="chat-shell group-chat-shell">
+    <div class="chat-head group-chat-head">
+      ${a(destination,icon('back',20),'back-link')}
+      <div class="group-chat-meta">
+        <div class="group-chat-title-row">
+          <h1>${escape(g.name)}</h1>
+          <span class="group-chat-badge">${icon('users',14)} ${g.members.length}/${g.capacity}</span>
+        </div>
+        <small>${t("แชทจำลองสำหรับสมาชิกในกลุ่ม")}</small>
+      </div>
+      ${a(destination,`${icon('info',18)} <span>${t("ดูกลุ่ม")}</span>`,'button subtle group-chat-view-btn')}
+    </div>
+    ${p?`<div class="chat-product">${t("สินค้าในกลุ่ม")}: ${a(destination,escape(p.title||g.name))} · <strong style="color:var(--primary-600);">${money(g.costs.product)}</strong></div>`:''}
+    <div class="messages group-messages">
+      ${msgs.length?msgs.map(m=>{
+        const isMine=m.senderId===me||m.from==='me';
+        return `<div class="group-msg-row ${isMine?'mine':'theirs'}">
+          ${!isMine?`<span class="avatar tiny">${escape((m.sender||'?').slice(0,1))}</span>`:''}
+          <div class="group-msg-content">
+            ${!isMine?`<div class="group-msg-sender">${escape(m.sender||t("สมาชิกในกลุ่ม"))}</div>`:''}
+            <div class="bubble ${isMine?'mine':'theirs'}">${escape(m.text||m.body||'')}</div>
+            <time class="group-msg-time">${escape(m.time||'')}</time>
+          </div>
+        </div>`;
+      }).join(''):`<div class="chat-empty">${icon('chat',32)}<p><strong>${t("เริ่มคุยกับสมาชิกในกลุ่มได้ที่นี่")}</strong></p><small>${t("พูดคุย ปรึกษาเรื่องสินค้า นัดรับ หรือแชร์รายละเอียดกับสมาชิกในกลุ่มได้ที่นี่")}</small></div>`}
+    </div>
+    ${!state.user?`<div class="group-chat-join-prompt">
+      <p>${t("เข้าสู่ระบบเพื่อร่วมพูดคุยในแชทกลุ่มนี้")}</p>
+      <button type="button" class="button primary" data-action="open-auth" data-step="1">${icon('user',18)} ${t("เข้าสู่ระบบ")}</button>
+    </div>`:isMember?`<form id="group-chat-form" data-id="${id}" class="chat-input group-chat-input">
+      <input name="body" maxlength="500" required placeholder="${t("พิมพ์ข้อความถึงสมาชิกในกลุ่ม...")}" aria-label="${t("ข้อความ")}" autocomplete="off"/>
+      <button class="button primary" type="submit">${t("ส่ง")}</button>
+    </form>`:`<div class="group-chat-join-prompt">
+      <p>${t("คุณยังไม่ได้เป็นสมาชิกกลุ่มนี้ เข้าร่วมเพื่อพูดคุย")}</p>
+      ${a(`/groups/${id}/join`,t("เข้าร่วมกลุ่ม"),'button primary')}
+    </div>`}
+  </div>`;
+}
 function chatPage(id){if(!requireAuth(location.pathname+location.search))return authRequiredView(t("แชตกับผู้ขาย"),t("เข้าสู่ระบบเพื่อเริ่มต้นการสนทนากับร้านค้านี้"));const s=seller(id),msgs=state.conversations[id]||[],product=new URLSearchParams(location.search).get('product');return `<div class="chat-shell"><div class="chat-head">${a('/chat',icon('back',20))}<span class="avatar">${escape(s.initials)}</span><div><h1>${escape(s.name)}</h1><small>${t("แชตจำลอง · ไม่ส่งถึงผู้ขายจริง")}</small></div></div>${product?`<div class="chat-product">${t("กำลังสอบถามเรื่อง")} ${a(`/products/${product}`,escape(listing(product)?.title||t('สินค้า')))}</div>`:''}<div class="messages">${msgs.length?msgs.map(m=>`<div class="bubble ${m.from==='me'?'mine':'theirs'}">${escape(m.body)}</div>`).join(''):`<div class="chat-empty">${t("เริ่มคุยเรื่องสินค้า เงื่อนไขรับของ หรือค่าส่งได้ที่นี่")}</div>`}</div><form id="chat-form" data-id="${id}" class="chat-input"><input name="body" maxlength="500" required placeholder="${t("พิมพ์ข้อความเดโม...")}" aria-label="${t("ข้อความ")}"/><button class="button primary" type="submit">${t("ส่ง")}</button></form></div>`;}
 function notifications(){if(!requireAuth('/notifications'))return authRequiredView(t("การแจ้งเตือน"),t("เข้าสู่ระบบเพื่อดูการแจ้งเตือนกิจกรรมและยอดสมาชิก"));const notes=state.notifications.filter(n=>n.recipient===state.user.id);return `${title(t("การแจ้งเตือน"),t("เหตุการณ์ในกลุ่มและข้อความจำลองของคุณ"))}<div class="narrow">${notes.length?notes.map(n=>`<button class="notification ${n.read?'':'unread'}" data-action="open-notice" data-id="${n.id}"><span class="notice-dot"></span><span><b>${escape(n.title)}</b><small>${escape(n.body)}</small></span>${icon('arrow',18)}</button>`).join(''):`<div class="empty"><h2>${t("ยังไม่มีการแจ้งเตือน")}</h2><p>${t("เมื่อมีสมาชิกหรือยอดเปลี่ยน รายการจะปรากฏที่นี่")}</p>${a('/explore',t("สำรวจสินค้า"),'button secondary')}</div>`}</div>`;}
 function accountOrderRow(o) {
@@ -811,7 +899,7 @@ function orderPage(id){
     ${permissions?.reportPayment?paymentDialog(order):''}${a(`/groups/${id}`,t('กลับไปดูกลุ่ม'),'button outline full')}</div>`;
 }
 function notFound(){return `<div class="empty"><h1>${t("ไม่พบหน้านี้")}</h1><p>${t("ลิงก์อาจไม่ถูกต้องหรือรายการถูกลบ")}</p>${a('/',t("กลับหน้าแรก"),'button primary')}</div>`;}
-function route(){const path=decodeURIComponent(location.pathname);if(path==='/')return home();if(path==='/explore')return explore();if(/^\/products\/[^/]+$/.test(path))return legacyProductRoute(path.split('/')[2]);if(/^\/groups\/[^/]+\/join$/.test(path))return joinPage(path.split('/')[2]);if(path==='/groups/create')return createPage();if(/^\/groups\/[^/]+$/.test(path))return groupPage(path.split('/')[2]);if(path==='/login')return authPage();if(path==='/register')return authPage(true);if(path==='/my-groups')return myGroups();if(path==='/my-orders')return myOrdersPage();if(path==='/chat')return chatList();if(/^\/chat\/[^/]+$/.test(path))return chatPage(path.split('/')[2]);if(path==='/notifications')return notifications();if(path==='/profile')return profile();if(/^\/shops\/[^/]+$/.test(path))return shopPage(path.split('/')[2]);if(path==='/seller/dashboard')return sellerDashboard();if(path==='/seller/products/new')return newProduct();if(/^\/orders\/[^/]+$/.test(path))return orderPage(path.split('/')[2]);return notFound();}
+function route(){const path=decodeURIComponent(location.pathname);if(path==='/')return home();if(path==='/explore')return explore();if(/^\/products\/[^/]+$/.test(path))return legacyProductRoute(path.split('/')[2]);if(/^\/groups\/[^/]+\/join$/.test(path))return joinPage(path.split('/')[2]);if(/^\/groups\/[^/]+\/chat$/.test(path))return groupChatPage(path.split('/')[2]);if(path==='/groups/create')return createPage();if(/^\/groups\/[^/]+$/.test(path))return groupPage(path.split('/')[2]);if(path==='/login')return authPage();if(path==='/register')return authPage(true);if(path==='/my-groups')return myGroups();if(path==='/my-orders')return myOrdersPage();if(path==='/chat')return chatList();if(/^\/chat\/[^/]+$/.test(path))return chatPage(path.split('/')[2]);if(path==='/notifications')return notifications();if(path==='/profile')return profile();if(/^\/shops\/[^/]+$/.test(path))return shopPage(path.split('/')[2]);if(path==='/seller/dashboard')return sellerDashboard();if(path==='/seller/products/new')return newProduct();if(/^\/orders\/[^/]+$/.test(path))return orderPage(path.split('/')[2]);return notFound();}
 function updateFilterCarousel(){
   const carousel=document.querySelector('.filter-carousel'),row=carousel?.querySelector('.filter-row');
   if(!row)return;
@@ -1292,6 +1380,46 @@ document.addEventListener('submit',async e=>{
       go(`/groups/${g.id}`);
       alertMessage(t("สร้างกลุ่มแล้ว"));
     }catch(err){alertMessage(storageError(err));}
+  }else if(f.id==='group-chat-form'){
+    e.preventDefault();
+    const id=f.dataset.id,body=(new FormData(f).get('body')||'').trim();
+    if(!body)return;
+    const now=new Date();
+    const timeStr=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const myMsg={
+      id:`gm_${Date.now()}`,
+      sender:state.user?.name||t('สมาชิกในกลุ่ม'),
+      senderId:state.user?.id||'me',
+      text:body,
+      time:timeStr
+    };
+    saveGroupMessage(id,myMsg);
+    render();
+    const g=group(id);
+    const otherMembers=g?.members?.filter(m=>m!==state.user?.id)||[];
+    if(otherMembers.length&&!supabaseConfigured){
+      setTimeout(()=>{
+        const otherId=otherMembers[Math.floor(Math.random()*otherMembers.length)];
+        const replyPool=[
+          t('รับทราบครับ/ค่ะ! เดี๋ยวคุยกันอีกทีนะ'),
+          t('โอเคเลย สะดวกตามนี้ครับ/ค่ะ'),
+          t('เห็นด้วยครับ เตรียมพร้อมยืนยันยอดเลย')
+        ];
+        const chosenReply=replyPool[Math.floor(Math.random()*replyPool.length)];
+        const replyNow=new Date();
+        const replyTime=`${String(replyNow.getHours()).padStart(2,'0')}:${String(replyNow.getMinutes()).padStart(2,'0')}`;
+        const replyMsg={
+          id:`gm_${Date.now()}`,
+          sender:name(otherId).replace(/\s*\(หัวหน้ากลุ่ม\)$/,''),
+          senderId:otherId,
+          text:chosenReply,
+          time:replyTime
+        };
+        saveGroupMessage(id,replyMsg);
+        notice(t('ข้อความใหม่ในกลุ่ม'),escape(g.name),`/groups/${id}/chat`);
+        if(location.pathname===`/groups/${id}/chat`)render();
+      },750);
+    }
   }else if(f.id==='chat-form'){
     e.preventDefault();
     const id=f.dataset.id,body=new FormData(f).get('body').trim();
