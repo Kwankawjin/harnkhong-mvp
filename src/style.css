@@ -418,8 +418,8 @@ body.mobile-menu-open { overflow: hidden; }
 .headline-rotator-measure {
   width: max-content;
   visibility: hidden;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow-wrap: normal;
   pointer-events: none;
 }
 .headline-rotator-window {
@@ -439,7 +439,7 @@ body.mobile-menu-open { overflow: hidden; }
 .headline-rotator-current {
   position: relative;
   display: inline;
-  white-space: normal;
+  white-space: nowrap;
   background: linear-gradient(135deg, #0968e3, #0a9b88);
   background-clip: text;
   -webkit-text-fill-color: transparent;

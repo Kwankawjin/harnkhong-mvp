@@ -40,7 +40,7 @@ function startHeroHeadlineLoop(){
   const heading=visible.closest('h1');
   heroHeadlineResizeHandler=()=>{
     if(!heading||!staticElement||!windowElement||!measure)return;
-    const headingWidth=window.innerWidth>=960?Math.max(heading.clientWidth,window.innerWidth*0.78):heading.clientWidth;
+    const headingWidth=window.innerWidth>=960?window.innerWidth-32:heading.clientWidth;
     const available=Math.max(80,headingWidth-staticElement.getBoundingClientRect().width-(cursor?.offsetWidth||0)-12);
     windowElement.style.maxWidth=`${available}px`;
     measure.style.maxWidth=`${available}px`;
@@ -68,7 +68,7 @@ function startHeroHeadlineLoop(){
     current.textContent=phrase;
     const reservedText=measure.textContent;
     measure.textContent=phrase;
-    const nextWidth=measure.getBoundingClientRect().width;
+    const nextWidth=measure.getBoundingClientRect().width+4;
     measure.textContent=reservedText;
     windowElement.style.width='0px';
     windowElement.style.opacity='0';
