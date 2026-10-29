@@ -16,39 +16,41 @@ let theme='light';
 try { if(localStorage.getItem(THEME_KEY)==='dark')theme='dark'; } catch { /* Keep the light theme when storage is unavailable. */ }
 let mobileMenuOpen=false;
 let heroHeadlineInterval=null;
-let heroHeadlineFrame=null;
+let heroHeadlineScrambleInterval=null;
 function headlineGraphemes(value,language){
   if(typeof Intl.Segmenter==='function')return [...new Intl.Segmenter(language,{granularity:'grapheme'}).segment(value)].map(part=>part.segment);
   return Array.from(value);
 }
 function startHeroHeadlineRotation(){
-  clearInterval(heroHeadlineInterval);clearInterval(heroHeadlineFrame);
+  clearInterval(heroHeadlineInterval);clearInterval(heroHeadlineScrambleInterval);
   const visible=document.querySelector('[data-dynamic-headline]');
   if(!visible)return;
   let phrases=[];
   try{phrases=JSON.parse(visible.dataset.headlines||'[]');}catch{return;}
-  if(phrases.length<2||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  if(phrases.length<2)return;
+  const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
   const language=document.documentElement.lang||'th';
   const split=value=>headlineGraphemes(value,language);
   const glyphs=phrases.flatMap(split).filter(glyph=>glyph.trim());
   const accessible=document.querySelector('[data-headline-accessible]');
   let index=0;
   const scrambleTo=phrase=>{
-    clearInterval(heroHeadlineFrame);
+    if(reduceMotion){visible.textContent=phrase;if(accessible)accessible.textContent=phrase;return;}
+    clearInterval(heroHeadlineScrambleInterval);
     const target=split(phrase);
     const steps=24;
     let frame=0;
-    heroHeadlineFrame=setInterval(()=>{
+    heroHeadlineScrambleInterval=setInterval(()=>{
       frame++;
       const revealed=Math.min(target.length,Math.floor(frame/steps*target.length));
       visible.textContent=target.map((glyph,position)=>position<revealed||!glyph.trim()?glyph:glyphs[Math.floor(Math.random()*glyphs.length)]||glyph).join('');
-      if(frame>=steps){clearInterval(heroHeadlineFrame);visible.textContent=phrase;if(accessible)accessible.textContent=phrase;}
+      if(frame>=steps){clearInterval(heroHeadlineScrambleInterval);visible.textContent=phrase;if(accessible)accessible.textContent=phrase;}
     },38);
   };
   heroHeadlineInterval=setInterval(()=>{
     index=(index+1)%phrases.length;
     scrambleTo(phrases[index]);
-  },4800);
+  },3800);
 }
 const t=(key,values)=>translate(locale,key,values);
 const errorMessage=error=>messages[locale][error.code]??error.message??t('เกิดข้อผิดพลาด กรุณาลองใหม่');
