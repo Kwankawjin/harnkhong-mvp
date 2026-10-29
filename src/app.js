@@ -1039,7 +1039,7 @@ function render(){
       </div>
     </header>
 
-    <main class="main-wrap" id="main">${groupsLoading?groupsLoadingSkeleton():groupsError?`<div class="empty"><h2>${t('โหลดกลุ่มไม่สำเร็จ')}</h2><p>${escape(authErrorMessage(groupsError))}</p><button class="button primary" data-action="refresh-groups">${t('ลองอีกครั้ง')}</button></div>`:route()}</main>
+    <main class="main-wrap${location.pathname==='/'?' home-main':''}" id="main">${groupsLoading?groupsLoadingSkeleton():groupsError?`<div class="empty"><h2>${t('โหลดกลุ่มไม่สำเร็จ')}</h2><p>${escape(authErrorMessage(groupsError))}</p><button class="button primary" data-action="refresh-groups">${t('ลองอีกครั้ง')}</button></div>`:route()}</main>
 
     <nav class="bottom-nav" aria-label="${t("เมนูด้านล่าง")}">
       ${nav.map(([href,ic,label])=>a(href,`${icon(ic,22)}<span>${label}</span>`,location.pathname===href?'active':'')).join('')}

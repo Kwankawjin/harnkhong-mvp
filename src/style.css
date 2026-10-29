@@ -291,6 +291,7 @@ body.mobile-menu-open { overflow: hidden; }
   padding: 24px 20px 100px;
   min-height: calc(100vh - 150px);
 }
+.main-wrap.home-main { padding-top: 8px; }
 
 /* ========================================================
    BUTTONS
