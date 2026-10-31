@@ -2605,9 +2605,9 @@ dialog:not([open]), [hidden] { display: none !important; }
 .payment-dialog .button { margin-top: 10px; white-space: normal; }
 .payment-dialog .outline { color: white; border-color: #75869c; background: transparent; }
 .payment-dialog .button.outline:hover { color: white; background: #25364f; }
-.share-approval-dialog { width: min(470px,calc(100% - 32px)); border-radius: 24px; border: 1px solid #49627f; box-shadow: 0 24px 80px #061b3180; }
+.share-approval-dialog { width: min(590px,calc(100% - 32px)); border-radius: 24px; border: 1px solid #49627f; box-shadow: 0 24px 80px #061b3180; padding: 30px; }
 .share-approval-dialog .chip { background: #193653; color: #9ed7ff; }
-.share-approval-dialog .demo-qr { width: min(100%,250px); padding: 12px; }
+.share-approval-dialog .demo-qr { width: min(100%,315px); padding: 12px; }
 .share-approval-dialog .demo-qr img { width: 100%; display: block; image-rendering: pixelated; }
 .approval-amount-panel { display: grid; gap: 5px; padding: 16px 18px; margin: 14px 0; border: 1px solid #225374; border-radius: 15px; background: linear-gradient(135deg,#102a45,#172d49); text-align: left; }
 .approval-amount-panel small { color: #a9c4df; }
@@ -2616,6 +2616,11 @@ dialog:not([open]), [hidden] { display: none !important; }
 .demo-reference-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 2px; border-top: 1px solid #27415d; border-bottom: 1px solid #27415d; text-align: left; }
 .demo-reference-row span { color: #a9c4df; }
 .demo-reference-row b { overflow-wrap: anywhere; text-align: right; }
+.demo-expiry-box { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; margin: 12px 0; border: 1px solid #62334c; border-radius: 14px; background: linear-gradient(110deg,#311c31,#291c35); color: #ff8aab; text-align: left; }
+.demo-expiry-box span { display: grid; gap: 2px; font-size: .82rem; }
+.demo-expiry-box span b { font-size: 1rem; }
+.demo-expiry-box .demo-countdown { padding: 9px 13px; border: 1px solid #a73e65; border-radius: 10px; font-size: 1rem; white-space: nowrap; }
+.demo-only-note { padding: 14px 16px; margin-top: 14px; border: 1px solid #24415c; border-radius: 13px; color: #b8c9df; font-size: .82rem; line-height: 1.65; text-align: left; }
 .demo-approval-page { min-height: min(780px,calc(100dvh - 150px)); display: grid; place-items: center; padding: 28px 16px; background: radial-gradient(ellipse at 50% 0,#154b72 0,#0b1728 54%,#07111e 100%); border-radius: 22px; }
 .demo-approval-card { width: min(100%,500px); padding: clamp(24px,6vw,42px); border: 1px solid #49627f; border-radius: 24px; background: #101c30; color: #fff; box-shadow: 0 24px 80px #061b3180; text-align: center; }
 .demo-approval-card h1 { margin: 20px 0 8px; font-size: clamp(1.6rem,6vw,2.2rem); color: #fff; }

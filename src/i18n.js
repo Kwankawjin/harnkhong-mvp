@@ -90,6 +90,7 @@ const labels = {
   'กลุ่มที่เข้าร่วมได้ตอนนี้':'Groups you can join now',
   'สแกน QR เพื่อยอมรับยอด':'Scan the QR to accept the amount', 'สแกนด้วยโทรศัพท์เพื่อเปิดหน้าตรวจสอบยอด':'Scan with your phone to review the amount',
   'สแกน QR เพื่อยืนยันยอด':'Scan the QR to confirm the amount', 'สแกนด้วยโทรศัพท์เพื่อตรวจสอบและยอมรับยอด':'Scan with your phone to review and accept the amount',
+  'สแกนด้วยโทรศัพท์เพื่อยืนยันยอด':'Scan with your phone to confirm the amount', 'กรุณายอมรับภายใน':'Please accept within', 'ชั่วโมง':'hours',
   'ยอดชำระจำลอง':'Demo amount', 'สแกนเพื่อยอมรับจำนวนเงินเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง':'Scan to accept the amount only. No payment is made or money collected.',
   'ช่องทาง':'Channel', 'วันที่และเวลา':'Date and time', 'สำเร็จ':'Successful',
   'QR สำหรับยอมรับยอดจำลอง':'QR code for demo amount acceptance', 'ยอดที่ยืนยัน':'Confirmed amount', 'การยืนยันนี้เป็นการยอมรับจำนวนเงินจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง':'This only accepts a demo amount. No payment is made or money collected.',
