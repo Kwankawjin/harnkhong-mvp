@@ -1129,6 +1129,7 @@ function render(){
         </nav>
         <div class="header-actions">
           ${/^\/groups\/[^/]+$/.test(location.pathname) ? '' : a('/groups/create',`${icon('plus',17)} ${t("เปิดกลุ่ม")}`,'button primary header-create-btn')}
+          ${a('/subscription',`${icon('sparkles',17)} ${t('แพ็กเกจ')}`,'button secondary header-subscription-btn')}
           <button type="button" class="icon-button theme-toggle" data-action="theme-toggle" aria-label="${locale==='th'?(theme==='dark'?'เปลี่ยนเป็นธีมสว่าง':'เปลี่ยนเป็นธีมมืด'):(theme==='dark'?'Switch to light theme':'Switch to dark theme')}" title="${locale==='th'?(theme==='dark'?'เปลี่ยนเป็นธีมสว่าง':'เปลี่ยนเป็นธีมมืด'):(theme==='dark'?'Switch to light theme':'Switch to dark theme')}">${theme==='dark'?'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>':'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 13.2A8.7 8.7 0 0 1 10.8 3.2 8.8 8.8 0 1 0 20.8 13.2Z"/></svg>'}</button>
           ${a('/chat',`${icon('chat',21)}<span class="sr-only">${t('แชต')}</span>`,'icon-button header-chat-btn')}
           ${a('/notifications',`${icon('bell',22)}<span class="sr-only">${t('การแจ้งเตือน')}</span>${unread?`<i>${unread}</i>`:''}`,'icon-button header-notifications-btn')}
