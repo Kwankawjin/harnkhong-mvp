@@ -2837,6 +2837,15 @@ dialog:not([open]), [hidden] { display: none !important; }
 
 /* Group-first discovery: keep the share and available spots visible together. */
 .home-open-groups { margin-top: 28px; }
+.home-open-groups .home-open-groups-grid { grid-template-columns: 1fr; }
+.home-open-groups-grid .group-card { padding: 16px; }
+.home-open-groups-grid .group-card:hover { padding: 16px; margin: 0; }
+@media(min-width: 960px) {
+  .home-open-groups .home-open-groups-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+}
+@media(min-width: 640px) and (max-width: 959px) {
+  .home-open-groups .home-open-groups-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+}
 @media(min-width:960px) {
   .home-hero {
     width: 100vw;

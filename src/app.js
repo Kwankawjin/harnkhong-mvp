@@ -540,7 +540,7 @@ function home(){
 
     <section class="section home-open-groups">
       <div class="section-header"><div><h2>${t('กลุ่มที่เข้าร่วมได้ตอนนี้')}</h2><p>${t('เห็นยอดหลังคุณเข้าร่วม จำนวนที่ว่าง และเงื่อนไขก่อนตัดสินใจ')}</p></div>${a('/explore',`${t('ดูกลุ่มทั้งหมด')} ${icon('arrow',16)}`,'text-link')}</div>
-      ${activeGroups.length?`<div class="group-grid">${activeGroups.slice(0,2).map(groupCard).join('')}</div>`:`<div class="empty"><h3>${t('ยังไม่มีกลุ่มที่เปิดรับ')}</h3>${a('/explore',t('สำรวจรายการ'),'button outline')}</div>`}
+      ${activeGroups.length?`<div class="group-grid home-open-groups-grid">${activeGroups.slice(0,3).map(groupCard).join('')}</div>`:`<div class="empty"><h3>${t('ยังไม่มีกลุ่มที่เปิดรับ')}</h3>${a('/explore',t('สำรวจรายการ'),'button outline')}</div>`}
     </section>
 
     <div class="flow-strip">
