@@ -952,7 +952,7 @@ function subscriptionPage(){
     [t('แจ้งเตือนซ้ำแบบกำหนดเอง'),false,true],
     [t('รายงานค่าใช้จ่าย'),t('พื้นฐาน'),t('ละเอียด')],
     [t('ส่งออก CSV'),false,true],
-    [t('เทมเพลตกลุ่มประจำ'),false,true],
+    [t('สร้างกลุ่มจากข้อมูลเดิม'),false,true],
     [t('AI วิเคราะห์ค่าใช้จ่าย'),false,t('จำกัดโควตา')],
   ];
   const mark=value=>value===true?`<span class="subscription-check" aria-label="${t('รวมในแพ็กเกจ')}">✓</span>`:value===false?'<span class="subscription-dash">—</span>':`<strong>${escape(value)}</strong>`;
