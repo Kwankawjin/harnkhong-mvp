@@ -89,6 +89,121 @@ function startHeroHeadlineLoop() {
   };
   heroHeadlineTimeout = setTimeout(cycle, 3000);
 }
+
+let heroParallaxCleanup = null;
+function initHeroPhoneParallax() {
+  if (heroParallaxCleanup) {
+    heroParallaxCleanup();
+    heroParallaxCleanup = null;
+  }
+  if (typeof document === 'undefined') return;
+  const showcase = document.querySelector('.hero-phone-showcase');
+  if (!showcase) return;
+  const frame = showcase.querySelector('.hero-phone-frame');
+  if (!frame) return;
+  const visual = showcase.closest('.hero-visual') || showcase;
+  const cardCalc = showcase.querySelector('.card-calc');
+  const cardNotice = showcase.querySelector('.card-notice');
+  const cardBadge = showcase.querySelector('.card-badge');
+
+  if (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  let targetX = 0;
+  let targetY = 0;
+  let currentX = 0;
+  let currentY = 0;
+  let isHovered = false;
+  let rafId = null;
+
+  const baseRx = 6;
+  const baseRy = -10;
+  const maxTiltX = 14;
+  const maxTiltY = 18;
+
+  const update = () => {
+    currentX += (targetX - currentX) * 0.12;
+    currentY += (targetY - currentY) * 0.12;
+
+    const rx = baseRx - (currentY * maxTiltX);
+    const ry = baseRy + (currentX * maxTiltY);
+    const scale = isHovered ? 1.025 : 1;
+    const lift = isHovered ? -6 : 0;
+
+    frame.style.transform = `perspective(1200px) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) translateY(${lift}px) scale(${scale})`;
+
+    const glareAngle = 135 + (currentX * 25);
+    frame.style.setProperty('--glare-angle', `${glareAngle.toFixed(1)}deg`);
+
+    if (cardCalc) {
+      cardCalc.style.setProperty('--parallax-x', `${(currentX * 14).toFixed(1)}px`);
+      cardCalc.style.setProperty('--parallax-y', `${(currentY * 12).toFixed(1)}px`);
+    }
+    if (cardNotice) {
+      cardNotice.style.setProperty('--parallax-x', `${(currentX * -16).toFixed(1)}px`);
+      cardNotice.style.setProperty('--parallax-y', `${(currentY * -14).toFixed(1)}px`);
+    }
+    if (cardBadge) {
+      cardBadge.style.setProperty('--parallax-x', `${(currentX * 10).toFixed(1)}px`);
+      cardBadge.style.setProperty('--parallax-y', `${(currentY * 8).toFixed(1)}px`);
+    }
+
+    if (isHovered || Math.abs(targetX - currentX) > 0.001 || Math.abs(targetY - currentY) > 0.001) {
+      rafId = requestAnimationFrame(update);
+    } else {
+      rafId = null;
+      frame.style.transform = '';
+      frame.style.removeProperty('--glare-angle');
+      if (cardCalc) {
+        cardCalc.style.removeProperty('--parallax-x');
+        cardCalc.style.removeProperty('--parallax-y');
+      }
+      if (cardNotice) {
+        cardNotice.style.removeProperty('--parallax-x');
+        cardNotice.style.removeProperty('--parallax-y');
+      }
+      if (cardBadge) {
+        cardBadge.style.removeProperty('--parallax-x');
+        cardBadge.style.removeProperty('--parallax-y');
+      }
+    }
+  };
+
+  const onMouseMove = (e) => {
+    const rect = showcase.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const px = (e.clientX - rect.left) / rect.width;
+    const py = (e.clientY - rect.top) / rect.height;
+    targetX = Math.max(-1.2, Math.min(1.2, (px - 0.5) * 2));
+    targetY = Math.max(-1.2, Math.min(1.2, (py - 0.5) * 2));
+    if (!rafId) rafId = requestAnimationFrame(update);
+  };
+
+  const onMouseEnter = () => {
+    isHovered = true;
+    frame.style.transition = 'none';
+    if (!rafId) rafId = requestAnimationFrame(update);
+  };
+
+  const onMouseLeave = () => {
+    isHovered = false;
+    targetX = 0;
+    targetY = 0;
+    frame.style.transition = 'transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.5s ease';
+    if (!rafId) rafId = requestAnimationFrame(update);
+  };
+
+  visual.addEventListener('mousemove', onMouseMove, { passive: true });
+  visual.addEventListener('mouseenter', onMouseEnter, { passive: true });
+  visual.addEventListener('mouseleave', onMouseLeave, { passive: true });
+
+  heroParallaxCleanup = () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    visual.removeEventListener('mousemove', onMouseMove);
+    visual.removeEventListener('mouseenter', onMouseEnter);
+    visual.removeEventListener('mouseleave', onMouseLeave);
+  };
+}
+
 const t = (key, values) => translate(locale, key, values);
 const errorMessage = error => messages[locale][error.code] ?? error.message ?? t('เกิดข้อผิดพลาด กรุณาลองใหม่');
 
@@ -122,7 +237,7 @@ function subscriptionFor(userId = state.user?.id) {
 }
 const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const icon = (id, size = 22) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-${id}"/></svg>`;
-const icons = `<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden"><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="7"/><path d="m16 16 5 5"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol><symbol id="i-edit" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol><symbol id="i-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 4h16v13H8l-4 3z"/><path d="M8 9h8M8 13h5"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 9h18c0-1-3-2-3-9ZM10 21h4"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol><symbol id="i-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol><symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/></symbol><symbol id="i-calc" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/></symbol><symbol id="i-trending" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol><symbol id="i-fire" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol></svg>`;
+const icons = `<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden"><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="7"/><path d="m16 16 5 5"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol><symbol id="i-edit" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="10" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol><symbol id="i-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 4h16v13H8l-4 3z"/><path d="M8 9h8M8 13h5"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 9h18c0-1-3-2-3-9ZM10 21h4"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol><symbol id="i-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol><symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/></symbol><symbol id="i-calc" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/></symbol><symbol id="i-trending" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol><symbol id="i-fire" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol><symbol id="i-truck" viewBox="0 0 24 24"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-5l-3-4h-5v10Z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol><symbol id="i-package" viewBox="0 0 24 24"><path d="m16.5 9.4-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol><symbol id="i-map-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol></svg>`;
 const a = (href, label, cls = '') => `<a href="${href}" data-link class="${cls}">${label}</a>`;
 function go(path) { if (location.pathname === '/groups/create' && path.split('?')[0] !== '/groups/create') { groupImages = []; selectedCreateCategories = []; } history.pushState({}, '', path); render(); window.scrollTo(0, 0); }
 let authModalActive = false;
@@ -411,6 +526,59 @@ function leaveGroupDialog(g, currentShare) {
       <div class="leave-modal-actions">
         <button type="button" class="button outline" data-action="close-dialog">${t('ยกเลิก')}</button>
         <button type="button" class="button danger" data-action="confirm-leave" data-id="${g.id}">${t('ออกจากกลุ่ม')}</button>
+      </div>
+    </div>
+  </dialog>`;
+}
+function deleteGroupDialog(g) {
+  const memberCount = g.members?.length || 1;
+  return `<dialog id="delete-group-dialog" class="leave-group-dialog" aria-labelledby="delete-group-title">
+    <div class="leave-modal-inner">
+      <div class="leave-modal-head">
+        <div class="leave-modal-badge" aria-hidden="true">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            <line x1="10" y1="11" x2="10" y2="17"/>
+            <line x1="14" y1="11" x2="14" y2="17"/>
+          </svg>
+        </div>
+        <button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button>
+      </div>
+
+      <h2 id="delete-group-title" class="leave-modal-title">${t('ยืนยันลบห้อง')}</h2>
+      <p class="leave-modal-subtitle">${t('คุณแน่ใจหรือไม่ว่าต้องการลบห้องนี้? ข้อมูลห้องจะถูกลบออกจากระบบอย่างถาวร')}</p>
+
+      <div class="leave-group-preview">
+        <div class="leave-group-meta">
+          <small>${t('ห้องที่จะลบ')}</small>
+          <strong title="${escape(g.name)}">${escape(g.name)}</strong>
+        </div>
+        <div class="leave-group-share-box">
+          <small>${t('จำนวนสมาชิก')}</small>
+          <strong>${t('สมาชิก {count} / {capacity} คน', { count: memberCount, capacity: g.capacity })}</strong>
+        </div>
+      </div>
+
+      <div class="leave-impact-box">
+        <div class="leave-impact-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span>${t('สิ่งที่ควรรู้ก่อนลบห้อง')}</span>
+        </div>
+        <ul class="leave-impact-list">
+          <li>${t('ห้องนี้จะถูกปิดและนำออกจากรายการค้นหาทันที')}</li>
+          <li>${t('สมาชิกทุกคนในห้องจะได้รับแจ้งเตือนว่าห้องถูกลบ')}</li>
+          <li>${t('ประวัติการแชตและคำยืนยันยอดของห้องนี้จะไม่สามารถกู้คืนได้')}</li>
+        </ul>
+      </div>
+
+      <div class="leave-modal-actions">
+        <button type="button" class="button outline" data-action="close-dialog">${t('ยกเลิก')}</button>
+        <button type="button" class="button danger" data-action="confirm-delete-group" data-id="${escape(g.id)}">${t('ยืนยันลบห้อง')}</button>
       </div>
     </div>
   </dialog>`;
@@ -1069,18 +1237,72 @@ function subscriptionPage() {
 }
 function accountOrderRow(o) {
   const p = listing(o.listingId);
-  const payment = o.payments[state.user.id];
-  const canReport = orderPermissions(o, state.user).reportPayment;
-  return `<article class="account-order-row">
-    <div class="account-order-art" role="img" aria-label="${escape(t(p?.title || t('รายการสินค้า')))}">${p ? art(p) : icon('calc', 23)}</div>
-    <div class="account-order-info"><strong>${escape(t(p?.title || t('รายการสินค้า')))}</strong><small>${t('กลุ่ม')}: ${escape(group(o.groupId)?.name || o.groupId)}</small><span>${paymentStatus(payment.status)} · ${orderStatus(o.status)}</span></div>
-    <div class="account-order-action"><strong>${money(payment.amountSatang)}</strong>${a(`/orders/${o.groupId}`, canReport ? t('แจ้งชำระเดโม') : t('ดูรายละเอียด'), `button ${canReport ? 'primary' : 'subtle'}`)}</div>
+  const payment = o.payments?.[state.user.id] || { amountSatang: 0, status: 'unpaid' };
+  const isPhysical = p ? p.kind === 'สินค้า' : true;
+  const orderDate = o.createdAt || (o.history && o.history[0]?.at) || new Date().toISOString();
+  const d = new Date(orderDate);
+  const pad = n => String(n).padStart(2, '0');
+  const dateStr = `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  
+  let titleText = '';
+  let statusTone = 'default';
+  let descText = '';
+  
+  if (o.status === 'refunded' || o.refund) {
+    titleText = t('ยกเลิกแล้ว');
+    statusTone = 'cancelled';
+    descText = t('เหตุผล ถูกยกเลิกโดยระบบแล้ว') + (o.refund?.note ? ` (${o.refund.note})` : '');
+  } else if (o.status === 'completed' || o.status === 'delivered') {
+    titleText = t('คำสั่งซื้อสำเร็จแล้ว');
+    statusTone = 'completed';
+    const reviewDeadline = `${pad(d.getDate() + 14 > 28 ? 7 : d.getDate() + 14)}-${pad((d.getMonth() + 2) % 12 || 12)}-${d.getFullYear()}`;
+    descText = t('โปรดรีวิวสินค้าก่อนวันที่ {date} และรับคะแนนพิเศษ', { date: reviewDeadline });
+  } else if (o.status === 'shipped') {
+    titleText = t('กำลังจัดส่งพัสดุ');
+    statusTone = 'shipped';
+    const carrier = o.shipment?.carrier || t('ขนส่ง');
+    const trackingNumber = o.shipment?.trackingNumber || '';
+    descText = trackingNumber 
+      ? t('พัสดุถูกส่งมอบให้ {carrier} เรียบร้อยแล้ว (เลขพัสดุ: {trackingNumber})', { carrier, trackingNumber })
+      : t('พัสดุกำลังจัดส่ง');
+  } else if (o.status === 'preparing_order') {
+    titleText = t('ผู้ขายกำลังจัดเตรียมพัสดุ');
+    statusTone = 'preparing';
+    descText = t('ผู้ขายกำลังจัดเตรียมสินค้าเพื่อส่งมอบให้บริษัทขนส่ง');
+  } else {
+    titleText = t('รอชำระเงิน / ยืนยันยอด');
+    statusTone = 'pending';
+    descText = t('รอสมาชิกในกลุ่มแจ้งชำระและตรวจยอดเดโม');
+  }
+  
+  const thumbImg = p?.image 
+    ? `<img src="${p.image}" alt="${escape(t(p.title))}" class="order-card-thumb-img"/>`
+    : (p ? art(p) : `<div class="order-card-thumb-fallback">${icon('package', 32)}</div>`);
+
+  return `<article class="order-update-card ${statusTone}">
+    <a href="/orders/${o.groupId}" data-link class="order-update-card-link">
+      <div class="order-update-content">
+        <div class="order-update-head">
+          <strong class="order-update-title">${escape(titleText)}</strong>
+          ${isPhysical ? `<span class="order-kind-pill physical">${icon('package', 13)} ${t('สินค้าพัสดุ')}</span>` : `<span class="order-kind-pill digital">${t('บริการ/ดิจิทัล')}</span>`}
+        </div>
+        <p class="order-update-desc">${escape(descText)}</p>
+        <div class="order-update-footer">
+          <time class="order-update-time">${dateStr}</time>
+          <span class="order-update-price">${money(payment.amountSatang)}</span>
+          <span class="order-update-btn">${isPhysical && ['shipped', 'delivered', 'completed'].includes(o.status) ? t('ติดตามพัสดุ') : t('ดูคำสั่งซื้อ')} ${icon('arrow', 14)}</span>
+        </div>
+      </div>
+      <div class="order-update-thumb" role="img" aria-label="${escape(t(p?.title || t('รายการสินค้า')))}">
+        ${thumbImg}
+      </div>
+    </a>
   </article>`;
 }
 function myOrdersPage() {
-  if (!requireAuth('/my-orders')) return authRequiredView(t('คำสั่งซื้อของฉัน'), t('เข้าสู่ระบบเพื่อดูคำสั่งซื้อเดโมของคุณ'));
+  if (!requireAuth('/my-orders')) return authRequiredView(t('อัปเดตคำสั่งซื้อ'), t('เข้าสู่ระบบเพื่อดูคำสั่งซื้อเดโมของคุณ'));
   const orders = state.orders.filter(o => o && typeof o === 'object' && o.members?.includes(state.user.id) && o.payments?.[state.user.id]).sort((a, b) => Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0));
-  return `<div class="account-page account-orders-page">${title(t('คำสั่งซื้อของฉัน'), t('รายการและสถานะการชำระเงินในโหมดเดโม'))}<section class="account-card"><div class="account-card-heading"><h2>${t('รายการทั้งหมด')}</h2>${a('/profile', t('กลับไปบัญชีของฉัน'), 'button subtle')}</div>${orders.length ? orders.map(accountOrderRow).join('') : `<div class="account-empty"><span>${icon('calc', 26)}</span><strong>${t('ยังไม่มีคำสั่งซื้อเดโม')}</strong><p>${t('เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่')}</p>${a('/my-groups', t('ดูกลุ่มของฉัน'), 'button outline')}</div>`}</section></div>`;
+  return `<div class="account-page account-orders-page">${title(t('อัปเดตคำสั่งซื้อ'), t('รายการและสถานะการชำระเงินในโหมดเดโม'))}<section class="account-card"><div class="account-card-heading"><h2>${t('รายการทั้งหมด')}</h2>${a('/profile', t('กลับไปบัญชีของฉัน'), 'button subtle')}</div>${orders.length ? `<div class="order-updates-grid">${orders.map(accountOrderRow).join('')}</div>` : `<div class="account-empty"><span>${icon('calc', 26)}</span><strong>${t('ยังไม่มีคำสั่งซื้อเดโม')}</strong><p>${t('เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่')}</p>${a('/my-groups', t('ดูกลุ่มของฉัน'), 'button outline')}</div>`}</section></div>`;
 }
 function profile() {
   if (!requireAuth('/profile')) return authRequiredView(t('บัญชีของฉัน'), t('เข้าสู่ระบบหรือลงทะเบียนเพื่อจัดการข้อมูลส่วนตัว'));
@@ -1119,7 +1341,7 @@ function profile() {
         ${supabaseConfigured ? '' : `<details class="account-card account-test-tools"><summary>${t('เครื่องมือทดสอบบัญชี')}</summary><p>${t('ใช้ทดสอบการยืนยันยอดของสมาชิกแต่ละคน')}</p><div class="account-switch"><button data-action="switch-user" data-id="demo-owner" class="button outline">${escape(demoNames['demo-owner'])}</button>${Object.entries(demoNames).filter(([id]) => id !== 'demo-owner').map(([id, n]) => `<button data-action="switch-user" data-id="${id}" class="button outline">${escape(n)}</button>`).join('')}<button data-action="switch-user" data-id="demo-seller" class="button outline">${t('ผู้ขายเดโม')} · ${escape(seller('s1').name)}</button><button data-action="switch-user" data-id="demo-seller-s2" class="button outline">${t('ผู้ขายเดโม')} · ${escape(seller('s2').name)}</button></div><div class="account-test-actions"><button class="button subtle" data-action="logout">${t('ออกจากระบบเดโม')}</button><button class="button subtle" data-action="reset-demo">${t('เริ่มข้อมูลเดโมใหม่')}</button></div></details>`}
       </div>
       <aside class="account-aside">
-        <section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t('รายการคำสั่งซื้อเดโม')}</h2>${a('/my-orders', `${t('ดูทั้งหมด')} ${icon('arrow', 17)}`, 'account-all-link')}</div>${orders.length ? orders.slice(0, 3).map(accountOrderRow).join('') : `<div class="account-empty"><span>${icon('calc', 26)}</span><strong>${t('ยังไม่มีคำสั่งซื้อเดโม')}</strong><p>${t('เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่')}</p>${a('/my-groups', t('ดูกลุ่มของฉัน'), 'button outline')}</div>`}</section>
+        <section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t('อัปเดตคำสั่งซื้อ')}</h2>${a('/my-orders', `${t('ดูทั้งหมด')} ${icon('arrow', 17)}`, 'account-all-link')}</div>${orders.length ? `<div class="order-updates-grid">${orders.slice(0, 3).map(accountOrderRow).join('')}</div>` : `<div class="account-empty"><span>${icon('calc', 26)}</span><strong>${t('ยังไม่มีคำสั่งซื้อเดโม')}</strong><p>${t('เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่')}</p>${a('/my-groups', t('ดูกลุ่มของฉัน'), 'button outline')}</div>`}</section>
         <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t('ทางลัด')}</h2><div class="account-shortcut-grid">${shortcut('/my-groups', 'users', t('กลุ่มของฉัน'), t('ดูและจัดการกลุ่มที่เข้าร่วม'), 'blue')}${shortcut('/notifications', 'bell', t('การแจ้งเตือน'), t('อัปเดตยอดและกิจกรรม'), 'amber')}${shortcut('/explore', 'search', t('สำรวจสินค้า'), t('ค้นหาสินค้าและเข้าร่วมกลุ่ม'), 'violet')}${sellerRole ? shortcut('/seller/dashboard', 'calc', t('แดชบอร์ดผู้ขาย'), t('จัดการรายการของร้าน'), 'mint') : shortcut('/my-orders', 'check', t('รายการชำระเดโม'), t('ดูสถานะคำสั่งซื้อของฉัน'), 'mint')}</div></section>
       </aside>
     </div>${profileDialog()}
@@ -1150,6 +1372,207 @@ function disputePanel(order, permissions) {
     ${permissions.dispute ? `<details><summary>${t('แจ้งปัญหาคำสั่งซื้อ')}</summary><form id="dispute-form" data-id="${order.id}" class="form-panel"><label>${t('เหตุผล')}<select name="reason" required><option value="">${t('เลือกเหตุผล')}</option>${DISPUTE_REASONS.map(reason => `<option value="${reason}">${t('disputeReason_' + reason)}</option>`).join('')}</select></label><label>${t('รายละเอียดปัญหา')}<textarea name="description" required maxlength="1000"></textarea></label><label>${t('หลักฐานอ้างอิง (ข้อความ ไม่อัปโหลดไฟล์)')}<textarea name="evidence" maxlength="1000"></textarea></label><button class="button primary" type="submit">${t('ส่งรายงานปัญหา')}</button></form></details>` : ''}
     </section>`;
 }
+function renderPhysicalShipmentTracker(order, p, permissions, id) {
+  let currentStep = 1;
+  if (['completed', 'delivered'].includes(order.status) || order.deliveredAt) {
+    currentStep = 5;
+  } else if (order.status === 'shipped') {
+    currentStep = order.shipment?.trackingNumber ? 4 : 3;
+  } else if (order.status === 'preparing_order') {
+    currentStep = 2;
+  } else if (['payment_secured', 'inspection_period'].includes(order.status)) {
+    currentStep = order.status === 'inspection_period' ? 5 : 2;
+  }
+
+  const steps = [
+    { num: 1, title: t('ชำระเงินเรียบร้อย'), icon: 'check' },
+    { num: 2, title: t('ผู้ขายเตรียมพัสดุ'), icon: 'package' },
+    { num: 3, title: t('ขนส่งรับพัสดุ'), icon: 'truck' },
+    { num: 4, title: t('กำลังนำส่งพัสดุ'), icon: 'arrow' },
+    { num: 5, title: t('พัสดุจัดส่งสำเร็จ'), icon: 'check' },
+  ];
+
+  const carrier = order.shipment?.carrier || '';
+  const trackingNumber = order.shipment?.trackingNumber || '';
+
+  let trackingUrl = order.shipment?.url || '';
+  if (!trackingUrl && trackingNumber) {
+    if (/flash/i.test(carrier)) trackingUrl = `https://www.flashexpress.co.th/tracking/?se=${encodeURIComponent(trackingNumber)}`;
+    else if (/kerry|kex/i.test(carrier)) trackingUrl = `https://th.kerryexpress.com/th/track/?track=${encodeURIComponent(trackingNumber)}`;
+    else if (/ไปรษณีย์|ems|thai/i.test(carrier)) trackingUrl = `https://track.thailandpost.co.th/?trackNumber=${encodeURIComponent(trackingNumber)}`;
+    else if (/j&t|jtexpress/i.test(carrier)) trackingUrl = `https://www.jtexpress.co.th/index/query/gzquery.html?bills=${encodeURIComponent(trackingNumber)}`;
+  }
+
+  const addr = state.user?.address;
+  const addressDisplay = addr && addr.province ? `
+    <div class="tracker-address-card">
+      <div class="tracker-address-head">
+        <span class="tracker-address-icon">${icon('map-pin', 18)}</span>
+        <strong>${t('ที่อยู่จัดส่งพัสดุ')}</strong>
+      </div>
+      <p class="tracker-address-text">
+        <strong>${escape(state.user.name)}</strong> (${t('เบอร์ติดต่อ')}: ${escape(addr.phone || '—')})<br/>
+        ${escape(addr.houseNo || '')} ${addr.villageNo ? 'หมู่ ' + escape(addr.villageNo) : ''}
+        ${addr.alley ? 'ซ. ' + escape(addr.alley) : ''} ${addr.road ? 'ถ. ' + escape(addr.road) : ''}
+        ต.${escape(addr.subdistrict || '')} อ.${escape(addr.district || '')} จ.${escape(addr.province || '')} ${escape(addr.postalCode || '')}
+      </p>
+    </div>
+  ` : `
+    <div class="tracker-address-card">
+      <div class="tracker-address-head">
+        <span class="tracker-address-icon">${icon('map-pin', 18)}</span>
+        <strong>${t('ที่อยู่จัดส่งพัสดุ')}</strong>
+      </div>
+      <p class="tracker-address-text">${t('ที่อยู่ตัวแทนรับพัสดุประจำกลุ่ม')} (${escape(t(p?.terms || t('สินค้าเป็นแพ็กเดียว สมาชิกตกลงการแบ่งรับกันในกลุ่ม')))})</p>
+    </div>
+  `;
+
+  const timelineMilestones = [];
+  if (['completed', 'delivered'].includes(order.status) || order.deliveredAt) {
+    timelineMilestones.push({
+      time: order.deliveredAt || new Date().toISOString(),
+      title: t('พัสดุส่งถึงผู้รับเรียบร้อยแล้ว มีผู้รับลงชื่อรับของ'),
+      status: 'done'
+    });
+  }
+  if (currentStep >= 4) {
+    timelineMilestones.push({
+      time: order.shipment?.updatedAt || order.shipment?.shippedAt || new Date().toISOString(),
+      title: t('พนักงานขนส่งกำลังนำจ่ายพัสดุให้คุณ'),
+      status: currentStep === 4 ? 'active' : 'done'
+    });
+  }
+  if (currentStep >= 3) {
+    timelineMilestones.push({
+      time: order.shipment?.shippedAt || new Date().toISOString(),
+      title: `${t('บริษัทขนส่งเข้ารับพัสดุจากร้านค้าแล้ว')} (${escape(carrier || t('ขนส่ง'))})`,
+      status: currentStep === 3 ? 'active' : 'done'
+    });
+  }
+  if (currentStep >= 2) {
+    timelineMilestones.push({
+      time: order.history?.find(h => h.type === 'order_status_changed' && h.newState === 'preparing_order')?.at || order.createdAt || new Date().toISOString(),
+      title: t('ผู้ขายบรรจุสินค้าลงกล่องและออกหมายเลขพัสดุ'),
+      status: currentStep === 2 ? 'active' : 'done'
+    });
+  }
+  timelineMilestones.push({
+    time: order.createdAt || new Date().toISOString(),
+    title: t('ชำระเงินเรียบร้อย'),
+    status: 'done'
+  });
+
+  return `<section class="order-tracker-card" aria-labelledby="tracker-title">
+    <div class="tracker-header">
+      <div class="tracker-title-wrap">
+        <span class="tracker-badge"><span class="pulse-dot"></span> ${t('สินค้าจริง (Physical)')}</span>
+        <h2 id="tracker-title">${icon('truck', 22)} ${t('ตัวติดตามการจัดส่งพัสดุ')}</h2>
+      </div>
+      <span class="tracker-status-tag ${order.status}">${orderStatus(order.status)}</span>
+    </div>
+
+    <!-- Visual 5-Step Stepper -->
+    <div class="tracker-stepper" role="progressbar" aria-valuenow="${currentStep}" aria-valuemin="1" aria-valuemax="5">
+      ${steps.map((st, idx) => {
+        const isDone = st.num < currentStep;
+        const isActive = st.num === currentStep;
+        const statusClass = isDone ? 'is-done' : isActive ? 'is-active' : 'is-pending';
+        return `
+          <div class="tracker-step ${statusClass}">
+            <div class="tracker-step-node">
+              <span class="tracker-step-icon">${icon(isDone ? 'check' : st.icon, 18)}</span>
+            </div>
+            <span class="tracker-step-title">${st.title}</span>
+            ${idx < steps.length - 1 ? `<div class="tracker-step-connector ${isDone ? 'is-done' : ''}"></div>` : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+
+    <!-- Carrier & Tracking Info Box -->
+    ${order.shipment ? `
+      <div class="tracker-carrier-box">
+        <div class="tracker-carrier-left">
+          <span class="carrier-badge ${carrier.toLowerCase().replace(/[^a-z]/g, '')}">
+            ${icon('truck', 16)} <strong>${escape(carrier || t('ขนส่ง'))}</strong>
+          </span>
+          <div class="tracking-code-group">
+            <small class="tracking-label">${t('เลขพัสดุ')}</small>
+            <strong class="tracking-code">${escape(trackingNumber || '—')}</strong>
+          </div>
+        </div>
+        <div class="tracker-carrier-actions">
+          ${trackingNumber ? `
+            <button type="button" class="button outline copy-tracking-btn" data-action="copy-tracking" data-tracking="${escape(trackingNumber)}">
+              ${icon('copy', 16)} <span>${t('คัดลอกเลขพัสดุ')}</span>
+            </button>
+          ` : ''}
+          ${trackingUrl ? `
+            <a href="${escape(trackingUrl)}" target="_blank" rel="noopener noreferrer" class="button primary track-external-btn">
+              ${t('เปิดเว็บตรวจสอบสถานะขนส่ง')} ${icon('arrow', 16)}
+            </a>
+          ` : ''}
+        </div>
+      </div>
+    ` : `
+      <div class="tracker-empty-shipment">
+        <div class="tracker-empty-icon">${icon('package', 28)}</div>
+        <div>
+          <strong>${t('ยังไม่มีข้อมูลจัดส่ง')}</strong>
+          <p>${t('ผู้ขายจะกรอกหมายเลขพัสดุและบริษัทขนส่งเมื่อจัดส่งสินค้า')}</p>
+        </div>
+      </div>
+    `}
+
+    <!-- Recipient Address Card -->
+    ${addressDisplay}
+
+    <!-- Timeline of Shipping Checkpoints -->
+    <div class="tracker-timeline-section">
+      <h3 class="tracker-timeline-heading">${icon('clock', 18)} ${t('ไทม์ไลน์การเดินทางของพัสดุ')}</h3>
+      <ol class="tracker-timeline-list">
+        ${timelineMilestones.map(m => `
+          <li class="tracker-timeline-item ${m.status}">
+            <span class="tracker-timeline-dot"></span>
+            <div class="tracker-timeline-body">
+              <strong>${escape(m.title)}</strong>
+              <time datetime="${escape(m.time)}">${escape(dateTime(m.time))}</time>
+            </div>
+          </li>
+        `).join('')}
+      </ol>
+    </div>
+
+    <!-- Seller Shipping Update Form -->
+    ${permissions.shipment ? `
+      <details class="seller-shipping-accordion">
+        <summary class="seller-shipping-summary">
+          ${icon('edit', 16)} <strong>${t('บันทึกข้อมูลการจัดส่งพัสดุ')} (${t('สำหรับผู้ขาย')})</strong>
+        </summary>
+        <form id="shipment-form" class="form-panel" data-id="${id}">
+          <label>${t('เลือกบริษัทขนส่ง')}
+            <select name="carrier" id="shipment-carrier-select">
+              <option value="Flash Express" ${carrier === 'Flash Express' ? 'selected' : ''}>Flash Express ⚡</option>
+              <option value="Kerry Express" ${carrier === 'Kerry Express' ? 'selected' : ''}>Kerry Express 📦</option>
+              <option value="ไปรษณีย์ไทย EMS" ${carrier === 'ไปรษณีย์ไทย EMS' ? 'selected' : ''}>ไปรษณีย์ไทย EMS 📮</option>
+              <option value="J&T Express" ${carrier === 'J&T Express' ? 'selected' : ''}>J&T Express 🚚</option>
+              <option value="Shopee Xpress" ${carrier === 'Shopee Xpress' ? 'selected' : ''}>Shopee Xpress 🛍️</option>
+              <option value="อื่น ๆ" ${carrier && !['Flash Express','Kerry Express','ไปรษณีย์ไทย EMS','J&T Express','Shopee Xpress'].includes(carrier) ? 'selected' : ''}>อื่น ๆ (ระบุเอง)</option>
+            </select>
+          </label>
+          <label>${t('เลขพัสดุ')}
+            <input name="trackingNumber" id="shipment-tracking-input" placeholder="เช่น TH0402948291A" maxlength="500" value="${escape(trackingNumber)}"/>
+          </label>
+          <label>${t('ลิงก์เว็บขนส่ง (อัตโนมัติหรือระบุเอง)')}
+            <input name="url" id="shipment-url-input" type="url" placeholder="https://..." maxlength="500" value="${escape(order.shipment?.url || '')}"/>
+          </label>
+          <p class="field-help">${t('กรอกเลขติดตามหรือลิงก์อย่างน้อยหนึ่งช่อง')}</p>
+          <button class="button primary" type="submit">${t('บันทึกการจัดส่งเดโม')}</button>
+        </form>
+      </details>
+    ` : ''}
+  </section>`;
+}
 function orderPage(id) {
   const g = group(id); if (!g) return notFound();
   if (!requireAuth(`/orders/${id}`)) return authRequiredView(t('สรุปคำสั่งซื้อเดโม'), t('เข้าสู่ระบบเพื่อดูสรุปคำสั่งซื้อ'));
@@ -1158,6 +1581,8 @@ function orderPage(id) {
   if (order && order.status !== 'waiting_for_members' ? !permissions.view : !g.members.includes(state.user.id)) return `<div class="empty"><h1>${t('orderUnauthorized')}</h1>${a('/my-groups', t('กลุ่มของฉัน'), 'button secondary')}</div>`;
   const model = order && order.status !== 'waiting_for_members' ? order : g, alloc = shares(model), costs = costBreakdown(model.costs, model.members.length), ready = allApproved(g);
   const action = (next, label) => `<button class="button primary" data-action="order-transition" data-id="${id}" data-next="${next}">${t(label)}</button>`;
+  const p = listing(g.listingId);
+  const isPhysical = p ? p.kind === 'สินค้า' : true;
   return `${title(t('สรุปคำสั่งซื้อเดโม'), escape(g.name))}<div class="narrow order-detail">
     <div class="info-box">${t('เดโมเท่านั้น: HarnKhong ไม่รับฝาก ถือ โอน หรือคืนเงินจริง ไม่มีการตรวจสอบธนาคาร')}</div>
     <div class="cost-card"><h2>${t('ค่าใช้จ่าย')}</h2><div><span>${t('สินค้า')}</span><b>${money(costs.product)}</b></div><div><span>${costs.deliveryPerMember === null ? t('ค่าส่ง') : t('ค่าส่ง {amount} × {count} คน', { amount: money(costs.deliveryPerMember), count: model.members.length })}</span><b>${money(costs.delivery)}</b></div><div><span>${costs.deliveryPerMember === null ? t('ค่าบริการ') : t('ค่าธรรมเนียมแอป 2%')}</span><b>${money(costs.service)}</b></div><div class="total"><span>${t('รวม')}</span><b>${money(costs.total)}</b></div><h3>${t('ส่วนแบ่งสมาชิก')}</h3>${model.members.map(memberId => `<div><span>${escape(actorName(memberId))}</span><b>${money(alloc[memberId])}</b></div>`).join('')}</div>
@@ -1176,10 +1601,11 @@ function orderPage(id) {
       ${permissions.verifyPayment && payment.status === 'payment_reported' ? `<button class="button outline" data-action="payment-update" data-id="${id}" data-member="${escape(memberId)}" data-next="verification_pending">${t('รับเรื่องตรวจยอดเดโม')}</button>` : ''}
       ${permissions.verifyPayment && payment.status === 'verification_pending' ? `<div class="order-actions"><button class="button outline" data-action="payment-update" data-id="${id}" data-member="${escape(memberId)}" data-next="verified">${t('ยืนยันตรวจยอด (จำลองเท่านั้น)')}</button><button class="button subtle" data-action="payment-update" data-id="${id}" data-member="${escape(memberId)}" data-next="unpaid">${t('ให้แจ้งชำระใหม่')}</button></div>` : ''}</article>`;
   }).join('')}</div></section>
+    ${isPhysical ? renderPhysicalShipmentTracker(order, p, permissions, id) : `
     <section class="activity"><h2>${t('การจัดส่ง')}</h2><p>${t('ข้อมูลจัดส่งกรอกเองในเดโม ยังไม่ตรวจสอบกับขนส่ง')}</p>
     ${order.shipment ? `<p>${t('ผู้ขนส่ง')}: ${escape(order.shipment.carrier || '—')}</p><p>${t('เลขติดตาม')}: ${escape(order.shipment.trackingNumber || '—')}</p>${order.shipment.url ? `<p><a href="${escape(order.shipment.url)}" target="_blank" rel="noopener noreferrer">${t('เปิดลิงก์ติดตามที่ผู้ขายกรอก')}</a></p>` : ''}<p>${t('ส่งเมื่อ')}: ${escape(dateTime(order.shipment.shippedAt))}</p>` : `<p>${t('ยังไม่มีข้อมูลจัดส่ง')}</p>`}
     ${order.deliveredAt ? `<p>${t('ยืนยันรับเมื่อ')}: ${escape(dateTime(order.deliveredAt))}</p>` : ''}
-    ${permissions.shipment ? `<form id="shipment-form" class="form-panel" data-id="${id}"><label>${t('ผู้ขนส่ง')}<input name="carrier" maxlength="500" value="${escape(order.shipment?.carrier || '')}"/></label><label>${t('เลขติดตาม')}<input name="trackingNumber" maxlength="500" value="${escape(order.shipment?.trackingNumber || '')}"/></label><label>${t('ลิงก์ติดตาม (http หรือ https)')}<input name="url" type="url" maxlength="500" value="${escape(order.shipment?.url || '')}"/></label><p>${t('กรอกเลขติดตามหรือลิงก์อย่างน้อยหนึ่งช่อง')}</p><button class="button primary" type="submit">${t('บันทึกการจัดส่งเดโม')}</button></form>` : ''}</section>
+    ${permissions.shipment ? `<form id="shipment-form" class="form-panel" data-id="${id}"><label>${t('ผู้ขนส่ง')}<input name="carrier" maxlength="500" value="${escape(order.shipment?.carrier || '')}"/></label><label>${t('เลขติดตาม')}<input name="trackingNumber" maxlength="500" value="${escape(order.shipment?.trackingNumber || '')}"/></label><label>${t('ลิงก์ติดตาม (http หรือ https)')}<input name="url" type="url" maxlength="500" value="${escape(order.shipment?.url || '')}"/></label><p>${t('กรอกเลขติดตามหรือลิงก์อย่างน้อยหนึ่งช่อง')}</p><button class="button primary" type="submit">${t('บันทึกการจัดส่งเดโม')}</button></form>` : ''}</section>`}
     ${disputePanel(order, permissions)}${orderHistory(order)}`}
     ${order?.legacy ? `<p class="warning">${t('นำเข้าคำสั่งซื้อเก่าโดยไม่ถือว่าเคยชำระเงินแล้ว')}</p>` : ''}
     ${permissions?.reportPayment ? paymentDialog(order, demoReference()) : ''}${a(`/groups/${id}`, t('กลับไปดูกลุ่ม'), 'button outline full')}</div>`;
@@ -1299,6 +1725,7 @@ function render() {
   `;
 
   startHeroHeadlineLoop();
+  initHeroPhoneParallax();
   const demoExpiry = document.querySelector('[data-demo-expiry]'); if (demoExpiry) startDemoCountdown(demoExpiry, Number(demoExpiry.dataset.demoExpiry));
   if (document.querySelector('#create-form')) updatePreview();
   const filterRow = document.querySelector('.filter-row');
@@ -1343,6 +1770,18 @@ document.addEventListener('dragover', e => { const target = e.target.closest('.i
 document.addEventListener('dragleave', e => { const target = e.target.closest('.image-upload'); if (target && !target.contains(e.relatedTarget)) target.classList.remove('is-dragging'); });
 document.addEventListener('drop', e => { const target = e.target.closest('.image-upload'); if (!target) return; e.preventDefault(); target.classList.remove('is-dragging'); const input = target.querySelector('input[type="file"]'); if (!input || !e.dataTransfer?.files?.length) return; input.files = e.dataTransfer.files; input.dispatchEvent(new Event('change', { bubbles: true })); });
 document.addEventListener('change', e => {
+  if (e.target.id === 'shipment-carrier-select') {
+    const form = e.target.form;
+    const tracking = form?.querySelector('[name="trackingNumber"]')?.value.trim();
+    const urlInput = form?.querySelector('[name="url"]');
+    if (urlInput && tracking) {
+      if (e.target.value === 'Flash Express') urlInput.value = `https://www.flashexpress.co.th/tracking/?se=${encodeURIComponent(tracking)}`;
+      else if (e.target.value === 'Kerry Express') urlInput.value = `https://th.kerryexpress.com/th/track/?track=${encodeURIComponent(tracking)}`;
+      else if (e.target.value === 'ไปรษณีย์ไทย EMS') urlInput.value = `https://track.thailandpost.co.th/?trackNumber=${encodeURIComponent(tracking)}`;
+      else if (e.target.value === 'J&T Express') urlInput.value = `https://www.jtexpress.co.th/index/query/gzquery.html?bills=${encodeURIComponent(tracking)}`;
+    }
+    return;
+  }
   if (e.target.name === 'otherCategory') { const form = e.target.form; if (form?.querySelector('[name="category"]')?.value === 'อื่น ๆ (ระบุชื่อเอง)') updatePreview(); return; }
   if (e.target.id !== 'locale-select') return;
   if (imagesLoading || avatarLoading) { e.target.value = locale; alertMessage(t('กำลังเตรียมรูป กรุณารอสักครู่')); return; }
@@ -1396,6 +1835,23 @@ document.addEventListener('click', async e => {
     if (action === 'scroll-filter') {
       const row = btn.closest('.filter-carousel')?.querySelector('.filter-row');
       row?.scrollBy({ left: (btn.dataset.direction === 'next' ? 1 : -1) * Math.max(180, row.clientWidth * 0.7), behavior: 'smooth' });
+    }
+    else if (action === 'copy-tracking') {
+      const code = btn.dataset.tracking;
+      if (code) {
+        try {
+          await navigator.clipboard.writeText(code);
+          const span = btn.querySelector('span');
+          if (span) {
+            const orig = span.textContent;
+            span.textContent = t('คัดลอกแล้ว!');
+            btn.classList.add('copied');
+            setTimeout(() => { span.textContent = orig; btn.classList.remove('copied'); }, 2000);
+          }
+        } catch {
+          alertMessage(`${t('เลขพัสดุ')}: ${code}`);
+        }
+      }
     }
     else if (action === 'quick-search') {
       if (btn.dataset.category) {
@@ -1518,10 +1974,26 @@ document.addEventListener('click', async e => {
     else if (action === 'delete-group') {
       const current = group(id);
       if (!current || current.ownerId !== state.user?.id) return;
-      if (!confirm(t('ยืนยันลบห้อง {name}? ลบได้เฉพาะห้องที่ไม่มีสมาชิกคนอื่นอยู่', { name: current.name }))) return;
+      document.querySelector('#delete-group-dialog')?.remove();
+      document.body.insertAdjacentHTML('beforeend', deleteGroupDialog(current));
+      const dialog = document.querySelector('#delete-group-dialog');
+      dialog.addEventListener('close', () => dialog.remove(), { once: true });
+      dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) dialog.close();
+      });
+      dialog.showModal();
+    }
+    else if (action === 'confirm-delete-group') {
+      const dialog = btn.closest('dialog') || document.querySelector('#delete-group-dialog');
+      if (dialog) dialog.close();
+      const current = group(id);
+      if (!current || current.ownerId !== state.user?.id) return;
       if (supabaseConfigured) { await deleteSupabaseGroup(id); if (!await refreshSupabaseGroups(actionSession)) return; }
       else {
-        if (current.members.length > 1) throw Object.assign(new Error(t('ลบห้องได้เฉพาะเมื่อไม่มีสมาชิกคนอื่นอยู่')), { code: 'groupHasMembers' });
+        if (current.members?.length > 1) {
+          current.members.filter(u => u !== state.user.id).forEach(u => notice(t('ห้องถูกลบ'), t('เจ้าของห้องได้ทำการลบห้อง {name}', { name: current.name }), '/explore', u));
+        }
+        if (state.conversations?.[id]) delete state.conversations[id];
         save({ ...state, groups: state.groups.filter(g => g.id !== id), orders: state.orders.filter(o => o.groupId !== id) });
       }
       go('/my-groups'); alertMessage(t('ลบห้องแล้ว'));
@@ -1771,6 +2243,18 @@ document.addEventListener('submit', async e => {
   }
 });
 document.addEventListener('input', e => {
+  if (e.target.name === 'trackingNumber' && e.target.closest('#shipment-form')) {
+    const form = e.target.closest('#shipment-form');
+    const carrier = form?.querySelector('[name="carrier"]')?.value;
+    const urlInput = form?.querySelector('[name="url"]');
+    const tracking = e.target.value.trim();
+    if (urlInput && tracking && (!urlInput.value || urlInput.dataset.autoFilled)) {
+      if (carrier === 'Flash Express') { urlInput.value = `https://www.flashexpress.co.th/tracking/?se=${encodeURIComponent(tracking)}`; urlInput.dataset.autoFilled = '1'; }
+      else if (carrier === 'Kerry Express') { urlInput.value = `https://th.kerryexpress.com/th/track/?track=${encodeURIComponent(tracking)}`; urlInput.dataset.autoFilled = '1'; }
+      else if (carrier === 'ไปรษณีย์ไทย EMS') { urlInput.value = `https://track.thailandpost.co.th/?trackNumber=${encodeURIComponent(tracking)}`; urlInput.dataset.autoFilled = '1'; }
+      else if (carrier === 'J&T Express') { urlInput.value = `https://www.jtexpress.co.th/index/query/gzquery.html?bills=${encodeURIComponent(tracking)}`; urlInput.dataset.autoFilled = '1'; }
+    }
+  }
   if (e.target.closest('#create-form')) updatePreview();
   if (e.target.name === 'bio' && e.target.closest('#profile-form')) document.querySelector('#bio-counter').textContent = `${e.target.value.length} / 160`;
   if (e.target.id === 'mockup-id-card') {

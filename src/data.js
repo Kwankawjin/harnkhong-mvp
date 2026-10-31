@@ -3,15 +3,133 @@ export const sellers = [
   {id:'s2',name:'สตูดิโอพร้อมพิมพ์',intro:'งานพิมพ์สำหรับทีมและชมรม',initials:'พพ'}
 ];
 export const listings = [
-  {id:'p1',title:'เซ็ตกระดาษ A4 5 รีม',category:'สินค้าขายส่ง',kind:'สินค้า',price:64500,sellerId:'s1',art:'paper',mark:'A4',description:'กระดาษ A4 สำหรับทีมเรียนหรือสำนักงาน แพ็ก 5 รีม แบ่งรับตามจำนวนสมาชิก',terms:'รับของร่วมกันที่จุดนัดหมายภายในกรุงเทพฯ หรือคุยกับร้านเพื่อจัดส่งแยก'},
-  {id:'p2',title:'กล่องข้าวรักษ์โลก 50 ใบ',category:'ของใช้ทั่วไป',kind:'สินค้า',price:89000,sellerId:'s1',art:'box',mark:'50',description:'กล่องอาหารกระดาษพร้อมฝา สำหรับกิจกรรมและงานกลุ่ม',terms:'สินค้าเป็นแพ็กเดียว สมาชิกตกลงการแบ่งรับกันในกลุ่ม'},
-  {id:'p3',title:'โปสเตอร์งานชมรม 20 แผ่น',category:'บริการทั่วไป',kind:'บริการ',price:120000,sellerId:'s2',art:'print',mark:'20',description:'พิมพ์โปสเตอร์สีสำหรับกิจกรรมชมรมจากไฟล์ที่ลูกค้าจัดเตรียม',terms:'ส่งไฟล์ที่มีสิทธิ์ใช้งานให้ร้านก่อนผลิตจริง เงื่อนไขงานพิมพ์ยืนยันกับผู้ขายอีกครั้ง'},
-  {id:'p4',title:'ชุดอุปกรณ์ทำความสะอาด',category:'ของใช้ทั่วไป',kind:'สินค้า',price:56000,sellerId:'s1',art:'clean',mark:'SET',description:'ชุดของใช้ส่วนกลางสำหรับหอพักหรือออฟฟิศขนาดเล็ก',terms:'สินค้าเป็นชุดเดียว กรุณาตกลงการรับของร่วมกัน'}
+  {id:'p1',title:'เซ็ตกระดาษ A4 5 รีม',category:'สินค้าขายส่ง',kind:'สินค้า',price:64500,sellerId:'s1',art:'paper',mark:'A4',image:'/images/categories/wholesale.jpg',description:'กระดาษ A4 สำหรับทีมเรียนหรือสำนักงาน แพ็ก 5 รีม แบ่งรับตามจำนวนสมาชิก',terms:'รับของร่วมกันที่จุดนัดหมายภายในกรุงเทพฯ หรือคุยกับร้านเพื่อจัดส่งแยก'},
+  {id:'p2',title:'กล่องข้าวรักษ์โลก 50 ใบ',category:'ของใช้ทั่วไป',kind:'สินค้า',price:89000,sellerId:'s1',art:'box',mark:'50',image:'/images/categories/food.jpg',description:'กล่องอาหารกระดาษพร้อมฝา สำหรับกิจกรรมและงานกลุ่ม',terms:'สินค้าเป็นแพ็กเดียว สมาชิกตกลงการแบ่งรับกันในกลุ่ม'},
+  {id:'p3',title:'โปสเตอร์งานชมรม 20 แผ่น',category:'บริการทั่วไป',kind:'บริการ',price:120000,sellerId:'s2',art:'print',mark:'20',image:'/images/categories/services.jpg',description:'พิมพ์โปสเตอร์สีสำหรับกิจกรรมชมรมจากไฟล์ที่ลูกค้าจัดเตรียม',terms:'ส่งไฟล์ที่มีสิทธิ์ใช้งานให้ร้านก่อนผลิตจริง เงื่อนไขงานพิมพ์ยืนยันกับผู้ขายอีกครั้ง'},
+  {id:'p4',title:'ชุดอุปกรณ์ทำความสะอาด',category:'ของใช้ทั่วไป',kind:'สินค้า',price:56000,sellerId:'s1',art:'clean',mark:'SET',image:'/images/categories/home.jpg',description:'ชุดของใช้ส่วนกลางสำหรับหอพักหรือออฟฟิศขนาดเล็ก',terms:'สินค้าเป็นชุดเดียว กรุณาตกลงการรับของร่วมกัน'}
 ];
 export const initialGroups = [
   {id:'g1',listingId:'p1',name:'ทีมอ่านสอบปลายเทอม',ownerId:'demo-owner',visibility:'public',capacity:4,members:['demo-owner','demo-may','demo-nan'],costs:{product:64500,delivery:4000,mode:'per_member_v2'},revision:1,approvals:{},status:'awaiting_approval',history:[{revision:1,reason:'สร้างกลุ่ม',at:'2026-10-23T00:00:00.000Z'}]},
   {id:'g2',listingId:'p2',name:'หารกล่องข้าวงานอีเวนต์',ownerId:'demo-owner',visibility:'public',capacity:5,members:['demo-owner','demo-may'],costs:{product:89000,delivery:0,mode:'per_member_v2'},revision:1,approvals:{},status:'awaiting_approval',history:[{revision:1,reason:'สร้างกลุ่ม',at:'2026-10-23T00:00:00.000Z'}]},
-  {id:'g3',listingId:'p3',name:'โปสเตอร์ชมรม',ownerId:'demo-nan',visibility:'link',capacity:3,members:['demo-nan','demo-may'],costs:{product:120000,delivery:0,mode:'per_member_v2'},revision:1,approvals:{},status:'awaiting_approval',history:[{revision:1,reason:'สร้างกลุ่ม',at:'2026-10-23T00:00:00.000Z'}]}
+  {id:'g3',listingId:'p3',name:'โปสเตอร์ชมรม',ownerId:'demo-nan',visibility:'link',capacity:3,members:['demo-nan','demo-may'],costs:{product:120000,delivery:0,mode:'per_member_v2'},revision:1,approvals:{},status:'awaiting_approval',history:[{revision:1,reason:'สร้างกลุ่ม',at:'2026-10-23T00:00:00.000Z'}]},
+  {id:'g4',listingId:'p4',name:'หารชุดทำความสะอาดหอพัก',ownerId:'demo-owner',visibility:'public',capacity:3,members:['demo-owner','demo-may','demo-nan'],costs:{product:56000,delivery:3000,mode:'per_member_v2'},revision:1,approvals:{'demo-owner':1,'demo-may':1,'demo-nan':1},status:'order_created',orderId:'o-ship-1',history:[{revision:1,reason:'สร้างกลุ่ม',at:'2026-10-24T00:00:00.000Z'}]},
+  {id:'g5',listingId:'p2',name:'กล่องข้าวรักษ์โลก 50 ใบ',ownerId:'demo-owner',visibility:'public',capacity:2,members:['demo-owner','demo-may'],costs:{product:89000,delivery:0,mode:'per_member_v2'},revision:1,approvals:{'demo-owner':1,'demo-may':1},status:'order_created',orderId:'o-ship-2',history:[{revision:1,reason:'สร้างกลุ่ม',at:'2026-10-05T00:00:00.000Z'}]},
+  {id:'g6',listingId:'p1',name:'กระดาษ A4 กิจกรรมชมรม',ownerId:'demo-owner',visibility:'public',capacity:2,members:['demo-owner','demo-nan'],costs:{product:64500,delivery:4000,mode:'per_member_v2'},revision:1,approvals:{'demo-owner':1,'demo-nan':1},status:'order_created',orderId:'o-ship-3',history:[{revision:1,reason:'สร้างกลุ่ม',at:'2026-10-24T10:00:00.000Z'}]}
+];
+export const initialOrders = [
+  {
+    id: 'o-ship-1',
+    groupId: 'g4',
+    listingId: 'p4',
+    sellerId: 's1',
+    ownerId: 'demo-owner',
+    members: ['demo-owner', 'demo-may', 'demo-nan'],
+    capacity: 3,
+    groupRevision: 1,
+    costs: { product: 56000, delivery: 3000, mode: 'per_member_v2' },
+    approvals: { 'demo-owner': 1, 'demo-may': 1, 'demo-nan': 1 },
+    totalSatang: 66300,
+    mode: 'demo',
+    actualPaymentVerification: 'unavailable',
+    inspectionHours: 24,
+    inspection: null,
+    shipment: {
+      carrier: 'Flash Express',
+      trackingNumber: 'TH0402948291A',
+      url: 'https://www.flashexpress.co.th/tracking/?se=TH0402948291A',
+      shippedAt: '2026-10-31T09:15:00.000Z',
+      updatedAt: '2026-10-31T09:15:00.000Z',
+      verified: false
+    },
+    disputes: [],
+    refund: null,
+    status: 'shipped',
+    createdAt: '2026-10-30T10:00:00.000Z',
+    history: [
+      { id: 'h1', type: 'order_created', actorId: 'demo-owner', at: '2026-10-30T10:00:00.000Z', orderId: 'o-ship-1', newState: 'pending_payment' },
+      { id: 'h2', type: 'payment_status_changed', actorId: 'demo-owner', at: '2026-10-30T10:30:00.000Z', orderId: 'o-ship-1', memberId: 'demo-owner', newState: 'verified' },
+      { id: 'h3', type: 'payment_status_changed', actorId: 'demo-owner', at: '2026-10-30T10:35:00.000Z', orderId: 'o-ship-1', memberId: 'demo-may', newState: 'verified' },
+      { id: 'h4', type: 'payment_status_changed', actorId: 'demo-owner', at: '2026-10-30T10:40:00.000Z', orderId: 'o-ship-1', memberId: 'demo-nan', newState: 'verified' },
+      { id: 'h5', type: 'order_status_changed', actorId: 'demo-owner', at: '2026-10-30T10:40:00.000Z', orderId: 'o-ship-1', previousState: 'pending_payment', newState: 'payment_secured' },
+      { id: 'h6', type: 'order_status_changed', actorId: 'demo-seller', at: '2026-10-31T08:00:00.000Z', orderId: 'o-ship-1', previousState: 'payment_secured', newState: 'preparing_order' },
+      { id: 'h7', type: 'shipment_updated', actorId: 'demo-seller', at: '2026-10-31T09:15:00.000Z', orderId: 'o-ship-1', newState: { carrier: 'Flash Express', trackingNumber: 'TH0402948291A' } },
+      { id: 'h8', type: 'order_status_changed', actorId: 'demo-seller', at: '2026-10-31T09:15:00.000Z', orderId: 'o-ship-1', previousState: 'preparing_order', newState: 'shipped' }
+    ],
+    payments: {
+      'demo-owner': { amountSatang: 22100, status: 'verified', verificationMode: 'demo' },
+      'demo-may': { amountSatang: 22100, status: 'verified', verificationMode: 'demo' },
+      'demo-nan': { amountSatang: 22100, status: 'verified', verificationMode: 'demo' }
+    }
+  },
+  {
+    id: 'o-ship-2',
+    groupId: 'g5',
+    listingId: 'p2',
+    sellerId: 's1',
+    ownerId: 'demo-owner',
+    members: ['demo-owner', 'demo-may'],
+    capacity: 2,
+    groupRevision: 1,
+    costs: { product: 89000, delivery: 0, mode: 'per_member_v2' },
+    approvals: { 'demo-owner': 1, 'demo-may': 1 },
+    totalSatang: 90780,
+    mode: 'demo',
+    actualPaymentVerification: 'unavailable',
+    inspectionHours: 24,
+    inspection: null,
+    shipment: {
+      carrier: 'Kerry Express',
+      trackingNumber: 'KEX1092837482',
+      url: 'https://th.kerryexpress.com/th/track/?track=KEX1092837482',
+      shippedAt: '2026-10-06T09:00:00.000Z',
+      updatedAt: '2026-10-06T09:00:00.000Z',
+      verified: false
+    },
+    deliveredAt: '2026-10-08T13:58:00.000Z',
+    disputes: [],
+    refund: null,
+    status: 'completed',
+    createdAt: '2026-10-05T10:00:00.000Z',
+    history: [
+      { id: 'h21', type: 'order_created', actorId: 'demo-owner', at: '2026-10-05T10:00:00.000Z', orderId: 'o-ship-2', newState: 'pending_payment' },
+      { id: 'h22', type: 'order_status_changed', actorId: 'demo-seller', at: '2026-10-06T09:00:00.000Z', orderId: 'o-ship-2', previousState: 'preparing_order', newState: 'shipped' },
+      { id: 'h23', type: 'order_status_changed', actorId: 'demo-owner', at: '2026-10-08T13:58:00.000Z', orderId: 'o-ship-2', previousState: 'delivered', newState: 'completed' }
+    ],
+    payments: {
+      'demo-owner': { amountSatang: 45390, status: 'verified', verificationMode: 'demo' },
+      'demo-may': { amountSatang: 45390, status: 'verified', verificationMode: 'demo' }
+    }
+  },
+  {
+    id: 'o-ship-3',
+    groupId: 'g6',
+    listingId: 'p1',
+    sellerId: 's1',
+    ownerId: 'demo-owner',
+    members: ['demo-owner', 'demo-nan'],
+    capacity: 2,
+    groupRevision: 1,
+    costs: { product: 64500, delivery: 4000, mode: 'per_member_v2' },
+    approvals: { 'demo-owner': 1, 'demo-nan': 1 },
+    totalSatang: 73950,
+    mode: 'demo',
+    actualPaymentVerification: 'unavailable',
+    inspectionHours: 24,
+    inspection: null,
+    shipment: null,
+    disputes: [],
+    refund: { mode: 'demo', status: 'recorded', amountSatang: 73950, note: 'ถูกยกเลิกโดยระบบแล้ว' },
+    status: 'refunded',
+    createdAt: '2026-10-24T20:44:00.000Z',
+    history: [
+      { id: 'h31', type: 'order_created', actorId: 'demo-owner', at: '2026-10-24T20:44:00.000Z', orderId: 'o-ship-3', newState: 'pending_payment' },
+      { id: 'h32', type: 'order_status_changed', actorId: 'demo-owner', at: '2026-10-24T20:44:00.000Z', orderId: 'o-ship-3', previousState: 'disputed', newState: 'refunded' }
+    ],
+    payments: {
+      'demo-owner': { amountSatang: 36975, status: 'verified', verificationMode: 'demo' },
+      'demo-nan': { amountSatang: 36975, status: 'verified', verificationMode: 'demo' }
+    }
+  }
 ];
 export const demoNames = {'demo-owner':'ต้น (หัวหน้ากลุ่ม)','demo-may':'เมย์','demo-nan':'แนน'};
-export function initialState() { return {user:null,role:'member',groups:initialGroups,customListings:[],notifications:[],conversations:{},orders:[]}; }
+export function initialState() { return {user:null,role:'member',groups:initialGroups,customListings:[],notifications:[],conversations:{},orders:initialOrders}; }
