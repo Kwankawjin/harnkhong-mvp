@@ -299,21 +299,31 @@ function profileDialog() {
   return `<dialog id="profile-dialog" class="profile-dialog" aria-labelledby="profile-dialog-title"><form id="profile-form" class="auth-form"><header><div><h2 id="profile-dialog-title">${t('แก้ไขโปรไฟล์')}</h2><p>${t(supabaseConfigured?'แก้ไขชื่อและข้อมูลแนะนำตัว':'ปรับข้อมูลที่แสดงในบัญชีเดโมของคุณ')}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></header>${supabaseConfigured?'':`<div class="profile-cover"></div><div class="profile-avatar-editor"><span class="avatar large" id="profile-avatar-preview">${isLocalImage(user.avatar)?`<img src="${user.avatar}" alt=""/>`:escape(user.name.slice(0,1))}</span><label class="button outline">${t('เปลี่ยนรูป')}<input id="profile-avatar" type="file" accept="image/jpeg,image/png,image/webp"/></label><button class="button subtle" type="button" data-action="avatar-remove">${t('ลบรูป')}</button></div><p id="avatar-status" role="status"></p><p class="field-help">${t('JPG, PNG, WebP ไม่เกิน 5 MB · บันทึกเฉพาะในเครื่อง')}</p>`}<label>${t('ชื่อ')}<input name="name" value="${escape(user.name)}" maxlength="70" required autocomplete="name"/></label><label>${t('อีเมล')}<input name="email" type="email" value="${escape(user.email||'')}" maxlength="254" autocomplete="email" ${supabaseConfigured?'readonly':''}/></label><label>${t('เกี่ยวกับฉัน')}<textarea name="bio" maxlength="160" rows="3">${escape(user.bio||'')}</textarea></label><small id="bio-counter">${(user.bio||'').length} / 160</small><footer class="dialog-footer"><button type="button" class="button outline" data-action="close-dialog">${t('ยกเลิก')}</button><button type="submit" class="button primary">${t('บันทึกการเปลี่ยนแปลง')}</button></footer></form></dialog>`;
 }
 const demoReference=()=>`REF-${new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14)}-${crypto.randomUUID().slice(0,4).toUpperCase()}`;
-const demoAcceptUrl=(reference,amount)=>{const url=new URL('/demo-accept',location.origin);url.searchParams.set('ref',reference);url.searchParams.set('amount',String(amount));return url;};
+const demoAcceptUrl=(reference,amount,{expires,group,revision}={})=>{const url=new URL('/demo-accept',location.origin);url.searchParams.set('ref',reference);url.searchParams.set('amount',String(amount));if(expires)url.searchParams.set('expires',String(expires));if(group)url.searchParams.set('group',group);if(revision!==undefined)url.searchParams.set('revision',String(revision));return url;};
+function startDemoCountdown(container,expiresAt){
+  const display=container?.querySelector('.demo-countdown');if(!display||!Number.isFinite(expiresAt))return;
+  let timer=null;
+  const tick=()=>{const remaining=Math.max(0,expiresAt-Date.now()),seconds=Math.floor(remaining/1000);display.textContent=`${String(Math.floor(seconds/3600)).padStart(2,'0')} : ${String(Math.floor(seconds%3600/60)).padStart(2,'0')} : ${String(seconds%60).padStart(2,'0')}`;if(!remaining){container.querySelector('[data-action="accept-demo-amount"]')?.setAttribute('disabled','');const notice=container.querySelector('.demo-expired-message');if(notice)notice.hidden=false;if(timer)clearInterval(timer);}};
+  tick();timer=setInterval(tick,1000);container.addEventListener('close',()=>clearInterval(timer),{once:true});
+}
 function paymentDialog(order,reference) {
   const amount=order.payments[state.user.id].amountSatang;
-  return `<dialog id="payment-dialog" class="payment-dialog share-approval-dialog" aria-labelledby="payment-title"><div class="payment-head"><span class="chip">${t('จำลองเท่านั้น')}</span><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></div><h2 id="payment-title">${t('สแกน QR เพื่อยืนยันยอด')}</h2><p>${t('สแกนด้วยโทรศัพท์เพื่อตรวจสอบและยอมรับยอด')}</p><div class="demo-qr"><img id="payment-qr" data-reference="${escape(reference)}" data-amount="${amount}" alt="${t('QR สำหรับยอมรับยอดจำลอง')}"/></div><div class="approval-amount-panel"><small>${t('ยอดชำระจำลอง')}</small><strong class="payment-amount">${money(amount)}</strong></div><div class="demo-expiry-box"><span>${t('กรุณายอมรับภายใน')}<b>5 ${t('ชั่วโมง')}</b></span><strong class="demo-countdown">05 : 00 : 00</strong></div><div class="demo-reference-row"><span>${t('รหัสอ้างอิง')}</span><b>${escape(reference)}</b></div><div class="demo-only-note">${t('การยืนยันนี้เป็นการยอมรับจำนวนเงินจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง')}</div></dialog>`;
+  const expires=Date.now()+5*60*60*1000;
+  return `<dialog id="payment-dialog" class="payment-dialog share-approval-dialog" aria-labelledby="payment-title"><div class="payment-head"><span class="chip">${t('จำลองเท่านั้น')}</span><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></div><h2 id="payment-title">${t('สแกน QR เพื่อยืนยันยอด')}</h2><p>${t('สแกนด้วยโทรศัพท์เพื่อตรวจสอบและยอมรับยอด')}</p><div class="demo-qr"><img id="payment-qr" data-reference="${escape(reference)}" data-amount="${amount}" data-expires="${expires}" alt="${t('QR สำหรับยอมรับยอดจำลอง')}"/></div><div class="approval-amount-panel"><small>${t('ยอดชำระจำลอง')}</small><strong class="payment-amount">${money(amount)}</strong></div><div class="demo-expiry-box"><span>${t('กรุณายอมรับภายใน')}<b>5 ${t('ชั่วโมง')}</b></span><strong class="demo-countdown">05 : 00 : 00</strong></div><small class="demo-expired-message" hidden>${t('หมดเวลายอมรับ กรุณาสร้าง QR ใหม่')}</small><div class="demo-reference-row"><span>${t('รหัสอ้างอิง')}</span><b>${escape(reference)}</b></div><div class="demo-pending-status"><span>${t('สถานะการยืนยัน')}</span><b>${t('รอยืนยัน')}</b></div><div class="demo-only-note">${t('การยืนยันนี้เป็นการยอมรับจำนวนเงินจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง')}</div></dialog>`;
 }
 function shareApprovalDialog(amount,reference) {
-  return `<dialog id="share-approval-dialog" class="payment-dialog share-approval-dialog" aria-labelledby="share-approval-title"><div class="payment-head"><span class="chip">${t('จำลองเท่านั้น')}</span><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></div><h2 id="share-approval-title">${t('สแกน QR เพื่อยอมรับยอด')}</h2><p>${t('สแกนด้วยโทรศัพท์เพื่อยืนยันยอด')}</p><div class="demo-qr"><img id="share-approval-qr" alt="${t('QR สำหรับยอมรับยอดจำลอง')}"/></div><div class="approval-amount-panel"><small>${t('ยอดที่ยืนยัน')}</small><strong class="payment-amount">${money(amount)}</strong></div><div class="demo-expiry-box"><span>${t('กรุณายอมรับภายใน')}<b>5 ${t('ชั่วโมง')}</b></span><strong class="demo-countdown">05 : 00 : 00</strong></div><div class="demo-reference-row"><span>${t('รหัสอ้างอิง')}</span><b>${escape(reference)}</b></div><div class="demo-only-note">${t('การยืนยันนี้เป็นการยอมรับจำนวนเงินจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง')}</div></dialog>`;
+  const expires=Date.now()+5*60*60*1000;
+  return `<dialog id="share-approval-dialog" class="payment-dialog share-approval-dialog" aria-labelledby="share-approval-title"><div class="payment-head"><span class="chip">${t('จำลองเท่านั้น')}</span><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></div><h2 id="share-approval-title">${t('สแกน QR เพื่อยอมรับยอด')}</h2><p>${t('สแกนด้วยโทรศัพท์เพื่อยืนยันยอด')}</p><div class="demo-qr"><img id="share-approval-qr" data-expires="${expires}" alt="${t('QR สำหรับยอมรับยอดจำลอง')}"/></div><div class="approval-amount-panel"><small>${t('ยอดที่ยืนยัน')}</small><strong class="payment-amount">${money(amount)}</strong></div><div class="demo-expiry-box"><span>${t('กรุณายอมรับภายใน')}<b>5 ${t('ชั่วโมง')}</b></span><strong class="demo-countdown">05 : 00 : 00</strong></div><small class="demo-expired-message" hidden>${t('หมดเวลายอมรับ กรุณาสร้าง QR ใหม่')}</small><div class="demo-reference-row"><span>${t('รหัสอ้างอิง')}</span><b>${escape(reference)}</b></div><div class="demo-pending-status"><span>${t('สถานะการยืนยัน')}</span><b>${t('รอยืนยัน')}</b></div><div class="demo-only-note">${t('การยืนยันนี้เป็นการยอมรับจำนวนเงินจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง')}</div></dialog>`;
 }
 function demoApprovalPage(success=false){
   const params=new URLSearchParams(location.search),reference=(params.get('ref')||'').slice(0,80),amount=Number(params.get('amount'));
   if(!reference||!Number.isSafeInteger(amount)||amount<0)return `<section class="demo-approval-page"><div class="demo-approval-card"><span class="chip">${t('จำลองเท่านั้น')}</span><h1>${t('QR ไม่ถูกต้อง')}</h1>${a('/explore',t('กลับหน้าหลัก'),'button primary full')}</div></section>`;
+  const expires=Number(params.get('expires')),groupId=params.get('group')||'',revision=Number(params.get('revision'));
+  const expired=Number.isFinite(expires)&&expires>0&&Date.now()>=expires;
   let acceptedRecord=null;try{acceptedRecord=JSON.parse(localStorage.getItem(`harnkhong-demo-acceptance:${reference}`)||'null');}catch{/* Treat unavailable storage as not yet accepted. */}
-  success=success&&acceptedRecord?.amount===amount;
+  success=success&&!expired&&acceptedRecord?.amount===amount;
   const acceptedAt=Number(acceptedRecord?.acceptedAt);const acceptedDate=success&&Number.isFinite(acceptedAt)?new Date(acceptedAt).toLocaleString(locale==='en'?'en-GB':'th-TH'):'—';
-  return `<section class="demo-approval-page ${success?'is-success':''}"><article class="demo-approval-card"><span class="chip">${t('ยืนยันยอด (จำลอง)')}</span>${success?`<div class="approval-success-icon" aria-hidden="true">✓</div><h1>${t('ยอมรับยอดสำเร็จ!')}</h1><p>${t('บันทึกการยอมรับยอดจำลองเรียบร้อยแล้ว')}</p>`:`<h1>${t('ตรวจสอบยอดก่อนยอมรับ')}</h1><p>${t('โปรดตรวจสอบจำนวนเงินก่อนกดยอมรับ')}</p>`}<div class="approval-amount-panel"><small>${t('ยอดที่ยืนยัน')}</small><strong class="payment-amount">${money(amount)}</strong></div>${success?`<div class="demo-success-details"><div><span>${t('รหัสอ้างอิง')}</span><b>${escape(reference)}</b></div><div><span>${t('วันที่และเวลา')}</span><b>${escape(acceptedDate)}</b></div><div><span>${t('ช่องทาง')}</span><b>QR Demo</b></div><div><span>${t('สถานะ')}</span><b class="demo-success-status">● ${t('สำเร็จ')}</b></div></div>`:`<small>${t('รหัสอ้างอิง')}: ${escape(reference)}</small>`}<p class="demo-approval-notice">${t('การยอมรับนี้เป็นการจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง')}</p>${success?a('/',`${icon('home',18)} ${t('กลับหน้าหลัก')}`,'button outline full'):`<button type="button" class="button primary full" data-action="accept-demo-amount" data-ref="${escape(reference)}" data-amount="${amount}">${t('ยอมรับยอดนี้')}</button>`}</article></section>`;
+  return `<section class="demo-approval-page ${success?'is-success':''}" ${!success&&expires?`data-demo-expiry="${expires}"`:''}><article class="demo-approval-card"><span class="chip">${t('ยืนยันยอด (จำลอง)')}</span>${success?`<div class="approval-success-icon" aria-hidden="true">✓</div><h1>${t('ยอมรับยอดสำเร็จ!')}</h1><p>${t('บันทึกการยอมรับยอดจำลองเรียบร้อยแล้ว')}</p>`:`<h1>${expired?t('QR หมดอายุแล้ว'):t('ตรวจสอบยอดก่อนยอมรับ')}</h1><p>${expired?t('QR นี้หมดเวลายอมรับแล้ว กรุณาขอ QR ใหม่'):t('โปรดตรวจสอบจำนวนเงินก่อนกดยอมรับ')}</p>`}<div class="approval-amount-panel"><small>${t('ยอดที่ยืนยัน')}</small><strong class="payment-amount">${money(amount)}</strong></div>${success?`<div class="demo-success-details"><div><span>${t('รหัสอ้างอิง')}</span><b>${escape(reference)}</b></div><div><span>${t('วันที่และเวลา')}</span><b>${escape(acceptedDate)}</b></div><div><span>${t('ช่องทาง')}</span><b>QR Demo</b></div><div><span>${t('สถานะ')}</span><b class="demo-success-status">● ${t('สำเร็จ')}</b></div></div>`:`<div class="demo-phone-expiry"><span>${t('เวลาที่เหลือ')}</span><strong class="demo-countdown">05 : 00 : 00</strong></div><small class="demo-expired-message" ${expired?'':'hidden'}>${t('หมดเวลายอมรับ กรุณาสร้าง QR ใหม่')}</small><small>${t('รหัสอ้างอิง')}: ${escape(reference)}</small><div class="demo-pending-status"><span>${t('สถานะการยืนยัน')}</span><b>${t('รอยืนยัน')}</b></div>`}<p class="demo-approval-notice">${t('การยอมรับนี้เป็นการจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง')}</p>${success?a('/',`${icon('home',18)} ${t('กลับหน้าหลัก')}`,'button outline full'):expired?'':`<button type="button" class="button primary full" data-action="accept-demo-amount" data-ref="${escape(reference)}" data-amount="${amount}" data-expires="${expires}" data-group="${escape(groupId)}" data-revision="${revision}">${t('ยอมรับยอดนี้')}</button>`}</article></section>`;
 }
 function leaveGroupDialog(g, currentShare) {
   return `<dialog id="leave-group-dialog" class="leave-group-dialog" aria-labelledby="leave-group-title">
@@ -1091,6 +1101,7 @@ function render(){
   `;
 
   startHeroHeadlineLoop();
+  const demoExpiry=document.querySelector('[data-demo-expiry]');if(demoExpiry)startDemoCountdown(demoExpiry,Number(demoExpiry.dataset.demoExpiry));
   if(document.querySelector('#create-form'))updatePreview();
   const filterRow=document.querySelector('.filter-row');
   if(filterRow){filterRow.addEventListener('scroll',updateFilterCarousel,{passive:true});updateFilterCarousel();}
@@ -1241,8 +1252,9 @@ document.addEventListener('click',async e=>{
     else if(action==='payment-open'){
       if(!orderPermissions(orderFor(id),state.user).reportPayment)throw Object.assign(new Error(),{code:'orderUnauthorized'});
       const dialog=document.querySelector('#payment-dialog');dialog.showModal();
-      const qr=dialog.querySelector('#payment-qr'),url=demoAcceptUrl(qr.dataset.reference,qr.dataset.amount);
+      const qr=dialog.querySelector('#payment-qr'),expires=Date.now()+5*60*60*1000;qr.dataset.expires=String(expires);const url=demoAcceptUrl(qr.dataset.reference,qr.dataset.amount,{expires});
       qr.src=await QRCode.toDataURL(url.href,{errorCorrectionLevel:'M',margin:2,width:420,color:{dark:'#092847',light:'#ffffff'}});
+      startDemoCountdown(dialog,expires);
     }
     else if(action==='toggle-mockup-pw'){
       const form = btn.closest('form') || document;
@@ -1308,14 +1320,12 @@ document.addEventListener('click',async e=>{
       go('/my-groups');alertMessage(t('ลบห้องแล้ว'));
     }
     else if(action==='approve'){
-      const current=group(id),amount=shares(current)[state.user.id];
-      if(supabaseConfigured){await approveSupabaseGroup(id,Number(btn.dataset.revision));if(!await refreshSupabaseGroups(actionSession))return;render();}
-      else{const g=approve(current,state.user.id,Number(btn.dataset.revision));updateGroup(g);if(allApproved(g))g.members.forEach(u=>notice(t("ยืนยันยอดครบแล้ว"),t("กลุ่มพร้อมดูสรุปคำสั่งซื้อเดโม"),`/orders/${id}`,u));render();}
-      const reference=demoReference();
+      const current=group(id);if(!current||!current.members.includes(state.user?.id))throw Object.assign(new Error(),{code:'orderUnauthorized'});
+      const amount=shares(current)[state.user.id],revision=Number(btn.dataset.revision),reference=demoReference();
       document.body.insertAdjacentHTML('beforeend',shareApprovalDialog(amount,reference));const dialog=document.querySelector('#share-approval-dialog');dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();
-      const acceptUrl=demoAcceptUrl(reference,amount);
+      const expires=Number(dialog.querySelector('#share-approval-qr').dataset.expires),acceptUrl=demoAcceptUrl(reference,amount,{expires,group:id,revision});
       dialog.querySelector('#share-approval-qr').src=await QRCode.toDataURL(acceptUrl.href,{errorCorrectionLevel:'M',margin:2,width:420,color:{dark:'#092847',light:'#ffffff'}});
-      alertMessage(t("ยืนยันยอดรอบล่าสุดแล้ว"));
+      startDemoCountdown(dialog,expires);
     }
     else if(action==='copy-link'){
       const current=group(id);
@@ -1350,7 +1360,11 @@ document.addEventListener('click',async e=>{
       orderChanged(reportPayment(orderFor(id),state.user),t('แจ้งชำระแล้ว รอหัวหน้ากลุ่มตรวจยอดเดโม'));
     }
     else if(action==='accept-demo-amount'){
-      const acceptedAt=Date.now(),reference=btn.dataset.ref,amount=Number(btn.dataset.amount);localStorage.setItem(`harnkhong-demo-acceptance:${reference}`,JSON.stringify({amount,acceptedAt}));
+      const acceptedAt=Date.now(),reference=btn.dataset.ref,amount=Number(btn.dataset.amount),expires=Number(btn.dataset.expires),groupId=btn.dataset.group,revision=Number(btn.dataset.revision);
+      if(expires&&acceptedAt>=expires){alertMessage(t('QR หมดอายุแล้ว'));render();return;}
+      if(groupId&&supabaseConfigured){if(!state.user)throw Object.assign(new Error(),{code:'orderUnauthorized'});await approveSupabaseGroup(groupId,revision);await refreshSupabaseGroups(actionSession);}
+      else if(groupId){const current=group(groupId);if(current&&current.members.includes(state.user?.id)){const next=approve(current,state.user.id,revision);updateGroup(next);if(allApproved(next))next.members.forEach(member=>notice(t('ยืนยันยอดครบแล้ว'),t('กลุ่มพร้อมดูสรุปคำสั่งซื้อเดโม'),`/orders/${groupId}`,member));}}
+      localStorage.setItem(`harnkhong-demo-acceptance:${reference}`,JSON.stringify({amount,acceptedAt}));
       const params=new URLSearchParams();params.set('ref',reference);params.set('amount',String(amount));params.set('accepted','1');history.replaceState({},'',`/demo-accept?${params.toString()}`);render();window.scrollTo(0,0);
     }
     else if(action==='payment-update'){
@@ -1693,3 +1707,4 @@ if(supabaseConfigured){
     else sync();
   });
 }
+

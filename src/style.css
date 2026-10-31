@@ -2616,6 +2616,8 @@ dialog:not([open]), [hidden] { display: none !important; }
 .demo-reference-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 2px; border-top: 1px solid #27415d; border-bottom: 1px solid #27415d; text-align: left; }
 .demo-reference-row span { color: #a9c4df; }
 .demo-reference-row b { overflow-wrap: anywhere; text-align: right; }
+.demo-pending-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; margin-top: 12px; border: 1px solid #d6a83a; border-radius: 12px; background: #362c18; color: #f3d37a; text-align: left; }
+.demo-pending-status b { padding: 5px 12px; border: 1px solid #d6a83a; border-radius: 999px; color: #ffe49a; }
 .demo-expiry-box { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; margin: 12px 0; border: 1px solid #62334c; border-radius: 14px; background: linear-gradient(110deg,#311c31,#291c35); color: #ff8aab; text-align: left; }
 .demo-expiry-box span { display: grid; gap: 2px; font-size: .82rem; }
 .demo-expiry-box span b { font-size: 1rem; }
@@ -2628,6 +2630,8 @@ dialog:not([open]), [hidden] { display: none !important; }
 .demo-approval-card .chip { display: inline-flex; padding: 7px 14px; border-radius: 999px; background: #193653; color: #9ed7ff; }
 .demo-approval-card .approval-amount-panel { margin: 26px 0 16px; }
 .demo-approval-card .approval-amount-panel .payment-amount { font-size: clamp(2.3rem,10vw,3.25rem); }
+.demo-phone-expiry { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; margin: 14px 0; border: 1px solid #62334c; border-radius: 12px; background: #291c35; color: #ff8aab; }
+.demo-phone-expiry .demo-countdown { font-variant-numeric: tabular-nums; }
 .demo-approval-notice { font-size: .85rem; }
 .approval-success-icon { width: 104px; height: 104px; display: grid; place-items: center; margin: 28px auto 18px; border: 10px solid #35dc9c; border-radius: 50%; background: #0a493d; color: #fff; font-size: 3.5rem; line-height: 1; }
 .demo-success-details { margin: 18px 0; padding: 8px 16px; border: 1px solid #24455a; border-radius: 15px; background: #0d2530; text-align: left; }
