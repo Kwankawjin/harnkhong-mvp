@@ -632,15 +632,19 @@ function home(){
   `;
 }
 function explore(){
-  const params=new URLSearchParams(location.search),q=(params.get('q')||'').trim(),category=params.get('category')||'ทั้งหมด';
+  const params=new URLSearchParams(location.search),q=(params.get('q')||'').trim(),category=params.get('category')||'ทั้งหมด',requestedPage=Math.max(1,Number.parseInt(params.get('page')||'1',10)||1);
   const matches=g=>{const p=listing(g.listingId),groupCategories=g.categories?.length?g.categories:[g.category||p?.category||''],isOther=category==='อื่น ๆ (ระบุชื่อเอง)'&&groupCategories.some(groupCategory=>!CREATE_CATEGORY_NAMES.includes(groupCategory));return (category==='ทั้งหมด'||groupCategories.includes(category)||isOther)&&(`${g.name} ${groupCategories.join(' ')}`).toLowerCase().includes(q.toLowerCase());};
   const openGroups=state.groups.filter(g=>g.visibility==='public'&&g.status!=='cancelled'&&!g.orderId&&g.members.length<g.capacity&&matches(g));
+  const pageSize=6,pageCount=Math.ceil(openGroups.length/pageSize),page=Math.min(requestedPage,Math.max(1,pageCount)),pageGroups=openGroups.slice((page-1)*pageSize,page*pageSize);
+  const pageHref=nextPage=>{const next=new URLSearchParams();if(q)next.set('q',q);if(category!=='ทั้งหมด')next.set('category',category);if(nextPage>1)next.set('page',String(nextPage));const query=next.toString();return `/explore${query?`?${query}`:''}`;};
+  const pageItems=pageCount<=5?Array.from({length:pageCount},(_,index)=>index+1):[1,...new Set([page-1,page,page+1].filter(number=>number>1&&number<pageCount)),pageCount].sort((a,b)=>a-b);
+  const pagination=pageCount>1?`<nav class="pagination" aria-label="${t('การแบ่งหน้า')}"><button type="button" class="pagination-control" data-page="${page-1}" ${page===1?'disabled':''}>${t('ก่อนหน้า')}</button>${pageItems.map((number,index)=>`${index&&number-pageItems[index-1]>1?'<span class="pagination-ellipsis" aria-hidden="true">…</span>':''}${a(pageHref(number),String(number),`pagination-number${number===page?' active':''}`)}`).join('')}<button type="button" class="pagination-control" data-page="${page+1}" ${page===pageCount?'disabled':''}>${t('ถัดไป')}</button></nav>`:'';
   return `<div class="explore-page">
     ${title(t('เข้ากลุ่มที่ใช่ จ่ายในราคาที่ชัดเจน'),t('ดูราคาหลังคุณเข้าร่วม จำนวนที่ว่าง และเงื่อนไขก่อนตัดสินใจ'))}
     <form class="search-bar" id="search-form"><span>${icon('search')}</span><input type="hidden" name="category" value="${escape(category)}"/><input name="q" value="${escape(q)}" placeholder="${t('ค้นหาสินค้าหรือชื่อกลุ่ม')}" aria-label="${t('ค้นหา')}"/><button type="submit">${t('ค้นหากลุ่ม')}</button></form>
     <div class="filter-carousel"><button type="button" class="filter-scroll-button filter-scroll-prev" data-action="scroll-filter" data-direction="prev" aria-label="${t('เลื่อนหมวดหมู่ไปซ้าย')}" hidden><span aria-hidden="true">‹</span></button><nav class="filter-row" aria-label="${t('หมวดหมู่')}">${CATEGORY_NAMES.map(x=>a('/explore?category='+encodeURIComponent(x)+(q?'&q='+encodeURIComponent(q):''),t(x),'filter '+(category===x?'active':''))).join('')}</nav><button type="button" class="filter-scroll-button filter-scroll-next" data-action="scroll-filter" data-direction="next" aria-label="${t('เลื่อนหมวดหมู่ไปขวา')}" hidden><span aria-hidden="true">›</span></button></div>
     <section aria-labelledby="open-groups-heading"><div class="section-header"><div><h2 id="open-groups-heading">${t('กลุ่มที่เข้าร่วมได้')} <small>${t('{count} กลุ่ม',{count:openGroups.length})}</small></h2><p>${t('ยอดเป็นประมาณการก่อนเข้าร่วม และจะคำนวณใหม่เมื่อจำนวนสมาชิกเปลี่ยน')}</p></div></div>
-      ${openGroups.length?`<div class="group-grid">${openGroups.map(groupCard).join('')}</div>`:`<div class="empty"><h3>${t('ยังไม่มีกลุ่มที่เปิดรับ')}</h3><p>${t('ลองค้นหาชื่อกลุ่มหรือหมวดอื่น')}</p>${a('/explore',t('ดูทั้งหมด'),'button outline')}</div>`}
+      ${openGroups.length?`<div class="group-grid">${pageGroups.map(groupCard).join('')}</div>${pagination}`:`<div class="empty"><h3>${t('ยังไม่มีกลุ่มที่เปิดรับ')}</h3><p>${t('ลองค้นหาชื่อกลุ่มหรือหมวดอื่น')}</p>${a('/explore',t('ดูทั้งหมด'),'button outline')}</div>`}
     </section>
   </div>`;
 }
@@ -1174,6 +1178,8 @@ document.addEventListener('click',async e=>{
     go(href);
     return;
   }
+  const pageButton=e.target.closest('.pagination-control[data-page]');
+  if(pageButton&&!pageButton.disabled){const params=new URLSearchParams(location.search);params.set('page',pageButton.dataset.page);go(`/explore?${params.toString()}`);window.scrollTo(0,document.querySelector('.explore-page')?.offsetTop||0);return;}
   const btn=e.target.closest('[data-action]');if(!btn)return;
   const action=btn.dataset.action,id=btn.dataset.id,actionSession=activeSupabaseSession;
   try{

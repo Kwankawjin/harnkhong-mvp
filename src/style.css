@@ -2885,6 +2885,12 @@ dialog:not([open]), [hidden] { display: none !important; }
 .explore-page .section-header h2 small { margin-left: 8px; color: var(--text-sub); font-size: .86rem; font-weight: 600; }
 .explore-page .section-header p { margin: 4px 0 0; }
 .explore-other { margin-top: 50px; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 28px 0 8px; }
+.pagination-number, .pagination-control { display: inline-flex; min-width: 44px; height: 42px; align-items: center; justify-content: center; padding: 0 12px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--ink); font: inherit; font-weight: 650; text-decoration: none; cursor: pointer; }
+.pagination-number:hover, .pagination-control:not(:disabled):hover { border-color: var(--line); background: var(--surface, #fff); }
+.pagination-number.active { border-color: var(--line); background: var(--surface, #fff); color: var(--blue); }
+.pagination-control:disabled { color: var(--text-sub); opacity: .5; cursor: not-allowed; }
+.pagination-ellipsis { padding: 0 4px; color: var(--text-sub); }
 
 .opportunity-card {
   display: flex;
