@@ -6,6 +6,7 @@ import {assertCapacity, createGroup, costBreakdown, totalCost, shares, joinGroup
 import {messages, translate, formatSatang, bahtInput} from './i18n.js';
 import {supabase, supabaseConfigured, googleAuthAvailable, refreshAuthProviders, loadAuthenticatedUser, saveAuthenticatedAddress} from './supabase.js';
 import {createAuthSessionSync} from './auth-session.js';
+import {loadGroupMessages, sendGroupMessage} from './group-chat.js';
 import {loadSupabaseGroups, resolveSupabaseInvite, createSupabaseGroup, joinSupabaseGroup, leaveSupabaseGroup, approveSupabaseGroup, changeSupabaseDelivery, transferSupabaseGroup, removeSupabaseGroupMember, deleteSupabaseGroup, getSupabaseInvite} from './supabase-groups.js';
 import {createOrder,activateOrder,migrateOrders,lockOrderedGroups,orderPermissions,reportPayment,updatePayment,transitionOrder,updateShipment,openDispute,proposeResolution,respondToResolution,DISPUTE_REASONS,sellerIdFor,assertListingSeller} from './orders.js';
 
@@ -115,6 +116,10 @@ const seller=id=>(supabaseConfigured?state.remoteSellers:sellers).find(x=>x.id==
 const group=id=>state.groups.find(x=>x.id===id);
 const name=id=>id===state.user?.id?state.user.name:(state.profiles?.[id]?.name||demoNames[id]||t("สมาชิกเดโม"));
 const money=n=>formatSatang(n,locale);
+const subscriptionKey='harnkhong-subscription-v1';
+function subscriptionFor(userId=state.user?.id){
+  try{return JSON.parse(localStorage.getItem(subscriptionKey)||'{}')[userId]||'free';}catch{return 'free';}
+}
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon=(id,size=22)=>`<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-${id}"/></svg>`;
 const icons=`<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden"><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="7"/><path d="m16 16 5 5"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol><symbol id="i-edit" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol><symbol id="i-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 4h16v13H8l-4 3z"/><path d="M8 9h8M8 13h5"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 9h18c0-1-3-2-3-9ZM10 21h4"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol><symbol id="i-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol><symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/></symbol><symbol id="i-calc" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/></symbol><symbol id="i-trending" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol><symbol id="i-fire" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol></svg>`;
@@ -130,6 +135,11 @@ let profileAvatar='';
 let avatarLoading=false;
 let groupsLoading=supabaseConfigured;
 let groupsError=null;
+const groupMessageCache=new Map();
+const groupMessageLoadState=new Map();
+const groupMessageErrors=new Map();
+let groupChatPollTimer=null;
+let groupChatPollId=null;
 let syncSupabaseSession=async()=>{};
 let authSessionSync=null;
 let activeSupabaseSession=null;
@@ -305,6 +315,30 @@ function startDemoCountdown(container,expiresAt){
   let timer=null;
   const tick=()=>{const remaining=Math.max(0,expiresAt-Date.now()),seconds=Math.floor(remaining/1000);display.textContent=`${String(Math.floor(seconds/3600)).padStart(2,'0')} : ${String(Math.floor(seconds%3600/60)).padStart(2,'0')} : ${String(seconds%60).padStart(2,'0')}`;if(!remaining){container.querySelector('[data-action="accept-demo-amount"]')?.setAttribute('disabled','');const notice=container.querySelector('.demo-expired-message');if(notice)notice.hidden=false;if(timer)clearInterval(timer);}};
   tick();timer=setInterval(tick,1000);container.addEventListener('close',()=>clearInterval(timer),{once:true});
+}
+function watchGroupApproval(groupId,userId,revision,dialog,expiresAt){
+  if(!supabaseConfigured)return;
+  let checking=false;
+  const stop=()=>clearInterval(timer);
+  const check=async()=>{
+    if(checking||!dialog.isConnected||!dialog.open||Date.now()>=expiresAt){stop();return;}
+    checking=true;
+    try{
+      const {data,error}=await supabase.from('group_approvals').select('revision').eq('group_id',groupId).eq('user_id',userId).maybeSingle();
+      if(error)throw error;
+      if(Number(data?.revision)!==revision)return;
+      stop();
+      const current=group(groupId);
+      if(current)state.groups=state.groups.map(item=>item.id===groupId?{...item,approvals:{...item.approvals,[userId]:revision}}:item);
+      const status=dialog.querySelector('.demo-pending-status');
+      if(status){status.classList.add('is-approved');status.querySelector('b').textContent=t('สำเร็จ');}
+      const note=dialog.querySelector('.demo-only-note');if(note)note.textContent=t('ยืนยันยอดจากโทรศัพท์แล้ว');
+      render();
+      alertMessage(t('ยืนยันยอดจากโทรศัพท์แล้ว'));
+    }catch{/* Keep checking until the QR expires; the phone remains the source of truth. */}
+    finally{checking=false;}
+  };
+  const timer=setInterval(check,1500);dialog.addEventListener('close',stop,{once:true});check();
 }
 function paymentDialog(order,reference) {
   const amount=order.payments[state.user.id].amountSatang;
@@ -807,13 +841,37 @@ function getGroupMessages(groupId){
   }catch{}
   return defaultGroupMessages[groupId]||[];
 }
-function saveGroupMessage(groupId,msg){
-  const list=getGroupMessages(groupId);
-  list.push(msg);
+function rememberGroupMessages(groupId,messages){
+  groupMessageCache.set(groupId,messages);
+  if(!supabaseConfigured){
+    try{localStorage.setItem(`hk_group_chat_${groupId}`,JSON.stringify(messages));}catch{}
+  }
+}
+async function refreshGroupChatMessages(groupId,{rerender=true}={}){
+  if(!supabaseConfigured||!state.user||groupChatPollId!==groupId)return;
   try{
-    localStorage.setItem(`hk_group_chat_${groupId}`,JSON.stringify(list));
-  }catch{}
-  return list;
+    const messages=await loadGroupMessages(groupId);
+    const previous=groupMessageCache.get(groupId)||[];
+    const changed=messages.length!==previous.length||messages.some((message,index)=>message.id!==previous[index]?.id);
+    groupMessageCache.set(groupId,messages);
+    groupMessageLoadState.set(groupId,'loaded');
+    groupMessageErrors.delete(groupId);
+    if(changed&&rerender&&location.pathname===`/groups/${groupId}/chat`)render();
+  }catch(error){
+    const firstFailure=!groupMessageErrors.has(groupId);
+    groupMessageLoadState.set(groupId,'error');
+    groupMessageErrors.set(groupId,error);
+    console.warn('Unable to load group messages',error);
+    if(firstFailure&&rerender&&location.pathname===`/groups/${groupId}/chat`)render();
+  }
+}
+function startGroupChatSync(groupId){
+  if(!supabaseConfigured){if(groupChatPollTimer){clearInterval(groupChatPollTimer);groupChatPollTimer=null;}groupChatPollId=null;return;}
+  if(groupChatPollId===groupId)return;
+  if(groupChatPollTimer)clearInterval(groupChatPollTimer);
+  groupChatPollId=groupId;
+  if(groupMessageLoadState.get(groupId)!=='loaded')void refreshGroupChatMessages(groupId,{rerender:false}).then(()=>{if(location.pathname===`/groups/${groupId}/chat`)render();});
+  groupChatPollTimer=setInterval(()=>void refreshGroupChatMessages(groupId),3000);
 }
 function chatList(){
   if(!requireAuth('/chat'))return authRequiredView(t("แชตกับผู้ขาย"),t("เข้าสู่ระบบเพื่อดูประวัติการสนทนาและติดต่อร้านค้า"));
@@ -840,10 +898,11 @@ function groupChatPage(id){
   const g=group(id);
   if(!g)return notFound();
   if(!state.user||!g.members.includes(state.user.id))return notFound();
+  startGroupChatSync(id);
   const p=listing(g.listingId);
   const me=state.user?.id;
   const isMember=g.members.includes(me);
-  const msgs=getGroupMessages(id);
+  const msgs=supabaseConfigured?(groupMessageCache.get(id)||[]):getGroupMessages(id);
   const destination=`/groups/${id}`;
   return `<div class="chat-shell group-chat-shell">
     <div class="chat-head group-chat-head">
@@ -860,17 +919,20 @@ function groupChatPage(id){
     ${p?`<div class="chat-product">${t("สินค้าในกลุ่ม")}: ${a(destination,escape(p.title||g.name))} · <strong style="color:var(--primary-600);">${money(g.costs.product)}</strong></div>`:''}
     <div class="messages group-messages">
       ${msgs.length?msgs.map(m=>{
-        const isMine=m.senderId===me||m.from==='me';
+        const isMine=m.senderId===me;
+        const avatar=m.avatar||(isMine?state.user?.avatar:'');
+        const avatarMarkup=avatar&&(/^(https?:|data:image\/)/i.test(avatar))?`<img src="${escape(avatar)}" alt=""/>`:escape((m.sender||'?').slice(0,1));
         return `<div class="group-msg-row ${isMine?'mine':'theirs'}">
-          ${!isMine?`<span class="avatar tiny">${escape((m.sender||'?').slice(0,1))}</span>`:''}
+          <span class="avatar tiny group-message-avatar" aria-label="${escape(m.sender||t('สมาชิกในกลุ่ม'))}">${avatarMarkup}</span>
           <div class="group-msg-content">
-            ${!isMine?`<div class="group-msg-sender">${escape(m.sender||t("สมาชิกในกลุ่ม"))}</div>`:''}
+            <div class="group-msg-sender">${escape(m.sender||t("สมาชิกในกลุ่ม"))}</div>
             <div class="bubble ${isMine?'mine':'theirs'}">${escape(m.text||m.body||'')}</div>
             <time class="group-msg-time">${escape(m.time||'')}</time>
           </div>
         </div>`;
       }).join(''):`<div class="chat-empty">${icon('chat',32)}<p><strong>${t("เริ่มคุยกับสมาชิกในกลุ่มได้ที่นี่")}</strong></p><small>${t("พูดคุย ปรึกษาเรื่องสินค้า นัดรับ หรือแชร์รายละเอียดกับสมาชิกในกลุ่มได้ที่นี่")}</small></div>`}
     </div>
+    ${supabaseConfigured&&groupMessageErrors.has(id)?`<div class="group-chat-sync-error" role="alert">${t('แชตกลุ่มยังซิงก์ไม่ได้ กรุณาตรวจสอบการตั้งค่าฐานข้อมูล')} <button type="button" class="button outline" data-action="retry-group-messages" data-id="${escape(id)}">${t('ลองอีกครั้ง')}</button></div>`:''}
     ${isMember?`<form id="group-chat-form" data-id="${id}" class="chat-input group-chat-input">
       <input name="body" maxlength="500" required placeholder="${t("พิมพ์ข้อความถึงสมาชิกในกลุ่ม...")}" aria-label="${t("ข้อความ")}" autocomplete="off"/>
       <button class="button primary" type="submit">${t("ส่ง")}</button>
@@ -879,6 +941,30 @@ function groupChatPage(id){
 }
 function chatPage(id){if(!requireAuth(location.pathname+location.search))return authRequiredView(t("แชตกับผู้ขาย"),t("เข้าสู่ระบบเพื่อเริ่มต้นการสนทนากับร้านค้านี้"));const s=seller(id),msgs=state.conversations[id]||[],product=new URLSearchParams(location.search).get('product');return `<div class="chat-shell"><div class="chat-head">${a('/chat',icon('back',20))}<span class="avatar">${escape(s.initials)}</span><div><h1>${escape(s.name)}</h1><small>${t("แชตจำลอง · ไม่ส่งถึงผู้ขายจริง")}</small></div></div>${product?`<div class="chat-product">${t("กำลังสอบถามเรื่อง")} ${a(`/products/${product}`,escape(listing(product)?.title||t('สินค้า')))}</div>`:''}<div class="messages">${msgs.length?msgs.map(m=>`<div class="bubble ${m.from==='me'?'mine':'theirs'}">${escape(m.body)}</div>`).join(''):`<div class="chat-empty">${t("เริ่มคุยเรื่องสินค้า เงื่อนไขรับของ หรือค่าส่งได้ที่นี่")}</div>`}</div><form id="chat-form" data-id="${id}" class="chat-input"><input name="body" maxlength="500" required placeholder="${t("พิมพ์ข้อความเดโม...")}" aria-label="${t("ข้อความ")}"/><button class="button primary" type="submit">${t("ส่ง")}</button></form></div>`;}
 function notifications(){if(!requireAuth('/notifications'))return authRequiredView(t("การแจ้งเตือน"),t("เข้าสู่ระบบเพื่อดูการแจ้งเตือนกิจกรรมและยอดสมาชิก"));const notes=state.notifications.filter(n=>n.recipient===state.user.id);return `${title(t("การแจ้งเตือน"),t("เหตุการณ์ในกลุ่มและข้อความจำลองของคุณ"))}<div class="narrow">${notes.length?notes.map(n=>`<button class="notification ${n.read?'':'unread'}" data-action="open-notice" data-id="${n.id}"><span class="notice-dot"></span><span><b>${escape(n.title)}</b><small>${escape(n.body)}</small></span>${icon('arrow',18)}</button>`).join(''):`<div class="empty"><h2>${t("ยังไม่มีการแจ้งเตือน")}</h2><p>${t("เมื่อมีสมาชิกหรือยอดเปลี่ยน รายการจะปรากฏที่นี่")}</p>${a('/explore',t("สำรวจสินค้า"),'button secondary')}</div>`}</div>`;}
+function subscriptionPage(){
+  const current=subscriptionFor();
+  const features=[
+    [t('ค้นหาและเข้าร่วมกลุ่ม'),true,true],
+    [t('คำนวณยอดหาร'),true,true],
+    [t('ดูสถานะชำระเงิน'),true,true],
+    [t('จัดการกลุ่มพร้อมกัน'),'3 กลุ่ม','8 กลุ่ม'],
+    [t('แจ้งเตือนวันครบกำหนด'),true,true],
+    [t('แจ้งเตือนซ้ำแบบกำหนดเอง'),false,true],
+    [t('รายงานค่าใช้จ่าย'),t('พื้นฐาน'),t('ละเอียด')],
+    [t('ส่งออก CSV'),false,true],
+    [t('เทมเพลตกลุ่มประจำ'),false,true],
+    [t('AI วิเคราะห์ค่าใช้จ่าย'),false,t('จำกัดโควตา')],
+  ];
+  const mark=value=>value===true?`<span class="subscription-check" aria-label="${t('รวมในแพ็กเกจ')}">✓</span>`:value===false?'<span class="subscription-dash">—</span>':`<strong>${escape(value)}</strong>`;
+  return `<section class="subscription-page">
+    ${title(t('เลือกแพ็กเกจที่เหมาะกับคุณ'),t('เริ่มใช้ฟรี แล้วอัปเกรดเมื่ออยากได้เครื่องมือเพิ่ม'))}
+    <div class="subscription-plans">
+      <article class="subscription-plan ${current==='free'?'is-current':''}"><div class="subscription-plan-top"><span class="subscription-kicker">${t('เริ่มต้น')}</span>${current==='free'?`<span class="subscription-current">${t('แพ็กเกจปัจจุบัน')}</span>`:''}</div><h2>Free</h2><p>${t('ใช้งานฟีเจอร์หลักได้ฟรี')}</p><div class="subscription-price"><strong>ฟรี</strong></div><button class="button ${current==='free'?'outline':'secondary'} full" ${current==='free'?'disabled':''} data-action="choose-subscription" data-plan="free">${current==='free'?t('ใช้งานแพ็กเกจนี้อยู่'):t('เลือก Free')}</button></article>
+      <article class="subscription-plan subscription-plan-plus ${current==='plus'?'is-current':''}"><div class="subscription-plan-top"><span class="subscription-kicker">${t('คุ้มค่าสำหรับกลุ่มที่ใช้บ่อย')}</span>${current==='plus'?`<span class="subscription-current">${t('แพ็กเกจปัจจุบัน')}</span>`:''}</div><h2>Plus</h2><p>${t('เครื่องมือเพิ่มเพื่อจัดการกลุ่มได้มากขึ้น')}</p><div class="subscription-price"><strong>฿49</strong><span>/${t('เดือน')}</span></div><button class="button primary full" ${current==='plus'?'disabled':''} data-action="choose-subscription" data-plan="plus">${current==='plus'?t('ใช้งานแพ็กเกจนี้อยู่'):t('ทดลองใช้ Plus (Mockup)')}</button><small class="subscription-demo-note">${t('การเลือกแพ็กเกจนี้เป็น Mockup ไม่มีการเรียกเก็บเงิน')}</small></article>
+    </div>
+    <section class="subscription-comparison"><h2>${t('เปรียบเทียบแพ็กเกจ')}</h2><div class="subscription-table-wrap"><table class="subscription-table"><thead><tr><th scope="col">${t('ฟีเจอร์')}</th><th scope="col">Free</th><th scope="col">Plus</th></tr></thead><tbody>${features.map(([label,free,plus])=>`<tr><th scope="row">${escape(label)}</th><td>${mark(free)}</td><td>${mark(plus)}</td></tr>`).join('')}</tbody></table></div></section>
+  </section>`;
+}
 function accountOrderRow(o) {
   const p = listing(o.listingId);
   const payment = o.payments[state.user.id];
@@ -912,6 +998,7 @@ function profile() {
   const shortcut = (href, iconName, label, sub, tone) => a(href, `<span class="account-shortcut-icon ${tone}">${icon(iconName, 21)}</span><span><strong>${label}</strong><small>${sub}</small></span>${icon('arrow', 18)}`, 'account-shortcut');
   return `<div class="account-page">
     ${title(t('บัญชีของฉัน'), t(supabaseConfigured?'จัดการโปรไฟล์และกลุ่มของคุณ':'จัดการบทบาทและทดลองใช้งานหลายบัญชี'))}
+    ${a('/subscription',`${icon('sparkles',20)} <span><strong>${t('แพ็กเกจสมาชิก')}</strong><small>${subscriptionFor()==='plus'?t('Plus · 49 บาท/เดือน'):t('Free · ใช้งานฟรี')}</small></span>${icon('arrow',18)}`,'account-shortcut subscription-account-link')}
     <div class="account-layout">
       <div class="account-main">
         <section class="account-card account-overview" aria-labelledby="account-name">
@@ -996,7 +1083,7 @@ function orderPage(id){
     ${permissions?.reportPayment?paymentDialog(order,demoReference()):''}${a(`/groups/${id}`,t('กลับไปดูกลุ่ม'),'button outline full')}</div>`;
 }
 function notFound(){return `<div class="empty"><h1>${t("ไม่พบหน้านี้")}</h1><p>${t("ลิงก์อาจไม่ถูกต้องหรือรายการถูกลบ")}</p>${a('/',t("กลับหน้าแรก"),'button primary')}</div>`;}
-function route(){const path=decodeURIComponent(location.pathname);if(path==='/')return home();if(path==='/explore')return explore();if(path==='/demo-accept')return demoApprovalPage(new URLSearchParams(location.search).get('accepted')==='1');if(/^\/products\/[^/]+$/.test(path))return legacyProductRoute(path.split('/')[2]);if(/^\/groups\/[^/]+\/join$/.test(path))return joinPage(path.split('/')[2]);if(/^\/groups\/[^/]+\/chat$/.test(path))return groupChatPage(path.split('/')[2]);if(path==='/groups/create')return createPage();if(/^\/groups\/[^/]+$/.test(path))return groupPage(path.split('/')[2]);if(path==='/login')return authPage();if(path==='/register')return authPage(true);if(path==='/my-groups')return myGroups();if(path==='/my-orders')return myOrdersPage();if(path==='/chat')return chatList();if(/^\/chat\/[^/]+$/.test(path))return chatPage(path.split('/')[2]);if(path==='/notifications')return notifications();if(path==='/profile')return profile();if(/^\/shops\/[^/]+$/.test(path))return shopPage(path.split('/')[2]);if(path==='/seller/dashboard')return sellerDashboard();if(path==='/seller/products/new')return newProduct();if(/^\/orders\/[^/]+$/.test(path))return orderPage(path.split('/')[2]);return notFound();}
+function route(){const path=decodeURIComponent(location.pathname);if(path==='/')return home();if(path==='/explore')return explore();if(path==='/demo-accept')return demoApprovalPage(new URLSearchParams(location.search).get('accepted')==='1');if(path==='/subscription')return subscriptionPage();if(/^\/products\/[^/]+$/.test(path))return legacyProductRoute(path.split('/')[2]);if(/^\/groups\/[^/]+\/join$/.test(path))return joinPage(path.split('/')[2]);if(/^\/groups\/[^/]+\/chat$/.test(path))return groupChatPage(path.split('/')[2]);if(path==='/groups/create')return createPage();if(/^\/groups\/[^/]+$/.test(path))return groupPage(path.split('/')[2]);if(path==='/login')return authPage();if(path==='/register')return authPage(true);if(path==='/my-groups')return myGroups();if(path==='/my-orders')return myOrdersPage();if(path==='/chat')return chatList();if(/^\/chat\/[^/]+$/.test(path))return chatPage(path.split('/')[2]);if(path==='/notifications')return notifications();if(path==='/profile')return profile();if(/^\/shops\/[^/]+$/.test(path))return shopPage(path.split('/')[2]);if(path==='/seller/dashboard')return sellerDashboard();if(path==='/seller/products/new')return newProduct();if(/^\/orders\/[^/]+$/.test(path))return orderPage(path.split('/')[2]);return notFound();}
 function updateFilterCarousel(){
   const carousel=document.querySelector('.filter-carousel'),row=carousel?.querySelector('.filter-row');
   if(!row)return;
@@ -1007,13 +1094,17 @@ function updateFilterCarousel(){
   carousel.querySelector('.filter-scroll-next').hidden=!next;
 }
 function groupsLoadingSkeleton(){
+  const isHome=location.pathname==='/',isExplore=location.pathname==='/explore',count=isHome?3:6;
+  const skeletonCard=()=>`<article class="groups-skeleton-card" aria-hidden="true"><span class="skeleton-block skeleton-media"></span><div class="groups-skeleton-content"><div class="groups-skeleton-topline"><span class="skeleton-block skeleton-category"></span><span class="skeleton-block skeleton-pill"></span></div><span class="skeleton-block skeleton-title"></span><span class="skeleton-block skeleton-description"></span><div class="groups-skeleton-price"><div><span class="skeleton-block skeleton-price-label"></span><span class="skeleton-block skeleton-price-main"></span></div><div><span class="skeleton-block skeleton-price-label"></span><span class="skeleton-block skeleton-price-sub"></span></div></div><div class="groups-skeleton-members"><span class="skeleton-block skeleton-member-label"></span><span class="skeleton-block skeleton-progress"></span></div><span class="skeleton-block skeleton-leader"></span><span class="skeleton-block skeleton-terms"></span><span class="skeleton-block skeleton-button"></span><span class="skeleton-block skeleton-share"></span></div></article>`;
   return `<section class="groups-loading" role="status" aria-live="polite" aria-busy="true" aria-label="${t('กำลังโหลดกลุ่มจาก Supabase')}">
     <span class="sr-only">${t('กำลังโหลดกลุ่มจาก Supabase')}</span>
-    <div class="groups-skeleton-grid" aria-hidden="true">${Array.from({length:6},()=>`<article class="groups-skeleton-card"><span class="skeleton-block skeleton-media"></span><span class="skeleton-block skeleton-line skeleton-line-long"></span><span class="skeleton-block skeleton-line skeleton-line-short"></span></article>`).join('')}</div>
-    <span class="groups-skeleton-mark" aria-hidden="true">${icon('search',28)}</span>
+    ${isHome?`<div class="home-hero-skeleton" aria-hidden="true"><div class="home-hero-skeleton-copy"><span class="skeleton-block hero-skeleton-title"></span><span class="skeleton-block hero-skeleton-copy-line"></span><span class="skeleton-block hero-skeleton-copy-line short"></span><span class="skeleton-block hero-skeleton-search"></span><div class="hero-skeleton-tags"><span class="skeleton-block"></span><span class="skeleton-block"></span><span class="skeleton-block"></span></div><span class="skeleton-block hero-skeleton-points"></span></div><span class="skeleton-block home-hero-skeleton-visual"></span></div>`:''}
+    ${isHome?`<div class="groups-skeleton-heading"><span class="skeleton-block skeleton-heading-title"></span><span class="skeleton-block skeleton-heading-subtitle"></span></div>`:isExplore?`<div class="groups-skeleton-page-heading"><span class="skeleton-block skeleton-page-title"></span><span class="skeleton-block skeleton-heading-subtitle"></span></div><span class="skeleton-block skeleton-search"></span><div class="groups-skeleton-filters">${Array.from({length:5},()=>`<span class="skeleton-block skeleton-filter"></span>`).join('')}</div><div class="groups-skeleton-heading"><span class="skeleton-block skeleton-heading-title"></span><span class="skeleton-block skeleton-heading-subtitle"></span></div>`:''}
+    <div class="groups-skeleton-grid ${isHome?'is-home':isExplore?'is-explore':''}" aria-hidden="true">${Array.from({length:count},skeletonCard).join('')}</div>
   </section>`;
 }
 function render(){
+  if(!/^\/groups\/[^/]+\/chat$/.test(location.pathname)&&groupChatPollTimer){clearInterval(groupChatPollTimer);groupChatPollTimer=null;groupChatPollId=null;}
   document.documentElement.dataset.theme=theme;
   document.body.classList.toggle('mobile-menu-open',mobileMenuOpen);
   const headerScrolled=window.scrollY>10;
@@ -1023,7 +1114,8 @@ function render(){
     ['/explore','search',t("ค้นหา")],
     ['/my-groups','users',t("กลุ่มของฉัน")],
     ['/chat','chat',t("แชต")],
-    ['/profile','user',t("บัญชี")]
+    ['/profile','user',t("บัญชี")],
+    ['/subscription','sparkles',t('แพ็กเกจ')]
   ];
   const desktopNav=nav.slice(0,3);
 
@@ -1277,6 +1369,14 @@ document.addEventListener('click',async e=>{
     }
     else if(action==='reset-demo'){if(supabaseConfigured)throw Object.assign(new Error(),{code:'supabaseDemoResetDisabled'});if(!confirm(t("ล้างข้อมูลเดโมในเบราว์เซอร์นี้และเริ่มใหม่?")))return;state=initialState();save();go('/');alertMessage(t("เริ่มข้อมูลเดโมใหม่แล้ว"));}
     else if(action==='refresh-groups'){await refreshSupabaseGroups();}
+    else if(action==='choose-subscription'){
+      if(!state.user)throw Object.assign(new Error(),{code:'orderUnauthorized'});
+      const plan=btn.dataset.plan==='plus'?'plus':'free';
+      let subscriptions={};try{subscriptions=JSON.parse(localStorage.getItem(subscriptionKey)||'{}');}catch{}
+      subscriptions[state.user.id]=plan;localStorage.setItem(subscriptionKey,JSON.stringify(subscriptions));
+      render();alertMessage(plan==='plus'?t('Plus เปิดใช้งานใน Mockup แล้ว ไม่มีการเรียกเก็บเงิน'):t('เปลี่ยนเป็น Free แล้ว'));
+    }
+    else if(action==='retry-group-messages'){groupMessageLoadState.delete(id);groupMessageErrors.delete(id);void refreshGroupChatMessages(id,{rerender:true});}
     else if(action==='join'){
       if(supabaseConfigured){const token=new URLSearchParams(location.search).get('invite');await joinSupabaseGroup(id,token);if(!await refreshSupabaseGroups(actionSession))return;go(`/groups/${id}`);alertMessage(t('เข้าร่วมกลุ่มแล้ว กรุณายืนยันยอดใหม่'));}
       else{const g=joinGroup(group(id),state.user.id);updateGroup(g);g.members.forEach(u=>notice(t("ยอดกลุ่มเปลี่ยน"),t('มีสมาชิกใหม่ กรุณายืนยันยอดรอบ {revision}',{revision:g.revision}),`/groups/${id}`,u));if(g.members.length===g.capacity)g.members.forEach(u=>notice(t("กลุ่มครบสมาชิก"),t("รอทุกคนยืนยันยอดก่อนสรุปคำสั่งซื้อ"),`/groups/${id}`,u));go(`/groups/${id}`);alertMessage(t("เข้าร่วมกลุ่มแล้ว กรุณายืนยันยอดใหม่"));}
@@ -1330,6 +1430,7 @@ document.addEventListener('click',async e=>{
       const expires=Number(dialog.querySelector('#share-approval-qr').dataset.expires),acceptUrl=demoAcceptUrl(reference,amount,{expires,group:id,revision});
       dialog.querySelector('#share-approval-qr').src=await QRCode.toDataURL(acceptUrl.href,{errorCorrectionLevel:'M',margin:2,width:420,color:{dark:'#092847',light:'#ffffff'}});
       startDemoCountdown(dialog,expires);
+      watchGroupApproval(id,state.user.id,revision,dialog,expires);
     }
     else if(action==='copy-link'){
       const current=group(id);
@@ -1514,42 +1615,13 @@ document.addEventListener('submit',async e=>{
     e.preventDefault();
     const id=f.dataset.id,body=(new FormData(f).get('body')||'').trim();
     if(!body)return;
-    const now=new Date();
-    const timeStr=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-    const myMsg={
-      id:`gm_${Date.now()}`,
-      sender:state.user?.name||t('สมาชิกในกลุ่ม'),
-      senderId:state.user?.id||'me',
-      text:body,
-      time:timeStr
-    };
-    saveGroupMessage(id,myMsg);
-    render();
-    const g=group(id);
-    const otherMembers=g?.members?.filter(m=>m!==state.user?.id)||[];
-    if(otherMembers.length&&!supabaseConfigured){
-      setTimeout(()=>{
-        const otherId=otherMembers[Math.floor(Math.random()*otherMembers.length)];
-        const replyPool=[
-          t('รับทราบครับ/ค่ะ! เดี๋ยวคุยกันอีกทีนะ'),
-          t('โอเคเลย สะดวกตามนี้ครับ/ค่ะ'),
-          t('เห็นด้วยครับ เตรียมพร้อมยืนยันยอดเลย')
-        ];
-        const chosenReply=replyPool[Math.floor(Math.random()*replyPool.length)];
-        const replyNow=new Date();
-        const replyTime=`${String(replyNow.getHours()).padStart(2,'0')}:${String(replyNow.getMinutes()).padStart(2,'0')}`;
-        const replyMsg={
-          id:`gm_${Date.now()}`,
-          sender:name(otherId).replace(/\s*\(หัวหน้ากลุ่ม\)$/,''),
-          senderId:otherId,
-          text:chosenReply,
-          time:replyTime
-        };
-        saveGroupMessage(id,replyMsg);
-        notice(t('ข้อความใหม่ในกลุ่ม'),escape(g.name),`/groups/${id}/chat`);
-        if(location.pathname===`/groups/${id}/chat`)render();
-      },750);
-    }
+    try{
+      const myMsg=await sendGroupMessage(id,state.user,body);
+      const current=supabaseConfigured?(groupMessageCache.get(id)||[]):getGroupMessages(id);
+      const next=[...current,myMsg];
+      if(supabaseConfigured)groupMessageCache.set(id,next);else rememberGroupMessages(id,next);
+      render();
+    }catch(error){alertMessage(supabaseConfigured?authErrorMessage(error):errorMessage(error));}
   }else if(f.id==='chat-form'){
     e.preventDefault();
     const id=f.dataset.id,body=new FormData(f).get('body').trim();

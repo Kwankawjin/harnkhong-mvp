@@ -3,6 +3,7 @@ import {assertSatang} from './domain.js';
 // Thai source text is the key for UI copy; stored/user-entered content is never translated.
 const labels = {
   'กำลังโหลดกลุ่มจาก Supabase':'Loading groups from Supabase', 'โหลดกลุ่มไม่สำเร็จ':'Unable to load groups',
+  'แชตกลุ่มยังซิงก์ไม่ได้ กรุณาตรวจสอบการตั้งค่าฐานข้อมูล':'Group chat could not sync. Check the database setup.',
   'ลองอีกครั้ง':'Try again', 'คำเชิญเข้าร่วมกลุ่ม':'Group invitation',
   'เข้าสู่ระบบเพื่อดูรายละเอียดและเข้าร่วมกลุ่มจากลิงก์เชิญ':'Sign in to view and join this invited group.',
   'คำสั่งซื้อของกลุ่มนี้ยังไม่เชื่อมระบบร่วมกัน จึงยังสร้างคำสั่งซื้อหรือแจ้งชำระไม่ได้':'Orders are not shared for Supabase groups yet. Creating orders and reporting payment are disabled.',
@@ -95,6 +96,7 @@ const labels = {
   'สถานะการยืนยัน':'Confirmation status',
   'เข้าสู่ระบบด้วยบัญชีสมาชิกของกลุ่มเพื่อยืนยันยอด':'Log in with a group member account to approve this amount.',
   'บัญชีนี้ไม่ได้เป็นสมาชิกกลุ่ม จึงยืนยันยอดนี้ไม่ได้':'This account is not a member of this group and cannot approve the amount.',
+  'ยืนยันยอดจากโทรศัพท์แล้ว':'Amount approved from your phone.',
   'ยอดชำระจำลอง':'Demo amount', 'สแกนเพื่อยอมรับจำนวนเงินเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง':'Scan to accept the amount only. No payment is made or money collected.',
   'ช่องทาง':'Channel', 'วันที่และเวลา':'Date and time', 'สำเร็จ':'Successful',
   'QR สำหรับยอมรับยอดจำลอง':'QR code for demo amount acceptance', 'ยอดที่ยืนยัน':'Confirmed amount', 'การยืนยันนี้เป็นการยอมรับจำนวนเงินจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง':'This only accepts a demo amount. No payment is made or money collected.',
