@@ -26,7 +26,7 @@ test('สร้างกลุ่มสาธารณะและเฉพา�
 });
 
 test('ตรวจข้อมูลสร้างกลุ่มและรหัสสมาชิกก่อนนำไปใช้', () => {
-  const badInputs = [{name:''}, {name:'   '}, {name:null}, {visibility:'private'}, {capacity:1}, {capacity:21}, {capacity:2.5}, {capacity:'4'}, {costs:null}];
+  const badInputs = [{name:''}, {name:'   '}, {name:null}, {visibility:'private'}, {capacity:1}, {capacity:7}, {capacity:21}, {capacity:2.5}, {capacity:'4'}, {costs:null}];
   for (const patch of badInputs) assert.throws(() => createGroup({...newGroup(), ...patch}), e => typeof e.code === 'string');
   for (const id of ['', ' ', ' a', 'a ', null, undefined, 12]) {
     for (const field of ['id', 'listingId', 'ownerId']) assert.throws(() => createGroup({...newGroup(), [field]:id}), {code:'invalidId'});

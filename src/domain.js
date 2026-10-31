@@ -6,7 +6,7 @@ function assertId(id) {
   return id;
 }
 export function assertCapacity(capacity) {
-  if (!Number.isSafeInteger(capacity) || capacity < 2 || capacity > 20) fail('invalidCapacity', 'จำนวนสมาชิกต้องอยู่ระหว่าง 2–20 คน');
+  if (!Number.isSafeInteger(capacity) || capacity < 2 || capacity > 6) fail('invalidCapacity', 'จำนวนสมาชิกต้องอยู่ระหว่าง 2–6 คน');
   return capacity;
 }
 export function assertSatang(value) {
@@ -22,7 +22,7 @@ export function parseBaht(value) {
 export function costBreakdown(costs, memberCount = 1) {
   const product = assertSatang(costs?.product), delivery = assertSatang(costs?.delivery);
   if (costs?.mode === 'per_member_v2') {
-    if (!Number.isSafeInteger(memberCount) || memberCount < 1 || memberCount > 20) fail('invalidMembers', 'จำนวนสมาชิกไม่ถูกต้อง');
+    if (!Number.isSafeInteger(memberCount) || memberCount < 1 || memberCount > 6) fail('invalidMembers', 'จำนวนสมาชิกไม่ถูกต้อง');
     const deliveryTotal = assertSatang(delivery * memberCount);
     const subtotal = assertSatang(product + deliveryTotal);
     const service = assertSatang(Number((BigInt(subtotal) * 2n + 50n) / 100n));
