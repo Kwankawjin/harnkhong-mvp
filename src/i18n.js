@@ -93,6 +93,8 @@ const labels = {
   'สแกนด้วยโทรศัพท์เพื่อยืนยันยอด':'Scan with your phone to confirm the amount', 'กรุณายอมรับภายใน':'Please accept within', 'ชั่วโมง':'hours',
   'เวลาที่เหลือ':'Time remaining', 'QR หมดอายุแล้ว':'QR code expired', 'QR นี้หมดเวลายอมรับแล้ว กรุณาขอ QR ใหม่':'This QR code expired. Please request a new one.',
   'สถานะการยืนยัน':'Confirmation status',
+  'เข้าสู่ระบบด้วยบัญชีสมาชิกของกลุ่มเพื่อยืนยันยอด':'Log in with a group member account to approve this amount.',
+  'บัญชีนี้ไม่ได้เป็นสมาชิกกลุ่ม จึงยืนยันยอดนี้ไม่ได้':'This account is not a member of this group and cannot approve the amount.',
   'ยอดชำระจำลอง':'Demo amount', 'สแกนเพื่อยอมรับจำนวนเงินเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง':'Scan to accept the amount only. No payment is made or money collected.',
   'ช่องทาง':'Channel', 'วันที่และเวลา':'Date and time', 'สำเร็จ':'Successful',
   'QR สำหรับยอมรับยอดจำลอง':'QR code for demo amount acceptance', 'ยอดที่ยืนยัน':'Confirmed amount', 'การยืนยันนี้เป็นการยอมรับจำนวนเงินจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง':'This only accepts a demo amount. No payment is made or money collected.',

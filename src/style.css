@@ -2633,6 +2633,7 @@ dialog:not([open]), [hidden] { display: none !important; }
 .demo-phone-expiry { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; margin: 14px 0; border: 1px solid #62334c; border-radius: 12px; background: #291c35; color: #ff8aab; }
 .demo-phone-expiry .demo-countdown { font-variant-numeric: tabular-nums; }
 .demo-approval-notice { font-size: .85rem; }
+.demo-access-notice { padding: 12px 14px; border: 1px solid #d6a83a; border-radius: 12px; background: #362c18; color: #f3d37a !important; font-size: .9rem; }
 .approval-success-icon { width: 104px; height: 104px; display: grid; place-items: center; margin: 28px auto 18px; border: 10px solid #35dc9c; border-radius: 50%; background: #0a493d; color: #fff; font-size: 3.5rem; line-height: 1; }
 .demo-success-details { margin: 18px 0; padding: 8px 16px; border: 1px solid #24455a; border-radius: 15px; background: #0d2530; text-align: left; }
 .demo-success-details > div { display: flex; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid #1b3947; }
