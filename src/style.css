@@ -2605,6 +2605,34 @@ dialog:not([open]), [hidden] { display: none !important; }
 .payment-dialog .button { margin-top: 10px; white-space: normal; }
 .payment-dialog .outline { color: white; border-color: #75869c; background: transparent; }
 .payment-dialog .button.outline:hover { color: white; background: #25364f; }
+.share-approval-dialog { width: min(470px,calc(100% - 32px)); border-radius: 24px; border: 1px solid #49627f; box-shadow: 0 24px 80px #061b3180; }
+.share-approval-dialog .chip { background: #193653; color: #9ed7ff; }
+.share-approval-dialog .demo-qr { width: min(100%,250px); padding: 12px; }
+.share-approval-dialog .demo-qr img { width: 100%; display: block; image-rendering: pixelated; }
+.approval-amount-panel { display: grid; gap: 5px; padding: 16px 18px; margin: 14px 0; border: 1px solid #225374; border-radius: 15px; background: linear-gradient(135deg,#102a45,#172d49); text-align: left; }
+.approval-amount-panel small { color: #a9c4df; }
+.approval-amount-panel .payment-amount { margin: 0; font-size: clamp(1.8rem,8vw,2.5rem); }
+.share-approval-dialog > small { display: block; color: #a9c4df; margin: 10px 0; }
+.demo-reference-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 2px; border-top: 1px solid #27415d; border-bottom: 1px solid #27415d; text-align: left; }
+.demo-reference-row span { color: #a9c4df; }
+.demo-reference-row b { overflow-wrap: anywhere; text-align: right; }
+.demo-approval-page { min-height: min(780px,calc(100dvh - 150px)); display: grid; place-items: center; padding: 28px 16px; background: radial-gradient(ellipse at 50% 0,#154b72 0,#0b1728 54%,#07111e 100%); border-radius: 22px; }
+.demo-approval-card { width: min(100%,500px); padding: clamp(24px,6vw,42px); border: 1px solid #49627f; border-radius: 24px; background: #101c30; color: #fff; box-shadow: 0 24px 80px #061b3180; text-align: center; }
+.demo-approval-card h1 { margin: 20px 0 8px; font-size: clamp(1.6rem,6vw,2.2rem); color: #fff; }
+.demo-approval-card > p { color: #b8c9df; line-height: 1.7; }
+.demo-approval-card .chip { display: inline-flex; padding: 7px 14px; border-radius: 999px; background: #193653; color: #9ed7ff; }
+.demo-approval-card .approval-amount-panel { margin: 26px 0 16px; }
+.demo-approval-card .approval-amount-panel .payment-amount { font-size: clamp(2.3rem,10vw,3.25rem); }
+.demo-approval-notice { font-size: .85rem; }
+.approval-success-icon { width: 104px; height: 104px; display: grid; place-items: center; margin: 28px auto 18px; border: 10px solid #35dc9c; border-radius: 50%; background: #0a493d; color: #fff; font-size: 3.5rem; line-height: 1; }
+.demo-success-details { margin: 18px 0; padding: 8px 16px; border: 1px solid #24455a; border-radius: 15px; background: #0d2530; text-align: left; }
+.demo-success-details > div { display: flex; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid #1b3947; }
+.demo-success-details > div:last-child { border: 0; }
+.demo-success-details span { color: #b8c9df; }
+.demo-success-details b { text-align: right; overflow-wrap: anywhere; }
+.demo-success-details .demo-success-status { color: #35dc9c; }
+.demo-approval-card .button { margin-top: 14px; }
+.demo-approval-card .button.outline { color: white; border-color: #49627f; }
 
 /* ========================================================
    LEAVE GROUP CONFIRMATION MODAL & DANGER BUTTONS

@@ -1,4 +1,5 @@
 import './style.css';
+import QRCode from 'qrcode';
 import {demoAccount,editProfile,readLocalImage,isLocalImage,MAX_GROUP_IMAGES} from './prototype.js';
 import {listings as seedListings, sellers, demoNames, initialState} from './data.js';
 import {assertCapacity, createGroup, costBreakdown, totalCost, shares, joinGroup, leaveGroup, approve, changeCosts, parseBaht, allApproved, transferOwner} from './domain.js';
@@ -127,7 +128,6 @@ let selectedCreateCategories=[];
 let imagesLoading=false;
 let profileAvatar='';
 let avatarLoading=false;
-let demoQrPng='';
 let groupsLoading=supabaseConfigured;
 let groupsError=null;
 let syncSupabaseSession=async()=>{};
@@ -298,22 +298,23 @@ function profileDialog() {
   const user=state.user;
   return `<dialog id="profile-dialog" class="profile-dialog" aria-labelledby="profile-dialog-title"><form id="profile-form" class="auth-form"><header><div><h2 id="profile-dialog-title">${t('แก้ไขโปรไฟล์')}</h2><p>${t(supabaseConfigured?'แก้ไขชื่อและข้อมูลแนะนำตัว':'ปรับข้อมูลที่แสดงในบัญชีเดโมของคุณ')}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></header>${supabaseConfigured?'':`<div class="profile-cover"></div><div class="profile-avatar-editor"><span class="avatar large" id="profile-avatar-preview">${isLocalImage(user.avatar)?`<img src="${user.avatar}" alt=""/>`:escape(user.name.slice(0,1))}</span><label class="button outline">${t('เปลี่ยนรูป')}<input id="profile-avatar" type="file" accept="image/jpeg,image/png,image/webp"/></label><button class="button subtle" type="button" data-action="avatar-remove">${t('ลบรูป')}</button></div><p id="avatar-status" role="status"></p><p class="field-help">${t('JPG, PNG, WebP ไม่เกิน 5 MB · บันทึกเฉพาะในเครื่อง')}</p>`}<label>${t('ชื่อ')}<input name="name" value="${escape(user.name)}" maxlength="70" required autocomplete="name"/></label><label>${t('อีเมล')}<input name="email" type="email" value="${escape(user.email||'')}" maxlength="254" autocomplete="email" ${supabaseConfigured?'readonly':''}/></label><label>${t('เกี่ยวกับฉัน')}<textarea name="bio" maxlength="160" rows="3">${escape(user.bio||'')}</textarea></label><small id="bio-counter">${(user.bio||'').length} / 160</small><footer class="dialog-footer"><button type="button" class="button outline" data-action="close-dialog">${t('ยกเลิก')}</button><button type="submit" class="button primary">${t('บันทึกการเปลี่ยนแปลง')}</button></footer></form></dialog>`;
 }
-// shortcut: a deliberately non-scannable QR illustration, replace only with a payment provider's verified flow.
-function demoQr() {
-  let cells='';
-  for(let y=0;y<25;y++)for(let x=0;x<25;x++){
-    const finder=(ox,oy)=>x>=ox&&x<ox+7&&y>=oy&&y<oy+7;
-    let dark=(x*7+y*11+x*y)%5<2;
-    for(const [ox,oy] of [[0,0],[18,0],[0,18]])if(finder(ox,oy)){const dx=x-ox,dy=y-oy;dark=dx===0||dx===6||dy===0||dy===6||(dx>=2&&dx<=4&&dy>=2&&dy<=4);}
-    if(dark)cells+=`<rect x="${x+3}" y="${y+3}" width="1" height="1"/>`;
-  }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="310" height="310" viewBox="0 0 310 310" role="img" aria-label="${t('QR ตัวอย่าง สแกนจ่ายไม่ได้')}"><rect width="310" height="310" fill="white"/><g transform="scale(10)" fill="#092847">${cells}</g><rect x="63" y="129" width="184" height="52" rx="8" fill="#092847"/><text x="155" y="164" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="31" fill="white">DEMO ONLY</text></svg>`;
+const demoReference=()=>`REF-${new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14)}-${crypto.randomUUID().slice(0,4).toUpperCase()}`;
+const demoAcceptUrl=(reference,amount)=>{const url=new URL('/demo-accept',location.origin);url.searchParams.set('ref',reference);url.searchParams.set('amount',String(amount));return url;};
+function paymentDialog(order,reference) {
+  const amount=order.payments[state.user.id].amountSatang;
+  return `<dialog id="payment-dialog" class="payment-dialog share-approval-dialog" aria-labelledby="payment-title"><div class="payment-head"><span class="chip">${t('จำลองเท่านั้น')}</span><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></div><h2 id="payment-title">${t('สแกน QR เพื่อยืนยันยอด')}</h2><p>${t('สแกนด้วยโทรศัพท์เพื่อตรวจสอบและยอมรับยอด')}</p><div class="demo-qr"><img id="payment-qr" data-reference="${escape(reference)}" data-amount="${amount}" alt="${t('QR สำหรับยอมรับยอดจำลอง')}"/></div><div class="approval-amount-panel"><small>${t('ยอดชำระจำลอง')}</small><strong class="payment-amount">${money(amount)}</strong></div><div class="demo-reference-row"><span>${t('รหัสอ้างอิง')}</span><b>${escape(reference)}</b></div><p>${t('สแกนเพื่อยอมรับจำนวนเงินเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง')}</p><a class="button outline full" href="${escape(demoAcceptUrl(reference,amount).href)}" target="_blank" rel="noopener noreferrer">${t('เปิดหน้าตรวจสอบบนอุปกรณ์นี้')}</a></dialog>`;
 }
-function paymentDialog(order) {
-  return `<dialog id="payment-dialog" class="payment-dialog" aria-labelledby="payment-title"><div class="payment-head"><span class="chip">${t('จำลองเท่านั้น')}</span><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></div><h2 id="payment-title">${t('QR สำหรับทดลองจ่าย')}</h2><p>${t('QR ตัวอย่าง สแกนจ่ายไม่ได้')}</p><div class="demo-qr">${demoQr()}</div><small>${t('ยอดส่วนแบ่งของคุณ')}</small><strong class="payment-amount">${money(order.payments[state.user.id].amountSatang)}</strong><p>${t('ไม่มีบัญชีรับเงินหรือคำสั่งโอน การกดแจ้งชำระเพียงส่งสถานะรอตรวจยอดเดโม')}</p><a class="button outline full" id="qr-download" download="harnkhong-demo-only.png" ${demoQrPng?`href="${demoQrPng}"`:'aria-busy="true"'}>${t('ดาวน์โหลด PNG ตัวอย่าง')}</a><button type="button" class="button primary full" data-action="payment-report" data-id="${order.groupId}">${t('แจ้งชำระจำลองของฉัน')}</button></dialog>`;
+function shareApprovalDialog(amount,reference) {
+  const acceptUrl=demoAcceptUrl(reference,amount);
+  return `<dialog id="share-approval-dialog" class="payment-dialog share-approval-dialog" aria-labelledby="share-approval-title"><div class="payment-head"><span class="chip">${t('จำลองเท่านั้น')}</span><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></div><h2 id="share-approval-title">${t('สแกน QR เพื่อยอมรับยอด')}</h2><p>${t('สแกนด้วยโทรศัพท์เพื่อเปิดหน้าตรวจสอบยอด')}</p><div class="demo-qr"><img id="share-approval-qr" alt="${t('QR สำหรับยอมรับยอดจำลอง')}"/></div><div class="approval-amount-panel"><small>${t('ยอดที่ยืนยัน')}</small><strong class="payment-amount">${money(amount)}</strong></div><p>${t('การยืนยันนี้เป็นการยอมรับจำนวนเงินจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง')}</p><small>${t('รหัสอ้างอิง')}: ${escape(reference)}</small><a class="button outline full" href="${escape(acceptUrl.href)}" target="_blank" rel="noopener noreferrer">${t('เปิดหน้าตรวจสอบบนอุปกรณ์นี้')}</a></dialog>`;
 }
-function shareApprovalDialog(amount) {
-  return `<dialog id="share-approval-dialog" class="payment-dialog" aria-labelledby="share-approval-title"><div class="payment-head"><span class="chip">${t('จำลองเท่านั้น')}</span><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t('ปิดหน้าต่าง')}">✕</button></div><h2 id="share-approval-title">${t('QR ยอดที่ยืนยัน (จำลอง)')}</h2><p>${t('QR ตัวอย่าง สแกนจ่ายไม่ได้')}</p><div class="demo-qr">${demoQr()}</div><small>${t('ยอดที่ยืนยัน')}</small><strong class="payment-amount">${money(amount)}</strong><p>${t('การยืนยันยอดบันทึกว่าคุณยอมรับจำนวนเงินเท่านั้น ไม่ใช่การแจ้งชำระและไม่มีการเก็บเงินจริง')}</p></dialog>`;
+function demoApprovalPage(success=false){
+  const params=new URLSearchParams(location.search),reference=(params.get('ref')||'').slice(0,80),amount=Number(params.get('amount'));
+  if(!reference||!Number.isSafeInteger(amount)||amount<0)return `<section class="demo-approval-page"><div class="demo-approval-card"><span class="chip">${t('จำลองเท่านั้น')}</span><h1>${t('QR ไม่ถูกต้อง')}</h1>${a('/explore',t('กลับหน้าหลัก'),'button primary full')}</div></section>`;
+  let acceptedRecord=null;try{acceptedRecord=JSON.parse(localStorage.getItem(`harnkhong-demo-acceptance:${reference}`)||'null');}catch{/* Treat unavailable storage as not yet accepted. */}
+  success=success&&acceptedRecord?.amount===amount;
+  const acceptedAt=Number(acceptedRecord?.acceptedAt);const acceptedDate=success&&Number.isFinite(acceptedAt)?new Date(acceptedAt).toLocaleString(locale==='en'?'en-GB':'th-TH'):'—';
+  return `<section class="demo-approval-page ${success?'is-success':''}"><article class="demo-approval-card"><span class="chip">${t('ยืนยันยอด (จำลอง)')}</span>${success?`<div class="approval-success-icon" aria-hidden="true">✓</div><h1>${t('ยอมรับยอดสำเร็จ!')}</h1><p>${t('บันทึกการยอมรับยอดจำลองเรียบร้อยแล้ว')}</p>`:`<h1>${t('ตรวจสอบยอดก่อนยอมรับ')}</h1><p>${t('โปรดตรวจสอบจำนวนเงินก่อนกดยอมรับ')}</p>`}<div class="approval-amount-panel"><small>${t('ยอดที่ยืนยัน')}</small><strong class="payment-amount">${money(amount)}</strong></div>${success?`<div class="demo-success-details"><div><span>${t('รหัสอ้างอิง')}</span><b>${escape(reference)}</b></div><div><span>${t('วันที่และเวลา')}</span><b>${escape(acceptedDate)}</b></div><div><span>${t('ช่องทาง')}</span><b>QR Demo</b></div><div><span>${t('สถานะ')}</span><b class="demo-success-status">● ${t('สำเร็จ')}</b></div></div>`:`<small>${t('รหัสอ้างอิง')}: ${escape(reference)}</small>`}<p class="demo-approval-notice">${t('การยอมรับนี้เป็นการจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง')}</p>${success?a('/',`${icon('home',18)} ${t('กลับหน้าหลัก')}`,'button outline full'):`<button type="button" class="button primary full" data-action="accept-demo-amount" data-ref="${escape(reference)}" data-amount="${amount}">${t('ยอมรับยอดนี้')}</button>`}</article></section>`;
 }
 function leaveGroupDialog(g, currentShare) {
   return `<dialog id="leave-group-dialog" class="leave-group-dialog" aria-labelledby="leave-group-title">
@@ -980,10 +981,10 @@ function orderPage(id){
     ${permissions.shipment?`<form id="shipment-form" class="form-panel" data-id="${id}"><label>${t('ผู้ขนส่ง')}<input name="carrier" maxlength="500" value="${escape(order.shipment?.carrier||'')}"/></label><label>${t('เลขติดตาม')}<input name="trackingNumber" maxlength="500" value="${escape(order.shipment?.trackingNumber||'')}"/></label><label>${t('ลิงก์ติดตาม (http หรือ https)')}<input name="url" type="url" maxlength="500" value="${escape(order.shipment?.url||'')}"/></label><p>${t('กรอกเลขติดตามหรือลิงก์อย่างน้อยหนึ่งช่อง')}</p><button class="button primary" type="submit">${t('บันทึกการจัดส่งเดโม')}</button></form>`:''}</section>
     ${disputePanel(order,permissions)}${orderHistory(order)}`}
     ${order?.legacy?`<p class="warning">${t('นำเข้าคำสั่งซื้อเก่าโดยไม่ถือว่าเคยชำระเงินแล้ว')}</p>`:''}
-    ${permissions?.reportPayment?paymentDialog(order):''}${a(`/groups/${id}`,t('กลับไปดูกลุ่ม'),'button outline full')}</div>`;
+    ${permissions?.reportPayment?paymentDialog(order,demoReference()):''}${a(`/groups/${id}`,t('กลับไปดูกลุ่ม'),'button outline full')}</div>`;
 }
 function notFound(){return `<div class="empty"><h1>${t("ไม่พบหน้านี้")}</h1><p>${t("ลิงก์อาจไม่ถูกต้องหรือรายการถูกลบ")}</p>${a('/',t("กลับหน้าแรก"),'button primary')}</div>`;}
-function route(){const path=decodeURIComponent(location.pathname);if(path==='/')return home();if(path==='/explore')return explore();if(/^\/products\/[^/]+$/.test(path))return legacyProductRoute(path.split('/')[2]);if(/^\/groups\/[^/]+\/join$/.test(path))return joinPage(path.split('/')[2]);if(/^\/groups\/[^/]+\/chat$/.test(path))return groupChatPage(path.split('/')[2]);if(path==='/groups/create')return createPage();if(/^\/groups\/[^/]+$/.test(path))return groupPage(path.split('/')[2]);if(path==='/login')return authPage();if(path==='/register')return authPage(true);if(path==='/my-groups')return myGroups();if(path==='/my-orders')return myOrdersPage();if(path==='/chat')return chatList();if(/^\/chat\/[^/]+$/.test(path))return chatPage(path.split('/')[2]);if(path==='/notifications')return notifications();if(path==='/profile')return profile();if(/^\/shops\/[^/]+$/.test(path))return shopPage(path.split('/')[2]);if(path==='/seller/dashboard')return sellerDashboard();if(path==='/seller/products/new')return newProduct();if(/^\/orders\/[^/]+$/.test(path))return orderPage(path.split('/')[2]);return notFound();}
+function route(){const path=decodeURIComponent(location.pathname);if(path==='/')return home();if(path==='/explore')return explore();if(path==='/demo-accept')return demoApprovalPage(new URLSearchParams(location.search).get('accepted')==='1');if(/^\/products\/[^/]+$/.test(path))return legacyProductRoute(path.split('/')[2]);if(/^\/groups\/[^/]+\/join$/.test(path))return joinPage(path.split('/')[2]);if(/^\/groups\/[^/]+\/chat$/.test(path))return groupChatPage(path.split('/')[2]);if(path==='/groups/create')return createPage();if(/^\/groups\/[^/]+$/.test(path))return groupPage(path.split('/')[2]);if(path==='/login')return authPage();if(path==='/register')return authPage(true);if(path==='/my-groups')return myGroups();if(path==='/my-orders')return myOrdersPage();if(path==='/chat')return chatList();if(/^\/chat\/[^/]+$/.test(path))return chatPage(path.split('/')[2]);if(path==='/notifications')return notifications();if(path==='/profile')return profile();if(/^\/shops\/[^/]+$/.test(path))return shopPage(path.split('/')[2]);if(path==='/seller/dashboard')return sellerDashboard();if(path==='/seller/products/new')return newProduct();if(/^\/orders\/[^/]+$/.test(path))return orderPage(path.split('/')[2]);return notFound();}
 function updateFilterCarousel(){
   const carousel=document.querySelector('.filter-carousel'),row=carousel?.querySelector('.filter-row');
   if(!row)return;
@@ -1241,15 +1242,8 @@ document.addEventListener('click',async e=>{
     else if(action==='payment-open'){
       if(!orderPermissions(orderFor(id),state.user).reportPayment)throw Object.assign(new Error(),{code:'orderUnauthorized'});
       const dialog=document.querySelector('#payment-dialog');dialog.showModal();
-      const svg=dialog.querySelector('svg');
-      const url=URL.createObjectURL(new Blob([svg.outerHTML],{type:'image/svg+xml'})),image=new Image();
-      try{
-        await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(new Error(t('เกิดข้อผิดพลาด กรุณาลองใหม่')));image.src=url;});
-        const canvas=document.createElement('canvas');canvas.width=620;canvas.height=620;canvas.getContext('2d').drawImage(image,0,0,620,620);
-        demoQrPng=canvas.toDataURL('image/png');
-        const download=document.querySelector('#qr-download');
-        if(download)download.href=demoQrPng;
-      }finally{URL.revokeObjectURL(url);document.querySelector('#qr-download')?.removeAttribute('aria-busy');}
+      const qr=dialog.querySelector('#payment-qr'),url=demoAcceptUrl(qr.dataset.reference,qr.dataset.amount);
+      qr.src=await QRCode.toDataURL(url.href,{errorCorrectionLevel:'M',margin:2,width:420,color:{dark:'#092847',light:'#ffffff'}});
     }
     else if(action==='toggle-mockup-pw'){
       const form = btn.closest('form') || document;
@@ -1318,7 +1312,10 @@ document.addEventListener('click',async e=>{
       const current=group(id),amount=shares(current)[state.user.id];
       if(supabaseConfigured){await approveSupabaseGroup(id,Number(btn.dataset.revision));if(!await refreshSupabaseGroups(actionSession))return;render();}
       else{const g=approve(current,state.user.id,Number(btn.dataset.revision));updateGroup(g);if(allApproved(g))g.members.forEach(u=>notice(t("ยืนยันยอดครบแล้ว"),t("กลุ่มพร้อมดูสรุปคำสั่งซื้อเดโม"),`/orders/${id}`,u));render();}
-      document.body.insertAdjacentHTML('beforeend',shareApprovalDialog(amount));const dialog=document.querySelector('#share-approval-dialog');dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();
+      const reference=demoReference();
+      document.body.insertAdjacentHTML('beforeend',shareApprovalDialog(amount,reference));const dialog=document.querySelector('#share-approval-dialog');dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();
+      const acceptUrl=demoAcceptUrl(reference,amount);
+      dialog.querySelector('#share-approval-qr').src=await QRCode.toDataURL(acceptUrl.href,{errorCorrectionLevel:'M',margin:2,width:420,color:{dark:'#092847',light:'#ffffff'}});
       alertMessage(t("ยืนยันยอดรอบล่าสุดแล้ว"));
     }
     else if(action==='copy-link'){
@@ -1352,6 +1349,10 @@ document.addEventListener('click',async e=>{
     else if(action==='payment-report'){
       if(!confirm(t('ยืนยันแจ้งชำระจำลอง ไม่ใช่หลักฐานการโอนเงินจริง?')))return;
       orderChanged(reportPayment(orderFor(id),state.user),t('แจ้งชำระแล้ว รอหัวหน้ากลุ่มตรวจยอดเดโม'));
+    }
+    else if(action==='accept-demo-amount'){
+      const acceptedAt=Date.now(),reference=btn.dataset.ref,amount=Number(btn.dataset.amount);localStorage.setItem(`harnkhong-demo-acceptance:${reference}`,JSON.stringify({amount,acceptedAt}));
+      const params=new URLSearchParams();params.set('ref',reference);params.set('amount',String(amount));params.set('accepted','1');history.replaceState({},'',`/demo-accept?${params.toString()}`);render();window.scrollTo(0,0);
     }
     else if(action==='payment-update'){
       let note='';
