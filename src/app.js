@@ -14,6 +14,7 @@ let doodleFooterRoot = null;
 import { loadGroupMessages, sendGroupMessage } from './group-chat.js';
 import { loadSupabaseGroups, resolveSupabaseInvite, createSupabaseGroup, joinSupabaseGroup, leaveSupabaseGroup, approveSupabaseGroup, changeSupabaseDelivery, transferSupabaseGroup, removeSupabaseGroupMember, deleteSupabaseGroup, getSupabaseInvite } from './supabase-groups.js';
 import { createOrder, activateOrder, migrateOrders, lockOrderedGroups, orderPermissions, reportPayment, updatePayment, transitionOrder, updateShipment, openDispute, proposeResolution, respondToResolution, DISPUTE_REASONS, sellerIdFor } from './orders.js';
+import { createSupabaseSecondhandListing } from './supabase-listings.js';
 
 const LOCALE_KEY = 'harnkhong-locale';
 let locale = 'th';
@@ -217,11 +218,10 @@ const errorMessage = error => messages[locale][error.code] ?? error.message ?? t
 const KEY = 'harnkhong-demo-v1';
 let state;
 try { state = { ...initialState(), ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { state = initialState(); }
-if (supabaseConfigured) state = { ...state, user: null, profiles: {}, groups: [], remoteListings: [], remoteSellers: [], customListings: [], orders: [], notifications: [], conversations: {} };
+if (supabaseConfigured) state = { ...state, user: null, profiles: {}, groups: [], remoteListings: [], remoteSellers: [], orders: [], notifications: [], conversations: {} };
 const save = (next = state) => {
+  if (!supabaseConfigured) localStorage.setItem(KEY, JSON.stringify(next));
   state = next;
-  if (supabaseConfigured) return;
-  localStorage.setItem(KEY, JSON.stringify(next));
 };
 const restoredOrders = migrateOrders(state.orders, state.groups, [...seedListings, ...state.customListings]);
 const restoredGroups = lockOrderedGroups(state.groups, restoredOrders).map(g => {
@@ -989,7 +989,7 @@ function legacyProductRoute(id) {
   const hasMarketCoordinates = Number.isFinite(mapLat) && Number.isFinite(mapLng) && Math.abs(mapLat) <= 90 && Math.abs(mapLng) <= 180;
   const mapPadding = 0.006;
   const locationMap = product.area || hasMarketCoordinates ? `<section class="secondhand-location-card"><h2>${t('สถานที่ขาย')}</h2>${product.area ? `<p><strong>${t('ตลาดหรือสถานที่ขาย')}:</strong> ${escape(product.area)}</p>` : ''}${product.marketAddress && product.marketAddress !== product.area ? `<p><strong>${t('ที่อยู่โดยประมาณ')}:</strong> ${escape(product.marketAddress)}</p>` : ''}${hasMarketCoordinates ? `<p class="secondhand-location-coordinates">${icon('map-pin', 15)} ${mapLat.toFixed(6)}, ${mapLng.toFixed(6)}</p><div class="secondhand-location-map"><iframe title="${t('แผนที่แสดงตำแหน่งสินค้าที่ปักหมุด')}" loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=${mapLng - mapPadding}%2C${mapLat - mapPadding}%2C${mapLng + mapPadding}%2C${mapLat + mapPadding}&layer=mapnik&marker=${mapLat}%2C${mapLng}"></iframe></div>` : `<p class="secondhand-location-map-missing">${t('ผู้ขายยังไม่ได้ปักหมุดบนแผนที่')}</p>`}</section>` : '';
-  if (product.listingType === 'secondhand') return `<div class="secondhand-listing-page">${a('/seller/products/new', `← ${t('ลงขายสินค้า')}`, 'listing-back-link')}<div class="secondhand-listing-layout"><main>${product.images?.length ? `<div class="secondhand-listing-hero"><img src="${product.images[0]}" alt="${escape(product.title)}"/></div>${product.images.length > 1 ? `<div class="secondhand-listing-gallery">${product.images.map((src, i) => `<img src="${src}" alt="${escape(product.title)} ${i + 1}"/>`).join('')}</div>` : ''}` : `<div class="secondhand-listing-hero empty">${art(product)}</div>`}<section class="secondhand-listing-description"><h2>${t('รายละเอียดสินค้า')}</h2><p>${escape(product.description)}</p></section></main><aside class="secondhand-listing-summary"><span class="listing-preview-category">${escape(t(product.category))}</span><h1>${escape(product.title)}</h1><strong class="secondhand-price">${money(product.price)}</strong><div class="listing-preview-meta"><span>${t(product.condition)}</span><span>${t(product.delivery)}</span></div>${product.area ? `<p>${icon('map-pin', 17)} ${escape(product.area)}</p>` : ''}${product.marketCoordinates ? `<a class="secondhand-map-link" href="https://www.openstreetmap.org/?mlat=${encodeURIComponent(product.marketCoordinates.lat)}&mlon=${encodeURIComponent(product.marketCoordinates.lng)}#map=17/${encodeURIComponent(product.marketCoordinates.lat)}/${encodeURIComponent(product.marketCoordinates.lng)}" target="_blank" rel="noopener noreferrer">${icon('map-pin', 16)} ${t('เปิดตำแหน่งบน OpenStreetMap')}</a>` : ''}<p>${t('ช่องทางติดต่อผู้ขาย')}: <b>${escape(product.contact)}</b></p><p>${t('ผู้ขาย')}: ${escape(state.user?.name || seller(product.sellerId).name)}</p>${a('/explore', t('กลับไปสำรวจ'), 'button outline full')}${locationMap}</aside></div></div>`;
+  if (product.listingType === 'secondhand') return `<div class="secondhand-listing-page">${a('/seller/products/new', `← ${t('ลงขายสินค้า')}`, 'listing-back-link')}<div class="secondhand-listing-layout"><main>${product.images?.length ? `<div class="secondhand-listing-hero"><img src="${product.images[0]}" alt="${escape(product.title)}"/></div>${product.images.length > 1 ? `<div class="secondhand-listing-gallery">${product.images.map((src, i) => `<img src="${src}" alt="${escape(product.title)} ${i + 1}"/>`).join('')}</div>` : ''}` : `<div class="secondhand-listing-hero empty">${art(product)}</div>`}<section class="secondhand-listing-description"><h2>${t('รายละเอียดสินค้า')}</h2><p>${escape(product.description)}</p></section></main><aside class="secondhand-listing-summary"><span class="listing-preview-category">${escape(t(product.category))}</span><h1>${escape(product.title)}</h1><strong class="secondhand-price">${money(product.price)}</strong><div class="listing-preview-meta"><span>${t(product.condition)}</span><span>${t(product.delivery)}</span></div>${product.area ? `<p>${icon('map-pin', 17)} ${escape(product.area)}</p>` : ''}${product.marketCoordinates ? `<a class="secondhand-map-link" href="https://www.openstreetmap.org/?mlat=${encodeURIComponent(product.marketCoordinates.lat)}&mlon=${encodeURIComponent(product.marketCoordinates.lng)}#map=17/${encodeURIComponent(product.marketCoordinates.lat)}/${encodeURIComponent(product.marketCoordinates.lng)}" target="_blank" rel="noopener noreferrer">${icon('map-pin', 16)} ${t('เปิดตำแหน่งบน OpenStreetMap')}</a>` : ''}<p>${t('ช่องทางติดต่อผู้ขาย')}: <b>${escape(product.contact)}</b></p><p>${t('ผู้ขาย')}: ${escape(product.sellerName || seller(product.sellerId).name)}</p>${a('/explore', t('กลับไปสำรวจ'), 'button outline full')}${locationMap}</aside></div></div>`;
   const groups = state.groups.filter(g => g.listingId === id && g.status !== 'cancelled' && (g.visibility === 'public' || g.members.includes(state.user?.id)));
   const target = groups.find(g => !g.orderId && g.members.length < g.capacity) || groups[0];
   if (target) { history.replaceState({}, '', `/groups/${target.id}`); return groupPage(target.id); }
@@ -2442,13 +2442,15 @@ document.addEventListener('submit', async e => {
       const p = { id: 'p' + Date.now(), title: String(d.get('title') || '').trim(), category: d.get('category'), kind: 'สินค้า', listingType: 'secondhand', condition: d.get('condition'), delivery, area, marketAddress, marketCoordinates: coordinates, contact, images: [...listingImages], price: parseBaht(d.get('price')), sellerId: sellerIdFor(state.user), art: 'custom', mark: 'มือ2', description: String(d.get('description') || '').trim(), terms: `${delivery}${area ? ` · ${area}` : ''}` };
       p.sellerId ||= state.user.id;
       if (!p.title || !p.description || !p.condition || !p.contact || (delivery !== 'จัดส่ง' && !area)) throw Error(t('กรุณากรอกข้อมูลที่จำเป็นให้ครบ'));
-      state.customListings.unshift(p);
-      save();
+      if (supabaseConfigured) {
+        const savedListing = await createSupabaseSecondhandListing(p, state.user);
+        state = { ...state, remoteListings: [savedListing, ...state.remoteListings.filter(item => item.id !== savedListing.id)] };
+      } else save({ ...state, customListings: [p, ...state.customListings] });
       listingImages = [];
       listingMap?.remove(); listingMap = null; listingMapMarker = null; listingMapReady = false;
       go(`/products/${p.id}`);
       alertMessage(t('ลงประกาศขายแล้ว'));
-    } catch (err) { alertMessage(errorMessage(err)); }
+    } catch (err) { alertMessage(supabaseConfigured ? secondhandSaveErrorMessage(err) : storageError(err)); }
   }
 });
 document.addEventListener('input', e => {
@@ -2518,6 +2520,16 @@ function authErrorMessage(error) {
   if (code === 'weak_password' || message.includes('password should be')) return t('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
   if (error?.code === 'orderUnauthorized') return t('orderUnauthorized');
   return t('เกิดข้อผิดพลาด กรุณาลองใหม่');
+}
+
+function secondhandSaveErrorMessage(error) {
+  const code = error?.code || '';
+  const message = String(error?.message || '').toLowerCase();
+  if (code === 'PGRST205' || message.includes('secondhand_listings') || message.includes('bucket not found') || message.includes('secondhand-listings')) {
+    return t('ระบบฐานข้อมูลยังไม่ได้เปิดใช้การบันทึกตลาดมือสอง กรุณารัน migration ล่าสุดของ Supabase');
+  }
+  if (message.includes('row-level security') || code === '42501') return t('ไม่มีสิทธิ์บันทึกประกาศ กรุณาเข้าสู่ระบบใหม่แล้วลองอีกครั้ง');
+  return authErrorMessage(error);
 }
 
 async function fetchSupabaseState(authUser) {

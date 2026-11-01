@@ -1,5 +1,6 @@
 import {supabase} from './supabase.js';
 import {mapDatabaseGroup} from './group-mapping.js';
+import {loadSupabaseSecondhandListings} from './supabase-listings.js';
 
 function mapBundle({group, members = [], approvals = [], events = []}) {
   const names = {};
@@ -12,12 +13,13 @@ function mapBundle({group, members = [], approvals = [], events = []}) {
 }
 
 export async function loadSupabaseGroups(client = supabase) {
-  const [groupResult,productResult,shopResult] = await Promise.all([
+  const [groupResult,productResult,shopResult,secondhandListings] = await Promise.all([
     // Embed related rows so totals and membership come from one database snapshot.
     client.from('groups').select('id,listing_id,owner_id,name,category,categories,images,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,created_at,members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)')
       .order('created_at',{ascending:false}).order('joined_at',{referencedTable:'members'}).order('id',{referencedTable:'events'}),
     client.from('products').select('id,seller_id,title,category,kind,price_satang,art,mark,description,terms').eq('active',true),
     client.from('shops').select('id,name,intro,initials'),
+    loadSupabaseSecondhandListings(client),
   ]);
   for (const result of [groupResult,productResult,shopResult]) if (result.error) throw result.error;
   const bundles=(groupResult.data||[]).map(row=>mapBundle({
@@ -28,11 +30,11 @@ export async function loadSupabaseGroups(client = supabase) {
   }));
   return {
     groups:bundles.map(bundle=>bundle.group),names:Object.assign({},...bundles.map(bundle=>bundle.names)),
-    listings:(productResult.data||[]).map(row=>{
+    listings:[...(productResult.data||[]).map(row=>{
       const price=Number(row.price_satang);
       if(!Number.isSafeInteger(price)||price<0)throw Object.assign(new Error('Product price exceeds supported amount'),{code:'groupTotalOutOfRange'});
       return {id:row.id,sellerId:row.seller_id,title:row.title,category:row.category,kind:row.kind,price,art:row.art,mark:row.mark,description:row.description,terms:row.terms};
-    }),
+    }),...secondhandListings],
     sellers:(shopResult.data||[]).map(row=>({id:row.id,name:row.name,intro:row.intro,initials:row.initials})),
   };
 }
