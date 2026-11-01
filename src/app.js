@@ -1,4 +1,7 @@
 import './style.css';
+import * as React from 'react';
+import { createRoot } from 'react-dom/client';
+import DoodleCrewFooter from '../components/ui/doodle-crew-footer.tsx';
 import QRCode from 'qrcode';
 import { demoAccount, editProfile, readLocalImage, isLocalImage, MAX_GROUP_IMAGES } from './prototype.js';
 import { listings as seedListings, sellers, demoNames, initialState } from './data.js';
@@ -6,6 +9,8 @@ import { assertCapacity, createGroup, costBreakdown, totalCost, shares, joinGrou
 import { messages, translate, formatSatang, bahtInput } from './i18n.js';
 import { supabase, supabaseConfigured, googleAuthAvailable, refreshAuthProviders, loadAuthenticatedUser, saveAuthenticatedAddress } from './supabase.js';
 import { createAuthSessionSync } from './auth-session.js';
+
+let doodleFooterRoot = null;
 import { loadGroupMessages, sendGroupMessage } from './group-chat.js';
 import { loadSupabaseGroups, resolveSupabaseInvite, createSupabaseGroup, joinSupabaseGroup, leaveSupabaseGroup, approveSupabaseGroup, changeSupabaseDelivery, transferSupabaseGroup, removeSupabaseGroupMember, deleteSupabaseGroup, getSupabaseInvite } from './supabase-groups.js';
 import { createOrder, activateOrder, migrateOrders, lockOrderedGroups, orderPermissions, reportPayment, updatePayment, transitionOrder, updateShipment, openDispute, proposeResolution, respondToResolution, DISPUTE_REASONS, sellerIdFor, assertListingSeller } from './orders.js';
@@ -1647,6 +1652,9 @@ function render() {
   ];
   const desktopNav = nav.slice(0, 3);
 
+  doodleFooterRoot?.unmount();
+  doodleFooterRoot = null;
+
   document.querySelector('#app').innerHTML = `
     ${icons}
     <header class="site-header${headerScrolled ? ' is-scrolled' : ''}${mobileMenuOpen ? ' menu-open' : ''}">
@@ -1685,45 +1693,60 @@ function render() {
 
     <div id="toast" role="status" aria-live="polite"></div>
 
-    <footer class="site-footer">
-      <div class="footer-inner">
-        <div class="footer-grid">
-          <div class="footer-brand">
-            ${a('/', '<span class="logo-mark" style="display:inline-grid;margin-right:8px;vertical-align:middle;width:32px;height:32px;border-radius:10px;font-size:0.9rem;">H</span><strong style="font-size:1.25rem;color:var(--navy);vertical-align:middle;">HarnKhong</strong>', 'brand')}
-            <p>${t("แพลตฟอร์มเพื่อการหารค่าใช้จ่าย ซื้อของราคาส่ง และแชร์บริการสำหรับเพื่อนและชุมชนอย่างโปร่งใส ตรวจสอบยอดได้ก่อนตกลงสั่งซื้อจริง")}</p>
-          </div>
-          <div class="footer-col">
-            <h4>${t("เมนูด่วน")}</h4>
-            ${a('/explore', t("สำรวจสินค้า"))}
-            ${/^\/groups\/[^/]+$/.test(location.pathname) ? '' : a('/groups/create', t("เปิดกลุ่มใหม่"))}
-            ${a('/my-groups', t("กลุ่มของฉัน"))}
-            ${a('/chat', t("แชตติดต่อผู้ขาย"))}
-          </div>
-          <div class="footer-col">
-            <h4>${t("หมวดหมู่")}</h4>
-            ${a('/explore?category=' + encodeURIComponent('แอปพลิเคชันและเว็บไซต์'), t('แอปพลิเคชันและเว็บไซต์'))}
-            ${a('/explore?category=' + encodeURIComponent('ของใช้ทั่วไป'), t("ของใช้ทั่วไป"))}
-            ${a('/explore?category=' + encodeURIComponent('สินค้าขายส่ง'), t("สินค้าขายส่ง"))}
-            ${a('/explore?category=' + encodeURIComponent('บริการทั่วไป'), t("บริการทั่วไป"))}
-            ${a('/explore', t("หมวดทั้งหมด"))}
-          </div>
-          <div class="footer-col">
-            <h4>${t("ช่วยเหลือ")}</h4>
-            <a href="javascript:void(0)" data-action="open-auth" data-step="1">${t("เข้าสู่ระบบ")}</a>
-            <a href="javascript:void(0)" data-action="open-auth" data-step="2">${t("สมัครสมาชิก")}</a>
-            ${supabaseConfigured ? '' : `<a href="javascript:void(0)" data-action="reset-demo">${t("รีเซ็ตข้อมูลเดโม")}</a>`}
-          </div>
-        </div>
-        <div class="footer-wordmark" aria-label="HarnKhong"><span>H</span>ARNKHONG</div>
-        <div class="footer-bottom">
-          <span>${t("© 2026 HarnKhong — แพลตฟอร์มหารของด้วยกัน")}</span>
-          <span class="footer-demo-pill">${t("💡 โหมดต้นแบบจำลอง (MVP Demo) เพื่อการทดสอบ UX")}</span>
-        </div>
-      </div>
-    </footer>
+    <div id="interactive-footer"></div>
 
     ${authModalActive ? `<dialog class="auth-modal-overlay" id="auth-modal-overlay" aria-label="${t('เข้าสู่ระบบ')}">${renderPhoneMockup(mockupCurrentStep, true)}</dialog>` : ''}
   `;
+
+  const footerMount = document.querySelector('#interactive-footer');
+  if (footerMount) {
+    const quickLinks = [
+      { label: t('สำรวจสินค้า'), href: '/explore' },
+      ...(/^\/groups\/[^/]+$/.test(location.pathname) ? [] : [{ label: t('เปิดกลุ่มใหม่'), href: '/groups/create' }]),
+      { label: t('กลุ่มของฉัน'), href: '/my-groups' },
+      { label: t('แชตติดต่อผู้ขาย'), href: '/chat' },
+    ];
+    const categoryLinks = [
+      { label: t('แอปพลิเคชันและเว็บไซต์'), href: '/explore?category=' + encodeURIComponent('แอปพลิเคชันและเว็บไซต์') },
+      { label: t('ของใช้ทั่วไป'), href: '/explore?category=' + encodeURIComponent('ของใช้ทั่วไป') },
+      { label: t('สินค้าขายส่ง'), href: '/explore?category=' + encodeURIComponent('สินค้าขายส่ง') },
+      { label: t('บริการทั่วไป'), href: '/explore?category=' + encodeURIComponent('บริการทั่วไป') },
+      { label: t('หมวดทั้งหมด'), href: '/explore' },
+    ];
+    const helpLinks = [
+      { label: t('เข้าสู่ระบบ'), href: '#login', onClick: () => openAuthModal(1) },
+      { label: t('สมัครสมาชิก'), href: '#register', onClick: () => openAuthModal(2) },
+      ...(!supabaseConfigured ? [{ label: t('รีเซ็ตข้อมูลเดโม'), href: '#reset-demo', onClick: () => {
+        if (confirm(t('ล้างข้อมูลเดโมในเบราว์เซอร์นี้และเริ่มใหม่?'))) { state = initialState(); save(); go('/'); alertMessage(t('เริ่มข้อมูลเดโมใหม่แล้ว')); }
+      } }] : []),
+    ];
+    doodleFooterRoot = createRoot(footerMount);
+    doodleFooterRoot.render(React.createElement(DoodleCrewFooter, {
+      wordmark: 'HARNKHONG',
+      brand: 'HarnKhong',
+      blurb: t('แพลตฟอร์มเพื่อการหารค่าใช้จ่าย ซื้อของราคาส่ง และแชร์บริการสำหรับเพื่อนและชุมชนอย่างโปร่งใส ตรวจสอบยอดได้ก่อนตกลงสั่งซื้อจริง'),
+      tagline: t('หารของและบริการอย่างโปร่งใส ตรวจสอบยอดได้ก่อนสั่งจริง'),
+      columns: [
+        { title: t('เมนูด่วน'), links: quickLinks },
+        { title: t('หมวดหมู่'), links: categoryLinks },
+        { title: t('ช่วยเหลือ'), links: helpLinks },
+      ],
+      actions: [
+        { label: t('เข้าสู่ระบบ'), variant: 'outline', icon: 'sparkle', onClick: () => openAuthModal(1) },
+        { label: t('สมัครสมาชิก'), variant: 'solid', icon: 'heart', onClick: () => openAuthModal(2) },
+      ],
+      copyright: t('© 2026 HarnKhong — แพลตฟอร์มหารของด้วยกัน'),
+      legal: [{ label: t('💡 โหมดต้นแบบจำลอง (MVP Demo) เพื่อการทดสอบ UX') }],
+      socials: [],
+      preset: 'auto',
+      palette: { background: 'var(--bg-card, #ffffff)', ink: 'var(--ink, #102a43)', accent: 'var(--blue, #0868ce)' },
+      fontFamily: '"Plus Jakarta Sans", "IBM Plex Sans Thai", sans-serif',
+      serifFamily: '"IBM Plex Sans Thai", sans-serif',
+      tracking: -0.045,
+      height: '760px',
+      className: 'harnkhong-doodle-footer',
+    }));
+  }
 
   startHeroHeadlineLoop();
   initHeroPhoneParallax();

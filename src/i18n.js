@@ -192,6 +192,7 @@ const labels = {
   '✓ พร้อมสรุปคำสั่งซื้อ':'✓ Ready for order summary', '⏳ รอสมาชิกครบ':'⏳ Waiting for members', 'ว่างที่เดียว!':'One spot left!',
   'ความคืบหน้า':'Progress', 'ราคารวมกลุ่ม':'Group total', 'ตกเพียง':'Just', 'ดูกลุ่มและเข้าร่วม':'View and join group',
   'แพลตฟอร์มหารของและบริการที่โปร่งใส':'Transparent sharing for products and services',
+  'หารของและบริการอย่างโปร่งใส ตรวจสอบยอดได้ก่อนสั่งจริง':'Share products and services transparently. Review every share before ordering.',
   'ของดี ๆ':'Good things', 'หารกันได้!':'are better shared!',
   'หาร':'Share',
   'ของดี ๆ ให้คุ้มกว่าเดิม!':'great deals for less!',

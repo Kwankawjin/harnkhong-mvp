@@ -1677,98 +1677,15 @@ body.mobile-menu-open { overflow: hidden; }
   border-color: #ffffff;
 }
 
-/* ========================================================
-   MODERN SITE FOOTER
-   ======================================================== */
-.site-footer {
+/* Doodle crew footer spacing; the component owns its internal layout and styles. */
+.harnkhong-doodle-footer.dcf {
   margin-top: 70px;
-  background: #ffffff;
   border-top: 1px solid var(--line);
-  padding: 50px 24px 34px;
+  font-family: "IBM Plex Sans Thai", "Plus Jakarta Sans", sans-serif;
 }
-.footer-inner {
-  max-width: 1200px;
-  margin: 0 auto;
+@media (min-width: 861px) {
+  .harnkhong-doodle-footer.dcf .dcf-cols { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-.footer-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
-  gap: 30px;
-  margin-bottom: 36px;
-}
-.footer-brand p {
-  font-size: 0.88rem;
-  color: var(--text-sub);
-  max-width: 340px;
-  margin-top: 12px;
-}
-.footer-col h4 {
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: var(--navy);
-  margin-bottom: 14px;
-}
-.footer-col a {
-  display: block;
-  font-size: 0.84rem;
-  color: var(--text-sub);
-  margin-bottom: 10px;
-  transition: color 0.15s;
-}
-.footer-col a:hover { color: var(--blue); }
-
-/* Oversized sketchbook-style footer wordmark, inspired by the supplied reference. */
-.footer-wordmark {
-  position: relative;
-  isolation: isolate;
-  margin: clamp(26px, 5vw, 64px) 0 28px;
-  color: var(--ink, #101820);
-  font-family: "Plus Jakarta Sans", "IBM Plex Sans Thai", sans-serif;
-  font-size: clamp(3rem, 15.8vw, 12.5rem);
-  font-weight: 800;
-  letter-spacing: -.095em;
-  line-height: .78;
-  white-space: nowrap;
-  text-align: center;
-  transform: scaleY(1.08) rotate(-1deg);
-  text-shadow: 2px 1px 0 currentColor, -1px 2px 0 currentColor;
-}
-.footer-wordmark::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  height: 2px;
-  left: -2%;
-  right: -2%;
-  bottom: -12px;
-  background: currentColor;
-  transform: rotate(.4deg);
-  box-shadow: 0 5px 0 -1px currentColor;
-}
-.footer-wordmark span { color: var(--blue, #0868ce); }
-
-.footer-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding-top: 24px;
-  border-top: 1px solid var(--line);
-  font-size: 0.8rem;
-  color: #7b94aa;
-}
-.footer-demo-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  background: #f1f6fb;
-  border-radius: var(--radius-pill);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #4b6d8d;
-}
-:root[data-theme="dark"] .footer-wordmark { color: var(--ink, #edf4fa); }
 
 /* ========================================================
    MOBILE BOTTOM NAVIGATION
@@ -2679,7 +2596,6 @@ body.mobile-menu-open { overflow: hidden; }
   .features-grid { grid-template-columns: 1fr; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .cta-banner { flex-direction: column; align-items: flex-start; }
-  .footer-grid { grid-template-columns: 1fr 1fr; }
 }
 
 @media(max-width: 639px) {
@@ -2916,8 +2832,6 @@ body.mobile-menu-open { overflow: hidden; }
 
   /* Stats & Footer */
   .stats-grid { grid-template-columns: 1fr 1fr; }
-  .footer-grid { grid-template-columns: 1fr; gap: 24px; }
-  .footer-bottom { flex-direction: column; text-align: center; gap: 10px; }
 }
 
 @media(min-width: 640px) and (max-width: 959px) {
@@ -3924,8 +3838,7 @@ dialog:not([open]), [hidden] { display: none !important; }
   background-attachment: fixed;
 }
 :root[data-theme="dark"] .site-header,
-:root[data-theme="dark"] .bottom-nav,
-:root[data-theme="dark"] .site-footer {
+:root[data-theme="dark"] .bottom-nav {
   color: var(--ink);
   background: rgba(7,11,15,.92);
   border-color: var(--line);
@@ -4136,8 +4049,6 @@ dialog:not([open]), [hidden] { display: none !important; }
 :root[data-theme="dark"] .group-page .member-approval.approved { background: #123b35; color: #70e0bd; }
 :root[data-theme="dark"] .group-page .progress { background: #273744; }
 :root[data-theme="dark"] .group-page .progress span { background: #79b2ff; }
-:root[data-theme="dark"] .site-footer p,
-:root[data-theme="dark"] .footer-col a { color: var(--text-sub); }
 :root[data-theme="dark"] .toast { color: #fff; }
 
 /* Full application dark palette: shared surfaces and controls across routes. */
@@ -4158,8 +4069,6 @@ dialog:not([open]), [hidden] { display: none !important; }
 :root[data-theme="dark"] .account-shortcuts h2,
 :root[data-theme="dark"] .conversation-row,
 :root[data-theme="dark"] .chat-head h1,
-:root[data-theme="dark"] .footer-col h4 { color: var(--ink); }
-:root[data-theme="dark"] .site-footer { background: rgba(7,11,15,.94); border-color: var(--line); }
 :root[data-theme="dark"] .bottom-nav { background: rgba(11,19,26,.96); border-color: var(--line); }
 :root[data-theme="dark"] .nav-link { color: #c3cfdb; }
 :root[data-theme="dark"] .nav-link:hover,
