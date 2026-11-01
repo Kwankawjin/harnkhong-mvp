@@ -22,13 +22,14 @@ function mapListing(row) {
     art: 'custom',
     mark: 'มือ2',
     description: row.description,
+    quantity: Number(row.quantity) || 1,
     terms: `${row.delivery}${row.area ? ` · ${row.area}` : ''}`,
   };
 }
 
 export async function loadSupabaseSecondhandListings(client = supabase) {
   const { data, error } = await client.from('secondhand_listings')
-    .select('id,owner_id,seller_name,title,category,item_condition,delivery,area,market_address,market_latitude,market_longitude,contact,images,price_satang,description')
+    .select('id,owner_id,seller_name,title,category,item_condition,delivery,area,market_address,market_latitude,market_longitude,contact,images,price_satang,description,quantity')
     .eq('active', true)
     .order('created_at', { ascending: false });
   // Keep the existing marketplace usable before the new migration is deployed.
@@ -78,9 +79,10 @@ export async function createSupabaseSecondhandListing(listing, user) {
       images,
       price_satang: listing.price,
       description: listing.description,
+      quantity: listing.quantity || 1,
     };
     const { data, error } = await supabase.from('secondhand_listings').insert(row)
-      .select('id,owner_id,seller_name,title,category,item_condition,delivery,area,market_address,market_latitude,market_longitude,contact,images,price_satang,description')
+      .select('id,owner_id,seller_name,title,category,item_condition,delivery,area,market_address,market_latitude,market_longitude,contact,images,price_satang,description,quantity')
       .single();
     if (error) throw error;
     return mapListing(data);

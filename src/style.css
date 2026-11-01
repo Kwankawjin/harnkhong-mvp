@@ -5125,6 +5125,10 @@ dialog:not([open]), [hidden] { display: none !important; }
 .secondhand-listing-description, .secondhand-listing-summary { margin-top: 16px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
 .secondhand-listing-description h2 { margin: 0 0 8px; font-size: 1.05rem; }
 .secondhand-listing-description p { white-space: pre-line; }
+.secondhand-product-facts { margin: 18px 0 0; border-top: 1px solid var(--line); }
+.secondhand-product-facts > div { display: grid; grid-template-columns: minmax(110px, .75fr) 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.secondhand-product-facts dt { color: var(--text-sub); }
+.secondhand-product-facts dd { margin: 0; color: var(--navy); font-weight: 600; }
 .secondhand-listing-summary { position: sticky; top: 92px; margin-top: 0; }
 .secondhand-listing-summary h1 { margin: 5px 0 10px; font-size: 1.45rem; line-height: 1.35; }
 .secondhand-price { display: block; margin-bottom: 12px; color: #087f79; font-size: 1.8rem; }
