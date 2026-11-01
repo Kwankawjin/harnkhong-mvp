@@ -263,6 +263,9 @@ const SAMUT_PRAKAN_VIEWBOX = '100.4444351,13.7184898,100.9638955,13.2189544';
 const SAMUT_PRAKAN_BOUNDS = { south: 13.2189544, north: 13.7184898, west: 100.4444351, east: 100.9638955 };
 const isInsideSamutPrakanBounds = (lat, lng) => lat >= SAMUT_PRAKAN_BOUNDS.south && lat <= SAMUT_PRAKAN_BOUNDS.north && lng >= SAMUT_PRAKAN_BOUNDS.west && lng <= SAMUT_PRAKAN_BOUNDS.east;
 const isSamutPrakanAddress = data => /สมุทรปราการ|samut\s*prakan/i.test([data?.display_name, data?.address?.province, data?.address?.state, data?.address?.region].filter(Boolean).join(' '));
+const SAMUT_PRAKAN_MARKET_ALIASES = [
+  { match: /ทิพย์เกสร|ทิพเกสร/i, queries: ['Tipgaysorn Plaza', 'Tipgaysorn Market'] },
+];
 let imagesLoading = false;
 let profileAvatar = '';
 let avatarLoading = false;
@@ -1909,9 +1912,15 @@ async function searchListingMapLocation() {
   const requestId = ++listingMapRequestId; status.textContent = t('กำลังค้นหาตำแหน่ง…');
   try {
     await initializeListingMap();
-    const results = await requestOsmGeocoder(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=th&viewbox=${SAMUT_PRAKAN_VIEWBOX}&bounded=1&accept-language=th&q=${encodeURIComponent(query)}`);
-    if (requestId !== listingMapRequestId || !results?.length) { if (!results?.length) status.textContent = t('ไม่พบสถานที่ในจังหวัดสมุทรปราการ ลองปักหมุดเอง'); return; }
-    const result = results.find(item => isInsideSamutPrakanBounds(Number(item.lat), Number(item.lon)) && isSamutPrakanAddress(item));
+    const alias = SAMUT_PRAKAN_MARKET_ALIASES.find(entry => entry.match.test(query));
+    const queryVariants = [...(alias?.queries || []), query];
+    let result = null;
+    for (const variant of [...new Set(queryVariants)]) {
+      const results = await requestOsmGeocoder(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=th&viewbox=${SAMUT_PRAKAN_VIEWBOX}&bounded=1&accept-language=th&q=${encodeURIComponent(variant)}`);
+      if (requestId !== listingMapRequestId) return;
+      result = (results || []).find(item => isInsideSamutPrakanBounds(Number(item.lat), Number(item.lon)) && isSamutPrakanAddress(item));
+      if (result) break;
+    }
     if (!result) { status.textContent = t('ไม่พบสถานที่ในจังหวัดสมุทรปราการ ลองปักหมุดเอง'); return; }
     const position = { lat: Number(result.lat), lng: Number(result.lon) };
     form.querySelector('[name="marketAddress"]').value = result.display_name;
