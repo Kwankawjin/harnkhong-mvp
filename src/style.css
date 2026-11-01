@@ -5112,3 +5112,40 @@ dialog:not([open]), [hidden] { display: none !important; }
 .secondhand-listing-summary > p { display: flex; align-items: flex-start; gap: 6px; overflow-wrap: anywhere; font-size: .84rem; }
 @media(max-width: 850px) { .listing-create-layout { grid-template-columns: minmax(0,1fr); } .listing-preview-card { position: static; grid-row: 1; } }
 @media(max-width: 620px) { .listing-create-page, .secondhand-listing-page { padding-inline: 0; } .listing-create-heading { align-items: flex-start; } .listing-create-step { display: none; } .listing-form-card { padding: 17px; } .listing-form-row, .secondhand-listing-layout { grid-template-columns: minmax(0,1fr); } .listing-preview-card { grid-row: auto; } .listing-submit-row { align-items: stretch; flex-direction: column; } .listing-publish-button { width: 100%; } .secondhand-listing-summary { position: static; } .secondhand-listing-hero { min-height: 260px; } }
+
+/* Marketplace inspired header */
+.header-actions { gap: 14px; }
+.header-create-menu-wrap { position: relative; order: 3; }
+.header-create-menu-wrap .header-create-btn.button { display: inline-flex; align-items: center; gap: 9px; height: 42px; min-height: 42px; padding: 0 18px; border: 1px solid #0756bf; border-radius: 999px; background: linear-gradient(135deg, #0873ed, #0756c7); color: #fff; box-shadow: 0 5px 12px rgba(9,104,227,.2); font-size: .85rem; font-weight: 800; }
+.header-create-menu-wrap .header-create-btn.button:hover { border-color: #064da9; background: linear-gradient(135deg, #0867d6, #064cae); transform: translateY(-1px); }
+.header-create-menu-wrap .header-create-btn > span { margin-left: 1px; font-size: .82rem; }
+.header-notifications-btn { order: 1; }
+.profile-menu-wrap { order: 2; }
+.header-actions > .header-login-btn { order: 2; }
+.profile-menu-wrap .header-user-name { display: none; }
+.profile-menu-wrap .profile-pill { min-width: 46px; min-height: 42px; justify-content: center; padding: 3px 7px 3px 3px; gap: 6px; background: #f8fbff; border-color: #c8ddf5; }
+.profile-menu-wrap .profile-pill:hover { background: #eef6ff; }
+.profile-menu-guest { width: auto; }
+.header-create-dropdown { position: absolute; z-index: 125; top: calc(100% + 10px); right: 0; width: 242px; padding: 8px; border: 1px solid #e7edf5; border-radius: 15px; background: #fff; box-shadow: 0 15px 36px rgba(9,40,71,.16); animation: menu-pop .16s ease-out; }
+.header-create-option { display: flex; align-items: center; gap: 11px; padding: 10px; border-radius: 10px; color: var(--navy); }
+.header-create-option:hover { background: #f4f8fd; }
+.header-create-option-icon { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 11px; background: #eaf3ff; color: var(--blue); }
+.header-create-option-icon.secondhand { background: #f0ebff; color: #6948c7; }
+.header-create-option strong, .header-create-option small { display: block; }
+.header-create-option strong { font-size: .82rem; }
+.header-create-option small { margin-top: 2px; color: var(--text-sub); font-size: .72rem; }
+.profile-dropdown-locale { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 11px 5px; border-top: 1px solid var(--line); color: var(--text-sub); font-size: .78rem; }
+.profile-dropdown-locale select { width: auto; min-width: 100px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--navy); font: inherit; }
+.secondhand-market { max-width: 1200px; margin: 0 auto; }
+.secondhand-market-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 17px; }
+.secondhand-market-card { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: var(--shadow-sm); transition: transform .16s ease, box-shadow .16s ease; }
+.secondhand-market-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.secondhand-market-card > img, .secondhand-market-placeholder { display: grid; place-items: center; width: 100%; height: 190px; object-fit: cover; background: #eff5fb; color: #7c9bb8; }
+.secondhand-market-card-copy { padding: 13px; }
+.secondhand-market-card-copy > span { color: var(--blue); font-size: .7rem; font-weight: 700; }
+.secondhand-market-card-copy h3 { margin: 4px 0; color: var(--navy); font-size: .94rem; }
+.secondhand-market-card-copy strong { display: block; color: #087f79; font-size: 1.15rem; }
+.secondhand-market-card-copy small { display: block; margin-top: 7px; color: var(--text-sub); font-size: .73rem; }
+.secondhand-market-empty { max-width: 520px; margin: 20px auto; }
+@media(max-width: 1000px) { .secondhand-market-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } }
+@media(max-width: 700px) { .secondhand-market-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .secondhand-market-card > img, .secondhand-market-placeholder { height: 155px; } }
