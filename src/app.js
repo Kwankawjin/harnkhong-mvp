@@ -254,6 +254,7 @@ let mockupCurrentStep = 1;
 let tempSignupData = {};
 let groupImages = [];
 let selectedCreateCategories = [];
+let selectedHomeGroupCategory = 'ทั้งหมด';
 let listingImages = [];
 let listingMap = null;
 let secondhandDetailMap = null;
@@ -708,271 +709,109 @@ const CATEGORIES_LIST = [
 ];
 const CATEGORY_NAMES = CATEGORIES_LIST.map(c => c.name);
 const CREATE_CATEGORY_NAMES = CATEGORY_NAMES.filter(name => name !== 'ทั้งหมด');
-const CATEGORY_PHOTOS = {
-  'ทั้งหมด': 'all',
-  'แอปพลิเคชันและเว็บไซต์': 'apps',
-  'เสื้อผ้าและแฟชั่น': 'fashion',
-  'เครื่องสำอางและความงาม': 'beauty',
-  'อาหารและเครื่องดื่ม': 'food',
-  'ของใช้ทั่วไป': 'home',
-  'สินค้าดิจิทัล': 'digital',
-  'อุปกรณ์อิเล็กทรอนิกส์และไอที': 'electronics',
-  'สินค้าขายส่ง': 'wholesale',
-  'บริการทั่วไป': 'services',
-  'อื่น ๆ (ระบุชื่อเอง)': 'other'
-};
-
 function home() {
   const activeGroups = state.groups.filter(g => g.visibility === 'public' && g.status !== 'cancelled' && !g.orderId && g.members.length < g.capacity);
-  const categoriesList = CATEGORIES_LIST.filter(c => [
-    'แอปพลิเคชันและเว็บไซต์',
-    'เสื้อผ้าและแฟชั่น',
-    'เครื่องสำอางและความงาม',
-    'อาหารและเครื่องดื่ม',
-    'อุปกรณ์อิเล็กทรอนิกส์และไอที',
-    'สินค้าขายส่ง',
-    'บริการทั่วไป'
-  ].includes(c.name));
-  const headlines = [
-    t('ของดี ๆ ให้คุ้มกว่าเดิม!'),
-    t('แพ็กเกจ แชร์ความคุ้ม!'),
-    t('ง่าย จ่ายชัด ทุกยอดโปร่งใส!')
+  const usedItems = listings().filter(item => item.listingType === 'secondhand').slice(0, 3);
+  const groupFilters = [
+    ['ทั้งหมด', 'ทั้งหมด'], ['อุปกรณ์ไอที', 'อุปกรณ์อิเล็กทรอนิกส์และไอที'],
+    ['เครื่องสำอาง', 'เครื่องสำอางและความงาม'], ['เสื้อผ้า', 'เสื้อผ้าและแฟชั่น'],
+    ['ของใช้ในบ้าน', 'ของใช้ทั่วไป'], ['อาหาร / ขนม', 'อาหารและเครื่องดื่ม'], ['อื่น ๆ', 'อื่น ๆ (ระบุชื่อเอง)']
   ];
+  const usedFilters = [
+    ['ทั้งหมด', 'ทั้งหมด'], ['มือถือ / แท็บเล็ต', 'อุปกรณ์อิเล็กทรอนิกส์และไอที'],
+    ['คอมพิวเตอร์', 'อุปกรณ์อิเล็กทรอนิกส์และไอที'], ['เกม / อุปกรณ์เกม', 'อุปกรณ์อิเล็กทรอนิกส์และไอที'],
+    ['เสื้อผ้า', 'เสื้อผ้าและแฟชั่น'], ['หนังสือ', null], ['อื่น ๆ', null]
+  ];
+  const headlines = [t('ของดี ๆ ให้คุ้มกว่าเดิม!'), t('แพ็กเกจ แชร์ความคุ้ม!'), t('ง่าย จ่ายชัด ทุกยอดโปร่งใส!')];
   const activeHeadlineIndex = heroHeadlineIndex % headlines.length;
   const currentHeadline = headlines[activeHeadlineIndex];
   const widestHeadline = headlines.reduce((longest, phrase) => phrase.length > longest.length ? phrase : longest, headlines[0]);
-
+  const groupMatchesCategory = (group, category) => {
+    if (category === 'ทั้งหมด') return true;
+    const actualCategories = group.categories?.length ? group.categories : [group.category || listing(group.listingId)?.category].filter(Boolean);
+    return category === 'อื่น ๆ (ระบุชื่อเอง)'
+      ? actualCategories.some(value => !CREATE_CATEGORY_NAMES.includes(value))
+      : actualCategories.includes(category);
+  };
+  const filteredGroups = activeGroups.filter(group => groupMatchesCategory(group, selectedHomeGroupCategory));
+  const filterPills = (filters, path, type) => `<nav class="home-filter-pills" aria-label="${t('เลือกหมวดหมู่')}">${filters.map(([label, category], index) => type === 'group'
+    ? `<button type="button" data-action="home-group-filter" data-category="${escape(category)}" aria-pressed="${selectedHomeGroupCategory === category}" class="home-filter-pill${selectedHomeGroupCategory === category ? ' active' : ''}">${index === 0 ? '<span class="home-filter-dot"></span>' : ''}${t(label)}${index === filters.length - 1 ? '<span class="home-filter-chevron">⌄</span>' : ''}</button>`
+    : a(!category || category === 'ทั้งหมด' ? path : `${path}?category=${encodeURIComponent(category)}`, `${t(label)}${index === filters.length - 1 ? '<span class="home-filter-chevron">⌄</span>' : ''}`, `home-filter-pill${index === 0 ? ' active' : ''}`)).join('')}</nav>`;
+  const usedCards = usedItems.map(item => {
+    const rawArea = item.marketAddress || item.area || t('ดูสินค้า');
+    const areaLabel = /-?\d{2,}\.\d+\s*,\s*-?\d{2,}\.\d+/.test(rawArea) ? t('ดูแผนที่') : rawArea;
+    return a(`/products/${encodeURIComponent(item.id)}`, `
+      <div class="home-used-media">${item.images?.[0] ? `<img src="${item.images[0]}" alt="${escape(item.title)}" loading="lazy"/>` : `<div class="home-used-placeholder">${icon('package', 38)}</div>`}<span class="home-used-condition">${escape(t(item.condition || 'มือสอง'))}</span><span class="home-used-heart" aria-hidden="true">♡</span></div>
+      <div class="home-used-copy"><div class="home-used-tags"><span>${escape(t(item.category || 'อื่น ๆ'))}</span><span>${escape(t(item.condition || 'มือสอง'))}</span></div><h3>${escape(item.title)}</h3><p class="home-used-description">${escape(item.description || t('ผู้ขายยังไม่ได้เพิ่มรายละเอียดสินค้า'))}</p><strong class="home-used-price">${money(item.price)}</strong><div class="home-used-facts"><div><small>${t('วิธีรับสินค้า')}</small><b>${escape(t(item.delivery || 'รับสินค้าเอง'))}</b></div><div><small>${t('จำนวน')}</small><b>${t('{count} ชิ้น', { count: item.quantity || 1 })}</b></div><div class="location"><small>${t('สถานที่ขาย')}</small><b>${icon('map-pin', 14)} ${escape(areaLabel)}</b></div></div><div class="home-used-seller"><span class="avatar small">${escape(name(item.sellerId).slice(0, 1))}</span><b>${escape(item.sellerName || name(item.sellerId))}</b></div><span class="home-used-cta">${t('ดูรายละเอียดสินค้า')} ${icon('arrow', 16)}</span></div>
+    `, 'home-used-card');
+  }).join('');
   return `
     <section class="hero home-hero">
       <div class="hero-text">
         <h1><span class="sr-only" data-headline-accessible>${t('หาร')} ${currentHeadline}</span><span class="dynamic-headline headline-loop" aria-hidden="true" data-text-loop="${escape(JSON.stringify(headlines))}" data-static-text="${t('หาร')}"><span class="hero-headline-static">${t('หาร')}</span><span class="headline-rotator-slot"><span class="headline-rotator-measure">${widestHeadline}</span><span class="headline-rotator-window"><span class="headline-rotator-highlight"></span><span class="headline-rotator-current">${currentHeadline}</span><span class="headline-rotator-cursor"></span></span></span></span></h1>
-        <p>${t("ชวนเพื่อนเปิดกลุ่มซื้อสินค้าหารของ ของใช้จำเป็น หรือแพ็กเกจสุดคุ้ม คำนวณเป๊ะ เห็นยอดโปร่งใสก่อนตกลงสั่งซื้อจริง")}</p>
-
-        <form class="hero-search" id="search-form">
-          <span>${icon('search', 20)}</span>
-          <input name="q" placeholder="${t("ค้นหาแอป, เสื้อผ้า, เครื่องสำอาง, อาหาร...")}" aria-label="${t("ค้นหาสินค้าหรือบริการ")}"/>
-          <button type="submit">${t("ค้นหา")}</button>
-        </form>
-
-        <div class="hero-quick-tags">
-          <span>${t("ค้นหายอดนิยม:")}</span>
-          <button type="button" class="hero-tag" data-action="quick-search" data-category="แอปพลิเคชันและเว็บไซต์" data-query="แอปพลิเคชันและเว็บไซต์">${t("🌐 แอปพลิเคชันและเว็บไซต์")}</button>
-          <button type="button" class="hero-tag" data-action="quick-search" data-category="เสื้อผ้าและแฟชั่น" data-query="เสื้อผ้าและแฟชั่น">${t("👗 เสื้อผ้าและแฟชั่น")}</button>
-          <button type="button" class="hero-tag" data-action="quick-search" data-category="เครื่องสำอางและความงาม" data-query="เครื่องสำอางและความงาม">${t("💄 เครื่องสำอางและความงาม")}</button>
-          <button type="button" class="hero-tag" data-action="quick-search" data-category="อาหารและเครื่องดื่ม" data-query="อาหารและเครื่องดื่ม">${t("🍱 อาหารและเครื่องดื่ม")}</button>
-        </div>
-
-        <div class="hero-points">
-          <span>${icon('shield', 16)} ${t("ตรวจสอบยอดก่อนยืนยัน")}</span>
-          <span>${icon('calc', 16)} ${t("คำนวณเศษสตางค์เป๊ะ")}</span>
-          <span>${icon('users', 16)} ${t("มีกลุ่มพร้อมเข้าร่วม")}</span>
-        </div>
+        <p>${t('ชวนเพื่อนเปิดกลุ่มซื้อสินค้าหารของ ของใช้จำเป็น หรือแพ็กเกจสุดคุ้ม คำนวณเป๊ะ เห็นยอดโปร่งใสก่อนตกลงสั่งซื้อจริง')}</p>
+        <form class="hero-search" id="search-form"><span>${icon('search', 20)}</span><input name="q" placeholder="${t('ค้นหาแอป, เสื้อผ้า, เครื่องสำอาง, อาหาร...')}" aria-label="${t('ค้นหาสินค้าหรือบริการ')}"/><button type="submit">${t('ค้นหา')}</button></form>
+        <div class="hero-quick-tags"><span>${t('ค้นหายอดนิยม:')}</span><button type="button" class="hero-tag" data-action="quick-search" data-category="แอปพลิเคชันและเว็บไซต์" data-query="แอปพลิเคชันและเว็บไซต์">${t('🌐 แอปพลิเคชันและเว็บไซต์')}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="เสื้อผ้าและแฟชั่น" data-query="เสื้อผ้าและแฟชั่น">${t('👗 เสื้อผ้าและแฟชั่น')}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="เครื่องสำอางและความงาม" data-query="เครื่องสำอางและความงาม">${t('💄 เครื่องสำอางและความงาม')}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="อาหารและเครื่องดื่ม" data-query="อาหารและเครื่องดื่ม">${t('🍱 อาหารและเครื่องดื่ม')}</button></div>
+        <div class="hero-points"><span>${icon('shield', 16)} ${t('ตรวจสอบยอดก่อนยืนยัน')}</span><span>${icon('calc', 16)} ${t('คำนวณเศษสตางค์เป๊ะ')}</span><span>${icon('users', 16)} ${t('มีกลุ่มพร้อมเข้าร่วม')}</span></div>
       </div>
-
       <div class="hero-visual" aria-hidden="true">
         <div class="hero-halo"></div>
-
         <div class="hero-phone-showcase">
-          <!-- Floating Pop-out 1: Calculation breakdown card -->
-          <div class="hero-float-card card-calc">
-            <span class="float-calc-badge">➗ ${t('คำนวณเป๊ะ รวมค่าส่งและบริการ')}</span>
-            <div class="float-calc-formula">
-              <strong>฿890 ÷ 5 คน</strong>
-              <span class="float-calc-eq">=</span>
-              <b class="float-calc-res">฿178.00<small>/คน</small></b>
-            </div>
-          </div>
-
-          <!-- Floating Pop-out 2: Live notification pill -->
-          <div class="hero-float-card card-notice">
-            <span class="float-dot-live"></span>
-            <div class="float-notice-text">
-              <strong>${t('สมาชิกครบ ยืนยันยอด 100%')}</strong>
-              <small>${t('✓ พร้อมสรุปคำสั่งซื้อ')}</small>
-            </div>
-            <span class="float-notice-check">✓</span>
-          </div>
-
-          <!-- Floating Pop-out 3: Savings Badge -->
-          <div class="hero-float-card card-badge">
-            <span class="float-sparkle">✨</span>
-            <b>${t('ยอดชัดเจน โปร่งใส ปลอดภัย')}</b>
-          </div>
-
-          <!-- 3D Smartphone Frame -->
+          <div class="hero-float-card card-calc"><span class="float-calc-badge">➗ ${t('คำนวณเป๊ะ รวมค่าส่งและบริการ')}</span><div class="float-calc-formula"><strong>฿890 ÷ 5 คน</strong><span class="float-calc-eq">=</span><b class="float-calc-res">฿178.00<small>/คน</small></b></div></div>
+          <div class="hero-float-card card-notice"><span class="float-dot-live"></span><div class="float-notice-text"><strong>${t('สมาชิกครบ ยืนยันยอด 100%')}</strong><small>${t('✓ พร้อมสรุปคำสั่งซื้อ')}</small></div><span class="float-notice-check">✓</span></div>
+          <div class="hero-float-card card-badge"><span class="float-sparkle">✨</span><b>${t('ยอดชัดเจน โปร่งใส ปลอดภัย')}</b></div>
           <div class="hero-phone-frame">
-            <div class="hero-phone-island">
-              <span class="hero-phone-lens"></span>
-              <span class="hero-phone-sensor"></span>
-            </div>
-
+            <div class="hero-phone-island"><span class="hero-phone-lens"></span><span class="hero-phone-sensor"></span></div>
             <div class="hero-phone-screen">
-              <!-- Phone Status Bar -->
-              <div class="hero-phone-bar">
-                <span class="phone-time">09:41</span>
-                <span class="phone-icons">5G 📶 98%</span>
-              </div>
-
-              <!-- Group Header Row -->
-              <div class="phone-group-badge-row">
-                <span class="phone-tag-pill">${t('กลุ่มยอดนิยม')}</span>
-                <span class="phone-status-pill">${t('ว่าง 1 ที่สุดท้าย')}</span>
-              </div>
-
+              <div class="hero-phone-bar"><span class="phone-time">09:41</span><span class="phone-icons">5G 📶 98%</span></div>
+              <div class="phone-group-badge-row"><span class="phone-tag-pill">${t('กลุ่มยอดนิยม')}</span><span class="phone-status-pill">${t('ว่าง 1 ที่สุดท้าย')}</span></div>
               <h4 class="phone-group-title">${t('หารกล่องข้าวงานอีเวนต์')}</h4>
-
-              <!-- Price Box -->
-              <div class="phone-price-box">
-                <div class="phone-price-main">
-                  <span class="phone-price-num">฿178.00</span>
-                  <span class="phone-price-unit">/คน</span>
-                </div>
-                <span class="phone-save-chip">ประหยัด 80%</span>
-              </div>
-
-              <!-- Progress bar -->
-              <div class="phone-progress-wrap">
-                <div class="phone-progress-text">
-                  <span>${t('สมาชิก {count} / {capacity} คน', { count: 4, capacity: 5 })}</span>
-                  <b>80%</b>
-                </div>
-                <div class="phone-track">
-                  <span class="phone-bar-fill" style="width: 80%;"></span>
-                </div>
-              </div>
-
-              <!-- Member verification rows -->
+              <div class="phone-price-box"><div class="phone-price-main"><span class="phone-price-num">฿178.00</span><span class="phone-price-unit">/คน</span></div><span class="phone-save-chip">${t('ประหยัด 80%')}</span></div>
+              <div class="phone-progress-wrap"><div class="phone-progress-text"><span>${t('สมาชิก {count} / {capacity} คน', { count: 4, capacity: 5 })}</span><b>80%</b></div><div class="phone-track"><span class="phone-bar-fill" style="width: 80%;"></span></div></div>
               <div class="phone-members-list">
-                <div class="phone-member-item">
-                  <span class="phone-avatar c-blue">ส</span>
-                  <div class="phone-member-name">
-                    <b>${t('สมชาย (หัวหน้ากลุ่ม)')}</b>
-                    <small>฿178.00</small>
-                  </div>
-                  <span class="phone-check-badge">✓ ${t('ยืนยันยอดแล้ว')}</span>
-                </div>
-                <div class="phone-member-item">
-                  <span class="phone-avatar c-mint">M</span>
-                  <div class="phone-member-name">
-                    <b>May</b>
-                    <small>฿178.00</small>
-                  </div>
-                  <span class="phone-check-badge">✓ ${t('ยืนยันยอดแล้ว')}</span>
-                </div>
-                <div class="phone-member-item">
-                  <span class="phone-avatar c-violet">N</span>
-                  <div class="phone-member-name">
-                    <b>Nan</b>
-                    <small>฿178.00</small>
-                  </div>
-                  <span class="phone-check-badge">✓ ${t('ยืนยันยอดแล้ว')}</span>
-                </div>
+                <div class="phone-member-item"><span class="phone-avatar c-blue">ส</span><div class="phone-member-name"><b>${t('สมชาย (หัวหน้ากลุ่ม)')}</b><small>฿178.00</small></div><span class="phone-check-badge">✓ ${t('ยืนยันยอดแล้ว')}</span></div>
+                <div class="phone-member-item"><span class="phone-avatar c-mint">M</span><div class="phone-member-name"><b>May</b><small>฿178.00</small></div><span class="phone-check-badge">✓ ${t('ยืนยันยอดแล้ว')}</span></div>
+                <div class="phone-member-item"><span class="phone-avatar c-violet">N</span><div class="phone-member-name"><b>Nan</b><small>฿178.00</small></div><span class="phone-check-badge">✓ ${t('ยืนยันยอดแล้ว')}</span></div>
               </div>
-
-              <!-- Phone Screen CTA -->
-              <div class="phone-cta-wrap">
-                <button type="button" class="phone-join-btn">
-                  <span>${t('เข้าร่วมกลุ่มนี้')}</span>
-                  <b>฿178.00</b>
-                </button>
-              </div>
+              <div class="phone-cta-wrap"><button type="button" class="phone-join-btn"><span>${t('เข้าร่วมกลุ่มนี้')}</span><b>฿178.00</b></button></div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="section home-open-groups">
-      <div class="section-header"><div><h2>${t('กลุ่มที่เข้าร่วมได้ตอนนี้')}</h2><p>${t('เห็นยอดหลังคุณเข้าร่วม จำนวนที่ว่าง และเงื่อนไขก่อนตัดสินใจ')}</p></div>${a('/explore', `${t('ดูกลุ่มทั้งหมด')} ${icon('arrow', 16)}`, 'text-link')}</div>
-      ${activeGroups.length ? `<div class="group-grid home-open-groups-grid">${activeGroups.slice(0, 3).map(groupCard).join('')}</div>` : `<div class="empty"><h3>${t('ยังไม่มีกลุ่มที่เปิดรับ')}</h3>${a('/explore', t('สำรวจรายการ'), 'button outline')}</div>`}
+    <section class="home-discovery-section home-group-section">
+      <div class="home-section-banner"><span class="home-section-icon group">${icon('users', 40)}</span><div><h2>${t('กลุ่มหารของ')} <small>(Group Buying)</small></h2><p>${t('ชวนคนมาร่วมซื้อ แบ่งค่าใช้จ่ายให้ถูกลง')}</p></div>${a('/explore', `${t('ดูทั้งหมด')} ${icon('arrow', 18)}`, 'home-view-all')}</div>
+      ${filterPills(groupFilters, '/explore', 'group')}
+      ${filteredGroups.length ? `<div class="group-grid home-open-groups-grid">${filteredGroups.slice(0, 3).map(groupCard).join('')}</div>` : `<div class="empty home-section-empty"><h3>${selectedHomeGroupCategory === 'ทั้งหมด' ? t('ยังไม่มีกลุ่มที่เปิดรับ') : t('หมวดหมู่นี้ยังไม่มีกลุ่มที่เปิดรับ')}</h3>${selectedHomeGroupCategory !== 'ทั้งหมด' ? `<button type="button" class="button outline" data-action="home-group-filter" data-category="ทั้งหมด">${t('ดูกลุ่มทั้งหมด')}</button>` : a('/explore', t('ดูกลุ่มทั้งหมด'), 'button outline')}</div>`}
     </section>
 
-    <div class="flow-strip">
-      <div class="flow-card">
-        <span class="flow-badge">1</span>
-        <div class="flow-card-copy">
-          <strong>${t('เลือกกลุ่มที่เปิดรับ')}</strong>
-          <p>${t('ดูสมาชิก ที่ว่าง และยอดที่ต้องจ่ายของแต่ละกลุ่ม')}</p>
-        </div>
-      </div>
-      <div class="flow-card">
-        <span class="flow-badge">2</span>
-        <div class="flow-card-copy">
-          <strong>${t("รวมกลุ่มแชร์ค่าใช้จ่าย")}</strong>
-          <p>${t("เข้าร่วมกลุ่มที่เปิดรับ หรือตั้งกลุ่มใหม่แล้วชวนเพื่อนง่ายๆ")}</p>
-        </div>
-      </div>
-      <div class="flow-card">
-        <span class="flow-badge">3</span>
-        <div class="flow-card-copy">
-          <strong>${t("ยืนยันยอดโปร่งใส")}</strong>
-          <p>${t("ตรวจสอบส่วนแบ่งและค่าส่งชัดเจน สมาชิกทุกคนกดยืนยันก่อนสั่ง")}</p>
-        </div>
-      </div>
-    </div>
+    <a class="home-promo-strip group" href="/groups/create"><span class="home-promo-icon">${icon('users', 42)}</span><span class="home-promo-copy"><strong>${t('เริ่มหารของกับเพื่อน')}</strong><small>${t('ชวนคนมาซื้อตัวด้วยกันเลย ประหยัดกว่า')}</small></span><span class="home-promo-art" aria-hidden="true">🛍️</span><span class="home-promo-button">${t('สร้างกลุ่มหารของ')} ${icon('arrow', 18)}</span></a>
 
-    <section class="section category-section">
+    <section class="home-discovery-section home-used-section">
+      <div class="home-section-banner"><span class="home-section-icon market">${icon('package', 40)}</span><div><h2>${t('ตลาดนัด')} <small>(Marketplace)</small></h2><p>${t('ซื้อ-ขายของมือสอง ราคาดี ตรวจสอบผู้ขายได้')}</p></div>${a('/marketplace/secondhand', `${t('ดูทั้งหมด')} ${icon('arrow', 18)}`, 'home-view-all')}</div>
+      ${filterPills(usedFilters, '/marketplace/secondhand', 'used')}
+      ${usedCards ? `<div class="home-used-grid">${usedCards}</div>` : `<div class="empty home-section-empty"><h3>${t('ยังไม่มีสินค้ามือสอง')}</h3>${a('/marketplace/secondhand', t('ไปตลาดมือสอง'), 'button outline')}</div>`}
+    </section>
+    <a class="home-promo-strip used" href="/seller/products/new"><span class="home-promo-icon">${icon('package', 42)}</span><span class="home-promo-copy"><strong>${t('ลงขายของมือสอง')}</strong><small>${t('เปลี่ยนของที่ไม่ได้ใช้ ให้เป็นเงิน')}</small></span><span class="home-promo-art" aria-hidden="true">📦</span><span class="home-promo-button">${t('ลงขายในตลาดนัด')} ${icon('arrow', 18)}</span></a>
+
+    <section class="section category-section home-restored-categories">
       <div class="category-panel">
-        <div class="section-header">
-          <div>
-            <h2>${t("อยากหารอะไรวันนี้?")}</h2>
-            <p>${t("เลือกหมวดหมู่ที่ใช่ แล้วดูว่ามีกลุ่มไหนกำลังเปิดรับอยู่")}</p>
-          </div>
-        </div>
-        <div class="categories category-bento">
-          ${categoriesList.map(c => {
-    const count = c.name === 'ทั้งหมด' ? activeGroups.length : activeGroups.filter(g => {
-      const groupCategories = g.categories?.length ? g.categories : [g.category || listing(g.listingId)?.category];
-      return c.name === 'อื่น ๆ (ระบุชื่อเอง)' ? groupCategories.some(groupCategory => !CREATE_CATEGORY_NAMES.includes(groupCategory)) : groupCategories.includes(c.name);
-    }).length;
-    const photo = CATEGORY_PHOTOS[c.name] || 'other';
-    return a(`/explore?category=${encodeURIComponent(c.name)}`, `
-              <img class="category-photo" src="/images/categories/${photo}.jpg" alt="" loading="lazy" decoding="async" aria-hidden="true"/>
-              <span class="category-symbol" aria-hidden="true">${c.symbol}</span>
-              <span class="category-copy"><strong>${t(c.name)}</strong><span class="category-count">${t('{count} กลุ่ม', { count })}</span></span>
-            `, `category category--${photo}`);
-  }).join('')}
-        </div>
+        <div class="section-header"><div><h2>${t('อยากหารอะไรวันนี้?')}</h2><p>${t('เลือกหมวดหมู่ที่ใช่ แล้วดูว่ามีกลุ่มไหนกำลังเปิดรับอยู่')}</p></div></div>
+        <div class="filter-carousel home-category-carousel"><button type="button" class="filter-scroll-button filter-scroll-prev" data-action="scroll-filter" data-direction="prev" aria-label="${t('เลื่อนหมวดหมู่ไปซ้าย')}" hidden><span aria-hidden="true">‹</span></button><nav class="filter-row" aria-label="${t('หมวดหมู่')}">${CATEGORY_NAMES.map((category, index) => a(category === 'ทั้งหมด' ? '/explore' : `/explore?category=${encodeURIComponent(category)}`, t(category), `filter home-category-chip${index === 0 ? ' active' : ''}`)).join('')}</nav><button type="button" class="filter-scroll-button filter-scroll-next" data-action="scroll-filter" data-direction="next" aria-label="${t('เลื่อนหมวดหมู่ไปขวา')}" hidden><span aria-hidden="true">›</span></button></div>
       </div>
     </section>
 
-    <section class="features-section">
-      <div class="features-header">
-        <span class="features-kicker">${t("ทำไมต้องหารของ")}</span>
-        <h2>${t("ทำไมต้องหารของด้วย HarnKhong?")}</h2>
-        <p>${t("หมดปัญหาการทวงเงิน คิดเลขไม่ลงตัว หรือไม่แน่ใจเรื่องค่าจัดส่ง")}</p>
-      </div>
+    <section class="features-section home-restored-features">
+      <div class="features-header"><span class="features-kicker">${t('ทำไมต้องหารของ')}</span><h2>${t('ทำไมต้องหารของด้วย HarnKhong?')}</h2><p>${t('หมดปัญหาการทวงเงิน คิดเลขไม่ลงตัว หรือไม่แน่ใจเรื่องค่าจัดส่ง')}</p></div>
       <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon-box">${icon('calc', 26)}</div>
-          <h3>${t("คำนวณแฟร์ถึงเศษสตางค์")}</h3>
-          <p>${t("ระบบกระจายเศษสตางค์และค่าจัดส่งตามลำดับสมาชิกอย่างเป็นธรรม ตรวจสอบได้ทุกขั้นตอน")}</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon-box">${icon('shield', 26)}</div>
-          <h3>${t("อนุมัติรอบยอดก่อนสั่งจริง")}</h3>
-          <p>${t("หากมีการเปลี่ยนแปลงค่าส่งหรือจำนวนคน ทุกคนในกลุ่มต้องกดยืนยันยอดรอบล่าสุดก่อนสั่งซื้อเดโม")}</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon-box">${icon('trending', 26)}</div>
-          <h3>${t("เห็นยอดก่อนตัดสินใจ")}</h3>
-          <p>${t("ซื้อของในราคาส่งหรือแพ็กคุ้มค่าร่วมกับผู้อื่น โดยไม่ต้องซื้อมาเก็บไว้คนเดียวเกินความจำเป็น")}</p>
-        </div>
+        <div class="feature-card"><div class="feature-icon-box">${icon('calc', 26)}</div><h3>${t('คำนวณแฟร์ถึงเศษสตางค์')}</h3><p>${t('ระบบกระจายเศษสตางค์และค่าจัดส่งตามลำดับสมาชิกอย่างเป็นธรรม ตรวจสอบได้ทุกขั้นตอน')}</p></div>
+        <div class="feature-card"><div class="feature-icon-box">${icon('shield', 26)}</div><h3>${t('อนุมัติรอบยอดก่อนสั่งจริง')}</h3><p>${t('หากมีการเปลี่ยนแปลงค่าส่งหรือจำนวนคน ทุกคนในกลุ่มต้องกดยืนยันยอดรอบล่าสุดก่อนสั่งซื้อเดโม')}</p></div>
+        <div class="feature-card"><div class="feature-icon-box">${icon('trending', 26)}</div><h3>${t('เห็นยอดก่อนตัดสินใจ')}</h3><p>${t('ซื้อของในราคาส่งหรือแพ็กคุ้มค่าร่วมกับผู้อื่น โดยไม่ต้องซื้อมาเก็บไว้คนเดียวเกินความจำเป็น')}</p></div>
       </div>
     </section>
 
-    <section class="cta-section">
-      <div class="cta-banner">
-        <div class="cta-copy">
-          <h2>${t("พร้อมเริ่มหารของชิ้นแรกแล้วหรือยัง?")}</h2>
-          <p>${t("เปิดกลุ่มของคุณใน 1 นาที ชวนเพื่อนมาช่วยกันประหยัด หรือเลือกเข้าร่วมกลุ่มที่กำลังเปิดรับอยู่ตอนนี้")}</p>
-        </div>
-        <div class="cta-actions">
-          ${a('/groups/create', `${icon('plus', 18)} ${t("สร้างกลุ่มใหม่")}`, 'button primary')}
-          ${a('/explore', t("สำรวจรายการ"), 'button outline')}
-        </div>
-      </div>
-    </section>
+    <section class="cta-section home-restored-cta"><div class="cta-banner"><div class="cta-copy"><h2>${t('พร้อมเริ่มหารของชิ้นแรกแล้วหรือยัง?')}</h2><p>${t('เปิดกลุ่มของคุณใน 1 นาที ชวนเพื่อนมาช่วยกันประหยัด หรือเลือกเข้าร่วมกลุ่มที่กำลังเปิดรับอยู่ตอนนี้')}</p></div><div class="cta-actions">${a('/groups/create', `${icon('plus', 18)} ${t('สร้างกลุ่มใหม่')}`, 'button primary')}${a('/explore', t('สำรวจรายการ'), 'button outline')}</div></div></section>
   `;
 }
 function explore() {
@@ -1150,8 +989,27 @@ function newProduct() {
     </form></div>`;
 }
 function secondhandMarketPage() {
+  const params = new URLSearchParams(location.search);
+  const query = String(params.get('q') || '').trim();
+  const selectedCategory = params.get('category') || 'ทั้งหมด';
   const items = listings().filter(item => item.listingType === 'secondhand');
-  return `${title(t('ตลาดมือสอง'), t('เลือกดูสินค้ามือสองจากผู้ขายในชุมชน'))}<section class="secondhand-market"><div class="section-header"><h2>${t('ประกาศขายล่าสุด')} <small>${items.length}</small></h2>${a('/seller/products/new', `${icon('plus', 17)} ${t('ลงขายมือสอง')}`, 'button primary')}</div>${items.length ? `<div class="secondhand-market-grid">${items.map(item => a(`/products/${item.id}`, `${item.images?.[0] ? `<img src="${item.images[0]}" alt=""/>` : `<div class="secondhand-market-placeholder">${icon('package', 30)}</div>`}<div class="secondhand-market-card-copy"><span>${escape(t(item.category))}</span><h3>${escape(item.title)}</h3><strong>${money(item.price)}</strong><small>${escape(t(item.condition))} · ${escape(t(item.delivery))}</small></div>`, 'secondhand-market-card')).join('')}</div>` : `<div class="empty secondhand-market-empty"><div class="secondhand-market-placeholder">${icon('package', 34)}</div><h3>${t('ยังไม่มีประกาศขาย')}</h3><p>${t('เป็นคนแรกที่ลงขายสินค้ามือสองในตลาดนี้')}</p>${a('/seller/products/new', t('ลงขายมือสอง'), 'button primary')}</div>`}</section>`;
+  const baseCategories = ['เสื้อผ้าและแฟชั่น', 'อุปกรณ์อิเล็กทรอนิกส์และไอที', 'ของใช้ทั่วไป', 'กีฬาและงานอดิเรก', 'โมเดล / งานศิลปะ'];
+  const categories = ['ทั้งหมด', ...new Set([...baseCategories, ...items.map(item => item.category).filter(Boolean)])];
+  const normalizedQuery = query.toLocaleLowerCase();
+  const filteredItems = items.filter(item => {
+    const text = `${item.title || ''} ${item.category || ''} ${item.description || ''} ${item.sellerName || ''} ${item.area || ''} ${item.marketAddress || ''}`.toLocaleLowerCase();
+    return (selectedCategory === 'ทั้งหมด' || item.category === selectedCategory) && (!normalizedQuery || text.includes(normalizedQuery));
+  });
+  const marketHref = (category, q = query) => {
+    const next = new URLSearchParams();
+    if (q) next.set('q', q);
+    if (category && category !== 'ทั้งหมด') next.set('category', category);
+    const search = next.toString();
+    return `/marketplace/secondhand${search ? `?${search}` : ''}`;
+  };
+  const categoryFilters = `<div class="filter-carousel"><button type="button" class="filter-scroll-button filter-scroll-prev" data-action="scroll-filter" data-direction="prev" aria-label="${t('เลื่อนหมวดหมู่ไปซ้าย')}" hidden><span aria-hidden="true">‹</span></button><nav class="filter-row" aria-label="${t('หมวดหมู่สินค้า')}">${categories.map(category => a(marketHref(category), t(category), `filter ${selectedCategory === category ? 'active' : ''}`)).join('')}</nav><button type="button" class="filter-scroll-button filter-scroll-next" data-action="scroll-filter" data-direction="next" aria-label="${t('เลื่อนหมวดหมู่ไปขวา')}" hidden><span aria-hidden="true">›</span></button></div>`;
+  const listingCards = filteredItems.map(item => a(`/products/${item.id}`, `${item.images?.[0] ? `<img src="${item.images[0]}" alt="${escape(item.title)}" loading="lazy"/>` : `<div class="secondhand-market-placeholder">${icon('package', 30)}</div>`}<div class="secondhand-market-card-copy"><span>${escape(t(item.category))}</span><h3>${escape(item.title)}</h3><strong>${money(item.price)}</strong><small>${escape(t(item.condition))} · ${escape(t(item.delivery))}</small></div>`, 'secondhand-market-card')).join('');
+  return `${title(t('ตลาดมือสอง'), t('เลือกดูสินค้ามือสองจากผู้ขายในชุมชน'))}<section class="secondhand-market"><form class="search-bar secondhand-market-search" id="secondhand-search-form"><span>${icon('search', 22)}</span><input type="hidden" name="category" value="${escape(selectedCategory)}"/><input name="q" value="${escape(query)}" placeholder="${t('ค้นหาชื่อสินค้า หมวดหมู่ หรือรายละเอียด')}" aria-label="${t('ค้นหาสินค้าในตลาดมือสอง')}"/><button type="submit">${t('ค้นหาสินค้า')}</button></form>${categoryFilters}<div class="section-header"><h2>${query || selectedCategory !== 'ทั้งหมด' ? t('ผลการค้นหา') : t('ประกาศขายล่าสุด')} <small>${filteredItems.length}</small></h2>${a('/seller/products/new', `${icon('plus', 17)} ${t('ลงขายมือสอง')}`, 'button primary')}</div>${filteredItems.length ? `<div class="secondhand-market-grid">${listingCards}</div>` : `<div class="empty secondhand-market-empty"><div class="secondhand-market-placeholder">${icon('search', 34)}</div><h3>${t('ไม่พบสินค้าที่ค้นหา')}</h3><p>${t('ลองเปลี่ยนคำค้นหาหรือเลือกหมวดหมู่อื่น')}</p>${a('/marketplace/secondhand', t('ล้างตัวกรอง'), 'button outline')}</div>`}</section>`;
 }
 function syncCreateCategoryUI() {
   const form = document.querySelector('#create-form'); if (!form) return;
@@ -1768,7 +1626,7 @@ function render() {
   const nav = [
     ['/', 'home', t("หน้าแรก")],
     ['/explore', 'search', t("หารของ")],
-    ['/marketplace/secondhand', 'package', t('ตลาดมือสอง')],
+    ['/marketplace/secondhand', 'package', t(location.pathname === '/' ? 'ตลาดนัด' : 'ตลาดมือสอง')],
     ['/my-groups', 'users', t("กลุ่มของฉัน")],
     ['/chat', 'chat', t("แชต")],
     ['/profile', 'user', t("บัญชี")],
@@ -2138,6 +1996,7 @@ document.addEventListener('click', async e => {
   try {
     if (action === 'profile-menu-toggle') { profileMenuOpen = !profileMenuOpen; render(); return; }
     if (action === 'listing-menu-toggle') { listingMenuOpen = !listingMenuOpen; render(); return; }
+    if (action === 'home-group-filter') { selectedHomeGroupCategory = btn.dataset.category || 'ทั้งหมด'; render(); return; }
     if (action === 'scroll-filter') {
       const row = btn.closest('.filter-carousel')?.querySelector('.filter-row');
       row?.scrollBy({ left: (btn.dataset.direction === 'next' ? 1 : -1) * Math.max(180, row.clientWidth * 0.7), behavior: 'smooth' });
@@ -2546,6 +2405,14 @@ document.addEventListener('submit', async e => {
       save({ ...state, user, profiles: { ...state.profiles, [user.id]: user } });
       render(); alertMessage(t('บันทึกโปรไฟล์แล้ว'));
     } catch (err) { alertMessage(storageError(err)); }
+  } else if (f.id === 'secondhand-search-form') {
+    e.preventDefault();
+    const data = new FormData(f), params = new URLSearchParams();
+    const query = String(data.get('q') || '').trim(), category = String(data.get('category') || 'ทั้งหมด');
+    if (query) params.set('q', query);
+    if (category !== 'ทั้งหมด') params.set('category', category);
+    const search = params.toString();
+    go(`/marketplace/secondhand${search ? `?${search}` : ''}`);
   } else if (f.id === 'search-form') {
     e.preventDefault();
     { const data = new FormData(f), category = data.get('category'); go('/explore?q=' + encodeURIComponent(String(data.get('q') || '').trim()) + (category ? '&category=' + encodeURIComponent(category) : '')); }
