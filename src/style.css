@@ -5092,6 +5092,17 @@ dialog:not([open]), [hidden] { display: none !important; }
 .listing-preview-copy > p { margin: 11px 0 0; color: var(--text-sub); font-size: .76rem; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
 .listing-preview-area { display: flex; align-items: center; gap: 4px; margin-top: 8px; color: var(--text-sub); font-size: .73rem; }
 .listing-preview-area svg { flex: none; }
+.listing-location-fields { margin: 0 0 16px; }
+.listing-location-fields > label { display: block; margin: 0 0 8px; color: var(--navy); font-size: .84rem; font-weight: 700; }
+.listing-map-search-row { display: flex; align-items: center; gap: 11px; margin: 10px 0; }
+.listing-map-search-row .button { min-height: 38px; padding: 7px 12px; gap: 6px; font-size: .78rem; white-space: nowrap; }
+.listing-map-search-row > small { color: var(--text-sub); font-size: .7rem; }
+.listing-map-canvas { width: 100%; height: 290px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #eef4f8; }
+.listing-map-key-prompt { display: grid; place-items: center; align-content: center; gap: 8px; height: 100%; padding: 16px; color: #52708b; text-align: center; }
+.listing-map-key-prompt strong { color: var(--navy); font-size: .87rem; }
+.listing-map-key-prompt span { max-width: 320px; font-size: .74rem; line-height: 1.45; }
+.listing-map-status { min-height: 1.1em; margin: 7px 0 0; color: var(--text-sub); font-size: .73rem; }
+.secondhand-map-link { display: flex; align-items: center; gap: 6px; margin: 8px 0 12px; color: var(--blue); font-size: .84rem; font-weight: 700; }
 .listing-preview-tip { display: flex; gap: 9px; align-items: flex-start; margin: 13px 2px 0; padding: 11px; border-radius: 10px; background: #edf7ff; color: #315e86; font-size: .73rem; line-height: 1.45; }
 .listing-preview-tip svg { flex: none; color: var(--blue); }
 .listing-submit-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 4px 2px; }
