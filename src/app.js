@@ -22,6 +22,7 @@ const THEME_KEY = 'harnkhong-theme';
 let theme = 'light';
 try { if (localStorage.getItem(THEME_KEY) === 'dark') theme = 'dark'; } catch { /* Keep the light theme when storage is unavailable. */ }
 let mobileMenuOpen = false;
+let profileMenuOpen = false;
 let heroHeadlineTimeout = null;
 let heroHeadlineIndex = 0;
 let heroHeadlineAnimation = null;
@@ -244,12 +245,13 @@ const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<
 const icon = (id, size = 22) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-${id}"/></svg>`;
 const icons = `<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden"><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="7"/><path d="m16 16 5 5"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol><symbol id="i-edit" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="10" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol><symbol id="i-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 4h16v13H8l-4 3z"/><path d="M8 9h8M8 13h5"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 9h18c0-1-3-2-3-9ZM10 21h4"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol><symbol id="i-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol><symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/></symbol><symbol id="i-calc" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/></symbol><symbol id="i-trending" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol><symbol id="i-fire" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol><symbol id="i-truck" viewBox="0 0 24 24"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-5l-3-4h-5v10Z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol><symbol id="i-package" viewBox="0 0 24 24"><path d="m16.5 9.4-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol><symbol id="i-map-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol></svg>`;
 const a = (href, label, cls = '') => `<a href="${href}" data-link class="${cls}">${label}</a>`;
-function go(path) { if (location.pathname === '/groups/create' && path.split('?')[0] !== '/groups/create') { groupImages = []; selectedCreateCategories = []; } history.pushState({}, '', path); render(); window.scrollTo(0, 0); }
+function go(path) { profileMenuOpen = false; if (location.pathname === '/groups/create' && path.split('?')[0] !== '/groups/create') { groupImages = []; selectedCreateCategories = []; selectedCreateMode = 'share'; } history.pushState({}, '', path); render(); window.scrollTo(0, 0); }
 let authModalActive = false;
 let mockupCurrentStep = 1;
 let tempSignupData = {};
 let groupImages = [];
 let selectedCreateCategories = [];
+let selectedCreateMode = 'share';
 let imagesLoading = false;
 let profileAvatar = '';
 let avatarLoading = false;
@@ -1044,7 +1046,7 @@ function groupPage(id) {
         <details class="group-history"><summary>${t('ประวัติการเปลี่ยนยอด')}</summary>${g.history.slice().reverse().map(h => `<p>${t('รอบ {revision}', { revision: h.revision })} · ${escape(t(h.reason))}</p>`).join('')}</details>
       </main>
       <aside class="group-detail-aside"><div class="summary-card sticky"><small>${isMember ? t('ยอดที่คุณต้องยืนยัน') : full || locked ? t('ประมาณต่อคนปัจจุบัน') : t('ยอดประมาณเมื่อเข้าร่วม')}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full ? `<div class="summary-future-price"><span>${t('เมื่อครบ {count} คน', { count: g.capacity })}</span><b>${money(fullEstimate)} <small>${t('/คน')}</small></b></div>` : ''}<p>${isMember ? t('ยอดรอบที่ {revision}', { revision: g.revision }) + (approved ? t(' · คุณยืนยันแล้ว') : t(' · กรุณาตรวจสอบก่อนยืนยัน')) : full || locked ? t('กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่') : t('ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง')}</p>${actions}${!full ? `<p class="warning summary-warning"><span class="warning-icon">${icon('alert-circle', 20)}</span><span>${t('ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน')}</span></p>` : !allApproved(g) ? `<p class="warning summary-warning"><span class="warning-icon">${icon('alert-circle', 20)}</span><span>${t('รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด')}</span></p>` : ''}</div>
-      <section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t('รายละเอียดสินค้า')}</h2><p>${escape(g.name)}</p><p>${groupCategories.map(category => escape(t(category))).join(' · ')}</p><small>${supabaseConfigured ? t('แชตกับผู้ขายยังเป็นเดโมในเครื่องนี้') : t('ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง')}</small></section>
+      <section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t('รายละเอียดสินค้า')}</h2><p>${escape(g.itemTitle || g.name)}</p><p>${groupCategories.map(category => escape(t(category))).join(' · ')}</p>${g.itemDescription ? `<p class="group-item-description">${escape(g.itemDescription).replace(/\n/g, '<br>')}</p>` : ''}<small>${supabaseConfigured ? t('แชตกับผู้ขายยังเป็นเดโมในเครื่องนี้') : t('ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง')}</small></section>
       </aside>
     </div>
   </div>`;
@@ -1070,12 +1072,16 @@ function createPage() {
   if (!selectedCreateCategories.length) selectedCreateCategories = [initialCategory];
   const selectedCategory = selectedCreateCategories[0], selectedListing = allListings.find(item => item.category === selectedCategory) || listing(selected);
   const categoryTags = selectedCreateCategories.map(category => `<button type="button" class="selected-category" data-action="remove-category" data-category="${escape(category)}" aria-label="${t('นำหมวดหมู่ออก {category}', { category: t(category) })}">${escape(t(category))}<span aria-hidden="true">×</span></button>`).join('');
+  const secondHand = typeof selectedCreateMode !== 'undefined' && selectedCreateMode === 'secondhand';
   return `${title(t('สร้างกลุ่มหารใหม่'), t('กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน'))}<form class="form-panel" id="create-form">
     <input type="hidden" name="requestId" value="${crypto.randomUUID()}"/><input type="hidden" name="listingId" value="${selectedListing?.id || selected || ''}"/><input type="hidden" name="category" value="${escape(selectedCategory)}"/>
+    <fieldset class="category-picker"><legend>${t('รูปแบบกลุ่ม')}</legend><div class="category-options"><button type="button" class="category-option ${!secondHand ? 'selected' : ''}" data-action="create-mode" data-mode="share" aria-pressed="${!secondHand}">${t('หารของ')}</button><button type="button" class="category-option ${secondHand ? 'selected' : ''}" data-action="create-mode" data-mode="secondhand" aria-pressed="${secondHand}">${t('ของมือ2')}</button></div><input type="hidden" name="groupType" value="${secondHand ? 'secondhand' : 'share'}"/></fieldset>
     <section class="image-editor"><h2>${t('รูปกลุ่ม')}</h2><p>${t('เพิ่มได้สูงสุด 4 รูป · JPG, PNG, WebP ไม่เกิน 5 MB ต่อรูป · รูปจะบันทึกพร้อมกลุ่ม')}</p><label class="image-upload">${icon('plus', 20)} ${t('เพิ่มรูป')}<input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div id="image-draft">${gallery(groupImages, true)}</div><p id="image-upload-status" role="status"></p></section>
-    <fieldset class="category-picker"><legend>${t('เลือกหมวดหมู่')}</legend><div class="selected-categories" id="selected-categories">${categoryTags}</div><div class="category-options">${CREATE_CATEGORY_NAMES.map(category => `<button type="button" class="category-option ${selectedCreateCategories.includes(category) ? 'selected' : ''}" data-action="toggle-category" data-category="${escape(category)}" aria-pressed="${selectedCreateCategories.includes(category)}">${t(category)}</button>`).join('')}</div></fieldset>
+    <fieldset class="category-picker" id="share-category-picker" ${secondHand ? 'hidden' : ''}><legend>${t('เลือกหมวดหมู่')}</legend><div class="selected-categories" id="selected-categories">${categoryTags}</div><div class="category-options">${CREATE_CATEGORY_NAMES.map(category => `<button type="button" class="category-option ${selectedCreateCategories.includes(category) ? 'selected' : ''}" data-action="toggle-category" data-category="${escape(category)}" aria-pressed="${selectedCreateCategories.includes(category)}">${t(category)}</button>`).join('')}</div></fieldset>
     <label id="other-category-wrap" ${selectedCreateCategories.includes('อื่น ๆ (ระบุชื่อเอง)') ? '' : 'hidden'}>${t('ระบุชื่อหมวดหมู่')}<input name="otherCategory" maxlength="60" ${selectedCreateCategories.includes('อื่น ๆ (ระบุชื่อเอง)') ? 'required' : ''} placeholder="${t('ระบุชื่อหมวดหมู่')}"/></label>
     <label>${t('ชื่อกลุ่ม')}<input name="name" maxlength="70" required placeholder="${t('เช่น ทีมอ่านสอบปลายเทอม')}"/></label>
+    <label id="used-item-title-wrap" ${secondHand ? '' : 'hidden'}>${t('ชื่อสินค้า')}<input name="itemTitle" maxlength="100" ${secondHand ? 'required' : ''} placeholder="${t('เช่น เก้าอี้ทำงานมือสอง')}"/></label>
+    <label>${t('รายละเอียดสินค้า')}<textarea name="itemDescription" maxlength="1000" rows="4" placeholder="${t('พิมพ์รายละเอียดสินค้า เช่น สภาพสินค้า ตำหนิ หรือสิ่งที่รวมมาด้วย')}"></textarea></label>
     <div class="form-grid"><label>${t('จำนวนสมาชิกสูงสุด')}<input name="capacity" type="number" min="2" max="6" value="4" required/></label><label>${t('การมองเห็น')}<select name="visibility"><option value="public">${t('กลุ่มสาธารณะ')}</option><option value="link">${t('เฉพาะผู้มีลิงก์')}</option></select></label></div>
     <div class="form-grid"><label>${t('ราคาสินค้า (บาท)')}<input name="product" inputmode="decimal" value="${bahtInput(selectedListing?.price || 0)}" required/></label><label>${t('ค่าส่งต่อคน (บาท)')}<input name="delivery" inputmode="decimal" value="0" required/></label></div>
     <div class="info-box">${t('ค่าธรรมเนียมแอป 2% คำนวณอัตโนมัติจากราคาสินค้าและค่าส่งรวม กลุ่มเฉพาะลิงก์จะไม่ปรากฏในการค้นหาสาธารณะ')}</div><div id="create-preview" class="preview-cost"></div><button class="button primary full" type="submit">${t('สร้างกลุ่ม')}</button>
@@ -1096,6 +1102,18 @@ function syncCreateCategoryUI() {
 }
 function getCreateCategoryValues(form) {
   return selectedCreateCategories.map(category => category === 'อื่น ๆ (ระบุชื่อเอง)' ? String(new FormData(form).get('otherCategory') || '').trim() : category).filter(Boolean);
+}
+function syncCreateModeUI() {
+  const form = document.querySelector('#create-form'); if (!form) return;
+  const secondHand = selectedCreateMode === 'secondhand';
+  form.querySelector('[name="groupType"]').value = selectedCreateMode;
+  form.querySelector('#share-category-picker').hidden = secondHand;
+  const titleWrap = form.querySelector('#used-item-title-wrap');
+  titleWrap.hidden = !secondHand;
+  titleWrap.querySelector('input').required = secondHand;
+  const otherWrap = form.querySelector('#other-category-wrap'), otherInput = form.querySelector('[name="otherCategory"]');
+  otherWrap.hidden = secondHand || !selectedCreateCategories.includes('อื่น ๆ (ระบุชื่อเอง)');
+  otherInput.required = !secondHand && selectedCreateCategories.includes('อื่น ๆ (ระบุชื่อเอง)');
 }
 function authPage(register = false) {
   if (authModalActive) return '';
@@ -1670,7 +1688,7 @@ function render() {
           ${a('/chat', `${icon('chat', 21)}<span class="sr-only">${t('แชต')}</span>`, 'icon-button header-chat-btn')}
           ${a('/notifications', `${icon('bell', 22)}<span class="sr-only">${t('การแจ้งเตือน')}</span>${unread ? `<i>${unread}</i>` : ''}`, 'icon-button header-notifications-btn')}
           <select id="locale-select" class="locale-select" aria-label="${t('ภาษา')}"><option value="th" ${locale === 'th' ? 'selected' : ''}>TH</option><option value="en" ${locale === 'en' ? 'selected' : ''}>EN</option></select>
-          ${state.user ? a('/profile', `<span class="avatar tiny">${escape(state.user.name.slice(0, 1))}</span><span class="header-user-name">${escape(state.user.name)}</span>`, 'profile-pill') : `<button type="button" class="button primary header-login-btn" data-action="open-auth" data-step="1">${icon('user', 18)} ${t("เข้าสู่ระบบ")}</button>`}
+          ${state.user ? `<div class="profile-menu-wrap"><button type="button" class="profile-pill" data-action="profile-menu-toggle" aria-expanded="${profileMenuOpen}" aria-haspopup="menu"><span class="avatar tiny">${escape(state.user.name.slice(0, 1))}</span><span class="header-user-name">${escape(state.user.name)}</span><span class="profile-menu-chevron" aria-hidden="true">⌄</span></button>${profileMenuOpen ? `<div class="profile-dropdown" role="menu"><div class="profile-dropdown-heading"><strong>${escape(state.user.name)}</strong><small>${escape(state.user.email || '')}</small></div>${a('/profile', `${icon('user', 18)}<span>${t('บัญชี')}</span>`, 'profile-dropdown-link')}${a('/chat', `${icon('chat', 18)}<span>${t('แชตกลุ่ม')}</span>`, 'profile-dropdown-link')}${a('/notifications', `${icon('bell', 18)}<span>${t('การแจ้งเตือน')}</span>${unread ? `<i>${unread}</i>` : ''}`, 'profile-dropdown-link')}<button type="button" role="menuitem" class="profile-dropdown-link" data-action="theme-toggle"><span class="profile-dropdown-theme-icon" aria-hidden="true">${theme === 'dark' ? '☀' : '☾'}</span><span>${theme === 'dark' ? t('โหมดสว่าง') : t('โหมดมืด')}</span><small class="profile-dropdown-state">${theme === 'dark' ? t('เปิด') : t('ปิด')}</small></button></div>` : ''}</div>` : `<button type="button" class="button primary header-login-btn" data-action="open-auth" data-step="1">${icon('user', 18)} ${t("เข้าสู่ระบบ")}</button>`}
           <button type="button" class="icon-button mobile-menu-toggle" data-action="mobile-menu-toggle" aria-label="${mobileMenuOpen ? t('ปิดเมนู') : t('เปิดเมนู')}" aria-expanded="${mobileMenuOpen}" aria-controls="mobile-menu"><span></span><span></span></button>
         </div>
       </div>
@@ -1853,9 +1871,11 @@ document.addEventListener('click', async e => {
   }
   const pageButton = e.target.closest('.pagination-control[data-page]');
   if (pageButton && !pageButton.disabled) { const params = new URLSearchParams(location.search); params.set('page', pageButton.dataset.page); go(`/explore?${params.toString()}`); window.scrollTo(0, document.querySelector('.explore-page')?.offsetTop || 0); return; }
+  if (profileMenuOpen && !e.target.closest('.profile-menu-wrap')) { profileMenuOpen = false; render(); return; }
   const btn = e.target.closest('[data-action]'); if (!btn) return;
   const action = btn.dataset.action, id = btn.dataset.id, actionSession = activeSupabaseSession;
   try {
+    if (action === 'profile-menu-toggle') { profileMenuOpen = !profileMenuOpen; render(); return; }
     if (action === 'scroll-filter') {
       const row = btn.closest('.filter-carousel')?.querySelector('.filter-row');
       row?.scrollBy({ left: (btn.dataset.direction === 'next' ? 1 : -1) * Math.max(180, row.clientWidth * 0.7), behavior: 'smooth' });
@@ -1927,6 +1947,11 @@ document.addEventListener('click', async e => {
       if (action === 'toggle-category') selectedCreateCategories = selectedCreateCategories.includes(category) ? selectedCreateCategories.filter(item => item !== category) : [...selectedCreateCategories, category];
       else selectedCreateCategories = selectedCreateCategories.filter(item => item !== category);
       syncCreateCategoryUI();
+    }
+    else if (action === 'create-mode') {
+      selectedCreateMode = btn.dataset.mode === 'secondhand' ? 'secondhand' : 'share';
+      syncCreateModeUI();
+      document.querySelectorAll('[data-action="create-mode"]').forEach(button => { const active = button.dataset.mode === selectedCreateMode; button.classList.toggle('selected', active); button.setAttribute('aria-pressed', String(active)); });
     }
     else if (action === 'payment-open') {
       if (!orderPermissions(orderFor(id), state.user).reportPayment) throw Object.assign(new Error(), { code: 'orderUnauthorized' });
@@ -2189,8 +2214,9 @@ document.addEventListener('submit', async e => {
       const d = new FormData(f);
       if (imagesLoading) throw Error(t('กำลังเตรียมรูป กรุณารอสักครู่'));
       if (!state.user) throw Object.assign(new Error(), { code: 'orderUnauthorized' });
-      const categories = [...new Set(getCreateCategoryValues(f))];
-      if (!categories.length) throw new Error(t('เลือกอย่างน้อย 1 หมวดหมู่'));
+      const groupType = d.get('groupType') === 'secondhand' ? 'secondhand' : 'share';
+      const categories = groupType === 'secondhand' ? ['ของมือ2'] : [...new Set(getCreateCategoryValues(f))];
+      if (groupType === 'share' && !categories.length) throw new Error(t('เลือกอย่างน้อย 1 หมวดหมู่'));
       if (categories.some(category => category.length > 60)) throw new Error(t('ชื่อหมวดหมู่ต้องไม่เกิน 60 ตัวอักษร'));
       if (!listing(d.get('listingId'))) throw Error(t('ไม่พบสินค้า กรุณาเลือกสินค้าใหม่'));
       if (supabaseConfigured) {
@@ -2201,12 +2227,15 @@ document.addEventListener('submit', async e => {
         return;
       }
       const g = createGroup({ id: 'g' + Date.now(), listingId: d.get('listingId'), name: d.get('name'), ownerId: state.user.id, visibility: d.get('visibility'), capacity: Number(d.get('capacity')), costs: formCosts(d) });
-      g.category = categories[0]; g.categories = categories;
+      g.category = categories[0]; g.categories = categories; g.groupType = groupType;
+      g.itemTitle = groupType === 'secondhand' ? String(d.get('itemTitle') || '').trim() : '';
+      g.itemDescription = String(d.get('itemDescription') || '').trim();
       g.images = [...groupImages];
       const notification = { id: crypto.randomUUID(), recipient: state.user.id, title: t('สร้างกลุ่มแล้ว'), body: t('ชวนสมาชิกเข้าร่วมเพื่อเริ่มหารค่าใช้จ่าย'), href: `/groups/${g.id}`, read: false, at: new Date().toISOString() };
       save({ ...state, groups: [g, ...state.groups], notifications: [notification, ...state.notifications] });
       groupImages = [];
       selectedCreateCategories = [];
+      selectedCreateMode = 'share';
       go(`/groups/${g.id}`);
       alertMessage(t("สร้างกลุ่มแล้ว"));
     } catch (err) { alertMessage(storageError(err)); }

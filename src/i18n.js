@@ -264,6 +264,8 @@ const labels = {
   'กลุ่มสำหรับ':'Group for', 'สินค้าในกลุ่ม':'Group product', 'กำลังเปิดรับสมาชิก':'Open for members',
   'ปิดรับสมาชิก':'Membership closed', 'สมาชิกครบแล้ว':'Group is full', 'ยังว่างอีก {count} ที่':'{count} spots left',
   'รอสมาชิกเข้าร่วม':'Waiting for members', 'หัวหน้ากลุ่ม':'Group leader', 'รายละเอียดสินค้า':'Product details',
+  'แชตกลุ่ม':'Group chat', 'โหมดสว่าง':'Light mode', 'โหมดมืด':'Dark mode', 'เปิด':'On', 'ปิด':'Off',
+  'รูปแบบกลุ่ม':'Group type', 'หารของ':'Share a purchase', 'ของมือ2':'Second hand', 'ชื่อสินค้า':'Item name', 'เช่น เก้าอี้ทำงานมือสอง':'e.g. Second hand office chair', 'พิมพ์รายละเอียดสินค้า เช่น สภาพสินค้า ตำหนิ หรือสิ่งที่รวมมาด้วย':'Describe the item, including its condition, flaws, or what is included',
   'ประมาณต่อคนปัจจุบัน':'Current estimated share per person', 'กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่':'This group is not accepting new members.',
   'พร้อมสรุปคำสั่งซื้อ':'Ready for order summary', 'รอยืนยันยอด':'Awaiting approval', ' · หัวหน้ากลุ่ม':' · Group leader',
   'ยืนยันแล้ว':'Approved', 'รอยืนยัน':'Pending', 'ราคาสินค้า':'Product price', 'ค่าส่ง':'Delivery', 'ค่าบริการ':'Service fee', 'ค่าธรรมเนียมแอป 2%':'2% app fee', 'ค่าส่ง {amount} × {count} คน':'Delivery {amount} × {count} members', 'รวมทั้งหมด':'Total',
