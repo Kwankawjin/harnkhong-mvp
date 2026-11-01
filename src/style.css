@@ -5116,25 +5116,66 @@ dialog:not([open]), [hidden] { display: none !important; }
 .listing-submit-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 4px 2px; }
 .listing-submit-row > small { color: var(--text-sub); font-size: .74rem; }
 .listing-publish-button { min-width: 190px; min-height: 49px; font-weight: 800; }
-.secondhand-listing-page { max-width: 1120px; }
-.secondhand-listing-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, .8fr); gap: 24px; margin-top: 18px; align-items: start; }
-.secondhand-listing-hero { display: grid; place-items: center; min-height: 360px; overflow: hidden; border-radius: 16px; background: #f0f5fb; }
-.secondhand-listing-hero > img { width: 100%; max-height: 580px; object-fit: contain; }
-.secondhand-listing-gallery { display: flex; gap: 9px; overflow-x: auto; margin-top: 10px; }
-.secondhand-listing-gallery img { width: 76px; height: 76px; flex: none; border-radius: 9px; object-fit: cover; }
-.secondhand-listing-description, .secondhand-listing-summary { margin-top: 16px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.secondhand-listing-page { max-width: 1400px; }
+.secondhand-listing-layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(360px, 1fr); gap: 22px; margin-top: 18px; align-items: start; }
+.secondhand-gallery { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: var(--shadow-sm); }
+.secondhand-gallery-thumbs { display: flex; flex-direction: column; gap: 12px; }
+.secondhand-gallery-thumb, .secondhand-gallery-more { width: 88px; height: 88px; padding: 4px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #f4f7fb; cursor: pointer; }
+.secondhand-gallery-thumb.is-active { border: 2px solid var(--blue); }
+.secondhand-gallery-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+.secondhand-gallery-more { color: #fff; background: #8290a2; font-size: 1.2rem; font-weight: 800; }
+.secondhand-listing-hero { position: relative; display: grid; place-items: center; min-height: 460px; overflow: hidden; border-radius: 15px; background: #fff; }
+.secondhand-listing-hero > img { width: 100%; height: 100%; max-height: 580px; object-fit: contain; }
+.secondhand-gallery-arrow, .secondhand-gallery-fullscreen { position: absolute; display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 50%; background: #fff; color: var(--navy); box-shadow: var(--shadow-sm); font-size: 1.6rem; cursor: pointer; }
+.secondhand-gallery-arrow.previous { left: 14px; }
+.secondhand-gallery-arrow.next { right: 14px; }
+.secondhand-gallery-fullscreen { right: 14px; bottom: 14px; font-size: 1.35rem; }
+.secondhand-gallery-count { position: absolute; right: 68px; bottom: 23px; padding: 4px 10px; border-radius: 99px; background: #263648aa; color: #fff; font-size: .75rem; }
+.secondhand-listing-aside { display: grid; gap: 16px; }
+.secondhand-listing-description, .secondhand-listing-summary, .secondhand-info-card, .secondhand-location-card { margin: 0; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: var(--shadow-sm); }
+.secondhand-listing-description h2, .secondhand-info-card h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; color: var(--navy); font-size: 1.1rem; }
+.secondhand-listing-description h3 { margin: 0 0 12px; color: var(--navy); font-size: 1rem; }
 .secondhand-listing-description h2 { margin: 0 0 8px; font-size: 1.05rem; }
 .secondhand-listing-description p { white-space: pre-line; }
+.secondhand-summary-details { margin: 16px 0; padding-top: 14px; border-top: 1px solid var(--line); }
+.secondhand-summary-details h2 { margin: 0 0 7px; color: var(--navy); font-size: 1.02rem; }
+.secondhand-summary-details > p { margin: 0; color: var(--text-sub); line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
 .secondhand-product-facts { margin: 18px 0 0; border-top: 1px solid var(--line); }
 .secondhand-product-facts > div { display: grid; grid-template-columns: minmax(110px, .75fr) 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .secondhand-product-facts dt { color: var(--text-sub); }
 .secondhand-product-facts dd { margin: 0; color: var(--navy); font-weight: 600; }
-.secondhand-listing-summary { position: sticky; top: 92px; margin-top: 0; }
+.secondhand-listing-summary { margin: 0; }
+.secondhand-summary-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.secondhand-summary-title h1 { margin-right: auto; }
+.secondhand-share-button { display: grid; place-items: center; width: 42px; height: 42px; flex: none; border: 1px solid var(--line); border-radius: 50%; background: #fff; color: var(--navy); cursor: pointer; }
+.secondhand-contact-actions { display: grid; grid-template-columns: 1fr; margin: 20px 0 14px; }
+.secondhand-contact-actions .button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
+.secondhand-seller-card { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 13px; }
+.secondhand-seller-avatar { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: #e9eef5; color: var(--navy); font-size: 1.2rem; font-weight: 700; }
+.secondhand-seller-card strong, .secondhand-seller-card small { display: block; }
+.secondhand-seller-card small { margin-top: 2px; color: var(--text-sub); }
+.secondhand-seller-chevron { margin-left: auto; color: var(--navy); font-size: 1.5rem; }
+.secondhand-info-card h2 { margin-bottom: 8px; }
+.secondhand-info-card .secondhand-product-facts { margin: 0; border-top: 0; }
+.secondhand-location-card { margin: 0; padding: 18px; border-top: 1px solid var(--line); }
+.secondhand-location-map { height: 140px; }
+.secondhand-location-map .leaflet-container { width: 100%; height: 100%; z-index: 0; border-radius: inherit; }
+.secondhand-location-map .leaflet-control-zoom a { color: var(--navy); }
+.secondhand-purchase-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 18px; }
+.secondhand-purchase-button { display: flex; min-height: 48px; align-items: center; justify-content: center; gap: 8px; font-weight: 800; }
+.secondhand-checkout { max-width: 620px; margin: 0 auto; }
+.secondhand-checkout-item { display: flex; align-items: center; gap: 13px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.secondhand-checkout-item img { width: 76px; height: 76px; border-radius: 12px; object-fit: cover; background: #f0f5fb; }
+.secondhand-checkout-item strong, .secondhand-checkout-item small { display: block; }
+.secondhand-checkout-item small { margin-top: 4px; color: var(--text-sub); }
+.secondhand-checkout-total { display: flex; justify-content: space-between; margin: 16px 0; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--navy); }
+.secondhand-checkout-total strong { color: #087f79; font-size: 1.2rem; }
 .secondhand-listing-summary h1 { margin: 5px 0 10px; font-size: 1.45rem; line-height: 1.35; }
 .secondhand-price { display: block; margin-bottom: 12px; color: #087f79; font-size: 1.8rem; }
 .secondhand-listing-summary > p { display: flex; align-items: flex-start; gap: 6px; overflow-wrap: anywhere; font-size: .84rem; }
 @media(max-width: 850px) { .listing-create-layout { grid-template-columns: minmax(0,1fr); } .listing-preview-card { position: static; grid-row: 1; } }
-@media(max-width: 620px) { .listing-create-page, .secondhand-listing-page { padding-inline: 0; } .listing-create-heading { align-items: flex-start; } .listing-create-step { display: none; } .listing-form-card { padding: 17px; } .listing-form-row, .secondhand-listing-layout { grid-template-columns: minmax(0,1fr); } .listing-preview-card { grid-row: auto; } .listing-submit-row { align-items: stretch; flex-direction: column; } .listing-publish-button { width: 100%; } .secondhand-listing-summary { position: static; } .secondhand-listing-hero { min-height: 260px; } }
+@media(max-width: 850px) { .secondhand-listing-layout { grid-template-columns: minmax(0,1fr); } .secondhand-listing-aside { grid-template-columns: repeat(2, minmax(0,1fr)); align-items: start; } .secondhand-location-card { grid-column: 1 / -1; } }
+@media(max-width: 620px) { .listing-create-page, .secondhand-listing-page { padding-inline: 0; } .listing-create-heading { align-items: flex-start; } .listing-create-step { display: none; } .listing-form-card { padding: 17px; } .listing-form-row { grid-template-columns: minmax(0,1fr); } .listing-preview-card { grid-row: auto; } .listing-submit-row { align-items: stretch; flex-direction: column; } .listing-publish-button { width: 100%; } .secondhand-gallery { grid-template-columns: minmax(0,1fr); padding: 10px; } .secondhand-gallery-thumbs { order: 2; flex-direction: row; overflow-x: auto; } .secondhand-gallery-thumb, .secondhand-gallery-more { width: 70px; height: 70px; flex: none; } .secondhand-listing-hero { min-height: 280px; } .secondhand-listing-aside { grid-template-columns: minmax(0,1fr); } .secondhand-location-card { grid-column: auto; } }
 
 /* Marketplace inspired header */
 .header-actions { gap: 14px; }

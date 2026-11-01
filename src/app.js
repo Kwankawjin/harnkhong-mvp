@@ -15,6 +15,8 @@ import { loadGroupMessages, sendGroupMessage } from './group-chat.js';
 import { loadSupabaseGroups, resolveSupabaseInvite, createSupabaseGroup, joinSupabaseGroup, leaveSupabaseGroup, approveSupabaseGroup, changeSupabaseDelivery, transferSupabaseGroup, removeSupabaseGroupMember, deleteSupabaseGroup, getSupabaseInvite } from './supabase-groups.js';
 import { createOrder, activateOrder, migrateOrders, lockOrderedGroups, orderPermissions, reportPayment, updatePayment, transitionOrder, updateShipment, openDispute, proposeResolution, respondToResolution, DISPUTE_REASONS, sellerIdFor } from './orders.js';
 import { createSupabaseSecondhandListing } from './supabase-listings.js';
+import { loadSecondhandConversations, loadSecondhandMessages, sendSecondhandMessage, startSecondhandConversation } from './secondhand-chat.js';
+import { createSupabaseSecondhandOrder } from './secondhand-orders.js';
 
 const LOCALE_KEY = 'harnkhong-locale';
 let locale = 'th';
@@ -254,6 +256,7 @@ let groupImages = [];
 let selectedCreateCategories = [];
 let listingImages = [];
 let listingMap = null;
+let secondhandDetailMap = null;
 let listingMapMarker = null;
 let leafletLoaderPromise = null;
 let listingMapReady = false;
@@ -272,6 +275,12 @@ const groupMessageLoadState = new Map();
 const groupMessageErrors = new Map();
 let groupChatPollTimer = null;
 let groupChatPollId = null;
+const secondhandChatMessages = new Map();
+let secondhandConversationRows = [];
+let secondhandChatPollTimer = null;
+let secondhandChatPollId = null;
+let secondhandConversationListLoading = false;
+const secondhandChatCacheKey = conversationId => `${state.user?.id || 'guest'}:${conversationId}`;
 let syncSupabaseSession = async () => { };
 let authSessionSync = null;
 let activeSupabaseSession = null;
@@ -283,6 +292,7 @@ function isAuthRequired(href) {
     return true;
   }
   if (/^\/chat\/[^/]+$/.test(path)) return true;
+  if (/^\/checkout\/secondhand\/[^/]+$/.test(path)) return true;
   if (/^\/groups\/[^/]+\/join$/.test(path)) return true;
   if (/^\/orders\/[^/]+$/.test(path)) return true;
   return false;
@@ -987,9 +997,24 @@ function legacyProductRoute(id) {
   if (!product) return notFound();
   const mapLat = Number(product.marketCoordinates?.lat), mapLng = Number(product.marketCoordinates?.lng);
   const hasMarketCoordinates = Number.isFinite(mapLat) && Number.isFinite(mapLng) && Math.abs(mapLat) <= 90 && Math.abs(mapLng) <= 180;
-  const mapPadding = 0.006;
-  const locationMap = product.area || hasMarketCoordinates ? `<section class="secondhand-location-card"><h2>${t('สถานที่ขาย')}</h2>${product.area ? `<p><strong>${t('ตลาดหรือสถานที่ขาย')}:</strong> ${escape(product.area)}</p>` : ''}${product.marketAddress && product.marketAddress !== product.area ? `<p><strong>${t('ที่อยู่โดยประมาณ')}:</strong> ${escape(product.marketAddress)}</p>` : ''}${hasMarketCoordinates ? `<p class="secondhand-location-coordinates">${icon('map-pin', 15)} ${mapLat.toFixed(6)}, ${mapLng.toFixed(6)}</p><div class="secondhand-location-map"><iframe title="${t('แผนที่แสดงตำแหน่งสินค้าที่ปักหมุด')}" loading="lazy" src="https://www.openstreetmap.org/export/embed.html?bbox=${mapLng - mapPadding}%2C${mapLat - mapPadding}%2C${mapLng + mapPadding}%2C${mapLat + mapPadding}&layer=mapnik&marker=${mapLat}%2C${mapLng}"></iframe></div>` : `<p class="secondhand-location-map-missing">${t('ผู้ขายยังไม่ได้ปักหมุดบนแผนที่')}</p>`}</section>` : '';
-  if (product.listingType === 'secondhand') return `<div class="secondhand-listing-page">${a('/seller/products/new', `← ${t('ลงขายสินค้า')}`, 'listing-back-link')}<div class="secondhand-listing-layout"><main>${product.images?.length ? `<div class="secondhand-listing-hero"><img src="${product.images[0]}" alt="${escape(product.title)}"/></div>${product.images.length > 1 ? `<div class="secondhand-listing-gallery">${product.images.map((src, i) => `<img src="${src}" alt="${escape(product.title)} ${i + 1}"/>`).join('')}</div>` : ''}` : `<div class="secondhand-listing-hero empty">${art(product)}</div>`}<section class="secondhand-listing-description"><h2>${t('รายละเอียดสินค้า')}</h2><p>${escape(product.description || '—')}</p><dl class="secondhand-product-facts"><div><dt>${t('ประเภทสินค้า')}</dt><dd>${escape(t(product.category))}</dd></div><div><dt>${t('สภาพสินค้า')}</dt><dd>${escape(t(product.condition))}</dd></div><div><dt>${t('จำนวน')}</dt><dd>${t('{count} ชิ้น', { count: product.quantity || 1 })}</dd></div></dl></section></main><aside class="secondhand-listing-summary"><span class="listing-preview-category">${t('ของมือสอง')}</span><h1>${escape(product.title)}</h1><strong class="secondhand-price">${money(product.price)}</strong><div class="listing-preview-meta"><span>${t(product.condition)}</span><span>${t(product.delivery)}</span></div>${product.area ? `<p>${icon('map-pin', 17)} ${escape(product.area)}</p>` : ''}${product.marketCoordinates ? `<a class="secondhand-map-link" href="https://www.openstreetmap.org/?mlat=${encodeURIComponent(product.marketCoordinates.lat)}&mlon=${encodeURIComponent(product.marketCoordinates.lng)}#map=17/${encodeURIComponent(product.marketCoordinates.lat)}/${encodeURIComponent(product.marketCoordinates.lng)}" target="_blank" rel="noopener noreferrer">${icon('map-pin', 16)} ${t('เปิดตำแหน่งบน OpenStreetMap')}</a>` : ''}<p>${t('ช่องทางติดต่อผู้ขาย')}: <b>${escape(product.contact)}</b></p><p>${t('ผู้ขาย')}: ${escape(product.sellerName || seller(product.sellerId).name)}</p>${a('/explore', t('กลับไปสำรวจ'), 'button outline full')}${locationMap}</aside></div></div>`;
+  const locationMap = product.area || hasMarketCoordinates ? `<section class="secondhand-location-card"><h2>${t('สถานที่ขาย')}</h2>${product.area ? `<p><strong>${t('ตลาดหรือสถานที่ขาย')}:</strong> ${escape(product.area)}</p>` : ''}${product.marketAddress && product.marketAddress !== product.area ? `<p><strong>${t('ที่อยู่โดยประมาณ')}:</strong> ${escape(product.marketAddress)}</p>` : ''}${hasMarketCoordinates ? `<p class="secondhand-location-coordinates">${icon('map-pin', 15)} ${mapLat.toFixed(6)}, ${mapLng.toFixed(6)}</p><a class="secondhand-map-link" href="https://www.openstreetmap.org/?mlat=${encodeURIComponent(mapLat)}&mlon=${encodeURIComponent(mapLng)}#map=19/${encodeURIComponent(mapLat)}/${encodeURIComponent(mapLng)}" target="_blank" rel="noopener noreferrer">${icon('map-pin', 16)} ${t('เปิดตำแหน่งบน OpenStreetMap')}</a><div id="secondhand-detail-map" class="secondhand-location-map" data-lat="${mapLat}" data-lng="${mapLng}" role="application" aria-label="${t('แผนที่ตำแหน่งสินค้า ซูมเข้าออกได้')}"></div>` : `<p class="secondhand-location-map-missing">${t('ผู้ขายยังไม่ได้ปักหมุดบนแผนที่')}</p>`}</section>` : '';
+  if (product.listingType === 'secondhand') {
+    const images = product.images || [];
+    const contactValue = String(product.contact || '').trim();
+    const contactHref = /^[+\d()\s-]+$/.test(contactValue)
+      ? `tel:${contactValue.replace(/[^+\d]/g, '')}`
+      : `https://line.me/R/ti/p/~${encodeURIComponent(contactValue.replace(/^@/, ''))}`;
+    const pickupOptions = ['นัดรับ', 'รับสินค้าเอง', 'นัดรับและจัดส่ง', 'รับสินค้าเองหรือจัดส่ง'];
+    const shippingOptions = ['จัดส่ง', 'นัดรับและจัดส่ง', 'รับสินค้าเองหรือจัดส่ง'];
+    const supportsPickup = pickupOptions.includes(product.delivery);
+    const supportsShipping = shippingOptions.includes(product.delivery);
+    const purchaseActions = `${supportsPickup ? `<button type="button" class="button outline secondhand-purchase-button" data-action="secondhand-reserve" data-id="${escape(product.id)}">${icon('chat', 18)} ${t('จองสินค้า')}</button>` : ''}${supportsShipping ? `<button type="button" class="button outline secondhand-purchase-button" data-action="secondhand-order" data-id="${escape(product.id)}">${icon('truck', 18)} ${t('สั่งซื้อ')}</button>` : ''}`;
+    const galleryMarkup = images.length ? `<section class="secondhand-gallery" aria-label="${t('รูปภาพสินค้า')}" data-current="0" data-images="${escape(JSON.stringify(images))}">
+      <div class="secondhand-gallery-thumbs">${images.slice(0, 3).map((src, index) => `<button type="button" class="secondhand-gallery-thumb ${index === 0 ? 'is-active' : ''}" data-action="secondhand-photo" data-index="${index}" aria-label="${t('ดูรูปที่ {number}', { number: index + 1 })}" aria-pressed="${index === 0}"><img src="${src}" alt=""/></button>`).join('')}${images.length > 3 ? `<button type="button" class="secondhand-gallery-more" data-action="secondhand-photo" data-index="3">+${images.length - 3}</button>` : ''}</div>
+      <div class="secondhand-listing-hero"><img data-secondhand-main src="${images[0]}" alt="${escape(product.title)}"/>${images.length > 1 ? `<button type="button" class="secondhand-gallery-arrow previous" data-action="secondhand-photo-step" data-direction="-1" aria-label="${t('รูปก่อนหน้า')}">‹</button><button type="button" class="secondhand-gallery-arrow next" data-action="secondhand-photo-step" data-direction="1" aria-label="${t('รูปถัดไป')}">›</button><span class="secondhand-gallery-count" data-secondhand-count>1 / ${images.length}</span>` : ''}<button type="button" class="secondhand-gallery-fullscreen" data-action="secondhand-photo-fullscreen" aria-label="${t('ขยายรูป')}">⛶</button></div>
+    </section>` : `<div class="secondhand-listing-hero empty">${art(product)}</div>`;
+    return `<div class="secondhand-listing-page">${a('/marketplace/secondhand', `← ${t('กลับไปตลาดมือสอง')}`, 'listing-back-link')}<div class="secondhand-listing-layout"><main>${galleryMarkup}<section class="secondhand-listing-description"><h2>${icon('copy', 20)} ${t('รายละเอียดสินค้า')}</h2><h3>${escape(product.title)}</h3><p>${escape(product.description || '—')}</p></section></main><aside class="secondhand-listing-aside"><section class="secondhand-listing-summary"><span class="listing-preview-category">${t('ของมือสอง')}</span><div class="secondhand-summary-title"><h1>${escape(product.title)}</h1><button type="button" class="secondhand-share-button" data-action="share-listing" aria-label="${t('แชร์ประกาศ')}">${icon('link', 19)}</button></div><strong class="secondhand-price">${money(product.price)}</strong><div class="secondhand-purchase-actions">${purchaseActions}</div><div class="secondhand-contact-actions"><a class="button primary" href="${escape(contactHref)}" target="${contactHref.startsWith('https:') ? '_blank' : '_self'}" rel="noopener noreferrer">${icon('chat', 18)} ${t('ติดต่อผู้ขาย')}</a></div><div class="secondhand-seller-card"><span class="secondhand-seller-avatar">${escape((product.sellerName || seller(product.sellerId).name || 'U').slice(0, 1).toUpperCase())}</span><span><strong>${escape(product.sellerName || seller(product.sellerId).name)}</strong><small>${t('ผู้ขาย')}</small></span><span class="secondhand-seller-chevron">›</span></div></section><section class="secondhand-info-card"><h2>${icon('package', 20)} ${t('ข้อมูลสินค้า')}</h2><dl class="secondhand-product-facts"><div><dt>${t('ประเภทสินค้า')}</dt><dd>${escape(t(product.category))}</dd></div><div><dt>${t('สภาพสินค้า')}</dt><dd>${escape(t(product.condition))}</dd></div><div><dt>${t('จำนวน')}</dt><dd>${t('{count} ชิ้น', { count: product.quantity || 1 })}</dd></div><div><dt>${t('วิธีรับสินค้า')}</dt><dd>${escape(t(product.delivery))}</dd></div></dl></section>${locationMap}</aside></div></div>`;
+  }
   const groups = state.groups.filter(g => g.listingId === id && g.status !== 'cancelled' && (g.visibility === 'public' || g.members.includes(state.user?.id)));
   const target = groups.find(g => !g.orderId && g.members.length < g.capacity) || groups[0];
   if (target) { history.replaceState({}, '', `/groups/${target.id}`); return groupPage(target.id); }
@@ -1099,6 +1124,16 @@ function createPage() {
     <div class="info-box">${t('ค่าธรรมเนียมแอป 2% คำนวณอัตโนมัติจากราคาสินค้าและค่าส่งรวม กลุ่มเฉพาะลิงก์จะไม่ปรากฏในการค้นหาสาธารณะ')}</div><div id="create-preview" class="preview-cost"></div><button class="button primary full" type="submit">${t('สร้างกลุ่ม')}</button>
   </form>`;
 }
+function secondhandCheckoutPage(id) {
+  if (!requireAuth(`/checkout/secondhand/${encodeURIComponent(id)}`)) return authRequiredView(t('สั่งซื้อสินค้า'), t('เข้าสู่ระบบก่อนสั่งซื้อสินค้า'));
+  const product = listing(id);
+  if (!product || product.listingType !== 'secondhand') return notFound();
+  const pickup = ['นัดรับ', 'รับสินค้าเอง', 'นัดรับและจัดส่ง', 'รับสินค้าเองหรือจัดส่ง'].includes(product.delivery);
+  const shipping = ['จัดส่ง', 'นัดรับและจัดส่ง', 'รับสินค้าเองหรือจัดส่ง'].includes(product.delivery);
+  const deliveryOptions = `${pickup ? `<option value="นัดรับ">${t('รับสินค้าเอง')}</option>` : ''}${shipping ? `<option value="จัดส่ง">${t('จัดส่ง')}</option>` : ''}`;
+  return `${title(t('ยืนยันคำสั่งซื้อ'), escape(product.title))}<div class="secondhand-checkout narrow"><form id="secondhand-checkout-form" data-id="${escape(product.id)}" data-price="${Number(product.price) || 0}" data-seller="${escape(product.sellerId)}" class="form-panel"><div class="secondhand-checkout-item">${product.images?.[0] ? `<img src="${product.images[0]}" alt=""/>` : ''}<div><strong>${escape(product.title)}</strong><small>${money(product.price)} · ${t('{count} ชิ้น', { count: 1 })}</small></div></div><label>${t('จำนวนสินค้า')}<input name="quantity" type="number" min="1" max="${Math.max(1, Number(product.quantity) || 1)}" value="1" required/></label><label>${t('วิธีรับสินค้า')}<select name="delivery" required>${deliveryOptions}</select></label><div class="secondhand-checkout-total"><span>${t('ยอดสินค้า')}</span><strong id="secondhand-checkout-total">${money(product.price)}</strong></div><div class="info-box"><strong>${t('ชำระเข้ากองกลาง')}</strong><p>${t('ยอดจะพักไว้ที่กองกลางจนกว่าผู้ซื้อยืนยันรับสินค้า')}</p><small>${t('การชำระเงินในหน้านี้ยังเป็นแบบจำลอง ไม่มีการโอนหรือเก็บเงินจริง')}</small></div><button class="button primary full" type="submit">${t('ยืนยันและชำระเข้ากองกลาง')}</button>${a(`/products/${encodeURIComponent(product.id)}`, t('กลับไปดูสินค้า'), 'button outline full')}</form></div>`;
+}
+
 function newProduct() {
   if (!requireAuth('/seller/products/new')) return authRequiredView(t('ลงประกาศขาย'), t('เข้าสู่ระบบเพื่อเริ่มลงขายสินค้ามือสอง'));
   const categories = ['เสื้อผ้าและแฟชั่น', 'อุปกรณ์อิเล็กทรอนิกส์และไอที', 'ของใช้ทั่วไป', 'กีฬาและงานอดิเรก', 'โมเดล / งานศิลปะ', 'อื่น ๆ (ระบุชื่อเอง)'];
@@ -1185,10 +1220,44 @@ function startGroupChatSync(groupId) {
   if (groupMessageLoadState.get(groupId) !== 'loaded') void refreshGroupChatMessages(groupId, { rerender: false }).then(() => { if (location.pathname === `/groups/${groupId}/chat`) render(); });
   groupChatPollTimer = setInterval(() => void refreshGroupChatMessages(groupId), 3000);
 }
+async function refreshSecondhandChatMessages(conversationId, rerender = false) {
+  try {
+    const messages = await loadSecondhandMessages(conversationId, state.user?.id);
+    const cacheKey = secondhandChatCacheKey(conversationId);
+    const previous = secondhandChatMessages.get(cacheKey) || [];
+    const changed = messages.length !== previous.length || messages.at(-1)?.id !== previous.at(-1)?.id;
+    secondhandChatMessages.set(cacheKey, messages);
+    if (rerender && changed && location.pathname.startsWith('/chat/')) render();
+  } catch (error) {
+    console.error('Could not load marketplace chat', error);
+  }
+}
+function startSecondhandChatSync(conversationId) {
+  if (!supabaseConfigured || !conversationId) return;
+  if (secondhandChatPollId === conversationId) return;
+  if (secondhandChatPollTimer) clearInterval(secondhandChatPollTimer);
+  secondhandChatPollId = conversationId;
+  void refreshSecondhandChatMessages(conversationId, true);
+  secondhandChatPollTimer = setInterval(() => void refreshSecondhandChatMessages(conversationId, true), 4000);
+}
 function chatList() {
   if (!requireAuth('/chat')) return authRequiredView(t("แชตกับผู้ขาย"), t("เข้าสู่ระบบเพื่อดูประวัติการสนทนาและติดต่อร้านค้า"));
+  if (supabaseConfigured && !secondhandConversationListLoading) {
+    secondhandConversationListLoading = true;
+    void loadSecondhandConversations(state.user.id).then(rows => { secondhandConversationRows = rows; }).catch(error => console.error('Could not load marketplace conversations', error)).finally(() => {
+      secondhandConversationListLoading = false;
+      if (location.pathname === '/chat') render();
+    });
+  }
   const ids = Object.keys(state.conversations);
   const myGs = state.groups.filter(g => g.members.includes(state.user.id));
+  const marketplaceThreads = secondhandConversationRows.filter(conversation => conversation.buyer_id === state.user.id || conversation.seller_id === state.user.id).map(conversation => {
+    const peerId = conversation.buyer_id === state.user.id ? conversation.seller_id : conversation.buyer_id;
+    const product = listing(conversation.listing_id);
+    const peerName = conversation.seller_id === state.user.id ? (state.profiles?.[peerId]?.name || t('ผู้ซื้อ')) : (product?.sellerName || seller(peerId).name || t('ผู้ขาย'));
+    const href = `/chat/${encodeURIComponent(peerId)}?product=${encodeURIComponent(conversation.listing_id)}&conversation=${encodeURIComponent(conversation.id)}`;
+    return a(href, `<span class="avatar">${escape(peerName.slice(0, 1))}</span><span><b>${escape(product?.title || t('ประกาศขาย'))}</b><small>${escape(peerName)} · ${t('แชทสินค้า')}</small></span>${icon('arrow', 18)}`, 'conversation-row');
+  }).join('');
   return `${title(t("แชต"), t("ข้อความทั้งหมดเป็นการจำลองในเบราว์เซอร์นี้"))}
   <div class="narrow">
     <div class="chat-section-header">
@@ -1203,7 +1272,8 @@ function chatList() {
     <div class="chat-section-header" style="margin-top:24px;">
       <h2>${t("แชตกับผู้ขาย")}</h2>
     </div>
-    ${ids.length ? ids.map(id => { const s = seller(id), msgs = state.conversations[id]; return a(`/chat/${id}`, `<span class="avatar">${escape(s.initials)}</span><span><b>${escape(s.name)}</b><small>${escape(msgs.at(-1)?.body || t("เริ่มต้นสนทนา"))}</small></span>${icon('arrow', 18)}`, 'conversation-row') }).join('') : `<div class="empty"><h2>${t("ยังไม่มีการสนทนา")}</h2><p>${t("เปิดสินค้าที่สนใจแล้วเลือกติดต่อผู้ขาย")}</p>${a('/explore', t("ดูสินค้า"), 'button primary')}</div>`}
+    ${marketplaceThreads ? `<div class="chat-section-header"><h2>${t('แชทตลาดมือสอง')}</h2></div>${marketplaceThreads}` : ''}
+    ${ids.length ? ids.map(id => { const s = seller(id), msgs = state.conversations[id]; return a(`/chat/${id}`, `<span class="avatar">${escape(s.initials)}</span><span><b>${escape(s.name)}</b><small>${escape(msgs.at(-1)?.body || t("เริ่มต้นสนทนา"))}</small></span>${icon('arrow', 18)}`, 'conversation-row') }).join('') : (!marketplaceThreads ? `<div class="empty"><h2>${t("ยังไม่มีการสนทนา")}</h2><p>${t("เปิดสินค้าที่สนใจแล้วเลือกติดต่อผู้ขาย")}</p>${a('/explore', t("ดูสินค้า"), 'button primary')}</div>` : '')}
   </div>`;
 }
 function groupChatPage(id) {
@@ -1251,7 +1321,22 @@ function groupChatPage(id) {
     </form>`: ''}
   </div>`;
 }
-function chatPage(id) { if (!requireAuth(location.pathname + location.search)) return authRequiredView(t("แชตกับผู้ขาย"), t("เข้าสู่ระบบเพื่อเริ่มต้นการสนทนากับร้านค้านี้")); const s = seller(id), msgs = state.conversations[id] || [], product = new URLSearchParams(location.search).get('product'); return `<div class="chat-shell"><div class="chat-head">${a('/chat', icon('back', 20))}<span class="avatar">${escape(s.initials)}</span><div><h1>${escape(s.name)}</h1><small>${t("แชตจำลอง · ไม่ส่งถึงผู้ขายจริง")}</small></div></div>${product ? `<div class="chat-product">${t("กำลังสอบถามเรื่อง")} ${a(`/products/${product}`, escape(listing(product)?.title || t('สินค้า')))}</div>` : ''}<div class="messages">${msgs.length ? msgs.map(m => `<div class="bubble ${m.from === 'me' ? 'mine' : 'theirs'}">${escape(m.body)}</div>`).join('') : `<div class="chat-empty">${t("เริ่มคุยเรื่องสินค้า เงื่อนไขรับของ หรือค่าส่งได้ที่นี่")}</div>`}</div><form id="chat-form" data-id="${id}" class="chat-input"><input name="body" maxlength="500" required placeholder="${t("พิมพ์ข้อความเดโม...")}" aria-label="${t("ข้อความ")}"/><button class="button primary" type="submit">${t("ส่ง")}</button></form></div>`; }
+function chatPage(id) {
+  if (!requireAuth(location.pathname + location.search)) return authRequiredView(t("แชตกับผู้ขาย"), t("เข้าสู่ระบบเพื่อเริ่มต้นการสนทนากับร้านค้านี้"));
+  const params = new URLSearchParams(location.search);
+  const productId = params.get('product');
+  const conversationId = params.get('conversation');
+  const marketplaceChat = Boolean(productId && (conversationId || params.has('listingChat')));
+  const threadKey = conversationId || `secondhand-${productId}-${id}`;
+  if (conversationId) startSecondhandChatSync(conversationId);
+  const product = productId ? listing(productId) : null;
+  const peerName = marketplaceChat && product?.sellerId === state.user.id ? t('ผู้ซื้อ') : seller(id).name;
+  const peerInitial = peerName.slice(0, 1).toUpperCase();
+  const msgs = marketplaceChat
+    ? (conversationId && supabaseConfigured ? (secondhandChatMessages.get(secondhandChatCacheKey(conversationId)) || []) : (state.conversations[threadKey] || []))
+    : (state.conversations[id] || []);
+  return `<div class="chat-shell"><div class="chat-head">${a('/chat', icon('back', 20))}<span class="avatar">${escape(peerInitial)}</span><div><h1>${escape(peerName)}</h1><small>${marketplaceChat ? t('แชทตลาดมือสอง') : t("แชตจำลอง · ไม่ส่งถึงผู้ขายจริง")}</small></div></div>${product ? `<div class="chat-product">${t(marketplaceChat ? 'กำลังคุยเรื่องสินค้า' : 'กำลังสอบถามเรื่อง')} ${a(`/products/${productId}`, escape(product.title || t('สินค้า')))}</div>` : ''}<div class="messages">${msgs.length ? msgs.map(m => `<div class="bubble ${m.from === 'me' ? 'mine' : 'theirs'}">${escape(m.body)}</div>`).join('') : `<div class="chat-empty">${t("เริ่มคุยเรื่องสินค้า เงื่อนไขรับของ หรือค่าส่งได้ที่นี่")}</div>`}</div><form id="chat-form" data-id="${marketplaceChat ? threadKey : id}" ${marketplaceChat ? `data-marketplace="true" data-conversation="${escape(conversationId || '')}" data-product="${escape(productId)}" data-peer="${escape(id)}"` : ''} class="chat-input"><input name="body" maxlength="500" required placeholder="${t(marketplaceChat ? 'พิมพ์ข้อความ' : 'พิมพ์ข้อความเดโม...')}" aria-label="${t('ข้อความ')}"/><button class="button primary" type="submit">${t("ส่ง")}</button></form></div>`;
+}
 function notifications() { if (!requireAuth('/notifications')) return authRequiredView(t("การแจ้งเตือน"), t("เข้าสู่ระบบเพื่อดูการแจ้งเตือนกิจกรรมและยอดสมาชิก")); const notes = state.notifications.filter(n => n.recipient === state.user.id); return `${title(t("การแจ้งเตือน"), t("เหตุการณ์ในกลุ่มและข้อความจำลองของคุณ"))}<div class="narrow">${notes.length ? notes.map(n => `<button class="notification ${n.read ? '' : 'unread'}" data-action="open-notice" data-id="${n.id}"><span class="notice-dot"></span><span><b>${escape(n.title)}</b><small>${escape(n.body)}</small></span>${icon('arrow', 18)}</button>`).join('') : `<div class="empty"><h2>${t("ยังไม่มีการแจ้งเตือน")}</h2><p>${t("เมื่อมีสมาชิกหรือยอดเปลี่ยน รายการจะปรากฏที่นี่")}</p>${a('/explore', t("สำรวจสินค้า"), 'button secondary')}</div>`}</div>`; }
 function subscriptionPage() {
   const current = subscriptionFor();
@@ -1653,7 +1738,7 @@ function orderPage(id) {
     ${permissions?.reportPayment ? paymentDialog(order, demoReference()) : ''}${a(`/groups/${id}`, t('กลับไปดูกลุ่ม'), 'button outline full')}</div>`;
 }
 function notFound() { return `<div class="empty"><h1>${t("ไม่พบหน้านี้")}</h1><p>${t("ลิงก์อาจไม่ถูกต้องหรือรายการถูกลบ")}</p>${a('/', t("กลับหน้าแรก"), 'button primary')}</div>`; }
-function route() { const path = decodeURIComponent(location.pathname); if (path === '/') return home(); if (path === '/explore') return explore(); if (path === '/marketplace/secondhand') return secondhandMarketPage(); if (path === '/demo-accept') return demoApprovalPage(new URLSearchParams(location.search).get('accepted') === '1'); if (path === '/subscription') return subscriptionPage(); if (/^\/products\/[^/]+$/.test(path)) return legacyProductRoute(path.split('/')[2]); if (/^\/groups\/[^/]+\/join$/.test(path)) return joinPage(path.split('/')[2]); if (/^\/groups\/[^/]+\/chat$/.test(path)) return groupChatPage(path.split('/')[2]); if (path === '/groups/create') return createPage(); if (/^\/groups\/[^/]+$/.test(path)) return groupPage(path.split('/')[2]); if (path === '/login') return authPage(); if (path === '/register') return authPage(true); if (path === '/my-groups') return myGroups(); if (path === '/my-orders') return myOrdersPage(); if (path === '/chat') return chatList(); if (/^\/chat\/[^/]+$/.test(path)) return chatPage(path.split('/')[2]); if (path === '/notifications') return notifications(); if (path === '/profile') return profile(); if (/^\/shops\/[^/]+$/.test(path)) return shopPage(path.split('/')[2]); if (path === '/seller/dashboard') return sellerDashboard(); if (path === '/seller/products/new') return newProduct(); if (/^\/orders\/[^/]+$/.test(path)) return orderPage(path.split('/')[2]); return notFound(); }
+function route() { const path = decodeURIComponent(location.pathname); if (path === '/') return home(); if (path === '/explore') return explore(); if (path === '/marketplace/secondhand') return secondhandMarketPage(); if (path === '/demo-accept') return demoApprovalPage(new URLSearchParams(location.search).get('accepted') === '1'); if (path === '/subscription') return subscriptionPage(); if (/^\/checkout\/secondhand\/[^/]+$/.test(path)) return secondhandCheckoutPage(path.split('/')[3]); if (/^\/products\/[^/]+$/.test(path)) return legacyProductRoute(path.split('/')[2]); if (/^\/groups\/[^/]+\/join$/.test(path)) return joinPage(path.split('/')[2]); if (/^\/groups\/[^/]+\/chat$/.test(path)) return groupChatPage(path.split('/')[2]); if (path === '/groups/create') return createPage(); if (/^\/groups\/[^/]+$/.test(path)) return groupPage(path.split('/')[2]); if (path === '/login') return authPage(); if (path === '/register') return authPage(true); if (path === '/my-groups') return myGroups(); if (path === '/my-orders') return myOrdersPage(); if (path === '/chat') return chatList(); if (/^\/chat\/[^/]+$/.test(path)) return chatPage(path.split('/')[2]); if (path === '/notifications') return notifications(); if (path === '/profile') return profile(); if (/^\/shops\/[^/]+$/.test(path)) return shopPage(path.split('/')[2]); if (path === '/seller/dashboard') return sellerDashboard(); if (path === '/seller/products/new') return newProduct(); if (/^\/orders\/[^/]+$/.test(path)) return orderPage(path.split('/')[2]); return notFound(); }
 function updateFilterCarousel() {
   const carousel = document.querySelector('.filter-carousel'), row = carousel?.querySelector('.filter-row');
   if (!row) return;
@@ -1675,6 +1760,7 @@ function groupsLoadingSkeleton() {
 }
 function render() {
   if (!/^\/groups\/[^/]+\/chat$/.test(location.pathname) && groupChatPollTimer) { clearInterval(groupChatPollTimer); groupChatPollTimer = null; groupChatPollId = null; }
+  if (!(location.pathname.startsWith('/chat/') && new URLSearchParams(location.search).has('conversation')) && secondhandChatPollTimer) { clearInterval(secondhandChatPollTimer); secondhandChatPollTimer = null; secondhandChatPollId = null; }
   document.documentElement.dataset.theme = theme;
   document.body.classList.toggle('mobile-menu-open', mobileMenuOpen);
   const headerScrolled = window.scrollY > 10;
@@ -1735,6 +1821,7 @@ function render() {
   `;
 
   initializeListingMap();
+  void initializeSecondhandDetailMap();
 
   const footerMount = document.querySelector('#interactive-footer');
   if (footerMount) {
@@ -1852,6 +1939,28 @@ async function initializeListingMap() {
   } catch (error) {
     console.warn('Unable to load OpenStreetMap', error);
     if (status?.isConnected) status.textContent = t('โหลดแผนที่ไม่สำเร็จ ลองโหลดหน้าอีกครั้ง');
+  }
+}
+async function initializeSecondhandDetailMap() {
+  const canvas = document.querySelector('#secondhand-detail-map');
+  if (!canvas) { secondhandDetailMap?.remove(); secondhandDetailMap = null; return; }
+  try {
+    const L = await loadLeaflet();
+    if (!canvas.isConnected) return;
+    secondhandDetailMap?.remove();
+    const lat = Number(canvas.dataset.lat), lng = Number(canvas.dataset.lng);
+    secondhandDetailMap = L.map(canvas, {
+      zoomControl: true, dragging: false, touchZoom: false, doubleClickZoom: false,
+      scrollWheelZoom: false, boxZoom: false, keyboard: false, tap: false,
+    }).setView([lat, lng], 18);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      minZoom: 5, maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
+    }).addTo(secondhandDetailMap);
+    L.marker([lat, lng], { interactive: false, keyboard: false, draggable: false }).addTo(secondhandDetailMap);
+  } catch (error) {
+    console.warn('Unable to load secondhand listing map', error);
+    if (canvas.isConnected) canvas.innerHTML = `<p class="secondhand-location-map-missing">${t('โหลดแผนที่ไม่สำเร็จ ลองโหลดหน้าอีกครั้ง')}</p>`;
   }
 }
 function setListingMapPoint(point, reverseGeocode = false) {
@@ -2094,6 +2203,58 @@ document.addEventListener('click', async e => {
       if (btn.dataset.editable) { if (imagesLoading) return; const [cover] = groupImages.splice(index, 1); if (cover) groupImages.unshift(cover); document.querySelector('#image-draft').innerHTML = gallery(groupImages, true); }
       else { galleryEl.querySelector('.gallery-main img').src = btn.querySelector('img').src; galleryEl.querySelector('.gallery-main img').alt = t('ดูรูปที่ {number}', { number: index + 1 }); galleryEl.querySelector('.gallery-counter').textContent = `${index + 1} / ${galleryEl.querySelectorAll('[data-action="gallery-select"]').length}`; galleryEl.querySelectorAll('[data-action="gallery-select"]').forEach(button => button.setAttribute('aria-pressed', String(button === btn))); }
     }
+    else if (action === 'secondhand-photo' || action === 'secondhand-photo-step') {
+      const galleryEl = btn.closest('.secondhand-gallery'), images = JSON.parse(galleryEl?.dataset.images || '[]');
+      if (!galleryEl || !images.length) return;
+      const current = Number(galleryEl.dataset.current || 0);
+      const next = action === 'secondhand-photo-step'
+        ? (current + Number(btn.dataset.direction) + images.length) % images.length
+        : Number(btn.dataset.index);
+      galleryEl.dataset.current = String(next);
+      const mainImage = galleryEl.querySelector('[data-secondhand-main]');
+      mainImage.src = images[next]; mainImage.alt = t('ดูรูปที่ {number}', { number: next + 1 });
+      const countLabel = galleryEl.querySelector('[data-secondhand-count]');
+      if (countLabel) countLabel.textContent = `${next + 1} / ${images.length}`;
+      galleryEl.querySelectorAll('.secondhand-gallery-thumb').forEach((thumb, index) => {
+        const selected = index === next;
+        thumb.classList.toggle('is-active', selected);
+        thumb.setAttribute('aria-pressed', String(selected));
+      });
+    }
+    else if (action === 'secondhand-photo-fullscreen') {
+      await btn.closest('.secondhand-gallery')?.querySelector('.secondhand-listing-hero')?.requestFullscreen?.();
+    }
+    else if (action === 'secondhand-reserve') {
+      const product = listing(btn.dataset.id);
+      if (!product) throw new Error(t('ไม่พบประกาศนี้'));
+      if (!requireAuth(`/products/${encodeURIComponent(product.id)}`)) return;
+      if (product.sellerId === state.user.id) throw new Error(t('ไม่สามารถจองสินค้าของตัวเองได้'));
+      const initialMessage = t('สนใจจองสินค้า {title} รบกวนแจ้งรายละเอียดการรับสินค้าด้วย', { title: product.title });
+      if (supabaseConfigured) {
+        const conversation = await startSecondhandConversation(product.id, state.user, product.sellerId);
+        const existingMessages = await loadSecondhandMessages(conversation.id, state.user.id);
+        if (!existingMessages.length) existingMessages.push(await sendSecondhandMessage(conversation.id, state.user, initialMessage));
+        secondhandChatMessages.set(secondhandChatCacheKey(conversation.id), existingMessages);
+        go(`/chat/${encodeURIComponent(product.sellerId)}?product=${encodeURIComponent(product.id)}&conversation=${encodeURIComponent(conversation.id)}`);
+      } else {
+        const threadKey = `secondhand-${product.id}-${product.sellerId}`;
+        state.conversations[threadKey] ??= [{ from: 'me', body: initialMessage, at: new Date().toISOString() }];
+        save();
+        go(`/chat/${encodeURIComponent(product.sellerId)}?product=${encodeURIComponent(product.id)}&listingChat=1&thread=${encodeURIComponent(threadKey)}`);
+      }
+    }
+    else if (action === 'secondhand-order') {
+      const product = listing(btn.dataset.id);
+      if (!product) throw new Error(t('ไม่พบประกาศนี้'));
+      if (!requireAuth(`/products/${encodeURIComponent(product.id)}`)) return;
+      if (product.sellerId === state.user.id) throw new Error(t('ไม่สามารถสั่งซื้อสินค้าของตัวเองได้'));
+      go(`/checkout/secondhand/${encodeURIComponent(product.id)}`);
+    }
+    else if (action === 'share-listing') {
+      const shareData = { title: document.title, url: location.href };
+      if (navigator.share) await navigator.share(shareData);
+      else { await navigator.clipboard.writeText(location.href); alertMessage(t('คัดลอกลิงก์ประกาศแล้ว')); }
+    }
     else if (action === 'image-remove') { if (imagesLoading) return; groupImages.splice(Number(btn.dataset.index), 1); document.querySelector('#image-draft').innerHTML = gallery(groupImages, true); }
     else if (action === 'toggle-category' || action === 'remove-category') {
       const category = btn.dataset.category;
@@ -2277,6 +2438,35 @@ document.addEventListener('click', async e => {
 });
 document.addEventListener('submit', async e => {
   const f = e.target, actionSession = activeSupabaseSession;
+  if (f.id === 'secondhand-checkout-form') {
+    e.preventDefault();
+    try {
+      const product = listing(f.dataset.id), data = new FormData(f);
+      const quantity = Number(data.get('quantity'));
+      const delivery = String(data.get('delivery') || '');
+      if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > (Number(product.quantity) || 1)) throw new Error(t('จำนวนสินค้าไม่ถูกต้อง'));
+      if (!['นัดรับ', 'จัดส่ง'].includes(delivery)) throw new Error(t('กรุณาเลือกวิธีรับสินค้า'));
+      const amountSatang = Number(product.price) * quantity;
+      if (!Number.isSafeInteger(amountSatang) || amountSatang < 0) throw new Error(t('ยอดสั่งซื้อไม่ถูกต้อง'));
+      if (supabaseConfigured) {
+        await createSupabaseSecondhandOrder(product, state.user, quantity, delivery);
+      } else {
+        state.secondhandOrders ??= [];
+        state.secondhandOrders.unshift({ id: crypto.randomUUID(), listingId: product.id, buyerId: state.user.id, sellerId: product.sellerId, title: product.title, unitPrice: product.price, quantity, total: amountSatang, delivery, status: 'pending_payment', createdAt: new Date().toISOString() });
+        save();
+      }
+      const reference = demoReference();
+      document.querySelector('#payment-dialog')?.remove();
+      document.body.insertAdjacentHTML('beforeend', paymentDialog({ payments: { [state.user.id]: { amountSatang } } }, reference));
+      const dialog = document.querySelector('#payment-dialog');
+      dialog.showModal();
+      const qr = dialog.querySelector('#payment-qr'), expires = Date.now() + 5 * 60 * 60 * 1000;
+      qr.dataset.expires = String(expires);
+      qr.src = await QRCode.toDataURL(demoAcceptUrl(reference, amountSatang, { expires }).href, { errorCorrectionLevel: 'M', margin: 2, width: 420, color: { dark: '#092847', light: '#ffffff' } });
+      startDemoCountdown(dialog, expires);
+    } catch (error) { alertMessage(errorMessage(error)); }
+    return;
+  }
   if (f.id === 'transfer-group-form') {
     e.preventDefault();
     try {
@@ -2402,6 +2592,22 @@ document.addEventListener('submit', async e => {
     e.preventDefault();
     const id = f.dataset.id, body = new FormData(f).get('body').trim();
     if (!body) return;
+    if (f.dataset.marketplace === 'true') {
+      try {
+        if (f.dataset.conversation && supabaseConfigured) {
+          const message = await sendSecondhandMessage(f.dataset.conversation, state.user, body);
+          const cacheKey = secondhandChatCacheKey(f.dataset.conversation);
+          secondhandChatMessages.set(cacheKey, [...(secondhandChatMessages.get(cacheKey) || []), message]);
+        } else {
+          state.conversations[id] ??= [];
+          state.conversations[id].push({ from: 'me', body, at: new Date().toISOString() });
+          state.conversations[id].push({ from: 'seller', body: t("ขอบคุณที่ติดต่อค่ะ นี่คือคำตอบจำลอง กรุณาตรวจสอบรายละเอียดสินค้าก่อนตกลงจริง"), at: new Date().toISOString() });
+          save();
+        }
+        render();
+      } catch (error) { alertMessage(supabaseConfigured ? authErrorMessage(error) : errorMessage(error)); }
+      return;
+    }
     state.conversations[id] ??= [];
     state.conversations[id].push({ from: 'me', body, at: new Date().toISOString() });
     state.conversations[id].push({ from: 'seller', body: t("ขอบคุณที่ติดต่อค่ะ นี่คือคำตอบจำลอง กรุณาตรวจสอบรายละเอียดสินค้าก่อนตกลงจริง"), at: new Date().toISOString() });
@@ -2456,6 +2662,13 @@ document.addEventListener('submit', async e => {
   }
 });
 document.addEventListener('input', e => {
+  if (e.target.closest('#secondhand-checkout-form')) {
+    const form = e.target.closest('#secondhand-checkout-form');
+    const quantity = Math.max(1, Number(form.querySelector('[name="quantity"]').value) || 1);
+    const total = Number(form.dataset.price) * quantity;
+    const amount = form.querySelector('#secondhand-checkout-total');
+    if (amount) amount.textContent = money(total);
+  }
   if (e.target.name === 'trackingNumber' && e.target.closest('#shipment-form')) {
     const form = e.target.closest('#shipment-form');
     const carrier = form?.querySelector('[name="carrier"]')?.value;
@@ -2502,6 +2715,7 @@ document.addEventListener('input', e => {
 function authErrorMessage(error) {
   const code = error?.code || '';
   const message = String(error?.message || '').toLowerCase();
+  if (message.includes('secondhand_conversations') || message.includes('secondhand_messages') || message.includes('secondhand_orders')) return t('ฐานข้อมูลแชทหรือคำสั่งซื้อมือสองยังไม่พร้อม กรุณารัน migration ล่าสุดของ Supabase');
   if (error?.code === 'groupTotalMismatch') return t('ข้อมูลยอดจากฐานข้อมูลไม่ตรงกับสูตรแอป กรุณาติดต่อผู้ดูแล');
   if (code === 'PGRST202' && (message.includes('remove_group_member') || message.includes('delete_group'))) return t('ฐานข้อมูลยังไม่มีระบบจัดการห้อง กรุณารัน migration ล่าสุดของ Supabase');
   if (message.includes('group_locked')) return t('ฐานข้อมูลยังใช้กติกาเตะสมาชิกเวอร์ชันเก่า กรุณารัน migration ล่าสุดของ Supabase');
