@@ -795,13 +795,6 @@ function home() {
     </section>
     <a class="home-promo-strip used" href="/seller/products/new"><span class="home-promo-icon">${icon('package', 42)}</span><span class="home-promo-copy"><strong>${t('ลงขายของมือสอง')}</strong><small>${t('เปลี่ยนของที่ไม่ได้ใช้ ให้เป็นเงิน')}</small></span><span class="home-promo-art" aria-hidden="true">📦</span><span class="home-promo-button">${t('ลงขายในตลาดนัด')} ${icon('arrow', 18)}</span></a>
 
-    <section class="section category-section home-restored-categories">
-      <div class="category-panel">
-        <div class="section-header"><div><h2>${t('อยากหารอะไรวันนี้?')}</h2><p>${t('เลือกหมวดหมู่ที่ใช่ แล้วดูว่ามีกลุ่มไหนกำลังเปิดรับอยู่')}</p></div></div>
-        <div class="filter-carousel home-category-carousel"><button type="button" class="filter-scroll-button filter-scroll-prev" data-action="scroll-filter" data-direction="prev" aria-label="${t('เลื่อนหมวดหมู่ไปซ้าย')}" hidden><span aria-hidden="true">‹</span></button><nav class="filter-row" aria-label="${t('หมวดหมู่')}">${CATEGORY_NAMES.map((category, index) => a(category === 'ทั้งหมด' ? '/explore' : `/explore?category=${encodeURIComponent(category)}`, t(category), `filter home-category-chip${index === 0 ? ' active' : ''}`)).join('')}</nav><button type="button" class="filter-scroll-button filter-scroll-next" data-action="scroll-filter" data-direction="next" aria-label="${t('เลื่อนหมวดหมู่ไปขวา')}" hidden><span aria-hidden="true">›</span></button></div>
-      </div>
-    </section>
-
     <section class="features-section home-restored-features">
       <div class="features-header"><span class="features-kicker">${t('ทำไมต้องหารของ')}</span><h2>${t('ทำไมต้องหารของด้วย HarnKhong?')}</h2><p>${t('หมดปัญหาการทวงเงิน คิดเลขไม่ลงตัว หรือไม่แน่ใจเรื่องค่าจัดส่ง')}</p></div>
       <div class="features-grid">
