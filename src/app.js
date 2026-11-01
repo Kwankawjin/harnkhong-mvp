@@ -259,10 +259,6 @@ let leafletLoaderPromise = null;
 let listingMapReady = false;
 let listingMapRequestId = 0;
 let lastOsmRequestAt = 0;
-const SAMUT_PRAKAN_VIEWBOX = '100.4444351,13.7184898,100.9638955,13.2189544';
-const SAMUT_PRAKAN_BOUNDS = { south: 13.2189544, north: 13.7184898, west: 100.4444351, east: 100.9638955 };
-const isInsideSamutPrakanBounds = (lat, lng) => lat >= SAMUT_PRAKAN_BOUNDS.south && lat <= SAMUT_PRAKAN_BOUNDS.north && lng >= SAMUT_PRAKAN_BOUNDS.west && lng <= SAMUT_PRAKAN_BOUNDS.east;
-const isSamutPrakanAddress = data => /สมุทรปราการ|samut\s*prakan/i.test([data?.display_name, data?.address?.province, data?.address?.state, data?.address?.region].filter(Boolean).join(' '));
 const SAMUT_PRAKAN_MARKET_ALIASES = [
   { match: /ทิพย์เกสร|ทิพเกสร/i, queries: ['Tipgaysorn Plaza', 'Tipgaysorn Market'] },
 ];
@@ -1837,7 +1833,7 @@ async function initializeListingMap() {
     if (!canvas.isConnected) return;
     if (listingMap && listingMap.getContainer() === canvas) { listingMap.invalidateSize(); return; }
     if (listingMap) listingMap.remove();
-    listingMap = L.map(canvas, { scrollWheelZoom: false }).setView([13.55, 100.65], 10);
+    listingMap = L.map(canvas, { scrollWheelZoom: false }).setView([15.87, 100.99], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
     }).addTo(listingMap);
@@ -1874,11 +1870,6 @@ function setListingMapPoint(point, reverseGeocode = false) {
     requestOsmGeocoder(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${position.lat}&lon=${position.lng}&accept-language=th`)
       .then(data => {
         if (requestId !== listingMapRequestId || !form.isConnected || !data?.display_name) return;
-        if (!isSamutPrakanAddress(data)) {
-          form.querySelector('[name="latitude"]').value = ''; form.querySelector('[name="longitude"]').value = ''; form.querySelector('[name="marketAddress"]').value = '';
-          listingMapMarker?.remove(); listingMapMarker = null;
-          form.querySelector('#listing-map-status').textContent = t('เลือกตำแหน่งภายในจังหวัดสมุทรปราการเท่านั้น'); updateListingPreview(); return;
-        }
         form.querySelector('[name="marketAddress"]').value = data.display_name;
         form.querySelector('#listing-map-status').textContent = `${t('ปักหมุดแล้ว')}: ${data.display_name}`;
       }).catch(() => {});
@@ -1899,7 +1890,6 @@ async function searchListingMapLocation() {
   if (coordinateMatch) {
     const lat = Number(coordinateMatch[1]), lng = Number(coordinateMatch[2]);
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) { status.textContent = t('พิกัดไม่ถูกต้อง กรุณาใส่ละติจูดก่อนลองจิจูด'); return; }
-    if (!isInsideSamutPrakanBounds(lat, lng)) { status.textContent = t('กรุณาใช้พิกัดในจังหวัดสมุทรปราการ'); return; }
     const requestId = ++listingMapRequestId; status.textContent = t('กำลังปักหมุดจากพิกัด…');
     await initializeListingMap();
     if (requestId !== listingMapRequestId || !listingMap) return;
@@ -1916,12 +1906,12 @@ async function searchListingMapLocation() {
     const queryVariants = [...(alias?.queries || []), query];
     let result = null;
     for (const variant of [...new Set(queryVariants)]) {
-      const results = await requestOsmGeocoder(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=th&viewbox=${SAMUT_PRAKAN_VIEWBOX}&bounded=1&accept-language=th&q=${encodeURIComponent(variant)}`);
+    const results = await requestOsmGeocoder(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=th&accept-language=th&q=${encodeURIComponent(variant)}`);
       if (requestId !== listingMapRequestId) return;
-      result = (results || []).find(item => isInsideSamutPrakanBounds(Number(item.lat), Number(item.lon)) && isSamutPrakanAddress(item));
+      result = (results || [])[0] || null;
       if (result) break;
     }
-    if (!result) { status.textContent = t('ไม่พบสถานที่ในจังหวัดสมุทรปราการ ลองปักหมุดเอง'); return; }
+    if (!result) { status.textContent = t('ไม่พบสถานที่นี้ ลองพิมพ์ชื่ออื่นหรือปักหมุดเอง'); return; }
     const position = { lat: Number(result.lat), lng: Number(result.lon) };
     form.querySelector('[name="marketAddress"]').value = result.display_name;
     form.querySelector('[name="area"]').dataset.pinnedQuery = query;
@@ -2443,7 +2433,7 @@ document.addEventListener('submit', async e => {
       if (imagesLoading) throw Error(t('กำลังเตรียมรูป กรุณารอสักครู่'));
       if (!listingImages.length) throw Error(t('เพิ่มรูปสินค้าอย่างน้อย 1 รูป'));
       const coordinates = latitude && longitude ? { lat: Number(latitude), lng: Number(longitude) } : null;
-      if (delivery !== 'จัดส่ง' && !coordinates) throw Error(t('เลือกตำแหน่งตลาดในจังหวัดสมุทรปราการบนแผนที่ก่อนลงประกาศ'));
+      if (delivery !== 'จัดส่ง' && !coordinates) throw Error(t('เลือกตำแหน่งตลาดบนแผนที่ก่อนลงประกาศ'));
       if (delivery !== 'จัดส่ง' && !marketAddress) throw Error(t('กำลังตรวจสอบพิกัด รอสักครู่แล้วลองลงประกาศอีกครั้ง'));
       const p = { id: 'p' + Date.now(), title: String(d.get('title') || '').trim(), category: d.get('category'), kind: 'สินค้า', listingType: 'secondhand', condition: d.get('condition'), delivery, area, marketAddress, marketCoordinates: coordinates, contact, images: [...listingImages], price: parseBaht(d.get('price')), sellerId: sellerIdFor(state.user), art: 'custom', mark: 'มือ2', description: String(d.get('description') || '').trim(), terms: `${delivery}${area ? ` · ${area}` : ''}` };
       p.sellerId ||= state.user.id;
