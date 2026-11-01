@@ -253,13 +253,12 @@ let tempSignupData = {};
 let groupImages = [];
 let selectedCreateCategories = [];
 let listingImages = [];
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() || '';
-let googleMapsLoaderPromise = null;
 let listingMap = null;
 let listingMapMarker = null;
-let listingMapGeocoder = null;
+let leafletLoaderPromise = null;
 let listingMapReady = false;
 let listingMapRequestId = 0;
+let lastOsmRequestAt = 0;
 let imagesLoading = false;
 let profileAvatar = '';
 let avatarLoading = false;
@@ -983,7 +982,7 @@ function explore() {
 function legacyProductRoute(id) {
   const product = listing(id);
   if (!product) return notFound();
-  if (product.listingType === 'secondhand') return `<div class="secondhand-listing-page">${a('/seller/products/new', `← ${t('ลงขายสินค้า')}`, 'listing-back-link')}<div class="secondhand-listing-layout"><main>${product.images?.length ? `<div class="secondhand-listing-hero"><img src="${product.images[0]}" alt="${escape(product.title)}"/></div>${product.images.length > 1 ? `<div class="secondhand-listing-gallery">${product.images.map((src, i) => `<img src="${src}" alt="${escape(product.title)} ${i + 1}"/>`).join('')}</div>` : ''}` : `<div class="secondhand-listing-hero empty">${art(product)}</div>`}<section class="secondhand-listing-description"><h2>${t('รายละเอียดสินค้า')}</h2><p>${escape(product.description)}</p></section></main><aside class="secondhand-listing-summary"><span class="listing-preview-category">${escape(t(product.category))}</span><h1>${escape(product.title)}</h1><strong class="secondhand-price">${money(product.price)}</strong><div class="listing-preview-meta"><span>${t(product.condition)}</span><span>${t(product.delivery)}</span></div>${product.area ? `<p>${icon('map-pin', 17)} ${escape(product.area)}</p>` : ''}${product.marketCoordinates ? `<a class="secondhand-map-link" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${product.marketCoordinates.lat},${product.marketCoordinates.lng}`)}" target="_blank" rel="noopener noreferrer">${icon('map-pin', 16)} ${t('เปิดตำแหน่งใน Google Maps')}</a>` : ''}<p>${t('ช่องทางติดต่อผู้ขาย')}: <b>${escape(product.contact)}</b></p><p>${t('ผู้ขาย')}: ${escape(state.user?.name || seller(product.sellerId).name)}</p>${a('/explore', t('กลับไปสำรวจ'), 'button outline full')}</aside></div></div>`;
+  if (product.listingType === 'secondhand') return `<div class="secondhand-listing-page">${a('/seller/products/new', `← ${t('ลงขายสินค้า')}`, 'listing-back-link')}<div class="secondhand-listing-layout"><main>${product.images?.length ? `<div class="secondhand-listing-hero"><img src="${product.images[0]}" alt="${escape(product.title)}"/></div>${product.images.length > 1 ? `<div class="secondhand-listing-gallery">${product.images.map((src, i) => `<img src="${src}" alt="${escape(product.title)} ${i + 1}"/>`).join('')}</div>` : ''}` : `<div class="secondhand-listing-hero empty">${art(product)}</div>`}<section class="secondhand-listing-description"><h2>${t('รายละเอียดสินค้า')}</h2><p>${escape(product.description)}</p></section></main><aside class="secondhand-listing-summary"><span class="listing-preview-category">${escape(t(product.category))}</span><h1>${escape(product.title)}</h1><strong class="secondhand-price">${money(product.price)}</strong><div class="listing-preview-meta"><span>${t(product.condition)}</span><span>${t(product.delivery)}</span></div>${product.area ? `<p>${icon('map-pin', 17)} ${escape(product.area)}</p>` : ''}${product.marketCoordinates ? `<a class="secondhand-map-link" href="https://www.openstreetmap.org/?mlat=${encodeURIComponent(product.marketCoordinates.lat)}&mlon=${encodeURIComponent(product.marketCoordinates.lng)}#map=17/${encodeURIComponent(product.marketCoordinates.lat)}/${encodeURIComponent(product.marketCoordinates.lng)}" target="_blank" rel="noopener noreferrer">${icon('map-pin', 16)} ${t('เปิดตำแหน่งบน OpenStreetMap')}</a>` : ''}<p>${t('ช่องทางติดต่อผู้ขาย')}: <b>${escape(product.contact)}</b></p><p>${t('ผู้ขาย')}: ${escape(state.user?.name || seller(product.sellerId).name)}</p>${a('/explore', t('กลับไปสำรวจ'), 'button outline full')}</aside></div></div>`;
   const groups = state.groups.filter(g => g.listingId === id && g.status !== 'cancelled' && (g.visibility === 'public' || g.members.includes(state.user?.id)));
   const target = groups.find(g => !g.orderId && g.members.length < g.capacity) || groups[0];
   if (target) { history.replaceState({}, '', `/groups/${target.id}`); return groupPage(target.id); }
@@ -1102,7 +1101,7 @@ function newProduct() {
         <section class="listing-form-card listing-photos-card"><div class="listing-card-heading"><span class="listing-card-number">01</span><div><h2>${t('รูปภาพสินค้า')}</h2><p>${t('เพิ่มรูปได้สูงสุด 6 รูป รูปแรกจะเป็นภาพหน้าปก')}</p></div></div><label class="listing-upload-zone" for="listing-images"><span class="listing-upload-icon">${icon('plus', 22)}</span><strong>${t('เพิ่มรูปสินค้า')}</strong><small>${t('JPG, PNG หรือ WebP · ไม่เกิน 5 MB ต่อรูป')}</small><input id="listing-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div class="listing-image-thumbnails" id="listing-image-draft">${listingImages.map((src, index) => `<div class="listing-image-thumb ${index === 0 ? 'is-cover' : ''}"><button type="button" data-action="listing-cover" data-index="${index}" aria-label="${index === 0 ? t('ภาพหน้าปก') : t('เลือกเป็นภาพหน้าปก')}"><img src="${src}" alt=""/><span>${index === 0 ? t('หน้าปก') : t('ตั้งเป็นหน้าปก')}</span></button><button class="listing-image-delete" type="button" data-action="listing-image-remove" data-index="${index}" aria-label="${t('ลบรูปที่ {number}', { number: index + 1 })}">×</button></div>`).join('')}</div><p class="listing-field-status" id="listing-image-status" role="status"></p></section>
         <section class="listing-form-card"><div class="listing-card-heading"><span class="listing-card-number">02</span><div><h2>${t('ข้อมูลสินค้า')}</h2><p>${t('ระบุชื่อ หมวดหมู่ และรายละเอียดของสินค้า')}</p></div></div><label>${t('ชื่อสินค้า')}<input name="title" maxlength="100" required placeholder="${t('เช่น เสื้อแจ็กเก็ตยีนส์มือสอง')}"/></label><label>${t('หมวดหมู่สินค้า')}<select name="category" required>${categories.map(c => `<option value="${escape(c)}">${t(c)}</option>`).join('')}</select></label><label>${t('รายละเอียดสินค้า')}<textarea name="description" rows="5" maxlength="1200" required placeholder="${t('อธิบายการใช้งาน สภาพสินค้า ตำหนิ และข้อมูลเพิ่มเติม')}"></textarea><small class="listing-input-hint">${t('แจ้งตำหนิหรือร่องรอยการใช้งานให้ชัดเจน เพื่อให้ผู้ซื้อมั่นใจ')}</small></label></section>
         <section class="listing-form-card"><div class="listing-card-heading"><span class="listing-card-number">03</span><div><h2>${t('ราคาและสภาพสินค้า')}</h2><p>${t('กำหนดราคาขายและเลือกสภาพที่ตรงกับสินค้ามากที่สุด')}</p></div></div><div class="listing-form-row"><label>${t('ราคาขาย')}<div class="listing-price-input"><input name="price" inputmode="decimal" required placeholder="0.00"/><span>${t('บาท')}</span></div></label><label>${t('สภาพสินค้า')}<select name="condition" required><option value="">${t('เลือกสภาพสินค้า')}</option><option value="มือหนึ่ง">${t('มือหนึ่ง')}</option><option value="สภาพดี">${t('สภาพดี')}</option><option value="มีตำหนิ">${t('มีตำหนิ')}</option></select></label></div></section>
-        <section class="listing-form-card"><div class="listing-card-heading"><span class="listing-card-number">04</span><div><h2>${t('การรับสินค้าและช่องทางติดต่อ')}</h2><p>${t('แจ้งวิธีรับสินค้าและช่องทางที่ผู้ซื้อจะติดต่อคุณ')}</p></div></div><fieldset class="listing-radio-group"><legend>${t('วิธีรับสินค้า')}</legend><label class="listing-radio-option"><input type="radio" name="delivery" value="นัดรับ" checked/><span><strong>${t('นัดรับ')}</strong><small>${t('นัดเวลาและสถานที่กับผู้ซื้อ')}</small></span></label><label class="listing-radio-option"><input type="radio" name="delivery" value="จัดส่ง"/><span><strong>${t('จัดส่ง')}</strong><small>${t('ส่งสินค้าตามที่อยู่ผู้ซื้อ')}</small></span></label><label class="listing-radio-option"><input type="radio" name="delivery" value="นัดรับและจัดส่ง"/><span><strong>${t('นัดรับและจัดส่ง')}</strong><small>${t('ให้ผู้ซื้อเลือกวิธีที่สะดวก')}</small></span></label></fieldset><div id="listing-area-wrap" class="listing-location-fields"><label for="listing-market-name">${t('ตลาดหรือสถานที่ขาย')}<input id="listing-market-name" name="area" maxlength="120" required placeholder="${t('เช่น ตลาดนัดจตุจักร หรือชื่อตลาดใกล้คุณ')}"/><small class="listing-input-hint">${t('พิมพ์ชื่อตลาดเพื่อค้นหาบนแผนที่ หรือเลือกหมุดเอง')}</small></label><div class="listing-map-search-row"><button type="button" class="button outline" data-action="listing-map-search">${icon('search',16)} ${t('ค้นหาบน Google Maps')}</button><small>${t('แตะบนแผนที่หรือขยับหมุดเพื่อเลือกตำแหน่ง')}</small></div><div id="listing-map-canvas" class="listing-map-canvas" role="application" aria-label="${t('แผนที่เลือกตำแหน่งตลาด')}"></div><p id="listing-map-status" class="listing-map-status" role="status"></p><input type="hidden" name="latitude"/><input type="hidden" name="longitude"/><input type="hidden" name="marketAddress"/></div><label>${t('ช่องทางติดต่อผู้ขาย')}<input name="contact" maxlength="120" required placeholder="${t('เช่น LINE ID หรือเบอร์โทรศัพท์')}"/></label></section>
+        <section class="listing-form-card"><div class="listing-card-heading"><span class="listing-card-number">04</span><div><h2>${t('การรับสินค้าและช่องทางติดต่อ')}</h2><p>${t('แจ้งวิธีรับสินค้าและช่องทางที่ผู้ซื้อจะติดต่อคุณ')}</p></div></div><fieldset class="listing-radio-group"><legend>${t('วิธีรับสินค้า')}</legend><label class="listing-radio-option"><input type="radio" name="delivery" value="นัดรับ" checked/><span><strong>${t('นัดรับ')}</strong><small>${t('นัดเวลาและสถานที่กับผู้ซื้อ')}</small></span></label><label class="listing-radio-option"><input type="radio" name="delivery" value="จัดส่ง"/><span><strong>${t('จัดส่ง')}</strong><small>${t('ส่งสินค้าตามที่อยู่ผู้ซื้อ')}</small></span></label><label class="listing-radio-option"><input type="radio" name="delivery" value="นัดรับและจัดส่ง"/><span><strong>${t('นัดรับและจัดส่ง')}</strong><small>${t('ให้ผู้ซื้อเลือกวิธีที่สะดวก')}</small></span></label></fieldset><div id="listing-area-wrap" class="listing-location-fields"><label for="listing-market-name">${t('ตลาดหรือสถานที่ขาย')}<input id="listing-market-name" name="area" maxlength="120" required placeholder="${t('เช่น ตลาดนัดจตุจักร หรือชื่อตลาดใกล้คุณ')}"/><small class="listing-input-hint">${t('พิมพ์ชื่อตลาดเพื่อค้นหาบนแผนที่ หรือเลือกหมุดเอง')}</small></label><div class="listing-map-search-row"><button type="button" class="button outline" data-action="listing-map-search">${icon('search',16)} ${t('ค้นหาบน OpenStreetMap')}</button><small>${t('แตะบนแผนที่หรือขยับหมุดเพื่อเลือกตำแหน่ง')}</small></div><div id="listing-map-canvas" class="listing-map-canvas" role="application" aria-label="${t('แผนที่เลือกตำแหน่งตลาด')}"></div><p id="listing-map-status" class="listing-map-status" role="status"></p><input type="hidden" name="latitude"/><input type="hidden" name="longitude"/><input type="hidden" name="marketAddress"/></div><label>${t('ช่องทางติดต่อผู้ขาย')}<input name="contact" maxlength="120" required placeholder="${t('เช่น LINE ID หรือเบอร์โทรศัพท์')}"/></label></section>
         <div class="listing-submit-row"><small>${t('ตรวจสอบรายละเอียดและภาพตัวอย่างก่อนลงประกาศ')}</small><button class="button primary listing-publish-button" type="submit">${t('ลงประกาศขาย')}</button></div>
       </div>
       <aside class="listing-preview-card"><div class="listing-preview-heading"><span>${t('ตัวอย่างประกาศ')}</span><small>${t('แสดงตัวอย่างก่อนเผยแพร่')}</small></div><div id="listing-preview-content" class="listing-preview-content"><div class="listing-preview-image empty">${icon('package', 32)}<span>${t('รูปสินค้าจะแสดงที่นี่')}</span></div><div class="listing-preview-copy"><span class="listing-preview-category">${t(categories[0])}</span><h3>${t('ชื่อสินค้าของคุณ')}</h3><strong>฿0.00</strong><div class="listing-preview-meta"><span>${t('เลือกสภาพสินค้า')}</span><span>${t('นัดรับ')}</span></div><p>${t('รายละเอียดสินค้าจะปรากฏในส่วนนี้')}</p></div></div><div class="listing-preview-tip">${icon('shield', 18)}<span>${t('รายละเอียดที่ชัดเจนช่วยให้ผู้ซื้อมั่นใจก่อนติดต่อ')}</span></div></aside>
@@ -1728,7 +1727,7 @@ function render() {
     ${authModalActive ? `<dialog class="auth-modal-overlay" id="auth-modal-overlay" aria-label="${t('เข้าสู่ระบบ')}">${renderPhoneMockup(mockupCurrentStep, true)}</dialog>` : ''}
   `;
 
-  initializeListingGoogleMap();
+  initializeListingMap();
 
   const footerMount = document.querySelector('#interactive-footer');
   if (footerMount) {
@@ -1807,82 +1806,93 @@ function renderListingImages() {
   const holder = document.querySelector('#listing-image-draft'); if (!holder) return;
   holder.innerHTML = listingImages.map((src, index) => `<div class="listing-image-thumb ${index === 0 ? 'is-cover' : ''}"><button type="button" data-action="listing-cover" data-index="${index}" aria-label="${index === 0 ? t('ภาพหน้าปก') : t('เลือกเป็นภาพหน้าปก')}"><img src="${src}" alt=""/><span>${index === 0 ? t('หน้าปก') : t('ตั้งเป็นหน้าปก')}</span></button><button class="listing-image-delete" type="button" data-action="listing-image-remove" data-index="${index}" aria-label="${t('ลบรูปที่ {number}', { number: index + 1 })}">×</button></div>`).join('');
 }
-function loadGoogleMapsApi() {
-  if (window.google?.maps) return Promise.resolve(window.google.maps);
-  if (googleMapsLoaderPromise) return googleMapsLoaderPromise;
-  if (!GOOGLE_MAPS_API_KEY) return Promise.reject(new Error('googleMapsKeyMissing'));
-  googleMapsLoaderPromise = new Promise((resolve, reject) => {
-    const callbackName = '__harnkhongGoogleMapsReady';
-    const timeout = setTimeout(() => reject(new Error('googleMapsLoadTimeout')), 15000);
-    window[callbackName] = () => { clearTimeout(timeout); resolve(window.google.maps); delete window[callbackName]; };
+function loadLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  if (leafletLoaderPromise) return leafletLoaderPromise;
+  leafletLoaderPromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('#leaflet-css')) {
+      const css = document.createElement('link'); css.id = 'leaflet-css'; css.rel = 'stylesheet';
+      css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.append(css);
+    }
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&loading=async&callback=${callbackName}&v=weekly`;
-    script.async = true; script.onerror = () => { clearTimeout(timeout); reject(new Error('googleMapsLoadFailed')); };
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; script.async = true;
+    script.onload = () => window.L ? resolve(window.L) : reject(new Error('leafletLoadFailed'));
+    script.onerror = () => reject(new Error('leafletLoadFailed'));
     document.head.append(script);
   });
-  return googleMapsLoaderPromise;
+  return leafletLoaderPromise;
 }
-async function initializeListingGoogleMap() {
+async function initializeListingMap() {
   const canvas = document.querySelector('#listing-map-canvas'); if (!canvas) return;
   const status = document.querySelector('#listing-map-status');
-  if (!GOOGLE_MAPS_API_KEY) { status.textContent = t('ต้องตั้งค่า Google Maps API Key ก่อนเปิดใช้แผนที่'); canvas.innerHTML = `<div class="listing-map-key-prompt">${icon('map-pin', 24)}<strong>${t('แผนที่ Google Maps')}</strong><span>${t('ตั้งค่า API Key เพื่อค้นหาตลาดหรือเลือกหมุดบนแผนที่')}</span></div>`; return; }
   try {
-    const maps = await loadGoogleMapsApi();
+    const L = await loadLeaflet();
     if (!canvas.isConnected) return;
-    listingMapGeocoder = listingMapGeocoder || new maps.Geocoder();
-    listingMap = new maps.Map(canvas, { center: { lat: 13.7563, lng: 100.5018 }, zoom: 12, mapTypeControl: false, streetViewControl: false, fullscreenControl: true, clickableIcons: false, gestureHandling: 'greedy' });
-    listingMapMarker = new maps.Marker({ map: listingMap, draggable: true, title: t('ตำแหน่งตลาดหรือสถานที่ขาย') });
+    if (listingMap && listingMap.getContainer() === canvas) { listingMap.invalidateSize(); return; }
+    if (listingMap) listingMap.remove();
+    listingMap = L.map(canvas, { scrollWheelZoom: false }).setView([13.7563, 100.5018], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
+    }).addTo(listingMap);
     const form = document.querySelector('#product-form');
     const lat = Number(form.querySelector('[name="latitude"]').value), lng = Number(form.querySelector('[name="longitude"]').value);
     if (Number.isFinite(lat) && Number.isFinite(lng) && form.querySelector('[name="latitude"]').value) {
-      const point = { lat, lng }; listingMap.setCenter(point); listingMap.setZoom(16); listingMapMarker.setPosition(point);
+      const point = [lat, lng]; listingMap.setView(point, 16); setListingMapPoint({ lat, lng }, false);
     }
-    listingMap.addListener('click', event => { if (event.latLng) setListingMapPoint(event.latLng, true); });
-    listingMapMarker.addListener('dragend', event => { if (event.latLng) setListingMapPoint(event.latLng, true); });
-    status.textContent = t('พิมพ์ชื่อตลาดแล้วกดค้นหา หรือแตะ/ลากหมุดเพื่อเลือกตำแหน่งเอง');
+    listingMap.on('click', event => setListingMapPoint(event.latlng, true));
+    status.textContent = t('พิมพ์ชื่อตลาดแล้วกดค้นหา หรือแตะแผนที่เพื่อปักหมุด');
     listingMapReady = true;
   } catch (error) {
-    console.warn('Unable to load Google Maps', error);
-    if (status?.isConnected) status.textContent = error.message === 'googleMapsLoadTimeout' ? t('โหลดแผนที่ไม่สำเร็จ ตรวจสอบ API Key และการตั้งค่า Google Maps') : t('โหลดแผนที่ไม่สำเร็จ ตรวจสอบ API Key และการตั้งค่า Google Maps');
+    console.warn('Unable to load OpenStreetMap', error);
+    if (status?.isConnected) status.textContent = t('โหลดแผนที่ไม่สำเร็จ ลองโหลดหน้าอีกครั้ง');
   }
 }
 function setListingMapPoint(point, reverseGeocode = false) {
-  const form = document.querySelector('#product-form'); if (!form || !listingMap || !listingMapMarker) return;
-  const lat = typeof point.lat === 'function' ? point.lat() : point.lat, lng = typeof point.lng === 'function' ? point.lng() : point.lng;
-  const position = { lat: Number(lat), lng: Number(lng) };
-  listingMapMarker.setPosition(position); listingMap.panTo(position);
+  const form = document.querySelector('#product-form'); if (!form || !listingMap || !window.L) return;
+  const position = { lat: Number(point.lat), lng: Number(point.lng) };
+  if (!listingMapMarker) {
+    listingMapMarker = window.L.marker([position.lat, position.lng], { draggable: true, title: t('ตำแหน่งตลาดหรือสถานที่ขาย') }).addTo(listingMap);
+    listingMapMarker.on('dragend', event => setListingMapPoint(event.target.getLatLng(), true));
+  }
+  else listingMapMarker.setLatLng([position.lat, position.lng]);
+  listingMap.panTo([position.lat, position.lng]);
   form.querySelector('[name="latitude"]').value = position.lat.toFixed(6);
   form.querySelector('[name="longitude"]').value = position.lng.toFixed(6);
   const areaInput = form.querySelector('[name="area"]'); areaInput.dataset.pinnedQuery = areaInput.value.trim();
   form.querySelector('#listing-map-status').textContent = `${t('ปักหมุดแล้ว')} ${position.lat.toFixed(5)}, ${position.lng.toFixed(5)}`;
   updateListingPreview();
-  if (reverseGeocode && listingMapGeocoder) {
+  if (reverseGeocode) {
     const requestId = ++listingMapRequestId;
-    listingMapGeocoder.geocode({ location: position }).then(({ results }) => {
-      if (requestId !== listingMapRequestId || !form.isConnected || !results?.length) return;
-      const address = results[0].formatted_address;
-      form.querySelector('[name="marketAddress"]').value = address;
-      if (!areaInput.value.trim()) { areaInput.value = address; areaInput.dataset.pinnedQuery = address; }
-      form.querySelector('#listing-map-status').textContent = `${t('ปักหมุดแล้ว')}: ${address}`;
-      updateListingPreview();
-    }).catch(() => {});
+    requestOsmGeocoder(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${position.lat}&lon=${position.lng}&accept-language=th`)
+      .then(data => {
+        if (requestId !== listingMapRequestId || !form.isConnected || !data?.display_name) return;
+        form.querySelector('[name="marketAddress"]').value = data.display_name;
+        form.querySelector('#listing-map-status').textContent = `${t('ปักหมุดแล้ว')}: ${data.display_name}`;
+      }).catch(() => {});
   }
+}
+async function requestOsmGeocoder(url) {
+  const delay = Math.max(0, 1100 - (Date.now() - lastOsmRequestAt));
+  if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+  lastOsmRequestAt = Date.now();
+  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error('osmGeocoderRequestFailed');
+  return response.json();
 }
 async function searchListingMapLocation() {
   const form = document.querySelector('#product-form'), status = document.querySelector('#listing-map-status'), query = form?.querySelector('[name="area"]')?.value.trim();
   if (!query) { status.textContent = t('พิมพ์ชื่อตลาดหรือสถานที่ก่อนค้นหา'); form?.querySelector('[name="area"]')?.focus(); return; }
-  if (!GOOGLE_MAPS_API_KEY) { status.textContent = t('ต้องตั้งค่า Google Maps API Key ก่อนเปิดใช้แผนที่'); return; }
   const requestId = ++listingMapRequestId; status.textContent = t('กำลังค้นหาตำแหน่ง…');
   try {
-    await initializeListingGoogleMap();
-    const { results } = await listingMapGeocoder.geocode({ address: query, region: 'th' });
+    await initializeListingMap();
+    const results = await requestOsmGeocoder(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=th&accept-language=th&q=${encodeURIComponent(query)}`);
     if (requestId !== listingMapRequestId || !results?.length) { if (!results?.length) status.textContent = t('ไม่พบสถานที่นี้ ลองพิมพ์ชื่อย่านหรือตลาดใกล้เคียง'); return; }
-    const result = results[0], position = result.geometry.location;
-    form.querySelector('[name="marketAddress"]').value = result.formatted_address;
+    const result = results[0], position = { lat: Number(result.lat), lng: Number(result.lon) };
+    form.querySelector('[name="marketAddress"]').value = result.display_name;
     form.querySelector('[name="area"]').dataset.pinnedQuery = query;
-    listingMap.setCenter(position); listingMap.setZoom(16); setListingMapPoint(position, false);
-    status.textContent = `${t('ปักหมุดแล้ว')}: ${result.formatted_address}`;
-  } catch (error) { if (requestId === listingMapRequestId) status.textContent = t('ค้นหาสถานที่ไม่สำเร็จ ตรวจสอบชื่อสถานที่และ Google Maps API'); }
+    listingMap.setView([position.lat, position.lng], 16); setListingMapPoint(position, false);
+    status.textContent = `${t('ปักหมุดแล้ว')}: ${result.display_name}`;
+  } catch (error) { if (requestId === listingMapRequestId) status.textContent = t('ค้นหาสถานที่ไม่สำเร็จ ลองอีกครั้ง'); }
 }
 function updateListingDeliveryUI(form) {
   if (!form) return;
@@ -2398,13 +2408,14 @@ document.addEventListener('submit', async e => {
       if (imagesLoading) throw Error(t('กำลังเตรียมรูป กรุณารอสักครู่'));
       if (!listingImages.length) throw Error(t('เพิ่มรูปสินค้าอย่างน้อย 1 รูป'));
       const coordinates = latitude && longitude ? { lat: Number(latitude), lng: Number(longitude) } : null;
-      if (delivery !== 'จัดส่ง' && GOOGLE_MAPS_API_KEY && !coordinates) throw Error(t('เลือกตำแหน่งตลาดบนแผนที่ก่อนลงประกาศ'));
+      if (delivery !== 'จัดส่ง' && !coordinates) throw Error(t('เลือกตำแหน่งตลาดบนแผนที่ก่อนลงประกาศ'));
       const p = { id: 'p' + Date.now(), title: String(d.get('title') || '').trim(), category: d.get('category'), kind: 'สินค้า', listingType: 'secondhand', condition: d.get('condition'), delivery, area, marketAddress, marketCoordinates: coordinates, contact, images: [...listingImages], price: parseBaht(d.get('price')), sellerId: sellerIdFor(state.user), art: 'custom', mark: 'มือ2', description: String(d.get('description') || '').trim(), terms: `${delivery}${area ? ` · ${area}` : ''}` };
       p.sellerId ||= state.user.id;
       if (!p.title || !p.description || !p.condition || !p.contact || (delivery !== 'จัดส่ง' && !area)) throw Error(t('กรุณากรอกข้อมูลที่จำเป็นให้ครบ'));
       state.customListings.unshift(p);
       save();
       listingImages = [];
+      listingMap?.remove(); listingMap = null; listingMapMarker = null; listingMapReady = false;
       go(`/products/${p.id}`);
       alertMessage(t('ลงประกาศขายแล้ว'));
     } catch (err) { alertMessage(errorMessage(err)); }
@@ -2427,8 +2438,7 @@ document.addEventListener('input', e => {
   if (e.target.closest('#product-form')) updateListingPreview();
   if (e.target.name === 'area' && e.target.closest('#product-form') && e.target.dataset.pinnedQuery !== e.target.value.trim()) {
     const form = e.target.closest('form'); form.querySelector('[name="latitude"]').value = ''; form.querySelector('[name="longitude"]').value = ''; form.querySelector('[name="marketAddress"]').value = '';
-    listingMapMarker?.setMap(null); listingMapMarker = listingMap && window.google?.maps ? new window.google.maps.Marker({ map: listingMap, draggable: true, title: t('ตำแหน่งตลาดหรือสถานที่ขาย') }) : null;
-    listingMapMarker?.addListener('dragend', event => { if (event.latLng) setListingMapPoint(event.latLng, true); });
+    listingMapMarker?.remove(); listingMapMarker = null;
     const mapStatus = form.querySelector('#listing-map-status'); if (mapStatus) mapStatus.textContent = t('กดค้นหาบนแผนที่เพื่อปักตำแหน่งของชื่อตลาดนี้');
     updateListingPreview();
   }
