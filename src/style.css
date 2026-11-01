@@ -1717,6 +1717,36 @@ body.mobile-menu-open { overflow: hidden; }
 }
 .footer-col a:hover { color: var(--blue); }
 
+/* Oversized sketchbook-style footer wordmark, inspired by the supplied reference. */
+.footer-wordmark {
+  position: relative;
+  isolation: isolate;
+  margin: clamp(26px, 5vw, 64px) 0 28px;
+  color: var(--ink, #101820);
+  font-family: "Plus Jakarta Sans", "IBM Plex Sans Thai", sans-serif;
+  font-size: clamp(3rem, 15.8vw, 12.5rem);
+  font-weight: 800;
+  letter-spacing: -.095em;
+  line-height: .78;
+  white-space: nowrap;
+  text-align: center;
+  transform: scaleY(1.08) rotate(-1deg);
+  text-shadow: 2px 1px 0 currentColor, -1px 2px 0 currentColor;
+}
+.footer-wordmark::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  height: 2px;
+  left: -2%;
+  right: -2%;
+  bottom: -12px;
+  background: currentColor;
+  transform: rotate(.4deg);
+  box-shadow: 0 5px 0 -1px currentColor;
+}
+.footer-wordmark span { color: var(--blue, #0868ce); }
+
 .footer-bottom {
   display: flex;
   align-items: center;
@@ -1738,6 +1768,7 @@ body.mobile-menu-open { overflow: hidden; }
   font-weight: 600;
   color: #4b6d8d;
 }
+:root[data-theme="dark"] .footer-wordmark { color: var(--ink, #edf4fa); }
 
 /* ========================================================
    MOBILE BOTTOM NAVIGATION

@@ -1714,6 +1714,7 @@ function render() {
             ${supabaseConfigured ? '' : `<a href="javascript:void(0)" data-action="reset-demo">${t("รีเซ็ตข้อมูลเดโม")}</a>`}
           </div>
         </div>
+        <div class="footer-wordmark" aria-label="HarnKhong"><span>H</span>ARNKHONG</div>
         <div class="footer-bottom">
           <span>${t("© 2026 HarnKhong — แพลตฟอร์มหารของด้วยกัน")}</span>
           <span class="footer-demo-pill">${t("💡 โหมดต้นแบบจำลอง (MVP Demo) เพื่อการทดสอบ UX")}</span>
