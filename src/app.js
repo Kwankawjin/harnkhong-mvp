@@ -13,7 +13,7 @@ import { createAuthSessionSync } from './auth-session.js';
 let doodleFooterRoot = null;
 import { loadGroupMessages, sendGroupMessage } from './group-chat.js';
 import { loadSupabaseGroups, resolveSupabaseInvite, createSupabaseGroup, joinSupabaseGroup, leaveSupabaseGroup, approveSupabaseGroup, changeSupabaseDelivery, transferSupabaseGroup, removeSupabaseGroupMember, deleteSupabaseGroup, getSupabaseInvite } from './supabase-groups.js';
-import { createOrder, activateOrder, migrateOrders, lockOrderedGroups, orderPermissions, reportPayment, updatePayment, transitionOrder, updateShipment, openDispute, proposeResolution, respondToResolution, DISPUTE_REASONS, sellerIdFor, assertListingSeller } from './orders.js';
+import { createOrder, activateOrder, migrateOrders, lockOrderedGroups, orderPermissions, reportPayment, updatePayment, transitionOrder, updateShipment, openDispute, proposeResolution, respondToResolution, DISPUTE_REASONS, sellerIdFor } from './orders.js';
 
 const LOCALE_KEY = 'harnkhong-locale';
 let locale = 'th';
@@ -231,7 +231,7 @@ if (restoredOrders.some((o, i) => o !== state.orders[i]) || restoredGroups.some(
   // Keep the original stored data if upgrading cannot be saved.
   try { save({ ...state, orders: restoredOrders, groups: restoredGroups }); } catch { state = { ...state, orders: restoredOrders, groups: restoredGroups }; }
 }
-const listings = () => supabaseConfigured ? state.remoteListings : [...seedListings, ...state.customListings];
+const listings = () => supabaseConfigured ? [...state.remoteListings, ...state.customListings] : [...seedListings, ...state.customListings];
 const listing = id => listings().find(x => x.id === id);
 const seller = id => (supabaseConfigured ? state.remoteSellers : sellers).find(x => x.id === id) || { id, name: t('ร้านตัวอย่าง'), intro: t("ผู้ขายในโหมดเดโม"), initials: 'DE' };
 const group = id => state.groups.find(x => x.id === id);
@@ -245,13 +245,13 @@ const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<
 const icon = (id, size = 22) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-${id}"/></svg>`;
 const icons = `<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden"><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="7"/><path d="m16 16 5 5"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol><symbol id="i-edit" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="10" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol><symbol id="i-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 4h16v13H8l-4 3z"/><path d="M8 9h8M8 13h5"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 9h18c0-1-3-2-3-9ZM10 21h4"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol><symbol id="i-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol><symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/></symbol><symbol id="i-calc" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/></symbol><symbol id="i-trending" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol><symbol id="i-fire" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol><symbol id="i-truck" viewBox="0 0 24 24"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-5l-3-4h-5v10Z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol><symbol id="i-package" viewBox="0 0 24 24"><path d="m16.5 9.4-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol><symbol id="i-map-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol></svg>`;
 const a = (href, label, cls = '') => `<a href="${href}" data-link class="${cls}">${label}</a>`;
-function go(path) { profileMenuOpen = false; if (location.pathname === '/groups/create' && path.split('?')[0] !== '/groups/create') { groupImages = []; selectedCreateCategories = []; selectedCreateMode = 'share'; } history.pushState({}, '', path); render(); window.scrollTo(0, 0); }
+function go(path) { profileMenuOpen = false; if (location.pathname === '/groups/create' && path.split('?')[0] !== '/groups/create') { groupImages = []; selectedCreateCategories = []; } history.pushState({}, '', path); render(); window.scrollTo(0, 0); }
 let authModalActive = false;
 let mockupCurrentStep = 1;
 let tempSignupData = {};
 let groupImages = [];
 let selectedCreateCategories = [];
-let selectedCreateMode = 'share';
+let listingImages = [];
 let imagesLoading = false;
 let profileAvatar = '';
 let avatarLoading = false;
@@ -973,7 +973,9 @@ function explore() {
   </div>`;
 }
 function legacyProductRoute(id) {
-  if (!listing(id)) return notFound();
+  const product = listing(id);
+  if (!product) return notFound();
+  if (product.listingType === 'secondhand') return `<div class="secondhand-listing-page">${a('/seller/products/new', `← ${t('ลงขายสินค้า')}`, 'listing-back-link')}<div class="secondhand-listing-layout"><main>${product.images?.length ? `<div class="secondhand-listing-hero"><img src="${product.images[0]}" alt="${escape(product.title)}"/></div>${product.images.length>1?`<div class="secondhand-listing-gallery">${product.images.map((src,i)=>`<img src="${src}" alt="${escape(product.title)} ${i+1}"/>`).join('')}</div>`:''}`:`<div class="secondhand-listing-hero empty">${art(product)}</div>`}<section class="secondhand-listing-description"><h2>${t('รายละเอียดสินค้า')}</h2><p>${escape(product.description)}</p></section></main><aside class="secondhand-listing-summary"><span class="listing-preview-category">${escape(t(product.category))}</span><h1>${escape(product.title)}</h1><strong class="secondhand-price">${money(product.price)}</strong><div class="listing-preview-meta"><span>${t(product.condition)}</span><span>${t(product.delivery)}</span></div>${product.area?`<p>${icon('map-pin',17)} ${escape(product.area)}</p>`:''}<p>${t('ช่องทางติดต่อผู้ขาย')}: <b>${escape(product.contact)}</b></p><p>${t('ผู้ขาย')}: ${escape(state.user?.name || seller(product.sellerId).name)}</p>${a('/explore', t('กลับไปสำรวจ'), 'button outline full')}</aside></div></div>`;
   const groups = state.groups.filter(g => g.listingId === id && g.status !== 'cancelled' && (g.visibility === 'public' || g.members.includes(state.user?.id)));
   const target = groups.find(g => !g.orderId && g.members.length < g.capacity) || groups[0];
   if (target) { history.replaceState({}, '', `/groups/${target.id}`); return groupPage(target.id); }
@@ -1046,7 +1048,7 @@ function groupPage(id) {
         <details class="group-history"><summary>${t('ประวัติการเปลี่ยนยอด')}</summary>${g.history.slice().reverse().map(h => `<p>${t('รอบ {revision}', { revision: h.revision })} · ${escape(t(h.reason))}</p>`).join('')}</details>
       </main>
       <aside class="group-detail-aside"><div class="summary-card sticky"><small>${isMember ? t('ยอดที่คุณต้องยืนยัน') : full || locked ? t('ประมาณต่อคนปัจจุบัน') : t('ยอดประมาณเมื่อเข้าร่วม')}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full ? `<div class="summary-future-price"><span>${t('เมื่อครบ {count} คน', { count: g.capacity })}</span><b>${money(fullEstimate)} <small>${t('/คน')}</small></b></div>` : ''}<p>${isMember ? t('ยอดรอบที่ {revision}', { revision: g.revision }) + (approved ? t(' · คุณยืนยันแล้ว') : t(' · กรุณาตรวจสอบก่อนยืนยัน')) : full || locked ? t('กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่') : t('ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง')}</p>${actions}${!full ? `<p class="warning summary-warning"><span class="warning-icon">${icon('alert-circle', 20)}</span><span>${t('ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน')}</span></p>` : !allApproved(g) ? `<p class="warning summary-warning"><span class="warning-icon">${icon('alert-circle', 20)}</span><span>${t('รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด')}</span></p>` : ''}</div>
-      <section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t('รายละเอียดสินค้า')}</h2><p>${escape(g.itemTitle || g.name)}</p><p>${groupCategories.map(category => escape(t(category))).join(' · ')}</p>${g.itemDescription ? `<p class="group-item-description">${escape(g.itemDescription).replace(/\n/g, '<br>')}</p>` : ''}<small>${supabaseConfigured ? t('แชตกับผู้ขายยังเป็นเดโมในเครื่องนี้') : t('ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง')}</small></section>
+      <section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t('รายละเอียดสินค้า')}</h2><p>${escape(g.name)}</p><p>${groupCategories.map(category => escape(t(category))).join(' · ')}</p><small>${supabaseConfigured ? t('แชตกับผู้ขายยังเป็นเดโมในเครื่องนี้') : t('ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง')}</small></section>
       </aside>
     </div>
   </div>`;
@@ -1072,20 +1074,31 @@ function createPage() {
   if (!selectedCreateCategories.length) selectedCreateCategories = [initialCategory];
   const selectedCategory = selectedCreateCategories[0], selectedListing = allListings.find(item => item.category === selectedCategory) || listing(selected);
   const categoryTags = selectedCreateCategories.map(category => `<button type="button" class="selected-category" data-action="remove-category" data-category="${escape(category)}" aria-label="${t('นำหมวดหมู่ออก {category}', { category: t(category) })}">${escape(t(category))}<span aria-hidden="true">×</span></button>`).join('');
-  const secondHand = typeof selectedCreateMode !== 'undefined' && selectedCreateMode === 'secondhand';
   return `${title(t('สร้างกลุ่มหารใหม่'), t('กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน'))}<form class="form-panel" id="create-form">
     <input type="hidden" name="requestId" value="${crypto.randomUUID()}"/><input type="hidden" name="listingId" value="${selectedListing?.id || selected || ''}"/><input type="hidden" name="category" value="${escape(selectedCategory)}"/>
-    <fieldset class="category-picker"><legend>${t('รูปแบบกลุ่ม')}</legend><div class="category-options"><button type="button" class="category-option ${!secondHand ? 'selected' : ''}" data-action="create-mode" data-mode="share" aria-pressed="${!secondHand}">${t('หารของ')}</button><button type="button" class="category-option ${secondHand ? 'selected' : ''}" data-action="create-mode" data-mode="secondhand" aria-pressed="${secondHand}">${t('ของมือ2')}</button></div><input type="hidden" name="groupType" value="${secondHand ? 'secondhand' : 'share'}"/></fieldset>
     <section class="image-editor"><h2>${t('รูปกลุ่ม')}</h2><p>${t('เพิ่มได้สูงสุด 4 รูป · JPG, PNG, WebP ไม่เกิน 5 MB ต่อรูป · รูปจะบันทึกพร้อมกลุ่ม')}</p><label class="image-upload">${icon('plus', 20)} ${t('เพิ่มรูป')}<input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div id="image-draft">${gallery(groupImages, true)}</div><p id="image-upload-status" role="status"></p></section>
-    <fieldset class="category-picker" id="share-category-picker" ${secondHand ? 'hidden' : ''}><legend>${t('เลือกหมวดหมู่')}</legend><div class="selected-categories" id="selected-categories">${categoryTags}</div><div class="category-options">${CREATE_CATEGORY_NAMES.map(category => `<button type="button" class="category-option ${selectedCreateCategories.includes(category) ? 'selected' : ''}" data-action="toggle-category" data-category="${escape(category)}" aria-pressed="${selectedCreateCategories.includes(category)}">${t(category)}</button>`).join('')}</div></fieldset>
+    <fieldset class="category-picker"><legend>${t('เลือกหมวดหมู่')}</legend><div class="selected-categories" id="selected-categories">${categoryTags}</div><div class="category-options">${CREATE_CATEGORY_NAMES.map(category => `<button type="button" class="category-option ${selectedCreateCategories.includes(category) ? 'selected' : ''}" data-action="toggle-category" data-category="${escape(category)}" aria-pressed="${selectedCreateCategories.includes(category)}">${t(category)}</button>`).join('')}</div></fieldset>
     <label id="other-category-wrap" ${selectedCreateCategories.includes('อื่น ๆ (ระบุชื่อเอง)') ? '' : 'hidden'}>${t('ระบุชื่อหมวดหมู่')}<input name="otherCategory" maxlength="60" ${selectedCreateCategories.includes('อื่น ๆ (ระบุชื่อเอง)') ? 'required' : ''} placeholder="${t('ระบุชื่อหมวดหมู่')}"/></label>
     <label>${t('ชื่อกลุ่ม')}<input name="name" maxlength="70" required placeholder="${t('เช่น ทีมอ่านสอบปลายเทอม')}"/></label>
-    <label id="used-item-title-wrap" ${secondHand ? '' : 'hidden'}>${t('ชื่อสินค้า')}<input name="itemTitle" maxlength="100" ${secondHand ? 'required' : ''} placeholder="${t('เช่น เก้าอี้ทำงานมือสอง')}"/></label>
-    <label>${t('รายละเอียดสินค้า')}<textarea name="itemDescription" maxlength="1000" rows="4" placeholder="${t('พิมพ์รายละเอียดสินค้า เช่น สภาพสินค้า ตำหนิ หรือสิ่งที่รวมมาด้วย')}"></textarea></label>
     <div class="form-grid"><label>${t('จำนวนสมาชิกสูงสุด')}<input name="capacity" type="number" min="2" max="6" value="4" required/></label><label>${t('การมองเห็น')}<select name="visibility"><option value="public">${t('กลุ่มสาธารณะ')}</option><option value="link">${t('เฉพาะผู้มีลิงก์')}</option></select></label></div>
     <div class="form-grid"><label>${t('ราคาสินค้า (บาท)')}<input name="product" inputmode="decimal" value="${bahtInput(selectedListing?.price || 0)}" required/></label><label>${t('ค่าส่งต่อคน (บาท)')}<input name="delivery" inputmode="decimal" value="0" required/></label></div>
     <div class="info-box">${t('ค่าธรรมเนียมแอป 2% คำนวณอัตโนมัติจากราคาสินค้าและค่าส่งรวม กลุ่มเฉพาะลิงก์จะไม่ปรากฏในการค้นหาสาธารณะ')}</div><div id="create-preview" class="preview-cost"></div><button class="button primary full" type="submit">${t('สร้างกลุ่ม')}</button>
   </form>`;
+}
+function newProduct() {
+  if (!requireAuth('/seller/products/new')) return authRequiredView(t('ลงประกาศขาย'), t('เข้าสู่ระบบเพื่อเริ่มลงขายสินค้ามือสอง'));
+  const categories = ['เสื้อผ้าและแฟชั่น', 'อุปกรณ์อิเล็กทรอนิกส์และไอที', 'ของใช้ทั่วไป', 'กีฬาและงานอดิเรก', 'อื่น ๆ (ระบุชื่อเอง)'];
+  return `<div class="listing-create-page"><div class="listing-create-heading"><div>${a('/profile', `← ${t('กลับ')}`, 'listing-back-link')}<h1>${t('ลงขายสินค้ามือสอง')}</h1><p>${t('กรอกข้อมูลสินค้าให้ครบ เพื่อให้ผู้ซื้อเห็นภาพและติดต่อคุณได้ง่าย')}</p></div><span class="listing-create-step">${t('ประกาศขาย · Marketplace')}</span></div>
+    <form id="product-form" class="listing-create-layout">
+      <div class="listing-create-main">
+        <section class="listing-form-card listing-photos-card"><div class="listing-card-heading"><span class="listing-card-number">01</span><div><h2>${t('รูปภาพสินค้า')}</h2><p>${t('เพิ่มรูปได้สูงสุด 6 รูป รูปแรกจะเป็นภาพหน้าปก')}</p></div></div><label class="listing-upload-zone" for="listing-images"><span class="listing-upload-icon">${icon('plus', 22)}</span><strong>${t('เพิ่มรูปสินค้า')}</strong><small>${t('JPG, PNG หรือ WebP · ไม่เกิน 5 MB ต่อรูป')}</small><input id="listing-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div class="listing-image-thumbnails" id="listing-image-draft">${listingImages.map((src,index)=>`<div class="listing-image-thumb ${index===0?'is-cover':''}"><button type="button" data-action="listing-cover" data-index="${index}" aria-label="${index===0?t('ภาพหน้าปก'):t('เลือกเป็นภาพหน้าปก')}"><img src="${src}" alt=""/><span>${index===0?t('หน้าปก'):t('ตั้งเป็นหน้าปก')}</span></button><button class="listing-image-delete" type="button" data-action="listing-image-remove" data-index="${index}" aria-label="${t('ลบรูปที่ {number}',{number:index+1})}">×</button></div>`).join('')}</div><p class="listing-field-status" id="listing-image-status" role="status"></p></section>
+        <section class="listing-form-card"><div class="listing-card-heading"><span class="listing-card-number">02</span><div><h2>${t('ข้อมูลสินค้า')}</h2><p>${t('ระบุชื่อ หมวดหมู่ และรายละเอียดของสินค้า')}</p></div></div><label>${t('ชื่อสินค้า')}<input name="title" maxlength="100" required placeholder="${t('เช่น เสื้อแจ็กเก็ตยีนส์มือสอง')}"/></label><label>${t('หมวดหมู่สินค้า')}<select name="category" required>${categories.map(c=>`<option value="${escape(c)}">${t(c)}</option>`).join('')}</select></label><label>${t('รายละเอียดสินค้า')}<textarea name="description" rows="5" maxlength="1200" required placeholder="${t('อธิบายการใช้งาน สภาพสินค้า ตำหนิ และข้อมูลเพิ่มเติม')}"></textarea><small class="listing-input-hint">${t('แจ้งตำหนิหรือร่องรอยการใช้งานให้ชัดเจน เพื่อให้ผู้ซื้อมั่นใจ')}</small></label></section>
+        <section class="listing-form-card"><div class="listing-card-heading"><span class="listing-card-number">03</span><div><h2>${t('ราคาและสภาพสินค้า')}</h2><p>${t('กำหนดราคาขายและเลือกสภาพที่ตรงกับสินค้ามากที่สุด')}</p></div></div><div class="listing-form-row"><label>${t('ราคาขาย')}<div class="listing-price-input"><input name="price" inputmode="decimal" required placeholder="0.00"/><span>${t('บาท')}</span></div></label><label>${t('สภาพสินค้า')}<select name="condition" required><option value="">${t('เลือกสภาพสินค้า')}</option><option value="มือหนึ่ง">${t('มือหนึ่ง')}</option><option value="เหมือนใหม่">${t('เหมือนใหม่')}</option><option value="สภาพดี">${t('สภาพดี')}</option><option value="มีตำหนิ">${t('มีตำหนิ')}</option></select></label></div></section>
+        <section class="listing-form-card"><div class="listing-card-heading"><span class="listing-card-number">04</span><div><h2>${t('การรับสินค้าและช่องทางติดต่อ')}</h2><p>${t('แจ้งวิธีรับสินค้าและช่องทางที่ผู้ซื้อจะติดต่อคุณ')}</p></div></div><fieldset class="listing-radio-group"><legend>${t('วิธีรับสินค้า')}</legend><label class="listing-radio-option"><input type="radio" name="delivery" value="นัดรับ" checked/><span><strong>${t('นัดรับ')}</strong><small>${t('นัดเวลาและสถานที่กับผู้ซื้อ')}</small></span></label><label class="listing-radio-option"><input type="radio" name="delivery" value="จัดส่ง"/><span><strong>${t('จัดส่ง')}</strong><small>${t('ส่งสินค้าตามที่อยู่ผู้ซื้อ')}</small></span></label><label class="listing-radio-option"><input type="radio" name="delivery" value="นัดรับและจัดส่ง"/><span><strong>${t('นัดรับและจัดส่ง')}</strong><small>${t('ให้ผู้ซื้อเลือกวิธีที่สะดวก')}</small></span></label></fieldset><label id="listing-area-wrap">${t('สถานที่หรือพื้นที่นัดรับ')}<input name="area" maxlength="120" required placeholder="${t('เช่น อารีย์ กรุงเทพฯ')}"/></label><label>${t('ช่องทางติดต่อผู้ขาย')}<input name="contact" maxlength="120" required placeholder="${t('เช่น LINE ID หรือเบอร์โทรศัพท์')}"/></label></section>
+        <div class="listing-submit-row"><small>${t('ตรวจสอบรายละเอียดและภาพตัวอย่างก่อนลงประกาศ')}</small><button class="button primary listing-publish-button" type="submit">${t('ลงประกาศขาย')}</button></div>
+      </div>
+      <aside class="listing-preview-card"><div class="listing-preview-heading"><span>${t('ตัวอย่างประกาศ')}</span><small>${t('แสดงตัวอย่างก่อนเผยแพร่')}</small></div><div id="listing-preview-content" class="listing-preview-content"><div class="listing-preview-image empty">${icon('package',32)}<span>${t('รูปสินค้าจะแสดงที่นี่')}</span></div><div class="listing-preview-copy"><span class="listing-preview-category">${t(categories[0])}</span><h3>${t('ชื่อสินค้าของคุณ')}</h3><strong>฿0.00</strong><div class="listing-preview-meta"><span>${t('เลือกสภาพสินค้า')}</span><span>${t('นัดรับ')}</span></div><p>${t('รายละเอียดสินค้าจะปรากฏในส่วนนี้')}</p></div></div><div class="listing-preview-tip">${icon('shield',18)}<span>${t('รายละเอียดที่ชัดเจนช่วยให้ผู้ซื้อมั่นใจก่อนติดต่อ')}</span></div></aside>
+    </form></div>`;
 }
 function syncCreateCategoryUI() {
   const form = document.querySelector('#create-form'); if (!form) return;
@@ -1102,18 +1115,6 @@ function syncCreateCategoryUI() {
 }
 function getCreateCategoryValues(form) {
   return selectedCreateCategories.map(category => category === 'อื่น ๆ (ระบุชื่อเอง)' ? String(new FormData(form).get('otherCategory') || '').trim() : category).filter(Boolean);
-}
-function syncCreateModeUI() {
-  const form = document.querySelector('#create-form'); if (!form) return;
-  const secondHand = selectedCreateMode === 'secondhand';
-  form.querySelector('[name="groupType"]').value = selectedCreateMode;
-  form.querySelector('#share-category-picker').hidden = secondHand;
-  const titleWrap = form.querySelector('#used-item-title-wrap');
-  titleWrap.hidden = !secondHand;
-  titleWrap.querySelector('input').required = secondHand;
-  const otherWrap = form.querySelector('#other-category-wrap'), otherInput = form.querySelector('[name="otherCategory"]');
-  otherWrap.hidden = secondHand || !selectedCreateCategories.includes('อื่น ๆ (ระบุชื่อเอง)');
-  otherInput.required = !secondHand && selectedCreateCategories.includes('อื่น ๆ (ระบุชื่อเอง)');
 }
 function authPage(register = false) {
   if (authModalActive) return '';
@@ -1266,11 +1267,11 @@ function accountOrderRow(o) {
   const d = new Date(orderDate);
   const pad = n => String(n).padStart(2, '0');
   const dateStr = `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  
+
   let titleText = '';
   let statusTone = 'default';
   let descText = '';
-  
+
   if (o.status === 'refunded' || o.refund) {
     titleText = t('ยกเลิกแล้ว');
     statusTone = 'cancelled';
@@ -1297,7 +1298,7 @@ function accountOrderRow(o) {
     statusTone = 'pending';
     descText = t('รอสมาชิกในกลุ่มแจ้งชำระและตรวจยอดเดโม');
   }
-  
+
   const thumbImg = p?.image 
     ? `<img src="${p.image}" alt="${escape(t(p.title))}" class="order-card-thumb-img"/>`
     : (p ? art(p) : `<div class="order-card-thumb-fallback">${icon('package', 32)}</div>`);
@@ -1785,28 +1786,45 @@ window.addEventListener('resize', updateFilterCarousel, { passive: true });
 function updatePreview() { const f = document.querySelector('#create-form'), box = document.querySelector('#create-preview'); if (!f || !box) return; try { const d = new FormData(f), count = assertCapacity(Number(d.get('capacity'))), costs = costBreakdown(formCosts(d), count); box.innerHTML = `<small>${t('ประมาณเมื่อสมาชิกครบ {count} คน', { count })}</small><strong>${money(Math.ceil(costs.total / count))} ${t("/ คน")}</strong><p>${t('รวมค่าส่งต่อคนและค่าธรรมเนียมแอป 2% แล้ว')}</p>`; } catch (e) { box.innerHTML = `<small>${escape(errorMessage(e))}</small>`; } }
 
 const storageError = error => error?.name === 'QuotaExceededError' ? t('พื้นที่ในเครื่องไม่พอ ข้อมูลเดิมยังอยู่ กรุณาลดจำนวนรูปแล้วลองใหม่') : errorMessage(error);
+function renderListingImages() {
+  const holder = document.querySelector('#listing-image-draft'); if (!holder) return;
+  holder.innerHTML = listingImages.map((src,index)=>`<div class="listing-image-thumb ${index===0?'is-cover':''}"><button type="button" data-action="listing-cover" data-index="${index}" aria-label="${index===0?t('ภาพหน้าปก'):t('เลือกเป็นภาพหน้าปก')}"><img src="${src}" alt=""/><span>${index===0?t('หน้าปก'):t('ตั้งเป็นหน้าปก')}</span></button><button class="listing-image-delete" type="button" data-action="listing-image-remove" data-index="${index}" aria-label="${t('ลบรูปที่ {number}',{number:index+1})}">×</button></div>`).join('');
+}
+function updateListingDeliveryUI(form) {
+  if (!form) return;
+  const delivery = form.querySelector('[name="delivery"]:checked')?.value || 'นัดรับ', wrap = form.querySelector('#listing-area-wrap'), area = form.querySelector('[name="area"]');
+  const pickup = delivery !== 'จัดส่ง'; wrap.hidden = !pickup; area.required = pickup;
+  updateListingPreview();
+}
+function updateListingPreview() {
+  const form = document.querySelector('#product-form'), box = document.querySelector('#listing-preview-content'); if (!form || !box) return;
+  const d = new FormData(form), title = String(d.get('title')||'').trim(), price = String(d.get('price')||'').trim(), condition = d.get('condition'), category = d.get('category'), delivery = d.get('delivery'), description = String(d.get('description')||'').trim(), area = String(d.get('area')||'').trim();
+  box.innerHTML = `${listingImages[0] ? `<div class="listing-preview-image"><img src="${listingImages[0]}" alt=""/></div>` : `<div class="listing-preview-image empty">${icon('package',32)}<span>${t('รูปสินค้าจะแสดงที่นี่')}</span></div>`}<div class="listing-preview-copy"><span class="listing-preview-category">${escape(category ? t(category) : t('หมวดหมู่สินค้า'))}</span><h3>${escape(title || t('ชื่อสินค้าของคุณ'))}</h3><strong>฿${escape(price || '0.00')}</strong><div class="listing-preview-meta"><span>${escape(condition ? t(condition) : t('เลือกสภาพสินค้า'))}</span><span>${escape(delivery ? t(delivery) : t('นัดรับ'))}</span></div>${delivery !== 'จัดส่ง' && area ? `<small class="listing-preview-area">${icon('map-pin',14)} ${escape(area)}</small>` : ''}<p>${escape(description || t('รายละเอียดสินค้าจะปรากฏในส่วนนี้'))}</p></div>`;
+}
 function updateAvatarPreview() {
   const el = document.querySelector('#profile-avatar-preview');
   if (el) el.innerHTML = isLocalImage(profileAvatar) ? `<img src="${profileAvatar}" alt=""/>` : escape(state.user.name.slice(0, 1));
 }
 document.addEventListener('change', async e => {
-  const input = e.target, isGroup = input.id === 'group-images', isAvatar = input.id === 'profile-avatar';
-  if (!isGroup && !isAvatar) return;
+  const input = e.target, isGroup = input.id === 'group-images', isAvatar = input.id === 'profile-avatar', isListing = input.id === 'listing-images';
+  if (!isGroup && !isAvatar && !isListing) { if (input.name === 'delivery' && input.closest('#product-form')) updateListingDeliveryUI(input.closest('form')); return; }
   const files = [...input.files]; if (!files.length) return;
-  const status = document.querySelector(isGroup ? '#image-upload-status' : '#avatar-status');
+  const status = document.querySelector(isGroup ? '#image-upload-status' : isListing ? '#listing-image-status' : '#avatar-status');
   const form = input.closest('form'), submit = form.querySelector('[type="submit"]');
   try {
     if (isGroup && groupImages.length + files.length > MAX_GROUP_IMAGES) throw Error(t('เพิ่มรูปได้สูงสุด 4 รูป'));
-    if (isGroup) imagesLoading = true; else avatarLoading = true;
+    if (isListing && listingImages.length + files.length > 6) throw Error(t('เพิ่มรูปได้สูงสุด 6 รูป'));
+    if (isGroup || isListing) imagesLoading = true; else avatarLoading = true;
     input.disabled = true; submit.disabled = true; status.textContent = t('กำลังเตรียมรูป กรุณารอสักครู่');
     const images = [];
     for (const file of files) images.push(await readLocalImage(file));
     if (!input.isConnected) return;
     if (isGroup) { groupImages.push(...images); document.querySelector('#image-draft').innerHTML = gallery(groupImages, true); }
+    else if (isListing) { listingImages.push(...images); renderListingImages(); updateListingPreview(); }
     else { profileAvatar = images[0]; updateAvatarPreview(); }
-    status.textContent = t('รูปพร้อมแล้ว จะบันทึกพร้อมกลุ่ม');
+    status.textContent = isListing ? t('เพิ่มรูปแล้ว รูปแรกจะแสดงเป็นภาพหน้าปก') : t('รูปพร้อมแล้ว จะบันทึกพร้อมกลุ่ม');
   } catch (err) { status.textContent = storageError(err); }
-  finally { if (isGroup) imagesLoading = false; else avatarLoading = false; input.value = ''; input.disabled = false; submit.disabled = false; }
+  finally { if (isGroup || isListing) imagesLoading = false; else avatarLoading = false; input.value = ''; input.disabled = false; submit.disabled = false; }
 });
 document.addEventListener('dragover', e => { const target = e.target.closest('.image-upload'); if (target) { e.preventDefault(); target.classList.add('is-dragging'); } });
 document.addEventListener('dragleave', e => { const target = e.target.closest('.image-upload'); if (target && !target.contains(e.relatedTarget)) target.classList.remove('is-dragging'); });
@@ -1948,11 +1966,8 @@ document.addEventListener('click', async e => {
       else selectedCreateCategories = selectedCreateCategories.filter(item => item !== category);
       syncCreateCategoryUI();
     }
-    else if (action === 'create-mode') {
-      selectedCreateMode = btn.dataset.mode === 'secondhand' ? 'secondhand' : 'share';
-      syncCreateModeUI();
-      document.querySelectorAll('[data-action="create-mode"]').forEach(button => { const active = button.dataset.mode === selectedCreateMode; button.classList.toggle('selected', active); button.setAttribute('aria-pressed', String(active)); });
-    }
+    else if (action === 'listing-cover') { const [image] = listingImages.splice(Number(btn.dataset.index), 1); if (image) listingImages.unshift(image); renderListingImages(); updateListingPreview(); }
+    else if (action === 'listing-image-remove') { listingImages.splice(Number(btn.dataset.index), 1); renderListingImages(); updateListingPreview(); }
     else if (action === 'payment-open') {
       if (!orderPermissions(orderFor(id), state.user).reportPayment) throw Object.assign(new Error(), { code: 'orderUnauthorized' });
       const dialog = document.querySelector('#payment-dialog'); dialog.showModal();
@@ -2214,9 +2229,8 @@ document.addEventListener('submit', async e => {
       const d = new FormData(f);
       if (imagesLoading) throw Error(t('กำลังเตรียมรูป กรุณารอสักครู่'));
       if (!state.user) throw Object.assign(new Error(), { code: 'orderUnauthorized' });
-      const groupType = d.get('groupType') === 'secondhand' ? 'secondhand' : 'share';
-      const categories = groupType === 'secondhand' ? ['ของมือ2'] : [...new Set(getCreateCategoryValues(f))];
-      if (groupType === 'share' && !categories.length) throw new Error(t('เลือกอย่างน้อย 1 หมวดหมู่'));
+      const categories = [...new Set(getCreateCategoryValues(f))];
+      if (!categories.length) throw new Error(t('เลือกอย่างน้อย 1 หมวดหมู่'));
       if (categories.some(category => category.length > 60)) throw new Error(t('ชื่อหมวดหมู่ต้องไม่เกิน 60 ตัวอักษร'));
       if (!listing(d.get('listingId'))) throw Error(t('ไม่พบสินค้า กรุณาเลือกสินค้าใหม่'));
       if (supabaseConfigured) {
@@ -2227,15 +2241,13 @@ document.addEventListener('submit', async e => {
         return;
       }
       const g = createGroup({ id: 'g' + Date.now(), listingId: d.get('listingId'), name: d.get('name'), ownerId: state.user.id, visibility: d.get('visibility'), capacity: Number(d.get('capacity')), costs: formCosts(d) });
-      g.category = categories[0]; g.categories = categories; g.groupType = groupType;
-      g.itemTitle = groupType === 'secondhand' ? String(d.get('itemTitle') || '').trim() : '';
-      g.itemDescription = String(d.get('itemDescription') || '').trim();
+      g.category = categories[0]; g.categories = categories;
       g.images = [...groupImages];
       const notification = { id: crypto.randomUUID(), recipient: state.user.id, title: t('สร้างกลุ่มแล้ว'), body: t('ชวนสมาชิกเข้าร่วมเพื่อเริ่มหารค่าใช้จ่าย'), href: `/groups/${g.id}`, read: false, at: new Date().toISOString() };
       save({ ...state, groups: [g, ...state.groups], notifications: [notification, ...state.notifications] });
       groupImages = [];
       selectedCreateCategories = [];
-      selectedCreateMode = 'share';
+
       go(`/groups/${g.id}`);
       alertMessage(t("สร้างกลุ่มแล้ว"));
     } catch (err) { alertMessage(storageError(err)); }
@@ -2285,13 +2297,17 @@ document.addEventListener('submit', async e => {
   } else if (f.id === 'product-form') {
     e.preventDefault();
     try {
-      const d = new FormData(f), p = { id: 'p' + Date.now(), title: d.get('title').trim(), category: d.get('category'), kind: 'สินค้า', price: parseBaht(d.get('price')), sellerId: sellerIdFor(state.user), art: 'custom', mark: 'NEW', description: d.get('description').trim(), terms: d.get('terms').trim() };
-      assertListingSeller(p, state.user);
-      if (!p.title || !p.description || !p.terms) throw Error(t("กรุณากรอกข้อมูลให้ครบ"));
+      const d = new FormData(f), delivery = d.get('delivery'), area = String(d.get('area')||'').trim(), contact = String(d.get('contact')||'').trim();
+      if (imagesLoading) throw Error(t('กำลังเตรียมรูป กรุณารอสักครู่'));
+      if (!listingImages.length) throw Error(t('เพิ่มรูปสินค้าอย่างน้อย 1 รูป'));
+      const p = { id: 'p' + Date.now(), title: String(d.get('title')||'').trim(), category: d.get('category'), kind: 'สินค้า', listingType: 'secondhand', condition: d.get('condition'), delivery, area, contact, images: [...listingImages], price: parseBaht(d.get('price')), sellerId: sellerIdFor(state.user), art: 'custom', mark: 'มือ2', description: String(d.get('description')||'').trim(), terms: `${delivery}${area ? ` · ${area}` : ''}` };
+      p.sellerId ||= state.user.id;
+      if (!p.title || !p.description || !p.condition || !p.contact || (delivery !== 'จัดส่ง' && !area)) throw Error(t('กรุณากรอกข้อมูลที่จำเป็นให้ครบ'));
       state.customListings.unshift(p);
       save();
-      go(`/groups/create?product=${p.id}`);
-      alertMessage(t("เพิ่มรายการเดโมแล้ว"));
+      listingImages = [];
+      go(`/products/${p.id}`);
+      alertMessage(t('ลงประกาศขายแล้ว'));
     } catch (err) { alertMessage(errorMessage(err)); }
   }
 });
@@ -2309,6 +2325,7 @@ document.addEventListener('input', e => {
     }
   }
   if (e.target.closest('#create-form')) updatePreview();
+  if (e.target.closest('#product-form')) updateListingPreview();
   if (e.target.name === 'bio' && e.target.closest('#profile-form')) document.querySelector('#bio-counter').textContent = `${e.target.value.length} / 160`;
   if (e.target.id === 'mockup-id-card') {
     let val = e.target.value.replace(/\D/g, '');

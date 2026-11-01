@@ -5030,3 +5030,85 @@ dialog:not([open]), [hidden] { display: none !important; }
     height: 68px;
   }
 }
+
+/* Second hand marketplace listing form */
+.listing-create-page, .secondhand-listing-page { max-width: 1280px; margin: 0 auto; padding: 8px 0 48px; }
+.listing-create-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin: 10px 0 26px; }
+.listing-create-heading h1 { margin: 12px 0 4px; color: var(--navy); font-size: clamp(1.65rem, 3vw, 2.15rem); }
+.listing-create-heading p { margin: 0; color: var(--text-sub); font-size: .9rem; }
+.listing-back-link { color: var(--blue); font-size: .84rem; font-weight: 700; }
+.listing-create-step { padding: 8px 12px; border-radius: 99px; background: #edf5ff; color: #17569c; font-size: .76rem; font-weight: 700; white-space: nowrap; }
+.listing-create-layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(270px, .8fr); gap: 22px; align-items: start; }
+.listing-create-main { display: grid; gap: 16px; min-width: 0; }
+.listing-form-card, .listing-preview-card { padding: 22px; background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-sm); }
+.listing-card-heading { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
+.listing-card-number { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px; background: #eaf3ff; color: var(--blue); font-size: .76rem; font-weight: 800; }
+.listing-card-heading h2 { margin: 0; color: var(--navy); font-size: 1.05rem; }
+.listing-card-heading p { margin: 2px 0 0; color: var(--text-sub); font-size: .78rem; }
+.listing-form-card > label, .listing-form-row > label { display: block; margin: 0 0 16px; color: var(--navy); font-size: .84rem; font-weight: 700; }
+.listing-form-card input:not([type=radio]):not([type=file]), .listing-form-card select, .listing-form-card textarea { display: block; width: 100%; min-height: 46px; margin-top: 7px; padding: 10px 13px; border: 1px solid #c6d5e3; border-radius: 10px; background: #fff; color: var(--ink); font: inherit; font-size: .88rem; }
+.listing-form-card textarea { min-height: 112px; resize: vertical; }
+.listing-input-hint { display: block; margin-top: 6px; color: var(--text-sub); font-size: .74rem; font-weight: 400; }
+.listing-upload-zone { display: grid; justify-items: center; gap: 5px; min-height: 148px; padding: 20px; border: 1.5px dashed #a9c6e5; border-radius: 13px; background: #f8fbff; color: var(--navy); cursor: pointer; text-align: center; }
+.listing-upload-zone:hover { border-color: var(--blue); background: #f2f8ff; }
+.listing-upload-zone input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.listing-upload-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: #e5f0ff; color: var(--blue); }
+.listing-upload-zone strong { font-size: .87rem; }
+.listing-upload-zone small, .listing-field-status { color: var(--text-sub); font-size: .73rem; }
+.listing-image-thumbnails { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.listing-image-thumb { position: relative; width: 82px; height: 82px; }
+.listing-image-thumb > button:first-child { width: 100%; height: 100%; padding: 0; overflow: hidden; border: 2px solid transparent; border-radius: 10px; background: #f1f5f9; cursor: pointer; }
+.listing-image-thumb.is-cover > button:first-child { border-color: var(--blue); }
+.listing-image-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.listing-image-thumb > button:first-child span { position: absolute; left: 3px; right: 3px; bottom: 3px; padding: 3px 2px; border-radius: 5px; background: rgba(9,40,71,.78); color: #fff; font-size: .59rem; }
+.listing-image-delete { position: absolute; top: -7px; right: -7px; display: grid; place-items: center; width: 23px; height: 23px; border: 1px solid #fff; border-radius: 50%; background: #e5484d; color: #fff; cursor: pointer; }
+.listing-field-status { min-height: 1em; margin: 8px 0 0; }
+.listing-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.listing-price-input { position: relative; }
+.listing-price-input input { padding-right: 48px !important; }
+.listing-price-input span { position: absolute; top: 20px; right: 13px; color: var(--text-sub); font-size: .8rem; }
+.listing-radio-group { display: flex; flex-wrap: wrap; gap: 9px; margin: 0 0 18px; padding: 0; border: 0; }
+.listing-radio-group legend { width: 100%; margin-bottom: 9px; color: var(--navy); font-size: .84rem; font-weight: 700; }
+.listing-radio-option { display: flex; align-items: flex-start; gap: 8px; flex: 1 1 150px; min-height: 68px; margin: 0 !important; padding: 11px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.listing-radio-option:has(input:checked) { border-color: var(--blue); background: #f2f8ff; box-shadow: 0 0 0 1px var(--blue); }
+.listing-radio-option input { margin: 3px 0 0; accent-color: var(--blue); }
+.listing-radio-option span strong, .listing-radio-option span small { display: block; }
+.listing-radio-option span strong { color: var(--navy); font-size: .8rem; }
+.listing-radio-option span small { margin-top: 2px; color: var(--text-sub); font-size: .68rem; font-weight: 400; }
+.listing-preview-card { position: sticky; top: 92px; padding: 16px; }
+.listing-preview-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 2px 2px 13px; }
+.listing-preview-heading span { color: var(--navy); font-size: .95rem; font-weight: 800; }
+.listing-preview-heading small { color: var(--text-sub); font-size: .67rem; }
+.listing-preview-content { overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
+.listing-preview-image { display: grid; place-items: center; height: 205px; overflow: hidden; background: #f0f5fb; color: #89a6c3; }
+.listing-preview-image img { width: 100%; height: 100%; object-fit: cover; }
+.listing-preview-image.empty { gap: 6px; align-content: center; font-size: .76rem; }
+.listing-preview-copy { padding: 15px; }
+.listing-preview-category { color: var(--blue); font-size: .7rem; font-weight: 700; }
+.listing-preview-copy h3 { margin: 4px 0 5px; color: var(--navy); font-size: 1rem; overflow-wrap: anywhere; }
+.listing-preview-copy > strong { color: #087f79; font-size: 1.35rem; }
+.listing-preview-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.listing-preview-meta span { padding: 4px 8px; border-radius: 99px; background: #eff4f8; color: #41566b; font-size: .67rem; }
+.listing-preview-copy > p { margin: 11px 0 0; color: var(--text-sub); font-size: .76rem; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
+.listing-preview-area { display: flex; align-items: center; gap: 4px; margin-top: 8px; color: var(--text-sub); font-size: .73rem; }
+.listing-preview-area svg { flex: none; }
+.listing-preview-tip { display: flex; gap: 9px; align-items: flex-start; margin: 13px 2px 0; padding: 11px; border-radius: 10px; background: #edf7ff; color: #315e86; font-size: .73rem; line-height: 1.45; }
+.listing-preview-tip svg { flex: none; color: var(--blue); }
+.listing-submit-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 4px 2px; }
+.listing-submit-row > small { color: var(--text-sub); font-size: .74rem; }
+.listing-publish-button { min-width: 190px; min-height: 49px; font-weight: 800; }
+.secondhand-listing-page { max-width: 1120px; }
+.secondhand-listing-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, .8fr); gap: 24px; margin-top: 18px; align-items: start; }
+.secondhand-listing-hero { display: grid; place-items: center; min-height: 360px; overflow: hidden; border-radius: 16px; background: #f0f5fb; }
+.secondhand-listing-hero > img { width: 100%; max-height: 580px; object-fit: contain; }
+.secondhand-listing-gallery { display: flex; gap: 9px; overflow-x: auto; margin-top: 10px; }
+.secondhand-listing-gallery img { width: 76px; height: 76px; flex: none; border-radius: 9px; object-fit: cover; }
+.secondhand-listing-description, .secondhand-listing-summary { margin-top: 16px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.secondhand-listing-description h2 { margin: 0 0 8px; font-size: 1.05rem; }
+.secondhand-listing-description p { white-space: pre-line; }
+.secondhand-listing-summary { position: sticky; top: 92px; margin-top: 0; }
+.secondhand-listing-summary h1 { margin: 5px 0 10px; font-size: 1.45rem; line-height: 1.35; }
+.secondhand-price { display: block; margin-bottom: 12px; color: #087f79; font-size: 1.8rem; }
+.secondhand-listing-summary > p { display: flex; align-items: flex-start; gap: 6px; overflow-wrap: anywhere; font-size: .84rem; }
+@media(max-width: 850px) { .listing-create-layout { grid-template-columns: minmax(0,1fr); } .listing-preview-card { position: static; grid-row: 1; } }
+@media(max-width: 620px) { .listing-create-page, .secondhand-listing-page { padding-inline: 0; } .listing-create-heading { align-items: flex-start; } .listing-create-step { display: none; } .listing-form-card { padding: 17px; } .listing-form-row, .secondhand-listing-layout { grid-template-columns: minmax(0,1fr); } .listing-preview-card { grid-row: auto; } .listing-submit-row { align-items: stretch; flex-direction: column; } .listing-publish-button { width: 100%; } .secondhand-listing-summary { position: static; } .secondhand-listing-hero { min-height: 260px; } }
