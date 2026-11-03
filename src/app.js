@@ -315,17 +315,6 @@ function closeAuthModal() {
   }
 }
 
-<<<<<<< Updated upstream
-function setMockupStep(step, triggerElement = null) {
-  if (step === 3 && !tempSignupData.email) step = 2;
-  mockupCurrentStep = step;
-  const root = triggerElement?.closest('.auth-switch');
-  (root ? [root] : document.querySelectorAll('.auth-switch')).forEach(panel => {
-    panel.classList.toggle('is-signup', step !== 1);
-    panel.querySelectorAll('.mockup-screen').forEach((screen, index) => {
-      screen.hidden = index + 1 !== step;
-      screen.classList.toggle('active', index + 1 === step);
-=======
 function clearFieldError(inputEl){
   if(!inputEl)return;
   inputEl.classList.remove('input-error');
@@ -376,13 +365,12 @@ function setMockupStep(step, triggerElement=null) {
     panel.querySelectorAll('.mockup-screen').forEach((screen,index)=>{
       screen.hidden=index+1!==step;
       screen.classList.toggle('active',index+1===step);
->>>>>>> Stashed changes
+
     });
     panel.querySelector('.mockup-screen.active h2')?.focus();
   });
 }
 function fillMockupDemo() {
-<<<<<<< Updated upstream
   const values = {
     'mockup-login-email': 'somchai.demo@example.com', 'mockup-login-pw': 'Password123!',
     'mockup-signup-name': 'สมชาย ใจดี', 'mockup-signup-email': 'somchai.demo@example.com', 'mockup-signup-pw': 'Password123!', 'mockup-signup-confirm-pw': 'Password123!',
@@ -390,14 +378,7 @@ function fillMockupDemo() {
     'mockup-subdistrict': 'ลุมพินี', 'mockup-alley': 'ซอยร่วมฤดี', 'mockup-road': 'เพลินจิต', 'mockup-postal-code': '10330', 'mockup-phone': '089-123-4567'
   };
   Object.entries(values).forEach(([id, value]) => { const el = document.getElementById(id); if (el) el.value = value; });
-=======
-  clearFormErrors(document);
-  const values={'mockup-login-email':'somchai.demo@example.com','mockup-login-pw':'Password123!',
-    'mockup-signup-name':'สมชาย ใจดี','mockup-signup-email':'somchai.demo@example.com','mockup-signup-pw':'Password123!','mockup-signup-confirm-pw':'Password123!',
-    'mockup-id-card':'','mockup-house-no':'128/45','mockup-village-no':'3','mockup-province':'กรุงเทพมหานคร','mockup-district':'ปทุมวัน',
-    'mockup-subdistrict':'ลุมพินี','mockup-alley':'ซอยร่วมฤดี','mockup-road':'เพลินจิต','mockup-postal-code':'10330','mockup-phone':'089-123-4567'};
-  Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.value=value;});
->>>>>>> Stashed changes
+
   alertMessage(t('กรอกข้อมูลตัวอย่างใน Mockup เรียบร้อยแล้ว'));
 }
 function finishAuth(user) {
@@ -419,29 +400,6 @@ function renderPhoneMockup(initialStep = 1, isModal = true) {
     ${isModal ? `<button class="dialog-close" type="button" data-action="close-auth" aria-label="${t('ปิดหน้าต่าง')}">✕</button>` : ''}
     <aside class="auth-welcome"><span class="auth-wordmark">Harn<span>Khong</span></span><div><h2>${t('หารของด้วยกัน')}</h2><p>${t('เลือกของที่ชอบ แล้วชวนเพื่อนมาหารด้วยกัน')}</p><span class="auth-welcome-line"></span><p>${t(supabaseConfigured ? 'ยืนยันตัวตนด้วย Supabase Auth' : 'บัญชีทดลอง · ไม่มีการยืนยันตัวตนจริง')}</p></div><span>${t('เริ่มต้นด้วยกันได้ง่าย ๆ')}</span></aside>
     <div class="auth-forms">
-<<<<<<< Updated upstream
-      <section class="mockup-screen ${step === 1 ? 'active' : ''}" ${step !== 1 ? 'hidden' : ''}>
-        <h2 tabindex="-1">${t('ยินดีต้อนรับกลับ')}</h2><p>${t(supabaseConfigured ? 'เข้าสู่ระบบเพื่อไปต่อกับกลุ่มของคุณ' : 'เข้าสู่ระบบเดโมเพื่อไปต่อกับกลุ่มของคุณ')}</p>${google}
-        <form id="mockup-login-form" class="auth-form">
-          ${input('mockup-login-email', t('อีเมล'), 'email', 'autocomplete="email" maxlength="254"')}
-          ${input('mockup-login-pw', t('รหัสผ่าน'), 'password', 'autocomplete="current-password"')}
-          <button class="button primary full" type="submit">${t('เข้าสู่ระบบ')}</button>
-        </form><p class="auth-switch-prompt">${t('ยังไม่มีบัญชี?')} <button type="button" data-action="mockup-step" data-step="2">${t('สมัครสมาชิก')}</button></p>
-      </section>
-      <section class="mockup-screen ${step === 2 ? 'active' : ''}" ${step !== 2 ? 'hidden' : ''}>
-        <h2 tabindex="-1">${t('สร้างบัญชีของคุณ')}</h2><p>${t(supabaseConfigured ? 'สมัครแล้วตรวจอีเมลเพื่อยืนยันบัญชี' : 'สมัครเสร็จแล้วไปกรอกที่อยู่สำหรับเดโม')}</p>${google}
-        <form id="mockup-signup-form" class="auth-form">
-          ${input('mockup-signup-name', t('ชื่อ'), 'text', 'autocomplete="name" maxlength="70"')}
-          ${input('mockup-signup-email', t('อีเมล'), 'email', 'autocomplete="email" maxlength="254"')}
-          ${input('mockup-signup-pw', t('รหัสผ่าน'), 'password', 'autocomplete="new-password" minlength="8"')}
-          ${input('mockup-signup-confirm-pw', t('ยืนยันรหัสผ่าน'), 'password', 'autocomplete="new-password"')}
-          <button class="button primary full" type="submit">${t('ต่อไป (กรอกที่อยู่)')} ${icon('arrow', 18)}</button>
-        </form><p class="auth-switch-prompt">${t('มีบัญชีอยู่แล้ว?')} <button type="button" data-action="mockup-step" data-step="1">${t('เข้าสู่ระบบ')}</button></p>
-      </section>
-      <section class="mockup-screen ${step === 3 ? 'active' : ''}" ${step !== 3 ? 'hidden' : ''}>
-        <small>${t('ขั้นตอนที่ 2 จาก 2')}</small><h2 tabindex="-1">${t('กรอกที่อยู่')}</h2><p>${t(supabaseConfigured ? 'ที่อยู่ส่วนนี้เห็นได้เฉพาะคุณ' : 'ใช้ข้อมูลตัวอย่างเท่านั้น ข้อมูลบันทึกในเบราว์เซอร์นี้')}</p>
-        <form id="mockup-address-form" class="auth-form"><div class="form-grid">${addressFields.map(([id, label, required]) => `<label>${t(label)}<input id="mockup-${id}" ${required ? 'required' : ''} ${id === 'phone' ? 'type="tel" maxlength="12" pattern="[0-9 -]{9,12}" autocomplete="tel"' : id === 'postal-code' ? 'inputmode="numeric" pattern="[0-9]{5}" maxlength="5" autocomplete="postal-code"' : 'maxlength="100"'}/></label>`).join('')}</div>${supabaseConfigured ? '' : `<label>${t('เลขบัตรประชาชน (ไม่บังคับ ใช้ข้อมูลจำลองเท่านั้น)')}<input id="mockup-id-card" maxlength="17" inputmode="numeric" autocomplete="off"/></label>`}<button class="button primary full" type="submit">${t('ยืนยันข้อมูล')}</button><button class="button subtle full" type="button" data-action="mockup-step" data-step="2">${t('กลับไปแก้ข้อมูลบัญชี')}</button></form>
-=======
       <section class="mockup-screen ${step===1?'active':''}" ${step!==1?'hidden':''}>
         <h2 tabindex="-1">${t('ยินดีต้อนรับกลับ')}</h2><p>${t(supabaseConfigured?'เข้าสู่ระบบเพื่อไปต่อกับกลุ่มของคุณ':'เข้าสู่ระบบเดโมเพื่อไปต่อกับกลุ่มของคุณ')}</p>${google}
         <form id="mockup-login-form" class="auth-form" novalidate>
@@ -463,7 +421,7 @@ function renderPhoneMockup(initialStep = 1, isModal = true) {
       <section class="mockup-screen ${step===3?'active':''}" ${step!==3?'hidden':''}>
         <small>${t('ขั้นตอนที่ 2 จาก 2')}</small><h2 tabindex="-1">${t('กรอกที่อยู่')}</h2><p>${t(supabaseConfigured?'ที่อยู่ส่วนนี้เห็นได้เฉพาะคุณ':'ใช้ข้อมูลตัวอย่างเท่านั้น ข้อมูลบันทึกในเบราว์เซอร์นี้')}</p>
         <form id="mockup-address-form" class="auth-form" novalidate><div class="form-grid">${addressFields.map(([id,label,required])=>`<label>${t(label)}<input id="mockup-${id}" ${required?'required':''} ${id==='phone'?'type="tel" maxlength="12" pattern="[0-9 -]{9,12}" autocomplete="tel"':id==='postal-code'?'inputmode="numeric" pattern="[0-9]{5}" maxlength="5" autocomplete="postal-code"':'maxlength="100"'}/></label>`).join('')}</div>${supabaseConfigured?'':`<label>${t('เลขบัตรประชาชน (ไม่บังคับ ใช้ข้อมูลจำลองเท่านั้น)')}<input id="mockup-id-card" maxlength="17" inputmode="numeric" autocomplete="off"/></label>`}<button class="button primary full" type="submit">${t('ยืนยันข้อมูล')}</button><button class="button subtle full" type="button" data-action="mockup-step" data-step="2">${t('กลับไปแก้ข้อมูลบัญชี')}</button></form>
->>>>>>> Stashed changes
+
       </section>
       <footer class="auth-demo-note"><span>${t(supabaseConfigured ? 'รหัสผ่านจัดการโดย Supabase Auth' : 'เดโมเท่านั้น ไม่เก็บรหัสผ่าน ไม่เชื่อม Google หรือฐานข้อมูล')}</span>${supabaseConfigured ? '' : `<button type="button" data-action="mockup-autofill">${t('ข้อมูลตัวอย่าง')}</button>`}</footer>
     </div>
@@ -2378,7 +2336,6 @@ document.addEventListener('click', async e => {
     }
   } catch (err) { if (supabaseConfigured) { if (actionSession !== activeSupabaseSession) return; try { await refreshSupabaseGroups(actionSession); } catch {/* Keep the explicit mutation error visible. */ } } alertMessage(supabaseConfigured ? authErrorMessage(err) : errorMessage(err)); }
 });
-<<<<<<< Updated upstream
 document.addEventListener('submit', async e => {
   const f = e.target, actionSession = activeSupabaseSession;
   if (f.id === 'secondhand-checkout-form') {
@@ -2421,53 +2378,7 @@ document.addEventListener('submit', async e => {
     } catch (err) { if (supabaseConfigured) { if (actionSession !== activeSupabaseSession) return; try { await refreshSupabaseGroups(actionSession); } catch {/* Keep the explicit mutation error visible. */ } } alertMessage(supabaseConfigured ? authErrorMessage(err) : errorMessage(err)); }
     return;
   }
-  if (['mockup-login-form', 'mockup-signup-form', 'mockup-address-form'].includes(f.id)) {
-    e.preventDefault();
-    try {
-      if (supabaseConfigured && f.id === 'mockup-login-form') {
-        const email = document.getElementById('mockup-login-email').value.trim();
-        const password = document.getElementById('mockup-login-pw').value;
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        await syncSupabaseSession(data.session);
-      } else if (supabaseConfigured && f.id === 'mockup-signup-form') {
-        if (document.getElementById('mockup-signup-pw').value !== document.getElementById('mockup-signup-confirm-pw').value) throw Object.assign(new Error(), { code: 'authPasswordMismatch' });
-        const email = document.getElementById('mockup-signup-email').value.trim();
-        const password = document.getElementById('mockup-signup-pw').value;
-        const display_name = document.getElementById('mockup-signup-name').value.trim();
-        if (!display_name) throw Object.assign(new Error(), { code: 'prototypeInvalidProfile' });
-        const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { display_name }, emailRedirectTo: location.href } });
-        if (error) throw error;
-        if (!data.session) {
-          authModalActive = false; mockupCurrentStep = 1; render();
-          alertMessage(t('ตรวจอีเมลเพื่อยืนยันบัญชีก่อนเข้าสู่ระบบ'));
-          return;
-        }
-        await syncSupabaseSession(data.session);
-      } else if (supabaseConfigured && f.id === 'mockup-address-form') {
-        if (!state.user?.id) throw Object.assign(new Error(), { code: 'orderUnauthorized' });
-        const address = Object.fromEntries(['house-no', 'village-no', 'province', 'district', 'subdistrict', 'alley', 'road', 'postal-code', 'phone'].map(key => [key.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()), document.getElementById('mockup-' + key).value.trim()]));
-        const userId = state.user.id;
-        await saveAuthenticatedAddress(userId, address);
-        if (state.user?.id !== userId) return;
-        finishAuth({ ...state.user, address });
-      } else if (f.id === 'mockup-login-form') {
-        const user = demoAccount(state.profiles, document.getElementById('mockup-login-email').value);
-        if (user.address) finishAuth(user); else { tempSignupData = user; setMockupStep(3, f); }
-      } else if (f.id === 'mockup-signup-form') {
-        if (document.getElementById('mockup-signup-pw').value !== document.getElementById('mockup-signup-confirm-pw').value) throw Error(t('⚠️ รหัสผ่านและการยืนยันรหัสผ่านไม่ตรงกัน'));
-        const name = document.getElementById('mockup-signup-name').value.trim();
-        if (!name) throw Object.assign(new Error(), { code: 'prototypeInvalidProfile' });
-        tempSignupData = demoAccount(state.profiles, document.getElementById('mockup-signup-email').value, name);
-        setMockupStep(3, f);
-      } else {
-        if (!tempSignupData.email) { setMockupStep(2, f); return; }
-        const address = Object.fromEntries(['id-card', 'house-no', 'village-no', 'province', 'district', 'subdistrict', 'alley', 'road', 'postal-code', 'phone'].map(key => [key.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()), document.getElementById('mockup-' + key).value.trim()]));
-        finishAuth({ ...tempSignupData, address });
-      }
-    } catch (err) { alertMessage(supabaseConfigured ? authErrorMessage(err) : storageError(err)); }
-  } else if (f.id === 'profile-form') {
-=======
+});
 document.addEventListener('input',e=>{
   if(e.target&&e.target.classList&&e.target.classList.contains('input-error')){
     clearFieldError(e.target);
@@ -2621,7 +2532,7 @@ document.addEventListener('submit',async e=>{
       alertMessage(supabaseConfigured?authErrorMessage(err):storageError(err));
     }
   }else if(f.id==='profile-form'){
->>>>>>> Stashed changes
+
     e.preventDefault();
     try {
       if (avatarLoading) throw Error(t('กำลังเตรียมรูป กรุณารอสักครู่'));
