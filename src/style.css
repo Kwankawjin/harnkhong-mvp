@@ -3010,7 +3010,32 @@ dialog:not([open]), [hidden] { display: none !important; }
 .secondhand-market-checkout .demo-qr { width:min(100%,230px); padding:10px; margin:0; border:1px solid #eee8e9; border-radius:16px; }
 .secondhand-market-checkout .demo-qr img { display:block; width:100%; image-rendering:pixelated; }
 .checkout-confirm-button { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:18px!important; background:linear-gradient(100deg,#ff4d0a,#ff5f18)!important; border:0!important; color:#fff!important; }
+.secondhand-pending-page { position:relative; isolation:isolate; width:min(100%,1000px); min-height:calc(100vh - 170px); margin:0 auto; padding:28px 18px 42px; overflow:hidden; text-align:center; background:radial-gradient(ellipse at 8% 0,rgba(255,106,64,.09),transparent 30%),radial-gradient(ellipse at 100% 100%,rgba(255,106,64,.08),transparent 32%),linear-gradient(135deg,#fffafa,#fff 48%,#fff8f6); }
+.pending-page-decoration { position:absolute; z-index:-1; top:55px; right:-5px; color:#f2673b; opacity:.07; transform:rotate(9deg); }.pending-page-decoration svg { width:210px; height:210px; }
+.pending-page-heading { position:relative; z-index:1; margin:6px auto 24px; }.pending-payment-icon { position:relative; display:inline-grid; place-items:center; width:112px; height:96px; color:#f05212; }.pending-payment-icon > svg:first-child { width:96px; height:76px; }.pending-payment-icon > svg:last-child { position:absolute; right:0; bottom:0; padding:5px; border-radius:50%; background:#fff8f6; stroke-width:2.5; }.pending-page-heading h1 { margin:4px 0 6px; color:#202329; font-size:clamp(2.2rem,5vw,3.1rem); }.pending-page-heading p { margin:0; color:#77727a; font-size:clamp(1rem,2.2vw,1.3rem); line-height:1.55; }
+.pending-order-card { width:min(100%,850px); margin:0 auto; padding:24px 30px; border:1px solid #f0e9e8; border-radius:22px; background:#fff; box-shadow:0 8px 24px #3b20200a; text-align:left; }.pending-order-number,.pending-order-total,.pending-order-countdown { display:flex; align-items:center; justify-content:space-between; gap:16px; }.pending-order-number { padding-bottom:16px; border-bottom:1px solid #eee8e8; font-size:1.05rem; }.pending-order-number b { color:#77727a; font-size:1.05rem; }.pending-order-item { display:grid; grid-template-columns:142px minmax(0,1fr) auto; gap:18px; align-items:center; padding:20px 0; border-bottom:1px solid #eee8e8; }.pending-order-item > img,.pending-order-image-placeholder { width:142px; height:126px; border-radius:14px; object-fit:cover; background:#fff0ec; }.pending-order-image-placeholder { display:grid; place-items:center; color:#ef5a1b; }.pending-order-item > div:nth-child(2) { display:grid; gap:7px; }.pending-order-item > div:nth-child(2) strong { font-size:1.15rem; }.pending-order-item small { color:#77727a; }.pending-order-item > b,.pending-order-total b { color:#f05212; font-size:1.65rem; white-space:nowrap; }.pending-order-total { padding:17px 0; border-bottom:1px solid #eee8e8; font-size:1.25rem; }.pending-order-countdown { padding-top:16px; font-size:1.1rem; }.pending-order-countdown span { display:flex; align-items:center; gap:12px; font-weight:700; }.pending-order-countdown svg { color:#f05212; }.pending-order-countdown strong { padding:8px 20px; border-radius:14px; background:#fff0e9; color:#f05212; font-size:1.7rem; }.pending-order-expired { margin:14px 0 0; color:#c5362b; font-weight:700; }.pending-order-actions { display:grid; grid-template-columns:1fr 1fr; gap:22px; width:min(100%,850px); margin:26px auto 0; }.pending-order-actions .button { min-height:68px; display:flex; align-items:center; justify-content:center; gap:12px; font-size:1.1rem; }.pending-order-actions .primary { background:linear-gradient(100deg,#ff4d0a,#ff5f18); border:0; }
 .checkout-steps { display:flex; align-items:center; justify-content:center; gap:14px; margin:22px auto 26px; color:#85818a; font-size:.9rem; }
+@media(max-width:620px) {
+  .secondhand-pending-page { min-height:calc(100vh - 120px); padding:18px 14px 28px; }
+  .pending-page-decoration { top:24px; right:-76px; }
+  .pending-page-decoration svg { width:160px; height:160px; }
+  .pending-page-heading { margin:0 auto 18px; }
+  .pending-payment-icon { transform:scale(.82); margin:-8px 0; }
+  .pending-page-heading h1 { font-size:2rem; }
+  .pending-page-heading p { font-size:.98rem; }
+  .pending-order-card { padding:18px 16px; border-radius:18px; }
+  .pending-order-number { align-items:flex-start; flex-direction:column; gap:5px; }
+  .pending-order-item { grid-template-columns:76px minmax(0,1fr); gap:12px; padding:16px 0; }
+  .pending-order-item > img,.pending-order-image-placeholder { width:76px; height:76px; }
+  .pending-order-item > div:nth-child(2) strong { font-size:1rem; }
+  .pending-order-item > b { grid-column:2; justify-self:start; font-size:1.3rem; }
+  .pending-order-total { font-size:1.05rem; }
+  .pending-order-total b { font-size:1.4rem; }
+  .pending-order-countdown { align-items:flex-start; flex-direction:column; gap:10px; }
+  .pending-order-countdown strong { align-self:stretch; text-align:center; font-size:1.4rem; }
+  .pending-order-actions { grid-template-columns:1fr; gap:12px; margin-top:18px; }
+  .pending-order-actions .button { min-height:56px; }
+}
 .checkout-steps span { white-space:nowrap; }.checkout-steps span.active { color:#ef510c; font-weight:700; }.checkout-steps i { height:1px; width:min(12vw,100px); background:#d9d4d3; }
 .checkout-layout { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(330px,.9fr); gap:16px; align-items:start; }
 .checkout-info-column { display:grid; gap:14px; }

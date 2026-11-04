@@ -281,6 +281,7 @@ let secondhandConversationRows = [];
 let secondhandChatPollTimer = null;
 let secondhandChatPollId = null;
 let secondhandConversationListLoading = false;
+let secondhandPendingTimer = null;
 const secondhandChatCacheKey = conversationId => `${state.user?.id || 'guest'}:${conversationId}`;
 let syncSupabaseSession = async () => { };
 let authSessionSync = null;
@@ -1029,10 +1030,32 @@ function secondhandCheckoutPage(id) {
   const deliveryOptions = `${pickup ? `<option value="นัดรับ">${t('รับสินค้าเอง')}</option>` : ''}${shipping ? `<option value="จัดส่ง">${t('จัดส่ง')}</option>` : ''}`;
   const address = state.user?.address || {};
   const addressParts = [[t('บ้านเลขที่'), address.houseNo], [t('หมู่'), address.villageNo], [t('ซอย'), address.alley], [t('ถนน'), address.road], [t('ตำบล'), address.subdistrict], [t('อำเภอ'), address.district], [t('จังหวัด'), address.province], [t('รหัสไปรษณีย์'), address.postalCode]].filter(([, value]) => String(value || '').trim());
-  const reference = demoReference(), expires = Date.now() + 5 * 60 * 60 * 1000;
+  const reference = demoReference(), expires = Date.now() + 8 * 60 * 60 * 1000;
   const coverImage = product.images?.[0] || product.image;
   const itemImage = coverImage ? `<img src="${escape(coverImage)}" alt="${escape(product.title)}"/>` : `<div class="checkout-product-art">${art(product)}</div>`;
-  return `<div class="group-checkout-page secondhand-market-checkout"><div class="checkout-page-head"><div><span class="chip">${t('ตลาดมือสอง')}</span><h1>${t('สั่งซื้อสินค้า')}</h1></div>${a(`/products/${encodeURIComponent(product.id)}`, `← ${t('กลับไปดูสินค้า')}`, 'checkout-back-link')}</div><div class="checkout-steps"><span class="active">1 · ${t('ตรวจสอบข้อมูล')}</span><i></i><span>2 · ${t('ชำระเงิน')}</span><i></i><span>3 · ${t('เสร็จสิ้น')}</span></div><form id="secondhand-checkout-form" data-id="${escape(product.id)}" data-price="${Number(product.price) || 0}" data-seller="${escape(product.sellerId)}" data-reference="${escape(reference)}" data-expires="${expires}" class="checkout-layout"><div class="checkout-info-column"><section class="checkout-panel"><h3>${icon('map-pin', 20)} ${t('ที่อยู่ในการจัดส่ง')}</h3><div class="checkout-address"><div class="checkout-address-contact"><strong>${escape(state.user?.name || '—')}</strong><span>${escape(address.phone || '—')}</span></div>${addressParts.length ? `<div class="checkout-address-details">${addressParts.map(([label, value]) => `<span><small>${escape(label)}</small><b>${escape(value)}</b></span>`).join('')}</div>` : `<p>${t('ยังไม่ได้ระบุที่อยู่')} · ${a('/profile', t('เพิ่มที่อยู่'), 'checkout-address-edit')}</p>`}${addressParts.length ? a('/profile', t('แก้ไขที่อยู่'), 'checkout-address-edit') : ''}</div></section><section class="checkout-panel"><h3>${icon('package', 20)} ${t('รายละเอียดสินค้า')}</h3><div class="checkout-product">${itemImage}<div><strong>${escape(product.title)}</strong><span>${t('สภาพ')}: ${escape(t(product.condition || '—'))}</span><span>${t('คำอธิบาย')}: ${escape(product.description || '—')}</span><label>${t('จำนวนสินค้า')}<input name="quantity" type="number" min="1" max="${Math.max(1, Number(product.quantity) || 1)}" value="1" required/></label><label>${t('วิธีรับสินค้า')}<select name="delivery" required>${deliveryOptions}</select></label></div><b>${money(product.price)}</b></div></section><section class="checkout-panel checkout-note"><h3>${icon('edit', 20)} ${t('หมายเหตุถึงผู้ขาย')}</h3><textarea name="note" maxlength="200" placeholder="${t('เช่น นัดรับ / ขอรูปเพิ่มเติม / สอบถามสภาพสินค้า...')}" aria-label="${t('หมายเหตุถึงผู้ขาย')}"></textarea><small>0 / 200</small></section></div><section class="checkout-panel checkout-pay-panel"><h3>${icon('package', 22)} ${t('ชำระเงิน')}</h3><p>${t('สแกน QR เพื่อชำระค่าสินค้า')}</p><div class="checkout-qr-row"><div class="demo-qr"><img id="secondhand-checkout-qr" data-reference="${escape(reference)}" data-amount="${Number(product.price) || 0}" data-expires="${expires}" alt="${t('QR สำหรับชำระเงินเดโม')}"/></div><div class="checkout-bank"><strong>QR Demo</strong><span>${t('ชำระค่าสินค้า')}</span><b>${escape(state.user?.name || '—')}</b></div></div><div class="checkout-amount"><span>${t('ยอดชำระทั้งหมด')}</span><strong id="secondhand-checkout-total">${money(product.price)}</strong></div><div class="demo-expiry-box"><span>${t('กรุณาชำระภายใน')}<b>5 ${t('ชั่วโมง')}</b></span><strong class="demo-countdown">05 : 00 : 00</strong></div><small class="demo-expired-message" hidden>${t('หมดเวลายอมรับ กรุณาสร้าง QR ใหม่')}</small><small class="checkout-reference">${t('รหัสอ้างอิง')}: ${escape(reference)}</small><button class="button primary full checkout-confirm-button" type="submit">${icon('check', 20)} ${t('ยืนยันการสั่งซื้อ')}</button></section></form></div>`;
+  return `<div class="group-checkout-page secondhand-market-checkout"><div class="checkout-page-head"><div><span class="chip">${t('ตลาดมือสอง')}</span><h1>${t('สั่งซื้อสินค้า')}</h1></div>${a(`/products/${encodeURIComponent(product.id)}`, `← ${t('กลับไปดูสินค้า')}`, 'checkout-back-link')}</div><div class="checkout-steps"><span class="active">1 · ${t('ตรวจสอบข้อมูล')}</span><i></i><span>2 · ${t('ชำระเงิน')}</span><i></i><span>3 · ${t('เสร็จสิ้น')}</span></div><form id="secondhand-checkout-form" data-id="${escape(product.id)}" data-price="${Number(product.price) || 0}" data-seller="${escape(product.sellerId)}" data-reference="${escape(reference)}" data-expires="${expires}" class="checkout-layout"><div class="checkout-info-column"><section class="checkout-panel"><h3>${icon('map-pin', 20)} ${t('ที่อยู่ในการจัดส่ง')}</h3><div class="checkout-address"><div class="checkout-address-contact"><strong>${escape(state.user?.name || '—')}</strong><span>${escape(address.phone || '—')}</span></div>${addressParts.length ? `<div class="checkout-address-details">${addressParts.map(([label, value]) => `<span><small>${escape(label)}</small><b>${escape(value)}</b></span>`).join('')}</div>` : `<p>${t('ยังไม่ได้ระบุที่อยู่')} · ${a('/profile', t('เพิ่มที่อยู่'), 'checkout-address-edit')}</p>`}${addressParts.length ? a('/profile', t('แก้ไขที่อยู่'), 'checkout-address-edit') : ''}</div></section><section class="checkout-panel"><h3>${icon('package', 20)} ${t('รายละเอียดสินค้า')}</h3><div class="checkout-product">${itemImage}<div><strong>${escape(product.title)}</strong><span>${t('สภาพ')}: ${escape(t(product.condition || '—'))}</span><span>${t('คำอธิบาย')}: ${escape(product.description || '—')}</span><label>${t('จำนวนสินค้า')}<input name="quantity" type="number" min="1" max="${Math.max(1, Number(product.quantity) || 1)}" value="1" required/></label><label>${t('วิธีรับสินค้า')}<select name="delivery" required>${deliveryOptions}</select></label></div><b>${money(product.price)}</b></div></section><section class="checkout-panel checkout-note"><h3>${icon('edit', 20)} ${t('หมายเหตุถึงผู้ขาย')}</h3><textarea name="note" maxlength="200" placeholder="${t('เช่น นัดรับ / ขอรูปเพิ่มเติม / สอบถามสภาพสินค้า...')}" aria-label="${t('หมายเหตุถึงผู้ขาย')}"></textarea><small>0 / 200</small></section></div><section class="checkout-panel checkout-pay-panel"><h3>${icon('package', 22)} ${t('ชำระเงิน')}</h3><p>${t('สแกน QR เพื่อชำระค่าสินค้า')}</p><div class="checkout-qr-row"><div class="demo-qr"><img id="secondhand-checkout-qr" data-reference="${escape(reference)}" data-amount="${Number(product.price) || 0}" data-expires="${expires}" alt="${t('QR สำหรับชำระเงิน')}"/></div><div class="checkout-bank"><strong>${t('ชำระเงิน')}</strong><span>${t('ยอดค่าสินค้า')}</span><b>${escape(state.user?.name || '—')}</b></div></div><div class="checkout-amount"><span>${t('ยอดชำระทั้งหมด')}</span><strong id="secondhand-checkout-total">${money(product.price)}</strong></div><div class="demo-expiry-box"><span>${t('กรุณาชำระภายใน')}<b>8 ${t('ชั่วโมง')}</b></span><strong class="demo-countdown">08 : 00 : 00</strong></div><small class="demo-expired-message" hidden>${t('หมดเวลาชำระเงิน กรุณาสร้างคำสั่งซื้อใหม่')}</small><small class="checkout-reference">${t('รหัสอ้างอิง')}: ${escape(reference)}</small><button class="button primary full checkout-confirm-button" type="submit">${icon('check', 20)} ${t('ยืนยันการสั่งซื้อ')}</button></section></form></div>`;
+}
+function secondhandPaymentPendingPage() {
+  let pending = null;
+  try { pending = JSON.parse(sessionStorage.getItem('harnkhong-secondhand-pending') || 'null'); } catch { /* Treat missing session data as no pending order. */ }
+  if (!pending?.orderNumber || !pending?.listingId || !Number.isFinite(Number(pending.expiresAt))) return notFound();
+  const product = listing(pending.listingId) || pending;
+  const image = pending.image || product.images?.[0] || product.image;
+  const itemImage = image ? `<img src="${escape(image)}" alt="${escape(pending.title || product.title)}"/>` : `<div class="pending-order-image-placeholder">${icon('package', 34)}</div>`;
+  const total = Number(pending.total) || 0;
+  return `<section class="secondhand-pending-page"><div class="pending-page-decoration" aria-hidden="true">${icon('package', 150)}</div><header class="pending-page-heading"><span class="pending-payment-icon"><svg viewBox="0 0 96 76" fill="none" aria-hidden="true"><rect x="6" y="8" width="70" height="48" rx="8" stroke="currentColor" stroke-width="5"/><path d="M8 23h66M18 38h18M18 47h10" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>${icon('clock', 34)}</span><h1>${t('รอชำระเงิน')}</h1><p>${t('กรุณาชำระเงินและยืนยันยอดภายใน 8 ชั่วโมง')}<br/>${t('หลังจากสร้างคำสั่งซื้อ')}</p></header><article class="pending-order-card"><div class="pending-order-number"><strong>${t('เลขที่คำสั่งซื้อ')}</strong><b>${escape(pending.orderNumber)}</b></div><div class="pending-order-item">${itemImage}<div><strong>${escape(pending.title || product.title)}</strong><small>${pending.condition ? `${t('สภาพ')}: ${escape(t(pending.condition))} · ` : ''}${money(pending.unitPrice || product.price)} · ${t('{count} ชิ้น', { count: pending.quantity || 1 })}</small>${pending.description ? `<small>${t('คำอธิบาย')}: ${escape(pending.description)}</small>` : ''}</div><b>${money(total)}</b></div><div class="pending-order-total"><strong>${t('ยอดชำระทั้งหมด')}</strong><b>${money(total)}</b></div><div class="pending-order-countdown"><span>${icon('clock', 22)} ${t('เหลือเวลาชำระ')}</span><strong data-pending-deadline="${Number(pending.expiresAt)}">08:00:00</strong></div><p class="pending-order-expired" hidden>${t('หมดเวลาชำระเงิน กรุณาสร้างคำสั่งซื้อใหม่')}</p></article><div class="pending-order-actions">${a('/', `${icon('home', 20)} ${t('ไปหน้าแรก')}`, 'button outline')}${a('/my-orders', `${icon('package', 20)} ${t('ไปหน้าคำสั่งซื้อของฉัน')}`, 'button primary')}</div></section>`;
+}
+function initializeSecondhandPendingCountdown() {
+  clearInterval(secondhandPendingTimer);
+  const clock = document.querySelector('[data-pending-deadline]');
+  if (!clock) return;
+  const expiresAt = Number(clock.dataset.pendingDeadline), expired = document.querySelector('.pending-order-expired');
+  const tick = () => {
+    const remaining = Math.max(0, expiresAt - Date.now()), seconds = Math.floor(remaining / 1000);
+    clock.textContent = `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+    if (!remaining) { if (expired) expired.hidden = false; clearInterval(secondhandPendingTimer); }
+  };
+  tick(); secondhandPendingTimer = setInterval(tick, 1000);
 }
 
 function newProduct() {
@@ -1658,7 +1681,7 @@ function orderPage(id) {
     ${permissions?.reportPayment ? paymentDialog(order, demoReference()) : ''}${a(`/groups/${id}`, t('กลับไปดูกลุ่ม'), 'button outline full')}</div>`;
 }
 function notFound() { return `<div class="empty"><h1>${t("ไม่พบหน้านี้")}</h1><p>${t("ลิงก์อาจไม่ถูกต้องหรือรายการถูกลบ")}</p>${a('/', t("กลับหน้าแรก"), 'button primary')}</div>`; }
-function route() { const path = decodeURIComponent(location.pathname); if (path === '/') return home(); if (path === '/explore') return explore(); if (path === '/marketplace/secondhand') return secondhandMarketPage(); if (path === '/demo-accept') return demoApprovalPage(new URLSearchParams(location.search).get('accepted') === '1'); if (path === '/subscription') return subscriptionPage(); if (/^\/checkout\/secondhand\/[^/]+$/.test(path)) return secondhandCheckoutPage(path.split('/')[3]); if (/^\/products\/[^/]+$/.test(path)) return legacyProductRoute(path.split('/')[2]); if (/^\/groups\/[^/]+\/join$/.test(path)) return joinPage(path.split('/')[2]); if (/^\/groups\/[^/]+\/chat$/.test(path)) return groupChatPage(path.split('/')[2]); if (path === '/groups/create') return createPage(); if (/^\/groups\/[^/]+$/.test(path)) return groupPage(path.split('/')[2]); if (path === '/login') return authPage(); if (path === '/register') return authPage(true); if (path === '/my-groups') return myGroups(); if (path === '/my-orders') return myOrdersPage(); if (path === '/chat') return chatList(); if (/^\/chat\/[^/]+$/.test(path)) return chatPage(path.split('/')[2]); if (path === '/notifications') return notifications(); if (path === '/profile') return profile(); if (/^\/shops\/[^/]+$/.test(path)) return shopPage(path.split('/')[2]); if (path === '/seller/dashboard') return sellerDashboard(); if (path === '/seller/products/new') return newProduct(); if (/^\/orders\/[^/]+$/.test(path)) return orderPage(path.split('/')[2]); return notFound(); }
+function route() { const path = decodeURIComponent(location.pathname); if (path === '/') return home(); if (path === '/explore') return explore(); if (path === '/marketplace/secondhand') return secondhandMarketPage(); if (path === '/demo-accept') return demoApprovalPage(new URLSearchParams(location.search).get('accepted') === '1'); if (path === '/subscription') return subscriptionPage(); if (/^\/checkout\/secondhand\/[^/]+\/pending$/.test(path)) return secondhandPaymentPendingPage(); if (/^\/checkout\/secondhand\/[^/]+$/.test(path)) return secondhandCheckoutPage(path.split('/')[3]); if (/^\/products\/[^/]+$/.test(path)) return legacyProductRoute(path.split('/')[2]); if (/^\/groups\/[^/]+\/join$/.test(path)) return joinPage(path.split('/')[2]); if (/^\/groups\/[^/]+\/chat$/.test(path)) return groupChatPage(path.split('/')[2]); if (path === '/groups/create') return createPage(); if (/^\/groups\/[^/]+$/.test(path)) return groupPage(path.split('/')[2]); if (path === '/login') return authPage(); if (path === '/register') return authPage(true); if (path === '/my-groups') return myGroups(); if (path === '/my-orders') return myOrdersPage(); if (path === '/chat') return chatList(); if (/^\/chat\/[^/]+$/.test(path)) return chatPage(path.split('/')[2]); if (path === '/notifications') return notifications(); if (path === '/profile') return profile(); if (/^\/shops\/[^/]+$/.test(path)) return shopPage(path.split('/')[2]); if (path === '/seller/dashboard') return sellerDashboard(); if (path === '/seller/products/new') return newProduct(); if (/^\/orders\/[^/]+$/.test(path)) return orderPage(path.split('/')[2]); return notFound(); }
 function updateFilterCarousel() {
   const carousel = document.querySelector('.filter-carousel'), row = carousel?.querySelector('.filter-row');
   if (!row) return;
@@ -1743,6 +1766,7 @@ function render() {
   initializeListingMap();
   void initializeSecondhandDetailMap();
   initializeSecondhandCheckout();
+  initializeSecondhandPendingCountdown();
 
   const footerMount = document.querySelector('#interactive-footer');
   if (footerMount) {
@@ -2364,7 +2388,10 @@ document.addEventListener('submit', async e => {
   if (f.id === 'secondhand-checkout-form') {
     e.preventDefault();
     try {
-      if (f.dataset.submitted === 'true') return;
+      if (f.dataset.submitted === 'true' || f.dataset.submitting === 'true') return;
+      f.dataset.submitting = 'true';
+      const submitButton = f.querySelector('[type="submit"]');
+      if (submitButton) submitButton.disabled = true;
       const product = listing(f.dataset.id), data = new FormData(f);
       const quantity = Number(data.get('quantity'));
       const delivery = String(data.get('delivery') || '');
@@ -2372,20 +2399,22 @@ document.addEventListener('submit', async e => {
       if (!['นัดรับ', 'จัดส่ง'].includes(delivery)) throw new Error(t('กรุณาเลือกวิธีรับสินค้า'));
       const amountSatang = Number(product.price) * quantity;
       if (!Number.isSafeInteger(amountSatang) || amountSatang < 0) throw new Error(t('ยอดสั่งซื้อไม่ถูกต้อง'));
+      const createdAt = Date.now(), expiresAt = createdAt + 8 * 60 * 60 * 1000;
+      const orderNumber = `HK${new Date(createdAt).toISOString().slice(2, 10).replaceAll('-', '')}${crypto.randomUUID().replaceAll('-', '').slice(0, 6).toUpperCase()}`;
+      let orderId = '';
       if (supabaseConfigured) {
-        await createSupabaseSecondhandOrder(product, state.user, quantity, delivery);
+        const savedOrder = await createSupabaseSecondhandOrder(product, state.user, quantity, delivery);
+        orderId = savedOrder.id;
       } else {
         state.secondhandOrders ??= [];
-        state.secondhandOrders.unshift({ id: crypto.randomUUID(), listingId: product.id, buyerId: state.user.id, sellerId: product.sellerId, title: product.title, unitPrice: product.price, quantity, total: amountSatang, delivery, status: 'pending_payment', createdAt: new Date().toISOString() });
+        orderId = crypto.randomUUID();
+        state.secondhandOrders.unshift({ id: orderId, orderNumber, listingId: product.id, buyerId: state.user.id, sellerId: product.sellerId, title: product.title, unitPrice: product.price, quantity, total: amountSatang, delivery, status: 'pending_payment', createdAt: new Date(createdAt).toISOString(), expiresAt: new Date(expiresAt).toISOString() });
         save();
       }
+      sessionStorage.setItem('harnkhong-secondhand-pending', JSON.stringify({ orderId, orderNumber, listingId: product.id, title: product.title, image: product.images?.[0] || product.image || '', condition: product.condition || '', description: product.description || '', unitPrice: Number(product.price), quantity, total: amountSatang, delivery, expiresAt }));
       f.dataset.submitted = 'true';
-      const submitButton = f.querySelector('[type="submit"]');
-      if (submitButton) { submitButton.disabled = true; submitButton.textContent = t('บันทึกคำสั่งซื้อเดโมแล้ว'); }
-      const steps = f.closest('.group-checkout-page')?.querySelectorAll('.checkout-steps span');
-      if (steps?.[1]) steps[1].classList.add('active');
-      alertMessage(t('บันทึกคำสั่งซื้อเดโมแล้ว ไม่มีการชำระเงินจริง'));
-    } catch (error) { alertMessage(errorMessage(error)); }
+      go(`/checkout/secondhand/${encodeURIComponent(product.id)}/pending`);
+    } catch (error) { f.dataset.submitting = 'false'; const submitButton = f.querySelector('[type="submit"]'); if (submitButton) submitButton.disabled = false; alertMessage(errorMessage(error)); }
     return;
   }
   if (f.id === 'transfer-group-form') {

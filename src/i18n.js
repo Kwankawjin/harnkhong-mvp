@@ -392,6 +392,7 @@ const labels = {
 };
 
 Object.assign(labels, {
+  'รอชำระเงิน': 'Waiting for payment', 'กรุณาชำระเงินและยืนยันยอดภายใน 8 ชั่วโมง': 'Please pay and confirm within 8 hours', 'หลังจากสร้างคำสั่งซื้อ': 'after the order is created', 'เลขที่คำสั่งซื้อ': 'Order number', 'ยอดชำระทั้งหมด': 'Total due', 'เหลือเวลาชำระ': 'Time left to pay', 'หมดเวลาชำระเงิน กรุณาสร้างคำสั่งซื้อใหม่': 'Payment time expired. Please create a new order.', 'ไปหน้าแรก': 'Go to home', 'ไปหน้าคำสั่งซื้อของฉัน': 'My orders',
   'orderStatus_waiting_for_members': 'Waiting for members', 'orderStatus_pending_payment': 'Pending payment / demo verification',
   'orderStatus_payment_secured': 'Payments verified (demo only)', 'orderStatus_preparing_order': 'Preparing order (demo)',
   'orderStatus_shipped': 'Shipped (unverified demo)', 'orderStatus_delivered': 'Delivery acknowledged (demo)',
