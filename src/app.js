@@ -502,8 +502,23 @@ const demoAcceptUrl = (reference, amount, { expires, group, revision } = {}) => 
 function startDemoCountdown(container, expiresAt) {
   const display = container?.querySelector('.demo-countdown'); if (!display || !Number.isFinite(expiresAt)) return;
   let timer = null;
-  const tick = () => { const remaining = Math.max(0, expiresAt - Date.now()), seconds = Math.floor(remaining / 1000); display.textContent = `${String(Math.floor(seconds / 3600)).padStart(2, '0')} : ${String(Math.floor(seconds % 3600 / 60)).padStart(2, '0')} : ${String(seconds % 60).padStart(2, '0')}`; if (!remaining) { container.querySelector('[data-action="accept-demo-amount"]')?.setAttribute('disabled', ''); const notice = container.querySelector('.demo-expired-message'); if (notice) notice.hidden = false; if (timer) clearInterval(timer); } };
+  const tick = () => { if (!display.isConnected) { if (timer) clearInterval(timer); return; } const remaining = Math.max(0, expiresAt - Date.now()), seconds = Math.floor(remaining / 1000); display.textContent = `${String(Math.floor(seconds / 3600)).padStart(2, '0')} : ${String(Math.floor(seconds % 3600 / 60)).padStart(2, '0')} : ${String(seconds % 60).padStart(2, '0')}`; if (!remaining) { container.querySelector('[data-action="accept-demo-amount"]')?.setAttribute('disabled', ''); const notice = container.querySelector('.demo-expired-message'); if (notice) notice.hidden = false; if (timer) clearInterval(timer); } };
   tick(); timer = setInterval(tick, 1000); container.addEventListener('close', () => clearInterval(timer), { once: true });
+}
+async function refreshSecondhandCheckoutQr(form) {
+  const qr = form?.querySelector('#secondhand-checkout-qr');
+  if (!qr) return;
+  const quantity = Math.max(1, Number(form.querySelector('[name="quantity"]')?.value) || 1);
+  const amount = Number(form.dataset.price) * quantity;
+  qr.dataset.amount = String(amount);
+  try { qr.src = await QRCode.toDataURL(demoAcceptUrl(qr.dataset.reference, amount, { expires: Number(qr.dataset.expires) }).href, { errorCorrectionLevel: 'M', margin: 2, width: 420, color: { dark: '#092847', light: '#ffffff' } }); }
+  catch {/* Keep checkout usable if QR generation is temporarily unavailable. */}
+}
+function initializeSecondhandCheckout() {
+  const form = document.querySelector('#secondhand-checkout-form');
+  if (!form) return;
+  void refreshSecondhandCheckoutQr(form);
+  startDemoCountdown(form, Number(form.dataset.expires));
 }
 function watchGroupApproval(groupId, userId, revision, dialog, expiresAt) {
   if (!supabaseConfigured) return;
@@ -1012,7 +1027,12 @@ function secondhandCheckoutPage(id) {
   const pickup = ['นัดรับ', 'รับสินค้าเอง', 'นัดรับและจัดส่ง', 'รับสินค้าเองหรือจัดส่ง'].includes(product.delivery);
   const shipping = ['จัดส่ง', 'นัดรับและจัดส่ง', 'รับสินค้าเองหรือจัดส่ง'].includes(product.delivery);
   const deliveryOptions = `${pickup ? `<option value="นัดรับ">${t('รับสินค้าเอง')}</option>` : ''}${shipping ? `<option value="จัดส่ง">${t('จัดส่ง')}</option>` : ''}`;
-  return `${title(t('ยืนยันคำสั่งซื้อ'), escape(product.title))}<div class="secondhand-checkout narrow"><form id="secondhand-checkout-form" data-id="${escape(product.id)}" data-price="${Number(product.price) || 0}" data-seller="${escape(product.sellerId)}" class="form-panel"><div class="secondhand-checkout-item">${product.images?.[0] ? `<img src="${product.images[0]}" alt=""/>` : ''}<div><strong>${escape(product.title)}</strong><small>${money(product.price)} · ${t('{count} ชิ้น', { count: 1 })}</small></div></div><label>${t('จำนวนสินค้า')}<input name="quantity" type="number" min="1" max="${Math.max(1, Number(product.quantity) || 1)}" value="1" required/></label><label>${t('วิธีรับสินค้า')}<select name="delivery" required>${deliveryOptions}</select></label><div class="secondhand-checkout-total"><span>${t('ยอดสินค้า')}</span><strong id="secondhand-checkout-total">${money(product.price)}</strong></div><div class="info-box"><strong>${t('ชำระเข้ากองกลาง')}</strong><p>${t('ยอดจะพักไว้ที่กองกลางจนกว่าผู้ซื้อยืนยันรับสินค้า')}</p><small>${t('การชำระเงินในหน้านี้ยังเป็นแบบจำลอง ไม่มีการโอนหรือเก็บเงินจริง')}</small></div><button class="button primary full" type="submit">${t('ยืนยันและชำระเข้ากองกลาง')}</button>${a(`/products/${encodeURIComponent(product.id)}`, t('กลับไปดูสินค้า'), 'button outline full')}</form></div>`;
+  const address = state.user?.address || {};
+  const addressParts = [[t('บ้านเลขที่'), address.houseNo], [t('หมู่'), address.villageNo], [t('ซอย'), address.alley], [t('ถนน'), address.road], [t('ตำบล'), address.subdistrict], [t('อำเภอ'), address.district], [t('จังหวัด'), address.province], [t('รหัสไปรษณีย์'), address.postalCode]].filter(([, value]) => String(value || '').trim());
+  const reference = demoReference(), expires = Date.now() + 5 * 60 * 60 * 1000;
+  const coverImage = product.images?.[0] || product.image;
+  const itemImage = coverImage ? `<img src="${escape(coverImage)}" alt="${escape(product.title)}"/>` : `<div class="checkout-product-art">${art(product)}</div>`;
+  return `<div class="group-checkout-page secondhand-market-checkout"><div class="checkout-page-head"><div><span class="chip">${t('ตลาดมือสอง')}</span><h1>${t('สั่งซื้อสินค้า')}</h1></div>${a(`/products/${encodeURIComponent(product.id)}`, `← ${t('กลับไปดูสินค้า')}`, 'checkout-back-link')}</div><div class="checkout-steps"><span class="active">1 · ${t('ตรวจสอบข้อมูล')}</span><i></i><span>2 · ${t('ชำระเงิน')}</span><i></i><span>3 · ${t('เสร็จสิ้น')}</span></div><form id="secondhand-checkout-form" data-id="${escape(product.id)}" data-price="${Number(product.price) || 0}" data-seller="${escape(product.sellerId)}" data-reference="${escape(reference)}" data-expires="${expires}" class="checkout-layout"><div class="checkout-info-column"><section class="checkout-panel"><h3>${icon('map-pin', 20)} ${t('ที่อยู่ในการจัดส่ง')}</h3><div class="checkout-address"><div class="checkout-address-contact"><strong>${escape(state.user?.name || '—')}</strong><span>${escape(address.phone || '—')}</span></div>${addressParts.length ? `<div class="checkout-address-details">${addressParts.map(([label, value]) => `<span><small>${escape(label)}</small><b>${escape(value)}</b></span>`).join('')}</div>` : `<p>${t('ยังไม่ได้ระบุที่อยู่')} · ${a('/profile', t('เพิ่มที่อยู่'), 'checkout-address-edit')}</p>`}${addressParts.length ? a('/profile', t('แก้ไขที่อยู่'), 'checkout-address-edit') : ''}</div></section><section class="checkout-panel"><h3>${icon('package', 20)} ${t('รายละเอียดสินค้า')}</h3><div class="checkout-product">${itemImage}<div><strong>${escape(product.title)}</strong><span>${t('สภาพ')}: ${escape(t(product.condition || '—'))}</span><span>${t('คำอธิบาย')}: ${escape(product.description || '—')}</span><label>${t('จำนวนสินค้า')}<input name="quantity" type="number" min="1" max="${Math.max(1, Number(product.quantity) || 1)}" value="1" required/></label><label>${t('วิธีรับสินค้า')}<select name="delivery" required>${deliveryOptions}</select></label></div><b>${money(product.price)}</b></div></section><section class="checkout-panel checkout-note"><h3>${icon('edit', 20)} ${t('หมายเหตุถึงผู้ขาย')}</h3><textarea name="note" maxlength="200" placeholder="${t('เช่น นัดรับ / ขอรูปเพิ่มเติม / สอบถามสภาพสินค้า...')}" aria-label="${t('หมายเหตุถึงผู้ขาย')}"></textarea><small>0 / 200</small></section></div><section class="checkout-panel checkout-pay-panel"><h3>${icon('package', 22)} ${t('ชำระเงิน')}</h3><p>${t('สแกน QR เพื่อชำระค่าสินค้า')}</p><div class="checkout-qr-row"><div class="demo-qr"><img id="secondhand-checkout-qr" data-reference="${escape(reference)}" data-amount="${Number(product.price) || 0}" data-expires="${expires}" alt="${t('QR สำหรับชำระเงินเดโม')}"/></div><div class="checkout-bank"><strong>QR Demo</strong><span>${t('ชำระค่าสินค้า')}</span><b>${escape(state.user?.name || '—')}</b></div></div><div class="checkout-amount"><span>${t('ยอดชำระทั้งหมด')}</span><strong id="secondhand-checkout-total">${money(product.price)}</strong></div><div class="demo-expiry-box"><span>${t('กรุณาชำระภายใน')}<b>5 ${t('ชั่วโมง')}</b></span><strong class="demo-countdown">05 : 00 : 00</strong></div><small class="demo-expired-message" hidden>${t('หมดเวลายอมรับ กรุณาสร้าง QR ใหม่')}</small><small class="checkout-reference">${t('รหัสอ้างอิง')}: ${escape(reference)}</small><button class="button primary full checkout-confirm-button" type="submit">${icon('check', 20)} ${t('ยืนยันการสั่งซื้อ')}</button></section></form></div>`;
 }
 
 function newProduct() {
@@ -1686,7 +1706,7 @@ function render() {
       <div class="header-inner">
         ${a('/', `<span class="logo-mark">H</span><span class="logo-text">HarnKhong<small>${t("หารของด้วยกัน")}</small></span>`, 'brand')}
         <nav class="desktop-nav" aria-label="${t("เมนูหลัก")}">
-          ${desktopNav.map(([href, , label]) => a(href, label, 'nav-link ' + (location.pathname === href ? 'active' : ''))).join('')}
+          ${desktopNav.map(([href, , label]) => a(href, label, 'nav-link ' + (location.pathname === href || href === '/marketplace/secondhand' && location.pathname.startsWith('/checkout/secondhand/') ? 'active' : ''))).join('')}
         </nav>
         <div class="header-actions">
           ${/^\/groups\/[^/]+$/.test(location.pathname) ? '' : `<div class="header-create-menu-wrap"><button type="button" class="button primary header-create-btn" data-action="listing-menu-toggle" aria-expanded="${listingMenuOpen}" aria-haspopup="menu">${icon('plus', 18)} ${t('ลงประกาศ')}<span aria-hidden="true">⌄</span></button>${listingMenuOpen ? `<div class="header-create-dropdown" role="menu">${a('/groups/create', `<span class="header-create-option-icon">${icon('users', 20)}</span><span><strong>${t('สร้างกลุ่มหารของ')}</strong><small>${t('ชวนคนร่วมซื้อ')}</small></span>`, 'header-create-option')}${a('/seller/products/new', `<span class="header-create-option-icon secondhand">${icon('package', 20)}</span><span><strong>${t('ลงขายมือสอง')}</strong><small>${t('โพสต์ขายสินค้า')}</small></span>`, 'header-create-option')}</div>` : ''}</div>`}
@@ -1722,6 +1742,7 @@ function render() {
 
   initializeListingMap();
   void initializeSecondhandDetailMap();
+  initializeSecondhandCheckout();
 
   const footerMount = document.querySelector('#interactive-footer');
   if (footerMount) {
@@ -2343,6 +2364,7 @@ document.addEventListener('submit', async e => {
   if (f.id === 'secondhand-checkout-form') {
     e.preventDefault();
     try {
+      if (f.dataset.submitted === 'true') return;
       const product = listing(f.dataset.id), data = new FormData(f);
       const quantity = Number(data.get('quantity'));
       const delivery = String(data.get('delivery') || '');
@@ -2357,15 +2379,12 @@ document.addEventListener('submit', async e => {
         state.secondhandOrders.unshift({ id: crypto.randomUUID(), listingId: product.id, buyerId: state.user.id, sellerId: product.sellerId, title: product.title, unitPrice: product.price, quantity, total: amountSatang, delivery, status: 'pending_payment', createdAt: new Date().toISOString() });
         save();
       }
-      const reference = demoReference();
-      document.querySelector('#payment-dialog')?.remove();
-      document.body.insertAdjacentHTML('beforeend', paymentDialog({ payments: { [state.user.id]: { amountSatang } } }, reference));
-      const dialog = document.querySelector('#payment-dialog');
-      dialog.showModal();
-      const qr = dialog.querySelector('#payment-qr'), expires = Date.now() + 5 * 60 * 60 * 1000;
-      qr.dataset.expires = String(expires);
-      qr.src = await QRCode.toDataURL(demoAcceptUrl(reference, amountSatang, { expires }).href, { errorCorrectionLevel: 'M', margin: 2, width: 420, color: { dark: '#092847', light: '#ffffff' } });
-      startDemoCountdown(dialog, expires);
+      f.dataset.submitted = 'true';
+      const submitButton = f.querySelector('[type="submit"]');
+      if (submitButton) { submitButton.disabled = true; submitButton.textContent = t('บันทึกคำสั่งซื้อเดโมแล้ว'); }
+      const steps = f.closest('.group-checkout-page')?.querySelectorAll('.checkout-steps span');
+      if (steps?.[1]) steps[1].classList.add('active');
+      alertMessage(t('บันทึกคำสั่งซื้อเดโมแล้ว ไม่มีการชำระเงินจริง'));
     } catch (error) { alertMessage(errorMessage(error)); }
     return;
   }
@@ -2687,6 +2706,7 @@ document.addEventListener('input', e => {
     const total = Number(form.dataset.price) * quantity;
     const amount = form.querySelector('#secondhand-checkout-total');
     if (amount) amount.textContent = money(total);
+    void refreshSecondhandCheckoutQr(form);
   }
   if (e.target.name === 'trackingNumber' && e.target.closest('#shipment-form')) {
     const form = e.target.closest('#shipment-form');

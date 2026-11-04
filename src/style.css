@@ -2999,7 +2999,17 @@ dialog:not([open]), [hidden] { display: none !important; }
 .share-approval-dialog::backdrop { background: #291b2080; backdrop-filter: blur(3px); }
 .share-approval-dialog .chip { background: #fff0e9; color: #ed4e0a; }
 .checkout-page-head { display:flex; justify-content:space-between; align-items:center; }
-.checkout-page-head h2 { margin:8px 0 0; color:#17191f; font-size:clamp(1.45rem,3vw,2rem); }
+.checkout-page-head h1,.checkout-page-head h2 { margin:8px 0 0; color:#17191f; font-size:clamp(1.45rem,3vw,2rem); }
+.group-checkout-page { max-width:1480px; margin:0 auto; padding:10px 0 28px; }
+.checkout-back-link,.checkout-address-edit { color:#ed510d; font-size:.85rem; font-weight:700; text-decoration:none; }
+.checkout-address-edit { display:inline-block; margin-top:8px; }
+.secondhand-market-checkout .checkout-product { grid-template-columns:100px minmax(0,1fr) auto; }
+.secondhand-market-checkout .checkout-product > div:nth-child(2) { min-width:0; }
+.secondhand-market-checkout .checkout-product label { display:grid; gap:5px; margin-top:5px; color:#5e5a63; font-size:.84rem; font-weight:600; }
+.secondhand-market-checkout .checkout-product input,.secondhand-market-checkout .checkout-product select { width:100%; min-height:40px; padding:8px 11px; border:1px solid #d9d5dc; border-radius:10px; background:#fff; color:inherit; font:inherit; }
+.secondhand-market-checkout .demo-qr { width:min(100%,230px); padding:10px; margin:0; border:1px solid #eee8e9; border-radius:16px; }
+.secondhand-market-checkout .demo-qr img { display:block; width:100%; image-rendering:pixelated; }
+.checkout-confirm-button { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:18px!important; background:linear-gradient(100deg,#ff4d0a,#ff5f18)!important; border:0!important; color:#fff!important; }
 .checkout-steps { display:flex; align-items:center; justify-content:center; gap:14px; margin:22px auto 26px; color:#85818a; font-size:.9rem; }
 .checkout-steps span { white-space:nowrap; }.checkout-steps span.active { color:#ef510c; font-weight:700; }.checkout-steps i { height:1px; width:min(12vw,100px); background:#d9d4d3; }
 .checkout-layout { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(330px,.9fr); gap:16px; align-items:start; }
