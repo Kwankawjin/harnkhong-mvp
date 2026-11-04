@@ -2981,11 +2981,15 @@ dialog:not([open]), [hidden] { display: none !important; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--line); padding-top: 20px; margin-top: 20px; }
 .dialog-feedback { padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--blue-light); color: var(--navy) !important; font-size: .82rem; }
 .payment-dialog { width: min(430px,calc(100% - 32px)); background: #101c30; color: white; padding: 24px; text-align: center; }
+.payment-dialog:not(.share-approval-dialog) { box-sizing: border-box; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; border: 1px solid #dce7f1; border-radius: 24px; }
 .payment-head { display: flex; justify-content: space-between; align-items: center; }
 .payment-dialog h2 { font-size: 1.5rem; margin: 20px 0 8px; color: white; }
+.share-approval-dialog.payment-dialog h2 { color: #17191f; }
 .payment-dialog p { color: #b8c9df; font-size: .82rem; line-height: 1.65; }
 .payment-dialog > small { color: #b8c9df; }
 .demo-qr { padding: 10px; width: min(100%,220px); margin: 20px auto 16px; background: white; border-radius: 18px; }
+.payment-dialog:not(.share-approval-dialog) .demo-qr { width: min(100%, 300px); }
+.payment-dialog:not(.share-approval-dialog) .demo-qr img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
 .demo-qr svg { width: 100%; height: auto; display: block; }
 .payment-amount { display: block; font: 700 2rem var(--font-heading); margin-top: 8px; }
 .payment-dialog .button { margin-top: 10px; white-space: normal; }
