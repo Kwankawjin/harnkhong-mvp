@@ -501,7 +501,8 @@ const secondhandChatMessages = new Map();
 let secondhandConversationRows = [];
 let secondhandChatPollTimer = null;
 let secondhandChatPollId = null;
-let secondhandConversationListLoading = false;
+let secondhandConversationListLoadingFor = null;
+let secondhandConversationListLoadedFor = null;
 let secondhandPendingTimer = null;
 const secondhandChatCacheKey = (conversationId) =>
   `${state.user?.id || "guest"}:${conversationId}`;
@@ -2174,18 +2175,30 @@ function chatList() {
       t("แชตกับผู้ขาย"),
       t("เข้าสู่ระบบเพื่อดูประวัติการสนทนาและติดต่อร้านค้า"),
     );
-  if (supabaseConfigured && !secondhandConversationListLoading) {
-    secondhandConversationListLoading = true;
-    void loadSecondhandConversations(state.user.id)
+  const userId = state.user.id;
+  if (
+    supabaseConfigured &&
+    secondhandConversationListLoadedFor !== userId &&
+    secondhandConversationListLoadingFor !== userId
+  ) {
+    secondhandConversationListLoadingFor = userId;
+    void loadSecondhandConversations(userId)
       .then((rows) => {
-        secondhandConversationRows = rows;
+        if (state.user?.id === userId) {
+          secondhandConversationRows = rows;
+          secondhandConversationListLoadedFor = userId;
+        }
       })
-      .catch((error) =>
-        console.error("Could not load marketplace conversations", error),
-      )
+      .catch((error) => {
+        console.error("Could not load marketplace conversations", error);
+        if (state.user?.id === userId)
+          secondhandConversationListLoadedFor = userId;
+      })
       .finally(() => {
-        secondhandConversationListLoading = false;
-        if (location.pathname === "/chat") render();
+        if (secondhandConversationListLoadingFor === userId)
+          secondhandConversationListLoadingFor = null;
+        if (location.pathname === "/chat" && state.user?.id === userId)
+          render();
       });
   }
   const ids = Object.keys(state.conversations);
@@ -5539,6 +5552,9 @@ function beginSupabaseSession(session) {
   activeSupabaseSession = session;
   if ((state.user?.id || null) !== (session?.user?.id || null)) {
     state = { ...state, user: null, groups: [], profiles: {} };
+    secondhandConversationRows = [];
+    secondhandConversationListLoadingFor = null;
+    secondhandConversationListLoadedFor = null;
     tempSignupData = {};
     authModalActive = false;
     mockupCurrentStep = 1;
