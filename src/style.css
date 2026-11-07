@@ -12627,8 +12627,19 @@ dialog:not([open]),
   gap: 8px;
 }
 .secondhand-seller-actions .danger {
-  color: #b42318;
-  border-color: #f1c7c4;
+  color: #fff;
+  background: #b42318;
+  border-color: #b42318;
+  font-weight: 700;
+}
+.secondhand-seller-actions .danger:hover {
+  color: #fff;
+  background: #8f1d14;
+  border-color: #8f1d14;
+}
+.secondhand-seller-actions .danger:focus-visible {
+  outline: 3px solid #092847;
+  outline-offset: 3px;
 }
 .secondhand-boost-button {
   background: #0968e3;

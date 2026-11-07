@@ -77,7 +77,6 @@ import {
   updateSupabaseSecondhandListing,
   deactivateSupabaseSecondhandListing,
   boostSupabaseSecondhandListing,
-  loadSupabaseSecondhandListings,
 } from "./supabase-listings.js";
 import {
   loadSecondhandConversations,
@@ -5424,8 +5423,6 @@ async function fetchSupabaseState(authUser) {
   )?.[1];
   const user = authUser ? await loadAuthenticatedUser(authUser) : null;
   const snapshot = await loadSupabaseGroups();
-  const secondhandListings = await loadSupabaseSecondhandListings();
-  snapshot.listings = [...secondhandListings, ...snapshot.listings];
   if (authUser && inviteToken && routeGroup) {
     try {
       const invite = await resolveSupabaseInvite(
