@@ -6,6 +6,12 @@ const labels = {
   โหลดกลุ่มไม่สำเร็จ: "Unable to load groups",
   "แชตกลุ่มยังซิงก์ไม่ได้ กรุณาตรวจสอบการตั้งค่าฐานข้อมูล":
     "Group chat could not sync. Check the database setup.",
+  "ไม่พบตาราง group_messages ใน Supabase กรุณาเชื่อมโปรเจกต์แล้วรัน npx supabase db push":
+    "The group_messages table is missing from Supabase. Link the project and run npx supabase db push.",
+  "บัญชีนี้ไม่มีสิทธิ์อ่านแชตกลุ่ม กรุณาตรวจสอบการเป็นสมาชิกและนโยบาย RLS":
+    "This account cannot read group chat. Check membership and the RLS policies.",
+  "Supabase ยังไม่พบความสัมพันธ์โปรไฟล์ผู้ส่ง กรุณา reload schema cache":
+    "Supabase cannot find the sender profile relationship. Reload the schema cache.",
   ลองอีกครั้ง: "Try again",
   คำเชิญเข้าร่วมกลุ่ม: "Group invitation",
   เข้าสู่ระบบเพื่อดูรายละเอียดและเข้าร่วมกลุ่มจากลิงก์เชิญ:

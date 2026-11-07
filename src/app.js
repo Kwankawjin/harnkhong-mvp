@@ -2094,6 +2094,15 @@ function rememberGroupMessages(groupId, messages) {
     } catch {}
   }
 }
+function groupMessageSyncError(error) {
+  if (error?.code === "42P01" || error?.code === "PGRST205")
+    return t("ไม่พบตาราง group_messages ใน Supabase กรุณาเชื่อมโปรเจกต์แล้วรัน npx supabase db push");
+  if (error?.code === "42501")
+    return t("บัญชีนี้ไม่มีสิทธิ์อ่านแชตกลุ่ม กรุณาตรวจสอบการเป็นสมาชิกและนโยบาย RLS");
+  if (error?.code === "PGRST200")
+    return t("Supabase ยังไม่พบความสัมพันธ์โปรไฟล์ผู้ส่ง กรุณา reload schema cache");
+  return t("แชตกลุ่มยังซิงก์ไม่ได้ กรุณาตรวจสอบการตั้งค่าฐานข้อมูล");
+}
 async function refreshGroupChatMessages(groupId, { rerender = true } = {}) {
   if (!supabaseConfigured || !state.user || groupChatPollId !== groupId) return;
   try {
@@ -2295,7 +2304,7 @@ function groupChatPage(id) {
       </div>
       ${a(destination, `${icon("info", 18)} <span>${t("ดูกลุ่ม")}</span>`, "button subtle group-chat-view-btn")}
     </div>
-    ${p ? `<div class="chat-product">${t("สินค้าในกลุ่ม")}: ${a(destination, escape(p.title || g.name))} · <strong style="color:var(--primary-600);">${money(g.costs.product)}</strong></div>` : ""}
+    ${p ? `<div class="chat-product">${t("กลุ่ม")}: ${a(destination, escape(g.name))} · <strong style="color:var(--primary-600);">${money(g.costs.product)}</strong></div>` : ""}
     <div class="messages group-messages">
       ${
         msgs.length
@@ -2320,7 +2329,7 @@ function groupChatPage(id) {
           : `<div class="chat-empty">${icon("chat", 32)}<p><strong>${t("เริ่มคุยกับสมาชิกในกลุ่มได้ที่นี่")}</strong></p><small>${t("พูดคุย ปรึกษาเรื่องสินค้า นัดรับ หรือแชร์รายละเอียดกับสมาชิกในกลุ่มได้ที่นี่")}</small></div>`
       }
     </div>
-    ${supabaseConfigured && groupMessageErrors.has(id) ? `<div class="group-chat-sync-error" role="alert">${t("แชตกลุ่มยังซิงก์ไม่ได้ กรุณาตรวจสอบการตั้งค่าฐานข้อมูล")} <button type="button" class="button outline" data-action="retry-group-messages" data-id="${escape(id)}">${t("ลองอีกครั้ง")}</button></div>` : ""}
+    ${supabaseConfigured && groupMessageErrors.has(id) ? `<div class="group-chat-sync-error" role="alert">${groupMessageSyncError(groupMessageErrors.get(id))} <button type="button" class="button outline" data-action="retry-group-messages" data-id="${escape(id)}">${t("ลองอีกครั้ง")}</button></div>` : ""}
     ${
       isMember
         ? `<form id="group-chat-form" data-id="${id}" class="chat-input group-chat-input">
