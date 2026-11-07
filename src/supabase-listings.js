@@ -209,14 +209,36 @@ export async function updateSupabaseSecondhandListing(id, listing, user) {
   }
 }
 
-export async function deactivateSupabaseSecondhandListing(id, user) {
+export async function deleteSupabaseSecondhandListing(id, listing, user) {
   if (!user?.id) throw new Error("secondhandAuthRequired");
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("secondhand_listings")
-    .update({ active: false })
+    .delete()
     .eq("id", id)
-    .eq("owner_id", user.id);
+    .eq("owner_id", user.id)
+    .select("id")
+    .maybeSingle();
+  if (error?.code === "23503") {
+    const { error: archiveError } = await supabase
+      .from("secondhand_listings")
+      .update({ active: false })
+      .eq("id", id)
+      .eq("owner_id", user.id);
+    if (archiveError) throw archiveError;
+    return;
+  }
   if (error) throw error;
+  if (!data) throw new Error("secondhandListingDeleteNotAllowed");
+  const paths = (listing.images || [])
+    .map((url) => {
+      const marker = `/storage/v1/object/public/${BUCKET}/`;
+      const index = url.indexOf(marker);
+      return index < 0
+        ? null
+        : decodeURIComponent(url.slice(index + marker.length));
+    })
+    .filter(Boolean);
+  if (paths.length) await supabase.storage.from(BUCKET).remove(paths);
 }
 
 export async function boostSupabaseSecondhandListing(id, user, boostedUntil) {

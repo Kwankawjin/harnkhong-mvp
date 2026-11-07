@@ -1482,6 +1482,8 @@ Object.assign(labels, {
   ลงขายสินค้า: "Create listing",
   "ฟีเจอร์ Boost ยังไม่พร้อม กรุณารัน migration ตลาดมือสองล่าสุดของ Supabase":
     "Boost is not enabled yet. Apply the latest secondhand marketplace migration in Supabase.",
+  "ลบประกาศไม่สำเร็จ ตรวจสอบสิทธิ์ผู้ขายแล้วลองอีกครั้ง":
+    "Could not delete this listing. Check seller permissions and try again.",
 });
 
 export const messages = {
