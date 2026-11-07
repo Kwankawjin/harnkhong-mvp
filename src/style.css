@@ -4395,6 +4395,29 @@ body.mobile-menu-open {
     margin-left: 65px;
   }
 }
+.listing-shipping-fee {
+  margin: 12px 0 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #f7faff;
+}
+.listing-shipping-fee[hidden] {
+  display: none;
+}
+.checkout-shipping-breakdown {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 16px;
+  margin: 18px 0 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  color: var(--text-sub);
+}
+.checkout-shipping-breakdown b {
+  color: var(--navy);
+  text-align: right;
+}
 
 .shop-banner {
   display: flex;
@@ -12210,17 +12233,17 @@ dialog:not([open]),
 }
 /* The restored classic search + phone hero needs its full showcase height. */
 :root .hero.home-hero {
-  min-height: max(620px, calc(100vh - 72px));
-  min-height: max(620px, calc(100dvh - 72px));
+  min-height: clamp(620px, 78vh, 720px);
+  min-height: clamp(620px, 78dvh, 720px);
   display: flex;
   align-items: center;
   justify-content: flex-start;
 }
 @media (min-width: 960px) {
   :root .hero.home-hero {
-    min-height: max(640px, calc(100vh - 72px));
-    min-height: max(640px, calc(100dvh - 72px));
-    padding: 60px 48px 50px;
+    min-height: clamp(620px, 78vh, 720px);
+    min-height: clamp(620px, 78dvh, 720px);
+    padding: 36px 48px;
   }
 }
 @media (max-width: 959px) {

@@ -9,9 +9,13 @@ export async function createSupabaseSecondhandOrder(
   if (!supabaseConfigured || !buyer?.id)
     throw new Error("secondhandOrderAuthRequired");
   const unitPrice = Number(listing?.price);
-  const total = unitPrice * Number(quantity);
+  const shippingFee =
+    deliveryMethod === "จัดส่ง" ? Number(listing?.deliveryFee) || 0 : 0;
+  const total = unitPrice * Number(quantity) + shippingFee;
   if (
     !Number.isSafeInteger(unitPrice) ||
+    !Number.isSafeInteger(shippingFee) ||
+    shippingFee < 0 ||
     !Number.isSafeInteger(total) ||
     quantity < 1
   ) {
@@ -27,10 +31,11 @@ export async function createSupabaseSecondhandOrder(
       unit_price_satang: unitPrice,
       quantity,
       total_satang: total,
+      shipping_fee_satang: shippingFee,
       delivery_method: deliveryMethod,
     })
     .select(
-      "id,listing_id,buyer_id,seller_id,listing_title,unit_price_satang,quantity,total_satang,delivery_method,status,created_at",
+      "id,listing_id,buyer_id,seller_id,listing_title,unit_price_satang,quantity,shipping_fee_satang,total_satang,delivery_method,status,created_at",
     )
     .single();
   if (error) throw error;

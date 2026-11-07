@@ -907,7 +907,10 @@ async function refreshSecondhandCheckoutQr(form) {
     1,
     Number(form.querySelector('[name="quantity"]')?.value) || 1,
   );
-  const amount = Number(form.dataset.price) * quantity;
+  const delivery = form.querySelector('[name="delivery"]')?.value;
+  const shippingFee =
+    delivery === "จัดส่ง" ? Number(form.dataset.shippingFee) || 0 : 0;
+  const amount = Number(form.dataset.price) * quantity + shippingFee;
   qr.dataset.amount = String(amount);
   try {
     qr.src = await QRCode.toDataURL(
@@ -930,8 +933,47 @@ async function refreshSecondhandCheckoutQr(form) {
 function initializeSecondhandCheckout() {
   const form = document.querySelector("#secondhand-checkout-form");
   if (!form) return;
+  const product = listing(form.dataset.id);
+  const shippingFee = Number(product?.deliveryFee) || 0;
+  form.dataset.shippingFee = String(shippingFee);
+  const deliverySelect = form.querySelector('[name="delivery"]');
+  for (const option of deliverySelect?.options || []) {
+    option.textContent =
+      option.value === "จัดส่ง"
+        ? t("จัดส่ง · ค่าส่ง {amount}", { amount: money(shippingFee) })
+        : t("รับสินค้าเอง · ไม่มีค่าส่ง");
+  }
+  const amountBox = form.querySelector(".checkout-amount");
+  if (amountBox && !form.querySelector(".checkout-shipping-breakdown")) {
+    amountBox.insertAdjacentHTML(
+      "beforebegin",
+      `<div class="checkout-shipping-breakdown"><span>${t("ค่าสินค้า")}</span><b data-checkout-subtotal></b><span>${t("ค่าจัดส่ง")}</span><b data-checkout-shipping></b></div>`,
+    );
+  }
+  updateSecondhandCheckoutSummary(form);
   void refreshSecondhandCheckoutQr(form);
   startDemoCountdown(form, Number(form.dataset.expires));
+}
+function updateSecondhandCheckoutSummary(form) {
+  if (!form) return;
+  const quantity = Math.max(
+    1,
+    Number(form.querySelector('[name="quantity"]')?.value) || 1,
+  );
+  const subtotal = Number(form.dataset.price) * quantity;
+  const shippingFee =
+    form.querySelector('[name="delivery"]')?.value === "จัดส่ง"
+      ? Number(form.dataset.shippingFee) || 0
+      : 0;
+  const total = subtotal + shippingFee;
+  const subtotalEl = form.querySelector("[data-checkout-subtotal]");
+  const shippingEl = form.querySelector("[data-checkout-shipping]");
+  if (subtotalEl) subtotalEl.textContent = money(subtotal);
+  if (shippingEl) shippingEl.textContent = money(shippingFee);
+  const totalEl = form.querySelector("#secondhand-checkout-total");
+  if (totalEl) totalEl.textContent = money(total);
+  const qr = form.querySelector("#secondhand-checkout-qr");
+  if (qr) qr.dataset.amount = String(total);
 }
 function watchGroupApproval(groupId, userId, revision, dialog, expiresAt) {
   if (!supabaseConfigured) return;
@@ -3200,11 +3242,22 @@ function render() {
     .querySelector('.header-actions a[href="/notifications"]')
     .setAttribute("aria-label", t("การแจ้งเตือน"));
   const accountMenu = document.querySelector(".profile-dropdown");
-  if (accountMenu)
+  if (accountMenu) {
+    const planStatus =
+      subscriptionFor() === "plus"
+        ? t("Plus · 49 บาท/เดือน")
+        : t("Free · ใช้งานฟรี");
+    accountMenu
+      .querySelector('a[href="/profile"]')
+      ?.insertAdjacentHTML(
+        "afterend",
+        `<a href="/subscription" data-link class="profile-dropdown-link subscription-dropdown-link">${icon("sparkles", 18)}<span>${t("แพ็กเกจสมาชิก")}</span><small class="profile-dropdown-state">${planStatus}</small></a>`,
+      );
     accountMenu.insertAdjacentHTML(
       "beforeend",
       `<label class="profile-dropdown-locale">${t("ภาษา")}<select id="locale-select" aria-label="${t("ภาษา")}"><option value="th" ${locale === "th" ? "selected" : ""}>ไทย</option><option value="en" ${locale === "en" ? "selected" : ""}>English</option></select></label>`,
     );
+  }
 }
 const formCosts = (d) => ({
   product: parseBaht(d.get("product")),
@@ -3242,8 +3295,19 @@ function renderListingImages() {
 }
 function initializeListingEditor() {
   const form = document.querySelector("#product-form");
+  if (!form) return;
+  const deliveryOptions = form.querySelector(".listing-radio-group");
+  if (!form.querySelector('[name="deliveryFee"]'))
+    deliveryOptions?.insertAdjacentHTML(
+      "afterend",
+      `<div class="listing-shipping-fee" id="listing-shipping-fee" hidden><label>${t("ค่าส่งสินค้า (บาท)")}<input name="deliveryFee" type="number" inputmode="decimal" min="0" step="0.01" value="0.00"/><small class="listing-input-hint">${t("คิดค่าส่งหนึ่งครั้งต่อคำสั่งซื้อ")}</small></label></div>`,
+    );
   const match = location.pathname.match(/^\/seller\/products\/([^/]+)\/edit$/);
-  if (!form || !match || form.dataset.initialized) return;
+  if (!match) {
+    updateListingDeliveryUI(form);
+    return;
+  }
+  if (form.dataset.initialized) return;
   const product = listing(decodeURIComponent(match[1]));
   if (!product || product.sellerId !== state.user?.id) return;
   form.dataset.initialized = "true";
@@ -3254,6 +3318,7 @@ function initializeListingEditor() {
     category: product.category,
     description: product.description,
     price: bahtInput(product.price),
+    deliveryFee: bahtInput(product.deliveryFee || 0),
     condition: product.condition,
     quantity: product.quantity || 1,
     area: product.area || "",
@@ -3498,8 +3563,13 @@ function updateListingDeliveryUI(form) {
     wrap = form.querySelector("#listing-area-wrap"),
     area = form.querySelector('[name="area"]');
   const pickup = delivery !== "จัดส่ง";
+  const shippingFee = delivery !== "นัดรับ";
   wrap.hidden = !pickup;
   area.required = pickup;
+  const feeWrap = form.querySelector("#listing-shipping-fee");
+  const feeInput = form.querySelector('[name="deliveryFee"]');
+  if (feeWrap) feeWrap.hidden = !shippingFee;
+  if (feeInput) feeInput.required = shippingFee;
   updateListingPreview();
 }
 function updateListingPreview() {
@@ -3530,6 +3600,11 @@ document.addEventListener("change", async (e) => {
     isGroup = input.id === "group-images",
     isAvatar = input.id === "profile-avatar",
     isListing = input.id === "listing-images";
+  const checkoutForm = input.closest("#secondhand-checkout-form");
+  if (checkoutForm) {
+    updateSecondhandCheckoutSummary(checkoutForm);
+    void refreshSecondhandCheckoutQr(checkoutForm);
+  }
   if (!isGroup && !isAvatar && !isListing) {
     if (input.name === "delivery" && input.closest("#product-form"))
       updateListingDeliveryUI(input.closest("form"));
@@ -4540,7 +4615,9 @@ document.addEventListener("submit", async (e) => {
         throw new Error(t("จำนวนสินค้าไม่ถูกต้อง"));
       if (!["นัดรับ", "จัดส่ง"].includes(delivery))
         throw new Error(t("กรุณาเลือกวิธีรับสินค้า"));
-      const amountSatang = Number(product.price) * quantity;
+      const shippingFee =
+        delivery === "จัดส่ง" ? Number(product.deliveryFee) || 0 : 0;
+      const amountSatang = Number(product.price) * quantity + shippingFee;
       if (!Number.isSafeInteger(amountSatang) || amountSatang < 0)
         throw new Error(t("ยอดสั่งซื้อไม่ถูกต้อง"));
       const createdAt = Date.now(),
@@ -4567,6 +4644,7 @@ document.addEventListener("submit", async (e) => {
           title: product.title,
           unitPrice: product.price,
           quantity,
+          shippingFee,
           total: amountSatang,
           delivery,
           status: "pending_payment",
@@ -4587,6 +4665,7 @@ document.addEventListener("submit", async (e) => {
           description: product.description || "",
           unitPrice: Number(product.price),
           quantity,
+          shippingFee,
           total: amountSatang,
           delivery,
           expiresAt,
@@ -5179,6 +5258,8 @@ document.addEventListener("submit", async (e) => {
         condition: d.get("condition"),
         quantity,
         delivery,
+        deliveryFee:
+          delivery !== "นัดรับ" ? parseBaht(d.get("deliveryFee") || "0") : 0,
         area,
         marketAddress,
         marketCoordinates: coordinates,
@@ -5243,13 +5324,7 @@ document.addEventListener("submit", async (e) => {
 document.addEventListener("input", (e) => {
   if (e.target.closest("#secondhand-checkout-form")) {
     const form = e.target.closest("#secondhand-checkout-form");
-    const quantity = Math.max(
-      1,
-      Number(form.querySelector('[name="quantity"]').value) || 1,
-    );
-    const total = Number(form.dataset.price) * quantity;
-    const amount = form.querySelector("#secondhand-checkout-total");
-    if (amount) amount.textContent = money(total);
+    updateSecondhandCheckoutSummary(form);
     void refreshSecondhandCheckoutQr(form);
   }
   if (

@@ -1484,6 +1484,12 @@ Object.assign(labels, {
     "Boost is not enabled yet. Apply the latest secondhand marketplace migration in Supabase.",
   "ลบประกาศไม่สำเร็จ ตรวจสอบสิทธิ์ผู้ขายแล้วลองอีกครั้ง":
     "Could not delete this listing. Check seller permissions and try again.",
+  "ค่าส่งสินค้า (บาท)": "Shipping fee (THB)",
+  คิดค่าส่งหนึ่งครั้งต่อคำสั่งซื้อ: "Shipping is charged once per order.",
+  "รับสินค้าเอง · ไม่มีค่าส่ง": "Pickup · No shipping fee",
+  "จัดส่ง · ค่าส่ง {amount}": "Shipping · {amount}",
+  ค่าสินค้า: "Items",
+  ค่าจัดส่ง: "Shipping fee",
 });
 
 export const messages = {

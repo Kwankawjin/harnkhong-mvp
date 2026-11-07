@@ -1,22 +1,22 @@
 import { supabase } from "./supabase.js";
 
 const BUCKET = "secondhand-listings";
-const LISTING_FIELDS =
+const LISTING_BASE_FIELDS =
   "id,owner_id,seller_name,title,category,item_condition,delivery,area,market_address,market_latitude,market_longitude,contact,images,price_satang,description,quantity";
+const LISTING_CURRENT_FIELDS = `${LISTING_BASE_FIELDS},delivery_fee_satang`;
+const LISTING_FIELDS = `${LISTING_BASE_FIELDS},delivery_fee_satang,boosted_until`;
 
 function isMissingBoostColumn(error) {
   return (
     ["42703", "PGRST204"].includes(error?.code) ||
-    String(error?.message || "")
-      .toLowerCase()
-      .includes("boosted_until")
+    /boosted_until|delivery_fee_satang/i.test(String(error?.message || ""))
   );
 }
 
 async function queryListing(buildQuery) {
-  let result = await buildQuery(`${LISTING_FIELDS},boosted_until`);
+  let result = await buildQuery(LISTING_FIELDS);
   if (isMissingBoostColumn(result.error))
-    result = await buildQuery(LISTING_FIELDS);
+    result = await buildQuery(LISTING_BASE_FIELDS);
   return result;
 }
 
@@ -43,6 +43,7 @@ function mapListing(row) {
     contact: row.contact,
     images: row.images || [],
     price: Number(row.price_satang),
+    deliveryFee: Number(row.delivery_fee_satang) || 0,
     art: "custom",
     mark: "มือ2",
     description: row.description,
@@ -120,11 +121,12 @@ export async function createSupabaseSecondhandListing(listing, user) {
       price_satang: listing.price,
       description: listing.description,
       quantity: listing.quantity || 1,
+      delivery_fee_satang: listing.deliveryFee || 0,
     };
     const { data, error } = await supabase
       .from("secondhand_listings")
       .insert(row)
-      .select(LISTING_FIELDS)
+      .select(LISTING_CURRENT_FIELDS)
       .single();
     if (error) throw error;
     return mapListing(data);
@@ -177,13 +179,14 @@ export async function updateSupabaseSecondhandListing(id, listing, user) {
       price_satang: listing.price,
       description: listing.description,
       quantity: listing.quantity || 1,
+      delivery_fee_satang: listing.deliveryFee || 0,
     };
     const { data, error } = await supabase
       .from("secondhand_listings")
       .update(row)
       .eq("id", id)
       .eq("owner_id", user.id)
-      .select(LISTING_FIELDS)
+      .select(LISTING_CURRENT_FIELDS)
       .single();
     if (error) throw error;
     const removedPaths = [...existing]
