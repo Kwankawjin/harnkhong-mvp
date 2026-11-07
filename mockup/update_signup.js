@@ -1,9 +1,9 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
 // 1. Update index.html
-const indexPath = path.join(__dirname, 'index.html');
-let html = fs.readFileSync(indexPath, 'utf8');
+const indexPath = path.join(__dirname, "index.html");
+let html = fs.readFileSync(indexPath, "utf8");
 
 const confirmFieldHtml = `
             <div class="input-group password-group">
@@ -16,28 +16,30 @@ const confirmFieldHtml = `
 
 // Insert after the password group in screen-2 if not already there
 if (!html.includes('id="signup-confirm-password"')) {
-  const passwordGroupRegex = /(<input[^>]*id="signup-password"[^>]*>[\s\S]*?<\/div>)/;
+  const passwordGroupRegex =
+    /(<input[^>]*id="signup-password"[^>]*>[\s\S]*?<\/div>)/;
   html = html.replace(passwordGroupRegex, `$1\n${confirmFieldHtml}`);
-  fs.writeFileSync(indexPath, html, 'utf8');
-  console.log('index.html updated successfully with signup-confirm-password');
+  fs.writeFileSync(indexPath, html, "utf8");
+  console.log("index.html updated successfully with signup-confirm-password");
 } else {
-  console.log('signup-confirm-password already present in index.html');
+  console.log("signup-confirm-password already present in index.html");
 }
 
 // 2. Update app.js
-const appPath = path.join(__dirname, 'app.js');
-let appJs = fs.readFileSync(appPath, 'utf8');
+const appPath = path.join(__dirname, "app.js");
+let appJs = fs.readFileSync(appPath, "utf8");
 
 // Update demoData.signup
 if (!appJs.includes("confirmPassword: 'SecretPassword999!'")) {
   appJs = appJs.replace(
     "password: 'SecretPassword999!'",
-    "password: 'SecretPassword999!',\n    confirmPassword: 'SecretPassword999!'"
+    "password: 'SecretPassword999!',\n    confirmPassword: 'SecretPassword999!'",
   );
 }
 
 // Update handleSignupSubmit with password confirmation check
-const oldSignupHandler = /function handleSignupSubmit\(event\) \{[\s\S]*?showToast\(`ลงทะเบียนสำเร็จ ยินดีต้อนรับคุณ \$\{name\}!`\);/;
+const oldSignupHandler =
+  /function handleSignupSubmit\(event\) \{[\s\S]*?showToast\(`ลงทะเบียนสำเร็จ ยินดีต้อนรับคุณ \$\{name\}!`\);/;
 const newSignupHandler = `function handleSignupSubmit(event) {
   event.preventDefault();
   const name = document.getElementById('signup-name').value;
@@ -60,10 +62,12 @@ const newSignupHandler = `function handleSignupSubmit(event) {
 appJs = appJs.replace(oldSignupHandler, newSignupHandler);
 
 // Update fillDemoData
-if (!appJs.includes("document.getElementById('signup-confirm-password').value")) {
+if (
+  !appJs.includes("document.getElementById('signup-confirm-password').value")
+) {
   appJs = appJs.replace(
     "document.getElementById('signup-password').value = demoData.signup.password;",
-    "document.getElementById('signup-password').value = demoData.signup.password;\n  document.getElementById('signup-confirm-password').value = demoData.signup.confirmPassword;"
+    "document.getElementById('signup-password').value = demoData.signup.password;\n  document.getElementById('signup-confirm-password').value = demoData.signup.confirmPassword;",
   );
 }
 
@@ -72,5 +76,5 @@ if (!appJs.includes("document.getElementById('form-signup').reset();")) {
   // Already resets the form
 }
 
-fs.writeFileSync(appPath, appJs, 'utf8');
-console.log('app.js updated successfully with password confirmation logic');
+fs.writeFileSync(appPath, appJs, "utf8");
+console.log("app.js updated successfully with password confirmation logic");

@@ -1,4 +1,4 @@
-export function createAuthSessionSync({loadUser, applyUser, onError}) {
+export function createAuthSessionSync({ loadUser, applyUser, onError }) {
   let generation = 0;
 
   return {
