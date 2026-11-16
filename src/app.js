@@ -2166,12 +2166,7 @@ function startSecondhandChatSync(conversationId) {
     4000,
   );
 }
-function chatList() {
-  if (!requireAuth("/chat"))
-    return authRequiredView(
-      t("แชตกับผู้ขาย"),
-      t("เข้าสู่ระบบเพื่อดูประวัติการสนทนาและติดต่อร้านค้า"),
-    );
+function chatWorkspaceSidebar(selectedHref = "") {
   const userId = state.user.id;
   if (
     supabaseConfigured &&
@@ -2194,79 +2189,87 @@ function chatList() {
       .finally(() => {
         if (secondhandConversationListLoadingFor === userId)
           secondhandConversationListLoadingFor = null;
-        if (location.pathname === "/chat" && state.user?.id === userId)
+        if (state.user?.id === userId && (location.pathname === "/chat" || location.pathname.startsWith("/chat/") || /^\/groups\/[^/]+\/chat$/.test(location.pathname)))
           render();
       });
   }
-  const ids = Object.keys(state.conversations);
-  const myGs = state.groups.filter((g) => g.members.includes(state.user.id));
+  const myGroups = state.groups.filter((g) => g.members.includes(userId));
+  const isSelected = (href) =>
+    selectedHref === href ||
+    (!href.includes("?") && selectedHref.split("?")[0] === href);
   const marketplaceThreads = secondhandConversationRows
     .filter(
       (conversation) =>
-        conversation.buyer_id === state.user.id ||
-        conversation.seller_id === state.user.id,
+        conversation.buyer_id === userId || conversation.seller_id === userId,
     )
     .map((conversation) => {
       const peerId =
-        conversation.buyer_id === state.user.id
+        conversation.buyer_id === userId
           ? conversation.seller_id
           : conversation.buyer_id;
       const product = listing(conversation.listing_id);
       const peerName =
-        conversation.seller_id === state.user.id
+        conversation.seller_id === userId
           ? state.profiles?.[peerId]?.name || t("ผู้ซื้อ")
           : product?.sellerName || seller(peerId).name || t("ผู้ขาย");
       const href = `/chat/${encodeURIComponent(peerId)}?product=${encodeURIComponent(conversation.listing_id)}&conversation=${encodeURIComponent(conversation.id)}`;
       return a(
         href,
-        `<span class="avatar">${escape(peerName.slice(0, 1))}</span><span><b>${escape(product?.title || t("ประกาศขาย"))}</b><small>${escape(peerName)} · ${t("แชทสินค้า")}</small></span>${icon("arrow", 18)}`,
-        "conversation-row",
+        `<span class="avatar">${escape(peerName.slice(0, 1))}</span><span><b>${escape(product?.title || t("ประกาศขาย"))}</b><small>${escape(peerName)} · ${t("แชทสินค้า")}</small></span>`,
+        `chat-entry${isSelected(href) ? " active" : ""}`,
       );
     })
     .join("");
-  return `${title(t("แชต"), t("ข้อความทั้งหมดเป็นการจำลองในเบราว์เซอร์นี้"))}
-  <div class="narrow">
-    <div class="chat-section-header">
-      <h2>${t("แชทกลุ่มของฉัน")}</h2>
-    </div>
-    ${
-      myGs.length
-        ? myGs
-            .map((g) => {
-              const msgs = getGroupMessages(g.id);
-              const lastMsg = msgs.at(-1);
-              return a(
-                `/groups/${g.id}/chat`,
-                `<span class="avatar">${escape(g.name.slice(0, 1))}</span><span><b>${escape(g.name)}</b><small>${escape(lastMsg?.text || lastMsg?.body || t("เริ่มคุยกับสมาชิกในกลุ่มได้ที่นี่"))}</small></span>${icon("arrow", 18)}`,
-                "conversation-row",
-              );
-            })
-            .join("")
-        : `<div class="empty" style="padding:16px 0;"><h2>${t("ยังไม่มีกลุ่มที่เข้าร่วม")}</h2><p>${t("ลองสำรวจสินค้าที่อยากหารก่อน")}</p>${a("/explore", t("ไปสำรวจ"), "button outline")}</div>`
-    }
+  const groupThreads = myGroups
+    .map((g) => {
+      const msgs = supabaseConfigured
+        ? groupMessageCache.get(g.id) || []
+        : getGroupMessages(g.id);
+      const lastMsg = msgs.at(-1);
+      const href = `/groups/${g.id}/chat`;
+      return a(
+        href,
+        `<span class="avatar">${escape(g.name.slice(0, 1))}</span><span><b>${escape(g.name)}</b><small>${escape(lastMsg?.text || lastMsg?.body || t("เริ่มคุยกับสมาชิกในกลุ่มได้ที่นี่"))}</small></span>`,
+        `chat-entry${isSelected(href) ? " active" : ""}`,
+      );
+    })
+    .join("");
+  const sellerThreads = Object.keys(state.conversations)
+    .map((id) => {
+      const contact = seller(id);
+      const messages = state.conversations[id];
+      const href = `/chat/${id}`;
+      return a(
+        href,
+        `<span class="avatar">${escape(contact.initials)}</span><span><b>${escape(contact.name)}</b><small>${escape(messages.at(-1)?.body || t("เริ่มต้นสนทนา"))}</small></span>`,
+        `chat-entry${isSelected(href) ? " active" : ""}`,
+      );
+    })
+    .join("");
 
-    <div class="chat-section-header" style="margin-top:24px;">
-      <h2>${t("แชตกับผู้ขาย")}</h2>
+  return `<aside class="chat-sidebar" aria-label="${t("รายการแชต")}">
+    <div class="chat-sidebar-head"><h1>${t("แชต")}</h1><span>${icon("chat", 21)}</span></div>
+    <label class="chat-search">${icon("search", 18)}<input type="search" data-chat-search placeholder="${t("ค้นหาแชต")}" aria-label="${t("ค้นหาแชต")}" autocomplete="off"/></label>
+    <div class="chat-list-scroll">
+      ${groupThreads ? `<h2 class="chat-list-label">${t("แชทกลุ่มของฉัน")}</h2>${groupThreads}` : ""}
+      ${marketplaceThreads ? `<h2 class="chat-list-label">${t("แชทสินค้า")}</h2>${marketplaceThreads}` : ""}
+      ${sellerThreads ? `<h2 class="chat-list-label">${t("แชตกับผู้ขาย")}</h2>${sellerThreads}` : ""}
+      ${!groupThreads && !marketplaceThreads && !sellerThreads ? `<div class="chat-list-empty"><span>${icon("chat", 24)}</span><strong>${t("ยังไม่มีการสนทนา")}</strong><small>${t("เริ่มแชตจากกลุ่มหรือหน้าสินค้าที่สนใจ")}</small></div>` : ""}
+      <p class="chat-search-empty" hidden>${t("ไม่พบแชตที่ค้นหา")}</p>
     </div>
-    ${marketplaceThreads ? `<div class="chat-section-header"><h2>${t("แชทตลาดมือสอง")}</h2></div>${marketplaceThreads}` : ""}
-    ${
-      ids.length
-        ? ids
-            .map((id) => {
-              const s = seller(id),
-                msgs = state.conversations[id];
-              return a(
-                `/chat/${id}`,
-                `<span class="avatar">${escape(s.initials)}</span><span><b>${escape(s.name)}</b><small>${escape(msgs.at(-1)?.body || t("เริ่มต้นสนทนา"))}</small></span>${icon("arrow", 18)}`,
-                "conversation-row",
-              );
-            })
-            .join("")
-        : !marketplaceThreads
-          ? `<div class="empty"><h2>${t("ยังไม่มีการสนทนา")}</h2><p>${t("เปิดสินค้าที่สนใจแล้วเลือกติดต่อผู้ขาย")}</p>${a("/explore", t("ดูสินค้า"), "button primary")}</div>`
-          : ""
-    }
-  </div>`;
+  </aside>`;
+}
+
+function chatList() {
+  if (!requireAuth("/chat"))
+    return authRequiredView(
+      t("แชตกับผู้ขาย"),
+      t("เข้าสู่ระบบเพื่อดูประวัติการสนทนาและติดต่อร้านค้า"),
+    );
+  return `<section class="chat-workspace" aria-label="${t("แชต")}">
+    ${chatWorkspaceSidebar()}
+    <div class="chat-workspace-pane chat-workspace-empty"><span>${icon("chat", 34)}</span><h2>${t("เลือกแชตที่ต้องการ")}</h2><p>${t("เลือกกลุ่มหรือผู้ติดต่อจากรายการด้านซ้ายเพื่อดูข้อความ")}</p></div>
+  </section>`;
 }
 function groupChatPage(id) {
   const g = group(id);
@@ -2280,7 +2283,11 @@ function groupChatPage(id) {
     ? groupMessageCache.get(id) || []
     : getGroupMessages(id);
   const destination = `/groups/${id}`;
-  return `<div class="chat-shell group-chat-shell">
+  return `<section class="chat-workspace" data-active="true" aria-label="${t("แชต")}">
+  ${chatWorkspaceSidebar(`/groups/${id}/chat`)}
+  <div class="chat-workspace-pane chat-workspace-active">
+  <a href="/chat" class="chat-mobile-back">${icon("back", 17)} ${t("รายการแชต")}</a>
+  <div class="chat-shell group-chat-shell">
     <div class="chat-head group-chat-head">
       ${a(destination, icon("back", 20), "back-link")}
       <div class="group-chat-meta">
@@ -2326,7 +2333,7 @@ function groupChatPage(id) {
     </form>`
         : ""
     }
-  </div>`;
+  </div></div></section>`;
 }
 function chatPage(id) {
   if (!requireAuth(location.pathname + location.search))
@@ -2353,7 +2360,14 @@ function chatPage(id) {
       ? secondhandChatMessages.get(secondhandChatCacheKey(conversationId)) || []
       : state.conversations[threadKey] || []
     : state.conversations[id] || [];
-  return `<div class="chat-shell"><div class="chat-head">${a("/chat", icon("back", 20))}<span class="avatar">${escape(peerInitial)}</span><div><h1>${escape(peerName)}</h1><small>${marketplaceChat ? t("แชทตลาดมือสอง") : t("แชตจำลอง · ไม่ส่งถึงผู้ขายจริง")}</small></div></div>${product ? `<div class="chat-product">${t(marketplaceChat ? "กำลังคุยเรื่องสินค้า" : "กำลังสอบถามเรื่อง")} ${a(`/products/${productId}`, escape(product.title || t("สินค้า")))}</div>` : ""}<div class="messages">${msgs.length ? msgs.map((m) => `<div class="bubble ${m.from === "me" ? "mine" : "theirs"}">${escape(m.body)}</div>`).join("") : `<div class="chat-empty">${t("เริ่มคุยเรื่องสินค้า เงื่อนไขรับของ หรือค่าส่งได้ที่นี่")}</div>`}</div><form id="chat-form" data-id="${marketplaceChat ? threadKey : id}" ${marketplaceChat ? `data-marketplace="true" data-conversation="${escape(conversationId || "")}" data-product="${escape(productId)}" data-peer="${escape(id)}"` : ""} class="chat-input"><input name="body" maxlength="500" required placeholder="${t(marketplaceChat ? "พิมพ์ข้อความ" : "พิมพ์ข้อความเดโม...")}" aria-label="${t("ข้อความ")}"/><button class="button primary" type="submit">${t("ส่ง")}</button></form></div>`;
+  const selectedHref = location.pathname + location.search;
+  return `<section class="chat-workspace" data-active="true" aria-label="${t("แชต")}">
+    ${chatWorkspaceSidebar(selectedHref)}
+    <div class="chat-workspace-pane chat-workspace-active">
+      <a href="/chat" class="chat-mobile-back">${icon("back", 17)} ${t("รายการแชต")}</a>
+      <div class="chat-shell"><div class="chat-head"><span class="avatar">${escape(peerInitial)}</span><div><h1>${escape(peerName)}</h1><small>${marketplaceChat ? t("แชทสินค้า") : t("แชตจำลอง · ไม่ส่งถึงผู้ขายจริง")}</small></div></div>${product ? `<div class="chat-product">${t(marketplaceChat ? "กำลังคุยเรื่องสินค้า" : "กำลังสอบถามเรื่อง")} ${a(`/products/${productId}`, escape(product.title || t("สินค้า")))}</div>` : ""}<div class="messages">${msgs.length ? msgs.map((m) => `<div class="bubble ${m.from === "me" ? "mine" : "theirs"}">${escape(m.body)}</div>`).join("") : `<div class="chat-empty">${t("เริ่มคุยเรื่องสินค้า เงื่อนไขรับของ หรือค่าส่งได้ที่นี่")}</div>`}</div><form id="chat-form" data-id="${marketplaceChat ? threadKey : id}" ${marketplaceChat ? `data-marketplace="true" data-conversation="${escape(conversationId || "")}" data-product="${escape(productId)}" data-peer="${escape(id)}"` : ""} class="chat-input"><input name="body" maxlength="500" required placeholder="${t(marketplaceChat ? "พิมพ์ข้อความ" : "พิมพ์ข้อความเดโม...")}" aria-label="${t("ข้อความ")}"/><button class="button primary" type="submit">${t("ส่ง")}</button></form></div>
+    </div>
+  </section>`;
 }
 function notifications() {
   if (!requireAuth("/notifications"))
@@ -4836,6 +4850,19 @@ document.addEventListener("submit", async (e) => {
   }
 });
 document.addEventListener("input", (e) => {
+  if (e.target?.matches?.("[data-chat-search]")) {
+    const query = e.target.value.trim().toLocaleLowerCase();
+    const list = e.target.closest(".chat-sidebar")?.querySelector(".chat-list-scroll");
+    const entries = [...(list?.querySelectorAll(".chat-entry") || [])];
+    let visibleCount = 0;
+    entries.forEach((entry) => {
+      const matches = !query || entry.textContent.toLocaleLowerCase().includes(query);
+      entry.hidden = !matches;
+      if (matches) visibleCount += 1;
+    });
+    const empty = list?.querySelector(".chat-search-empty");
+    if (empty) empty.hidden = !query || visibleCount > 0;
+  }
   if (
     e.target &&
     e.target.classList &&
