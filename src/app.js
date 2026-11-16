@@ -3365,7 +3365,7 @@ function updatePreview() {
       costs = costBreakdown(formCosts(d), count),
       moneyOrZero = (value) => money(Number.isFinite(value) ? value : 0);
     box.innerHTML = `<small>${t("ประมาณเมื่อสมาชิกครบ {count} คน", { count })}</small><strong>${moneyOrZero(Math.ceil(costs.total / count))} ${t("/ คน")}</strong><p>${t("รวมค่าส่งและค่าธรรมเนียมแพลตฟอร์ม 2% แล้ว")}</p>`;
-    const put = (selector, value) => { const el = f.querySelector(selector); if (el) el.textContent = value; };
+    const put = (selector, value) => { const el = document.querySelector(selector); if (el) el.textContent = value; };
     put("#summary-product-title", d.get("productTitle") || t("ชื่อสินค้า"));
     put("#summary-product-category", selectedCreateCategories.map((x) => t(x)).join(" · ") || t("หมวดหมู่สินค้า"));
     put("#summary-product-price", moneyOrZero(costs.product));
@@ -3377,7 +3377,7 @@ function updatePreview() {
     const deliveryLabels = { ship_to_owner: "จัดส่งรวม", ship_separately: "จัดส่งแยก", pickup: "นัดรับ" };
     put("#summary-delivery", f.dataset.productType === "digital" ? t("ส่งมอบสิทธิ์ดิจิทัล") : t(deliveryLabels[d.get("deliveryMethod")] || "จัดส่งรวม"));
     put("#summary-visibility", t(({ public: "สาธารณะ", link: "เฉพาะผู้มีลิงก์", private: "ส่วนตัว" })[d.get("visibilityMode")] || "สาธารณะ"));
-    const image = f.querySelector("#create-summary-image");
+    const image = document.querySelector("#create-summary-image");
     if (image) image.innerHTML = groupImages[0] ? `<img src="${groupImages[0]}" alt=""/>` : icon("package", 32);
     const review = f.querySelector("#create-review-summary");
     if (review) review.innerHTML = `<strong>${escape(d.get("productTitle") || t("ชื่อสินค้า"))}</strong><p>${escape(d.get("name") || "—")} · ${escape(t(deliveryLabels[d.get("deliveryMethod")] || "จัดส่งรวม"))}</p><b>${moneyOrZero(Math.ceil(costs.total / count))} / ${t("คน")}</b>`;
@@ -4844,7 +4844,8 @@ document.addEventListener("input", (e) => {
   }
 });
 document.addEventListener("submit", async (e) => {
-  const f = e.target;
+  const f = e.target,
+    actionSession = activeSupabaseSession;
   if (
     ["mockup-login-form", "mockup-signup-form", "mockup-address-form"].includes(
       f.id,
