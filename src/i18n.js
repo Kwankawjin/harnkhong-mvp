@@ -794,6 +794,8 @@ const labels = {
   "เพิ่มรูปได้สูงสุด 6 รูป รูปแรกจะเป็นภาพหน้าปก":
     "Add up to 6 photos. The first photo is the cover.",
   เพิ่มรูปสินค้า: "Add item photos",
+  "JPG, PNG หรือ WebP ไม่เกิน 5 MB ต่อรูป · ระบบจะย่อขนาดให้อัตโนมัติ":
+    "JPG, PNG or WebP up to 5 MB each · images are resized automatically",
   "JPG, PNG หรือ WebP · ไม่เกิน 5 MB ต่อรูป":
     "JPG, PNG, or WebP · up to 5 MB each",
   ภาพหน้าปก: "Cover photo",
@@ -839,6 +841,8 @@ const labels = {
   ข้อมูลสินค้า: "Item information",
   "ฐานข้อมูลแชทหรือคำสั่งซื้อมือสองยังไม่พร้อม กรุณารัน migration ล่าสุดของ Supabase":
     "Secondhand chat or order storage is not ready yet. Run the latest Supabase migrations.",
+  "ฐานข้อมูลยังไม่รองรับข้อมูลกลุ่มใหม่ กรุณาติดตั้ง migration ล่าสุดแล้วโหลดหน้านี้ใหม่":
+    "The database is missing group fields. Apply the latest migration and reload this page.",
   ค้นหาสินค้าในตลาดมือสอง: "Search the second hand market",
   "ค้นหาชื่อสินค้า หมวดหมู่ หรือรายละเอียด":
     "Search item names, categories, or descriptions",

@@ -1757,7 +1757,7 @@ function createPage() {
     <nav class="create-stepper" aria-label="${t("ขั้นตอนการสร้างกลุ่ม")}">${[[1,"ข้อมูลสินค้า"],[2,"ตั้งค่ากลุ่ม"],[3,"สรุปกลุ่ม"]].map(([step,label])=>`<button type="button" data-action="create-step" data-step="${step}" aria-current="${createGroupStep===step?"step":"false"}" class="${createGroupStep===step?"active":""}"><span>${step}</span>${t(label)}</button>`).join("")}</nav>
     <section class="create-step-panel" data-create-step-panel="1" ${createGroupStep===1?"":"hidden"}>
       <div class="create-form-section"><h2>${icon("package",20)} ${t("ข้อมูลสินค้า")}</h2><fieldset class="product-type-picker"><legend>${t("ประเภทสินค้า")} <b>*</b></legend><label><input type="radio" name="productType" value="physical" checked/><span>${icon("package",20)}<strong>${t("สินค้าทั่วไป")}</strong><small>${t("มีการจัดส่ง")}</small></span></label><label><input type="radio" name="productType" value="digital"/><span>${icon("lock",20)}<strong>${t("สินค้าดิจิทัล")}</strong><small>${t("แอป / Subscription")}</small></span></label></fieldset>
-      <div class="image-editor"><h3>${t("รูปสินค้า")} <small>${t("ไม่บังคับ · สูงสุด 4 รูป")}</small></h3><label class="image-upload">${icon("plus",20)} ${t("เพิ่มรูป")}<input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></div>
+      <div class="image-editor"><h3>${t("รูปสินค้า")} <small>${t("ไม่บังคับ · สูงสุด 4 รูป")}</small></h3><p class="field-help">${t("JPG, PNG หรือ WebP ไม่เกิน 5 MB ต่อรูป · ระบบจะย่อขนาดให้อัตโนมัติ")}</p><label class="image-upload">${icon("plus",20)} ${t("เพิ่มรูป")}<input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></div>
       <label>${t("ชื่อสินค้า")} <b>*</b><input name="productTitle" maxlength="100" required value="${escape(selectedListing?.title || "")}" placeholder="${t("เช่น คีย์บอร์ดสำหรับทำงาน")}"/></label>
       <label>${t("ลิงก์สินค้า")} <small>${t("ไม่บังคับ")}</small><input name="productUrl" type="url" maxlength="500" placeholder="https://"/></label>
       <label>${t("รายละเอียดสินค้า")} <small>${t("ไม่บังคับ")}</small><textarea name="productDescription" maxlength="1000" placeholder="${t("รายละเอียดหรือเงื่อนไขที่สมาชิกควรรู้")}">${escape(selectedListing?.description || "")}</textarea></label>
@@ -5582,6 +5582,8 @@ document.addEventListener("input", (e) => {
 function authErrorMessage(error) {
   const code = error?.code || "";
   const message = String(error?.message || "").toLowerCase();
+  if (code === "PGRST204" || code === "42703" || message.includes("column groups.details") || message.includes("column products.details"))
+    return t("ฐานข้อมูลยังไม่รองรับข้อมูลกลุ่มใหม่ กรุณาติดตั้ง migration ล่าสุดแล้วโหลดหน้านี้ใหม่");
   if (error?.code === "secondhandListingDeleteNotAllowed")
     return t("ลบประกาศไม่สำเร็จ ตรวจสอบสิทธิ์ผู้ขายแล้วลองอีกครั้ง");
   if (message.includes("boosted_until"))
@@ -5769,6 +5771,7 @@ if (supabaseConfigured) {
       return result.snapshot;
     },
     onError: (error) => {
+      console.error("Unable to load Supabase groups", error);
       state = { ...state, user: null, groups: [], profiles: {} };
       groupsLoading = false;
       groupsError = error;

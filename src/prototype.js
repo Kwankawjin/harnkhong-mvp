@@ -63,20 +63,23 @@ export async function readLocalImage(file) {
         );
       image.src = url;
     });
-    const scale = Math.min(
-      1,
-      1000 / Math.max(image.naturalWidth, image.naturalHeight),
-    );
     const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
     const ctx = canvas.getContext("2d");
+    if (!ctx) fail("prototypeInvalidImage");
     ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const result = canvas.toDataURL("image/jpeg", 0.78);
-    if (!isLocalImage(result)) fail("prototypeImageTooLarge");
-    return result;
+    const maxDimension = Math.max(image.naturalWidth, image.naturalHeight);
+    for (const maxSize of [1000, 850, 700, 560, 440]) {
+      const scale = Math.min(1, maxSize / maxDimension);
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      for (const quality of [0.78, 0.66, 0.54, 0.42]) {
+        const result = canvas.toDataURL("image/jpeg", quality);
+        if (isLocalImage(result)) return result;
+      }
+    }
+    fail("prototypeImageTooLarge");
   } finally {
     URL.revokeObjectURL(url);
   }
