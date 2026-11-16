@@ -3299,12 +3299,18 @@ function updateCreateFormUI() {
   if (digitalFields) digitalFields.hidden = !digital;
   if (deliverySection) deliverySection.hidden = digital;
   if (handoffSection) handoffSection.hidden = !digital;
-  form.querySelector("#shipping-total-wrap").hidden = digital;
-  form.querySelector("#summary-shipping-row").hidden = digital;
-  form.querySelector("#pickup-location-wrap").hidden = digital || !pickup;
-  for (const name of ["digitalPlatform", "digitalService", "usageDuration"])
-    form.querySelector(`[name="${name}"]`).required = digital;
-  form.querySelector('[name="pickupLocation"]').required = !digital && pickup;
+  const shippingTotalWrap = form.querySelector("#shipping-total-wrap");
+  if (shippingTotalWrap) shippingTotalWrap.hidden = digital;
+  const summaryShippingRow = document.querySelector("#summary-shipping-row");
+  if (summaryShippingRow) summaryShippingRow.hidden = digital;
+  const pickupLocationWrap = form.querySelector("#pickup-location-wrap");
+  if (pickupLocationWrap) pickupLocationWrap.hidden = digital || !pickup;
+  for (const name of ["digitalPlatform", "digitalService", "usageDuration"]) {
+    const field = form.querySelector(`[name="${name}"]`);
+    if (field) field.required = digital;
+  }
+  const pickupLocation = form.querySelector('[name="pickupLocation"]');
+  if (pickupLocation) pickupLocation.required = !digital && pickup;
   const productType = form.querySelector('[name="productType"]:checked')?.value || "physical";
   form.dataset.productType = productType;
 }
