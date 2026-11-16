@@ -3055,7 +3055,7 @@ function render() {
     ["/profile", "user", t("บัญชี")],
     ["/subscription", "sparkles", t("แพ็กเกจ")],
   ];
-  const desktopNav = nav.slice(0, 3);
+  const desktopNav = nav.slice(0, 4);
   const bottomNav = nav.filter(([href]) => href !== "/subscription");
 
   doodleFooterRoot?.unmount();
