@@ -8213,6 +8213,13 @@ dialog:not([open]),
 .group-msg-col {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: calc(100% - 40px);
+}
+.group-msg-col .bubble {
+  width: fit-content;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 .group-msg-sender {
   font-size: 0.76rem;
@@ -8230,6 +8237,10 @@ dialog:not([open]),
   opacity: 0.75;
   margin-top: 3px;
   text-align: right;
+}
+.group-msg-row.theirs .group-msg-time {
+  margin-left: 6px;
+  text-align: left;
 }
 .chat-empty-icon {
   display: flex;
@@ -12719,6 +12730,110 @@ dialog:not([open]),
 }
 .seller-listing-card > div:last-child > .secondhand-seller-actions {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Home: give the hero a clear reading order and room for its product preview. */
+:root .hero.home-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(340px, 0.95fr);
+  align-items: center;
+  justify-content: stretch;
+  gap: clamp(20px, 4vw, 64px);
+  min-height: clamp(540px, 68vh, 660px);
+  min-height: clamp(540px, 68dvh, 660px);
+  padding: 52px max(36px, calc(50vw - 680px));
+  background-image:
+    radial-gradient(rgba(9, 104, 227, 0.1) 1.2px, transparent 1.2px),
+    radial-gradient(circle at 14% 22%, rgba(16, 185, 129, 0.14), transparent 36%),
+    radial-gradient(circle at 83% 48%, rgba(116, 92, 255, 0.16), transparent 38%),
+    linear-gradient(135deg, #f7fbff 0%, #edf5ff 55%, #e6f1fc 100%);
+}
+:root .home-hero .hero-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: min(100%, 620px);
+  max-width: 620px;
+  margin: 0;
+  text-align: left;
+}
+.home-hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #087a78;
+  font-size: 0.82rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+}
+.home-hero-kicker svg {
+  color: #0a9b88;
+}
+:root .home-hero .hero-visual {
+  display: flex !important;
+  position: relative;
+  inset: auto;
+  transform: none;
+  width: 100%;
+  max-width: none;
+  height: 500px;
+  overflow: visible;
+}
+:root .home-hero .hero-halo {
+  width: min(100%, 410px);
+  height: 410px;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.2), rgba(9, 104, 227, 0.1) 42%, rgba(16, 185, 129, 0.1) 65%, transparent 76%);
+}
+.home-open-groups-grid .opportunity-card {
+  min-height: 470px;
+}
+.home-open-groups-grid .opportunity-media {
+  height: 148px;
+}
+.home-open-groups-grid .opportunity-content {
+  padding: 18px 20px 20px;
+}
+@media (max-width: 959px) {
+  :root .hero.home-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    min-height: 0;
+    padding: 38px 24px 22px;
+  }
+  :root .home-hero .hero-text {
+    align-items: flex-start;
+    width: 100%;
+    max-width: 700px;
+    text-align: left;
+  }
+  :root .home-hero .hero-visual {
+    display: flex !important;
+    height: 390px;
+    margin: 0;
+  }
+  :root .home-hero .hero-phone-showcase {
+    transform: scale(0.76);
+    transform-origin: center top;
+  }
+  .home-open-groups-grid .opportunity-card {
+    min-height: 0;
+  }
+}
+@media (max-width: 600px) {
+  :root .hero.home-hero {
+    gap: 4px;
+    padding: 30px 16px 12px;
+  }
+  .home-hero-kicker {
+    font-size: 0.75rem;
+  }
+  :root .home-hero .hero-visual {
+    height: 330px;
+    margin-top: 72px;
+  }
+  :root .home-hero .hero-phone-showcase {
+    transform: scale(0.65);
+  }
 }
 @media (max-width: 520px) {
   .seller-listing-card {

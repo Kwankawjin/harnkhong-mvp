@@ -1,6 +1,5 @@
 import { supabase } from "./supabase.js";
 import { mapDatabaseGroup } from "./group-mapping.js";
-import { loadSupabaseSecondhandListings } from "./supabase-listings.js";
 
 function mapBundle({ group, members = [], approvals = [], events = [] }) {
   const names = {};
@@ -15,8 +14,7 @@ function mapBundle({ group, members = [], approvals = [], events = [] }) {
 }
 
 export async function loadSupabaseGroups(client = supabase) {
-  const [groupResult, productResult, shopResult, secondhandListings] =
-    await Promise.all([
+  const [groupResult, productResult, shopResult] = await Promise.all([
       // Embed related rows so totals and membership come from one database snapshot.
       client
         .from("groups")
@@ -33,7 +31,6 @@ export async function loadSupabaseGroups(client = supabase) {
         )
         .eq("active", true),
       client.from("shops").select("id,name,intro,initials"),
-      loadSupabaseSecondhandListings(client),
     ]);
   for (const result of [groupResult, productResult, shopResult])
     if (result.error) throw result.error;
@@ -73,7 +70,6 @@ export async function loadSupabaseGroups(client = supabase) {
           terms: row.terms,
         };
       }),
-      ...secondhandListings,
     ],
     sellers: (shopResult.data || []).map((row) => ({
       id: row.id,

@@ -445,6 +445,56 @@ const labels = {
   "ของดี ๆ ให้คุ้มกว่าเดิม!": "great deals for less!",
   "แพ็กเกจ แชร์ความคุ้ม!": "packages together!",
   "ง่าย จ่ายชัด ทุกยอดโปร่งใส!": "with clear totals at every step!",
+  "สินค้าเป็นกลุ่ม": "products as a group",
+  "ค่าสินค้าเป็นรายคน": "the cost by person",
+  "ซื้อของกับเพื่อน": "a purchase with friends",
+  หารของเป็นกลุ่ม: "Group purchases",
+  "หารซื้อของ ใช้จ่ายตามจริง": "Share a purchase and pay your share",
+  "แบ่งค่าใช้จ่ายก่อนซื้อ": "Split the cost before ordering",
+  "ดูยอดของตัวเองก่อนยืนยัน": "Review your total before confirming",
+  "ชวนเพื่อนหารค่าสินค้าหรือแพ็กเกจ ดูส่วนแบ่งและค่าส่งของแต่ละคนก่อนยืนยัน":
+    "Start a group with friends and review each person's share and delivery cost before confirming.",
+  "ทุกคนเห็นยอดก่อนยืนยัน": "Everyone reviews the total before confirming",
+  "หารของกับ HarnKhong": "Share purchases with HarnKhong",
+  "ดูส่วนแบ่งและค่าส่งของแต่ละคนก่อนตัดสินใจ":
+    "Review each person's share and delivery cost before deciding.",
+  "แยกยอดเป็นรายคน": "See each person's share",
+  "ระบบแสดงส่วนแบ่งสินค้าและค่าส่ง พร้อมจัดการเศษสตางค์ให้ยอดรวมตรงกัน":
+    "See each person's share of the item and delivery cost. Satang rounding keeps the total consistent.",
+  "ยืนยันยอดก่อนสั่ง": "Confirm the total before ordering",
+  "เมื่อจำนวนสมาชิกหรือค่าส่งเปลี่ยน ทุกคนต้องยืนยันยอดล่าสุด คำสั่งซื้อในตอนนี้เป็นเดโม":
+    "If membership or delivery costs change, everyone must confirm the new total. Orders are currently demos.",
+  "หารซื้อเป็นกลุ่ม": "Buy together as a group",
+  "ร่วมซื้อสินค้าราคาส่งหรือแพ็กใหญ่ แบ่งจำนวนและค่าใช้จ่ายกันในกลุ่ม":
+    "Buy wholesale items or larger packs together, then split the quantity and cost.",
+  "เริ่มกลุ่มหารของ": "Start a group purchase",
+  "สร้างกลุ่มแล้วชวนเพื่อน หรือเลือกกลุ่มที่ยังเปิดรับสมาชิก":
+    "Create a group and invite friends, or join one that is still open.",
+  "ดูกลุ่มที่เปิดรับ": "Browse open groups",
+  "เปิดกลุ่มและแบ่งค่าใช้จ่ายกัน": "Start a group and split the cost.",
+  "ลงประกาศของที่ไม่ได้ใช้": "List items you no longer use.",
+  "เลือกสินค้า สร้างกลุ่ม แล้วชวนเพื่อนมาหาร":
+    "Choose an item, start a group, and invite friends to split the cost.",
+  "เริ่มได้จากการเลือกสินค้า": "Start by choosing a product.",
+  "สมาชิกครบ ทุกคนยืนยันยอด": "Group full. Everyone confirmed the total.",
+  "ตรวจสอบยอดก่อนสั่งซื้อ": "Review the total before ordering.",
+  "ตัวอย่างยอดหาร": "Example split",
+  "ดูประกาศของมือสองและข้อมูลผู้ขาย":
+    "Browse secondhand listings and seller details.",
+  "เลือกกลุ่มที่เปิดรับ แล้วดูยอดประมาณต่อคน":
+    "Choose an open group and review the estimated cost per person.",
+  "กลุ่มที่เปิดรับสมาชิก": "Groups accepting members",
+  "ตรวจสอบยอดประมาณ จำนวนที่ว่าง และเงื่อนไขของแต่ละกลุ่มก่อนเข้าร่วม":
+    "Review the estimated total, open spots, and group terms before joining.",
+  "ดูประกาศสินค้าและข้อมูลผู้ขาย": "Browse listings and seller details.",
+  แพ็กเกจ: "Plans",
+  เลือกแพ็กเกจ: "Choose a plan",
+  "เริ่มด้วยแพ็กเกจฟรี หรือเลือกแพ็กเกจ Plus":
+    "Start with the free plan or choose Plus.",
+  "สร้างกลุ่มหารค่าสินค้าหรือแพ็กเกจ ดูส่วนแบ่งและค่าส่งของสมาชิกก่อนยืนยันยอด":
+    "Create a group for a product or plan. Review each member's share and delivery cost before confirming.",
+  "สร้างกลุ่มหารของและตรวจสอบยอดก่อนยืนยัน":
+    "Start a group purchase and review the total before confirming.",
   "ของดี ๆ คุ้มกว่าเดิม!": "Better finds for less!",
   "แชร์ความคุ้ม จ่ายน้อยลง!": "Share the savings. Pay less!",
   "ทุกยอดชัดเจน ทุกขั้นตอนโปร่งใส!": "Clear totals at every step!",
