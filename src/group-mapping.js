@@ -5,6 +5,7 @@ const eventReason = {
   member_joined: "มีสมาชิกเข้าร่วม",
   member_left: "มีสมาชิกออกจากกลุ่ม",
   costs_changed: "มีการเปลี่ยนค่าใช้จ่าย",
+  group_details_changed: "มีการแก้ไขข้อมูลกลุ่ม",
   leadership_transferred: "มีการโอนหัวหน้ากลุ่ม",
   share_approved: "ยืนยันยอดแล้ว",
 };

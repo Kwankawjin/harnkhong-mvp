@@ -5193,6 +5193,55 @@ dialog::backdrop {
   background: #061b3199;
   backdrop-filter: blur(6px);
 }
+.edit-group-dialog {
+  width: min(520px, calc(100% - 32px));
+  box-sizing: border-box;
+  padding: 24px;
+  background: var(--surface, #fff);
+}
+.edit-group-dialog form {
+  display: grid;
+  gap: 14px;
+}
+.edit-group-dialog .dialog-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.edit-group-dialog .dialog-heading h2,
+.edit-group-dialog .dialog-heading p {
+  margin: 0 0 6px;
+}
+.edit-group-dialog label {
+  display: grid;
+  gap: 6px;
+  color: var(--navy);
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+.edit-group-dialog input,
+.edit-group-dialog select,
+.edit-group-dialog textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  color: var(--ink);
+  font: inherit;
+}
+.edit-group-dialog textarea {
+  min-height: 82px;
+  resize: vertical;
+}
+.edit-group-dialog .dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
 dialog:not([open]),
 [hidden] {
   display: none !important;
