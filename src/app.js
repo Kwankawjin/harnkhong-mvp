@@ -5711,7 +5711,20 @@ async function fetchSupabaseState(authUser) {
     /^\/groups\/([^/]+)(?:\/join)?$/,
   )?.[1];
   const user = authUser ? await loadAuthenticatedUser(authUser) : null;
-  const snapshot = await loadSupabaseGroups();
+  let snapshot;
+  try {
+    snapshot = await loadSupabaseGroups();
+  } catch (error) {
+    const loadError = new Error(error?.message || t("โหลดข้อมูลกลุ่มไม่สำเร็จ"), {
+      cause: error,
+    });
+    loadError.name = error?.name || "GroupLoadError";
+    loadError.code = error?.code;
+    loadError.details = error?.details;
+    loadError.hint = error?.hint;
+    loadError.authenticatedUser = user;
+    throw loadError;
+  }
   if (authUser && inviteToken && routeGroup) {
     try {
       const invite = await resolveSupabaseInvite(
@@ -5801,7 +5814,21 @@ if (supabaseConfigured) {
     },
     onError: (error) => {
       console.error("Unable to load Supabase groups", error);
-      state = { ...state, user: null, groups: [], profiles: {} };
+      const authenticatedUser = error?.authenticatedUser || null;
+      state = {
+        ...state,
+        user: authenticatedUser,
+        groups: [],
+        profiles: authenticatedUser
+          ? {
+              ...state.profiles,
+              [authenticatedUser.id]: {
+                id: authenticatedUser.id,
+                name: authenticatedUser.name,
+              },
+            }
+          : {},
+      };
       groupsLoading = false;
       groupsError = error;
       render();
