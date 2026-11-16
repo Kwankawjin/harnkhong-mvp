@@ -50,7 +50,7 @@ import {
   joinSupabaseGroup,
   leaveSupabaseGroup,
   approveSupabaseGroup,
-  changeSupabaseDelivery,
+  updateSupabaseGroupDetails,
   transferSupabaseGroup,
   removeSupabaseGroupMember,
   deleteSupabaseGroup,
@@ -842,7 +842,7 @@ function alertMessage(msg) {
 const title = (heading, sub = "") =>
   `<div class="page-heading"><h1>${heading}</h1>${sub ? `<p>${sub}</p>` : ""}</div>`;
 const art = (item) =>
-  `<div class="product-art ${escape(item.art)}"><span>${escape(item.mark)}</span><small>${escape(t(item.category))}</small></div>`;
+  `<div class="product-art ${escape(item.art)}">${item.mark ? `<span>${escape(item.mark)}</span>` : ""}<small>${escape(t(item.category))}</small></div>`;
 function gallery(images = [], editable = false) {
   images = images.filter(isLocalImage);
   if (!images.length) return "";
@@ -1645,7 +1645,7 @@ function groupPage(id) {
     ${isMember && approved ? `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันยอดรอบนี้แล้ว")}</div>` : ""}
     ${isMember ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
     ${isMember && !isOwner && !locked ? `<button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${id}"><span class="summary-btn-left">${icon("back", 19)} <span>${t("ออกจากกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
-    ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="edit-costs" data-id="${id}"><span class="summary-btn-left">${icon("edit", 19)} <span>${t("แก้ไขค่าส่งต่อคน")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button><button class="button danger-soft full summary-action-btn" data-action="delete-group" data-id="${id}"><span class="summary-btn-left">${icon("trash", 19)} <span>${t("ลบห้อง")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
+    ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="edit-group" data-id="${id}"><span class="summary-btn-left">${icon("edit", 19)} <span>${t("แก้ไขกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button><button class="button danger-soft full summary-action-btn" data-action="delete-group" data-id="${id}"><span class="summary-btn-left">${icon("trash", 19)} <span>${t("ลบห้อง")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${id}"><span class="summary-btn-left">${icon("link", 18)} <span>${t("คัดลอกลิงก์เชิญ")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${locked ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("กลุ่มถูกล็อกตามยอดคำสั่งซื้อเดโมแล้ว")}</span></div>` : ""}
     ${isMember && !supabaseConfigured ? a(`/orders/${id}`, `<span class="summary-btn-left">${icon("calc", 19)} <span>${t("ดูสรุปคำสั่งซื้อเดโม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button subtle full summary-action-btn") : ""}
@@ -1757,7 +1757,7 @@ function createPage() {
     <nav class="create-stepper" aria-label="${t("ขั้นตอนการสร้างกลุ่ม")}">${[[1,"ข้อมูลสินค้า"],[2,"ตั้งค่ากลุ่ม"],[3,"สรุปกลุ่ม"]].map(([step,label])=>`<button type="button" data-action="create-step" data-step="${step}" aria-current="${createGroupStep===step?"step":"false"}" class="${createGroupStep===step?"active":""}"><span>${step}</span>${t(label)}</button>`).join("")}</nav>
     <section class="create-step-panel" data-create-step-panel="1" ${createGroupStep===1?"":"hidden"}>
       <div class="create-form-section"><h2>${icon("package",20)} ${t("ข้อมูลสินค้า")}</h2><fieldset class="product-type-picker"><legend>${t("ประเภทสินค้า")} <b>*</b></legend><label><input type="radio" name="productType" value="physical" checked/><span>${icon("package",20)}<strong>${t("สินค้าทั่วไป")}</strong><small>${t("มีการจัดส่ง")}</small></span></label><label><input type="radio" name="productType" value="digital"/><span>${icon("lock",20)}<strong>${t("สินค้าดิจิทัล")}</strong><small>${t("แอป / Subscription")}</small></span></label></fieldset>
-      <div class="image-editor"><h3>${t("รูปสินค้า")} <small>${t("ไม่บังคับ · สูงสุด 4 รูป")}</small></h3><label class="image-upload create-group-dropzone"><span class="create-group-upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></span><strong>${t("คลิกเพื่ออัปโหลด หรือลากรูปมาวาง")}</strong><small>${t("JPG, PNG หรือ WebP · ไม่เกิน 5 MB ต่อรูป · ระบบย่อรูปให้อัตโนมัติ")}</small><span class="create-group-browse">${icon("plus",16)} ${t("เลือกไฟล์")}</span><input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="${t("เลือกรูปสินค้า")}"/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></div>
+      <div class="image-editor"><h3>${t("รูปสินค้า")} <b class="required-mark">*</b><small>${t("ต้องเพิ่มอย่างน้อย 1 รูป · สูงสุด 4 รูป")}</small></h3><label class="image-upload create-group-dropzone"><span class="create-group-upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></span><strong>${t("คลิกเพื่ออัปโหลด หรือลากรูปมาวาง")}</strong><small>${t("JPG, PNG หรือ WebP · ไม่เกิน 5 MB ต่อรูป · ระบบย่อรูปให้อัตโนมัติ")}</small><span class="create-group-browse">${icon("plus",16)} ${t("เลือกไฟล์")}</span><input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="${t("เลือกรูปสินค้า")}"/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></div>
       <label>${t("ชื่อสินค้า")} <b>*</b><input name="productTitle" maxlength="100" required value="${escape(selectedListing?.title || "")}" placeholder="${t("เช่น คีย์บอร์ดสำหรับทำงาน")}"/></label>
       <label>${t("ลิงก์สินค้า")} <small>${t("ไม่บังคับ")}</small><input name="productUrl" type="url" maxlength="500" placeholder="https://"/></label>
       <label>${t("รายละเอียดสินค้า")} <small>${t("ไม่บังคับ")}</small><textarea name="productDescription" maxlength="1000" placeholder="${t("รายละเอียดหรือเงื่อนไขที่สมาชิกควรรู้")}">${escape(selectedListing?.description || "")}</textarea></label>
@@ -3335,6 +3335,11 @@ function validateCreatePanel(step) {
   const form = document.querySelector("#create-form");
   const panel = form?.querySelector(`[data-create-step-panel="${step}"]`);
   if (!form || !panel) return true;
+  if (step === 1 && !groupImages.length) {
+    alertMessage(t("เพิ่มรูปสินค้าอย่างน้อย 1 รูป"));
+    form.querySelector("#group-images")?.focus();
+    return false;
+  }
       const invalid = [...panel.querySelectorAll("[required]")].find((field) => !field.checkValidity());
   if (invalid) {
     invalid.reportValidity();
@@ -4678,29 +4683,16 @@ document.addEventListener("click", async (e) => {
           ? t("บันทึกผลคืนเงินจำลองแล้ว ไม่ได้คืนเงินจริง")
           : t("บันทึกคำตอบข้อเสนอแล้ว"),
       );
-    } else if (action === "edit-costs") {
-      const g = group(id),
-        value = prompt(t("ค่าส่งต่อคนใหม่ (บาท)"), bahtInput(g.costs.delivery));
-      if (value === null) return;
-      if (supabaseConfigured) {
-        await changeSupabaseDelivery(id, parseBaht(value));
-        if (!(await refreshSupabaseGroups(actionSession))) return;
-      } else {
-        const next = changeCosts(g, state.user.id, {
-          delivery: parseBaht(value),
-        });
-        updateGroup(next);
-        next.members.forEach((u) =>
-          notice(
-            t("ค่าใช้จ่ายเปลี่ยน"),
-            t("ค่าส่งเปลี่ยน กรุณายืนยันยอดใหม่"),
-            `/groups/${id}`,
-            u,
-          ),
-        );
-        render();
-      }
-      alertMessage(t("ปรับยอดและเริ่มรอบยืนยันใหม่แล้ว"));
+    } else if (action === "edit-group") {
+      const g = group(id), details = g.details || {};
+      if (!g || g.ownerId !== state.user?.id) throw Error(t("เฉพาะหัวหน้ากลุ่มแก้ไขได้"));
+      const dialog = document.createElement("dialog");
+      dialog.className = "form-dialog edit-group-dialog";
+      dialog.innerHTML = `<form id="edit-group-form" data-id="${escape(id)}"><div class="dialog-heading"><div><h2>${t("แก้ไขกลุ่ม")}</h2><p>${t("แก้ไขข้อมูลที่สมาชิกเห็นในกลุ่ม")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><label>${t("ชื่อกลุ่ม")}<input name="name" required maxlength="70" value="${escape(g.name)}"/></label><label>${t("สมาชิกขั้นต่ำ")}<input name="minimumMembers" type="number" min="2" max="${g.capacity}" required value="${Number(details.minimumMembers || 2)}"/></label><label>${t("วันปิดรับสมาชิก")}<input name="closesAt" type="date" required value="${escape(details.closesAt || "")}"/></label><label>${t("ค่าส่งต่อคน (บาท)")}<input name="delivery" inputmode="decimal" required value="${bahtInput(g.costs.delivery)}"/></label><label>${t("การมองเห็นกลุ่ม")}<select name="visibilityMode"><option value="public" ${details.visibilityMode === "public" || (!details.visibilityMode && g.visibility === "public") ? "selected" : ""}>${t("สาธารณะ")}</option><option value="link" ${details.visibilityMode === "link" || (!details.visibilityMode && g.visibility === "link") ? "selected" : ""}>${t("เฉพาะผู้มีลิงก์")}</option><option value="private" ${details.visibilityMode === "private" ? "selected" : ""}>${t("ส่วนตัว")}</option></select></label><label>${t("หมายเหตุถึงสมาชิก")}<textarea name="memberNote" maxlength="500">${escape(details.memberNote || "")}</textarea></label><div data-dialog-feedback class="dialog-feedback" role="alert" hidden></div><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("บันทึกการแก้ไข")}</button></div></form>`;
+      document.body.append(dialog);
+      dialog.addEventListener("close", () => dialog.remove(), { once: true });
+      dialog.showModal();
+      dialog.querySelector('[name="name"]')?.focus();
     } else if (action === "transfer") {
       const g = group(id),
         members = g.members.filter((u) => u !== state.user.id);
@@ -4728,6 +4720,57 @@ document.addEventListener("click", async (e) => {
     );
   }
 });
+document.addEventListener("submit", async (e) => {
+  const f = e.target;
+  if (f.id !== "edit-group-form") return;
+  e.preventDefault();
+  const groupId = f.dataset.id;
+  const g = group(groupId);
+  const data = new FormData(f);
+  const name = String(data.get("name") || "").trim();
+  const minimumMembers = Number(data.get("minimumMembers"));
+  const closesAt = String(data.get("closesAt") || "");
+  const visibilityMode = String(data.get("visibilityMode") || "public");
+  const today = new Date();
+  const todayLocal = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const button = f.querySelector('[type="submit"]');
+  try {
+    if (!g || g.ownerId !== state.user?.id) throw Error(t("เฉพาะหัวหน้ากลุ่มแก้ไขได้"));
+    if (!f.reportValidity()) return;
+    if (!name || name.length > 70 || minimumMembers < 2 || minimumMembers > g.capacity || closesAt < todayLocal)
+      throw Error(t("กรุณาตรวจสอบชื่อกลุ่ม จำนวนสมาชิก และวันปิดรับ"));
+    if (! ["public", "link", "private"].includes(visibilityMode)) throw Error(t("การมองเห็นกลุ่มไม่ถูกต้อง"));
+    const delivery = parseBaht(data.get("delivery"));
+    if (button) button.disabled = true;
+    const details = {
+      ...(g.details || {}),
+      minimumMembers,
+      closesAt,
+      visibilityMode,
+      memberNote: String(data.get("memberNote") || "").trim(),
+    };
+    if (supabaseConfigured) {
+      await updateSupabaseGroupDetails(groupId, { name, details, visibility: visibilityMode === "public" ? "public" : "link", delivery });
+      if (!(await refreshSupabaseGroups(activeSupabaseSession))) return;
+    } else {
+      const next = changeCosts(g, state.user.id, { delivery });
+      Object.assign(next, { name, details, visibility: visibilityMode === "public" ? "public" : "link" });
+      updateGroup(next);
+      render();
+    }
+    document.querySelector(".edit-group-dialog")?.close();
+    alertMessage(t("บันทึกการแก้ไขกลุ่มแล้ว สมาชิกต้องยืนยันยอดรอบใหม่"));
+  } catch (error) {
+    const feedback = f.querySelector("[data-dialog-feedback]");
+    if (feedback) {
+      feedback.hidden = false;
+      feedback.textContent = errorMessage(error);
+    }
+  } finally {
+    if (button?.isConnected) button.disabled = false;
+  }
+});
+
 document.addEventListener("submit", async (e) => {
   const f = e.target,
     actionSession = activeSupabaseSession;
@@ -5187,6 +5230,12 @@ document.addEventListener("submit", async (e) => {
       if (!validateCreatePanel(1)) return updateCreateStep(1);
       if (!validateCreatePanel(2)) return updateCreateStep(2);
       if (imagesLoading) throw Error(t("กำลังเตรียมรูป กรุณารอสักครู่"));
+      if (!groupImages.length) {
+        updateCreateStep(1);
+        alertMessage(t("เพิ่มรูปสินค้าอย่างน้อย 1 รูป"));
+        f.querySelector("#group-images")?.focus();
+        return;
+      }
       if (!state.user)
         throw Object.assign(new Error(), { code: "orderUnauthorized" });
       const categories = [...new Set(getCreateCategoryValues(f))];
@@ -5217,7 +5266,7 @@ document.addEventListener("submit", async (e) => {
         kind: productType === "digital" ? "บริการ" : "สินค้า",
         price: parseBaht(d.get("product")),
         art: "custom",
-        mark: productType === "digital" ? "ดิจิทัล" : "หาร",
+        mark: productType === "digital" ? "" : "หาร",
         description: String(d.get("productDescription") || "").trim(),
         terms: productType === "digital"
           ? `${productDetails.platform} · ${productDetails.serviceType} · ${productDetails.duration}${productDetails.sharingConditions ? ` · ${productDetails.sharingConditions}` : ""}`

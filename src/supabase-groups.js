@@ -165,6 +165,18 @@ export async function changeSupabaseDelivery(groupId, delivery) {
     p_delivery: delivery,
   });
 }
+export async function updateSupabaseGroupDetails(
+  groupId,
+  { name, details, visibility, delivery },
+) {
+  return runMutation("update_group_details", {
+    p_group: groupId,
+    p_name: name,
+    p_details: details,
+    p_visibility: visibility,
+    p_delivery: delivery,
+  });
+}
 export async function transferSupabaseGroup(groupId, nextOwnerId) {
   return runMutation("transfer_group_owner", {
     p_group: groupId,
