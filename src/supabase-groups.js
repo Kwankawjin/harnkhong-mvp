@@ -19,7 +19,7 @@ export async function loadSupabaseGroups(client = supabase) {
       client
         .from("groups")
         .select(
-          "id,listing_id,owner_id,name,category,categories,images,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,created_at,members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)",
+          "id,listing_id,owner_id,name,category,categories,images,details,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,created_at,members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)",
         )
         .order("created_at", { ascending: false })
         .order("joined_at", { referencedTable: "members" })
@@ -27,7 +27,7 @@ export async function loadSupabaseGroups(client = supabase) {
       client
         .from("products")
         .select(
-          "id,seller_id,title,category,kind,price_satang,art,mark,description,terms",
+          "id,seller_id,title,category,kind,price_satang,art,mark,description,terms,details",
         )
         .eq("active", true),
       client.from("shops").select("id,name,intro,initials"),
@@ -68,6 +68,7 @@ export async function loadSupabaseGroups(client = supabase) {
           mark: row.mark,
           description: row.description,
           terms: row.terms,
+          productDetails: row.details || {},
         };
       }),
     ],
@@ -112,7 +113,8 @@ async function runMutation(name, args, requestId = crypto.randomUUID()) {
 }
 
 export async function createSupabaseGroup({
-  listingId,
+  product,
+  details,
   name,
   categories,
   images = [],
@@ -123,9 +125,8 @@ export async function createSupabaseGroup({
   requestId,
 }) {
   return runMutation(
-    "create_group_with_metadata",
+    "create_group_from_form",
     {
-      p_listing: listingId,
       p_name: name,
       p_categories: categories,
       p_images: images,
@@ -133,6 +134,15 @@ export async function createSupabaseGroup({
       p_capacity: capacity,
       p_delivery: delivery,
       p_price: price,
+      p_product: {
+        title: product.title,
+        category: product.category,
+        type: product.productDetails?.type || "physical",
+        description: product.description || "",
+        terms: product.terms || "",
+        productDetails: product.productDetails || {},
+      },
+      p_details: details,
     },
     requestId,
   );

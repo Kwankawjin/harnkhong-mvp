@@ -47,6 +47,7 @@ export function mapDatabaseGroup(
           ? [row.category]
           : [],
     images: Array.isArray(row.images) ? row.images : [],
+    details: row.details && typeof row.details === "object" ? row.details : {},
     ownerId: row.owner_id,
     visibility: row.visibility,
     capacity: Number(row.capacity),

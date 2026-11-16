@@ -149,6 +149,8 @@ function assertEditable(group) {
 export function joinGroup(group, userId) {
   assertEditable(group);
   assertId(userId);
+  if (group.details?.closesAt && group.details.closesAt < new Date().toISOString().slice(0, 10))
+    fail("groupClosed", "กลุ่มนี้ปิดรับสมาชิกแล้ว");
   if (group.status === "cancelled")
     fail("cancelledGroup", "กลุ่มนี้ยกเลิกแล้ว");
   if (group.members.includes(userId))

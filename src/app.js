@@ -472,6 +472,7 @@ let mockupCurrentStep = 1;
 let tempSignupData = {};
 let groupImages = [];
 let selectedCreateCategories = [];
+let createGroupStep = 1;
 let selectedHomeGroupCategory = "ทั้งหมด";
 let listingImages = [];
 let listingMap = null;
@@ -1613,6 +1614,7 @@ function groupPage(id) {
   }
   const p = listing(g.listingId);
   if (!p) return notFound();
+  const groupDetails = g.details || g;
   const groupCategory = g.category || p.category;
   const groupCategories = g.categories?.length ? g.categories : [groupCategory];
   const costs = costBreakdown(g.costs, g.members.length);
@@ -1659,11 +1661,12 @@ function groupPage(id) {
         <section class="group-identity-card" aria-labelledby="group-title">
           <div class="group-heading-line"><div><h1 id="group-title">${escape(g.name)}</h1><p>${t("หมวดหมู่")}: ${groupCategories.map((category) => escape(t(category))).join(" · ")}</p></div><span class="group-state ${full ? "is-full" : "is-open"}">${status}</span></div>
           <div class="group-product-strip">
-            <div class="group-product-art" role="img" aria-label="${escape(t(groupCategory))}">${art({ ...p, category: groupCategory })}</div>
-            <div class="group-product-copy"><span>${t("สินค้าในกลุ่ม")}</span><strong>${escape(g.name)}</strong><small>${escape(t(groupCategory))}</small></div>
-            <div class="group-product-price"><span>${t("ราคาสินค้า")}</span><strong>${money(g.costs.product)}</strong></div>
+            <div class="group-product-art" role="img" aria-label="${escape(t(groupCategory))}">${p.images?.[0] ? `<img src="${escape(p.images[0])}" alt=""/>` : art({ ...p, category: groupCategory })}</div>
+            <div class="group-product-copy"><span>${t("สินค้าในกลุ่ม")}</span><strong>${escape(p.title || g.name)}</strong><small>${escape(t(groupCategory))}${p.productDetails?.type === "digital" ? ` · ${escape(p.productDetails.platform || "")} ${escape(p.productDetails.serviceType || "")}` : ""}</small>${p.productDetails?.url ? `<a href="${escape(p.productDetails.url)}" target="_blank" rel="noopener noreferrer">${t("เปิดลิงก์สินค้า")}</a>` : ""}</div>
+            <div class="group-product-price"><span>${t("ราคาสินค้า")}</span><strong>${money(p.price ?? g.costs.product)}</strong></div>
           </div>
-          <div class="group-identity-footer"><span class="chip">${g.visibility === "link" ? t("เฉพาะผู้มีลิงก์") : t("กลุ่มสาธารณะ")}</span>${g.images?.length ? gallery(g.images) : ""}</div>
+          <div class="group-identity-footer"><span class="chip">${groupDetails.visibilityMode === "private" ? t("ส่วนตัว") : g.visibility === "link" ? t("เฉพาะผู้มีลิงก์") : t("กลุ่มสาธารณะ")}</span>${g.images?.length ? gallery(g.images) : ""}</div>
+          <div class="group-created-details">${groupDetails.minimumMembers ? `<span>${t("สมาชิกขั้นต่ำ")}: <strong>${groupDetails.minimumMembers} ${t("คน")}</strong></span>` : ""}${groupDetails.closesAt ? `<span>${t("ปิดรับสมาชิก")}: <strong>${escape(groupDetails.closesAt)}</strong></span>` : ""}${groupDetails.deliveryMethod === "pickup" && groupDetails.pickupLocation ? `<span>${t("สถานที่นัดรับ")}: <strong>${escape(groupDetails.pickupLocation)}</strong></span>` : groupDetails.deliveryMethod ? `<span>${t("วิธีรับสินค้า")}: <strong>${t(({ship_to_owner:"จัดส่งรวม",ship_separately:"จัดส่งแยก",digital:"ส่งมอบสิทธิ์ดิจิทัล",pickup:"นัดรับ"})[groupDetails.deliveryMethod] || "จัดส่งรวม")}</strong></span>` : ""}${groupDetails.digitalHandoff ? `<span>${t("การส่งมอบสิทธิ์")}: <strong>${escape(groupDetails.digitalHandoff)}</strong></span>` : ""}${groupDetails.memberNote ? `<p>${t("หมายเหตุถึงสมาชิก")}: ${escape(groupDetails.memberNote)}</p>` : ""}</div>
         </section>
         <section class="members-card group-members-card" aria-labelledby="members-heading">
           <div class="group-section-head"><div><h2 id="members-heading">${t("สมาชิก {count} / {capacity} คน", { count: g.members.length, capacity: g.capacity })}</h2><p>${status}</p></div><strong>${remaining ? t("ว่าง {count} ที่", { count: remaining }) : t("สมาชิกครบแล้ว")}</strong></div>
@@ -1672,7 +1675,7 @@ function groupPage(id) {
             ${remaining ? `<div class="group-open-row"><span class="avatar small">${icon("plus", 18)}</span><div><strong>${t("ยังว่างอีก {count} ที่", { count: remaining })}</strong><small>${t("รอสมาชิกเข้าร่วม")}</small></div>${!isMember && !locked ? a(`/groups/${id}/join`, t("เข้าร่วมกลุ่ม"), "button outline") : ""}</div>` : ""}
           </div>
         </section>
-        <section class="cost-card group-cost-card" aria-labelledby="cost-heading"><h2 id="cost-heading">${t("ค่าใช้จ่ายรอบที่ {revision}", { revision: g.revision })}</h2><div><span>${t("ราคาสินค้า")}</span><b>${money(costs.product)}</b></div><div><span>${costs.deliveryPerMember === null ? t("ค่าส่ง") : t("ค่าส่ง {amount} × {count} คน", { amount: money(costs.deliveryPerMember), count: g.members.length })}</span><b>${money(costs.delivery)}</b></div><div><span>${costs.deliveryPerMember === null ? t("ค่าบริการ") : t("ค่าธรรมเนียมแอป 2%")}</span><b>${money(costs.service)}</b></div><div class="total"><span>${t("รวมทั้งหมด")}</span><b>${money(sum)}</b></div><p>${t("หารตามจำนวนสมาชิกปัจจุบัน เศษสตางค์จัดสรรตามลำดับที่เข้ากลุ่ม")}</p></section>
+        <section class="cost-card group-cost-card" aria-labelledby="cost-heading"><h2 id="cost-heading">${t("ค่าใช้จ่ายรอบที่ {revision}", { revision: g.revision })}</h2><div><span>${t("ราคาสินค้า")}</span><b>${money(p.price ?? costs.product)}</b></div><div><span>${t("ค่าส่งรวม")}</span><b>${money(groupDetails.shippingTotal ?? costs.delivery)}</b></div><div><span>${t("ค่าธรรมเนียมแพลตฟอร์ม 2%")}</span><b>${money(costs.service)}</b></div><div class="total"><span>${t("รวมทั้งหมด")}</span><b>${money(sum)}</b></div><p>${t("หารตามจำนวนสมาชิกปัจจุบัน เศษสตางค์จัดสรรตามลำดับที่เข้ากลุ่ม")}</p></section>
         <details class="group-history"><summary>${t("ประวัติการเปลี่ยนยอด")}</summary>${g.history
           .slice()
           .reverse()
@@ -1747,16 +1750,31 @@ function createPage() {
         `<button type="button" class="selected-category" data-action="remove-category" data-category="${escape(category)}" aria-label="${t("นำหมวดหมู่ออก {category}", { category: t(category) })}">${escape(t(category))}<span aria-hidden="true">×</span></button>`,
     )
     .join("");
-  return `${title(t("สร้างกลุ่มหารใหม่"), t("กำหนดจำนวนคนและค่าใช้จ่ายให้ชัดก่อนชวนเพื่อน"))}<form class="form-panel" id="create-form">
+  const today = new Date();
+  const groupDateMin = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  return `${title(t("สร้างกลุ่มหารของ"), t("ชวนเพื่อนมาหารค่าใช้จ่าย เห็นยอดต่อคนก่อนสร้างกลุ่ม"))}<div class="create-group-layout"><form class="form-panel create-group-form" id="create-form" novalidate>
     <input type="hidden" name="requestId" value="${crypto.randomUUID()}"/><input type="hidden" name="listingId" value="${selectedListing?.id || selected || ""}"/><input type="hidden" name="category" value="${escape(selectedCategory)}"/>
-    <section class="image-editor"><h2>${t("รูปกลุ่ม")}</h2><p>${t("เพิ่มได้สูงสุด 4 รูป · JPG, PNG, WebP ไม่เกิน 5 MB ต่อรูป · รูปจะบันทึกพร้อมกลุ่ม")}</p><label class="image-upload">${icon("plus", 20)} ${t("เพิ่มรูป")}<input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div id="image-draft">${gallery(groupImages, true)}</div><p id="image-upload-status" role="status"></p></section>
-    <fieldset class="category-picker"><legend>${t("เลือกหมวดหมู่")}</legend><div class="selected-categories" id="selected-categories">${categoryTags}</div><div class="category-options">${CREATE_CATEGORY_NAMES.map((category) => `<button type="button" class="category-option ${selectedCreateCategories.includes(category) ? "selected" : ""}" data-action="toggle-category" data-category="${escape(category)}" aria-pressed="${selectedCreateCategories.includes(category)}">${t(category)}</button>`).join("")}</div></fieldset>
-    <label id="other-category-wrap" ${selectedCreateCategories.includes("อื่น ๆ (ระบุชื่อเอง)") ? "" : "hidden"}>${t("ระบุชื่อหมวดหมู่")}<input name="otherCategory" maxlength="60" ${selectedCreateCategories.includes("อื่น ๆ (ระบุชื่อเอง)") ? "required" : ""} placeholder="${t("ระบุชื่อหมวดหมู่")}"/></label>
-    <label>${t("ชื่อกลุ่ม")}<input name="name" maxlength="70" required placeholder="${t("เช่น ทีมอ่านสอบปลายเทอม")}"/></label>
-    <div class="form-grid"><label>${t("จำนวนสมาชิกสูงสุด")}<input name="capacity" type="number" min="2" max="6" value="4" required/></label><label>${t("การมองเห็น")}<select name="visibility"><option value="public">${t("กลุ่มสาธารณะ")}</option><option value="link">${t("เฉพาะผู้มีลิงก์")}</option></select></label></div>
-    <div class="form-grid"><label>${t("ราคาสินค้า (บาท)")}<input name="product" inputmode="decimal" value="${bahtInput(selectedListing?.price || 0)}" required/></label><label>${t("ค่าส่งต่อคน (บาท)")}<input name="delivery" inputmode="decimal" value="0" required/></label></div>
-    <div class="info-box">${t("ค่าธรรมเนียมแอป 2% คำนวณอัตโนมัติจากราคาสินค้าและค่าส่งรวม กลุ่มเฉพาะลิงก์จะไม่ปรากฏในการค้นหาสาธารณะ")}</div><div id="create-preview" class="preview-cost"></div><button class="button primary full" type="submit">${t("สร้างกลุ่ม")}</button>
-  </form>`;
+    <nav class="create-stepper" aria-label="${t("ขั้นตอนการสร้างกลุ่ม")}">${[[1,"ข้อมูลสินค้า"],[2,"ตั้งค่ากลุ่ม"],[3,"สรุปกลุ่ม"]].map(([step,label])=>`<button type="button" data-action="create-step" data-step="${step}" aria-current="${createGroupStep===step?"step":"false"}" class="${createGroupStep===step?"active":""}"><span>${step}</span>${t(label)}</button>`).join("")}</nav>
+    <section class="create-step-panel" data-create-step-panel="1" ${createGroupStep===1?"":"hidden"}>
+      <div class="create-form-section"><h2>${icon("package",20)} ${t("ข้อมูลสินค้า")}</h2><fieldset class="product-type-picker"><legend>${t("ประเภทสินค้า")} <b>*</b></legend><label><input type="radio" name="productType" value="physical" checked/><span>${icon("package",20)}<strong>${t("สินค้าทั่วไป")}</strong><small>${t("มีการจัดส่ง")}</small></span></label><label><input type="radio" name="productType" value="digital"/><span>${icon("lock",20)}<strong>${t("สินค้าดิจิทัล")}</strong><small>${t("แอป / Subscription")}</small></span></label></fieldset>
+      <div class="image-editor"><h3>${t("รูปสินค้า")} <small>${t("ไม่บังคับ · สูงสุด 4 รูป")}</small></h3><label class="image-upload">${icon("plus",20)} ${t("เพิ่มรูป")}<input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></div>
+      <label>${t("ชื่อสินค้า")} <b>*</b><input name="productTitle" maxlength="100" required value="${escape(selectedListing?.title || "")}" placeholder="${t("เช่น คีย์บอร์ดสำหรับทำงาน")}"/></label>
+      <label>${t("ลิงก์สินค้า")} <small>${t("ไม่บังคับ")}</small><input name="productUrl" type="url" maxlength="500" placeholder="https://"/></label>
+      <label>${t("รายละเอียดสินค้า")} <small>${t("ไม่บังคับ")}</small><textarea name="productDescription" maxlength="1000" placeholder="${t("รายละเอียดหรือเงื่อนไขที่สมาชิกควรรู้")}">${escape(selectedListing?.description || "")}</textarea></label>
+      <fieldset class="category-picker"><legend>${t("หมวดหมู่สินค้า")} <b>*</b></legend><div class="selected-categories" id="selected-categories">${categoryTags}</div><div class="category-options">${CREATE_CATEGORY_NAMES.map((category) => `<button type="button" class="category-option ${selectedCreateCategories.includes(category) ? "selected" : ""}" data-action="toggle-category" data-category="${escape(category)}" aria-pressed="${selectedCreateCategories.includes(category)}">${t(category)}</button>`).join("")}</div></fieldset>
+      <label id="other-category-wrap" ${selectedCreateCategories.includes("อื่น ๆ (ระบุชื่อเอง)") ? "" : "hidden"}>${t("ระบุชื่อหมวดหมู่")}<input name="otherCategory" maxlength="60" ${selectedCreateCategories.includes("อื่น ๆ (ระบุชื่อเอง)") ? "required" : ""} placeholder="${t("ระบุชื่อหมวดหมู่")}"/></label>
+      <div class="digital-product-fields" id="digital-product-fields" hidden><label>${t("แพลตฟอร์ม")} <b>*</b><select name="digitalPlatform"><option value="">${t("เลือกแพลตฟอร์ม")}</option>${["iOS","Android","Windows","macOS","Website"].map(x=>`<option>${x}</option>`).join("")}</select></label><div class="form-grid"><label>${t("ประเภทบริการ")} <b>*</b><select name="digitalService"><option value="">${t("เลือกประเภท")}</option>${["Subscription","License","In-app Purchase"].map(x=>`<option>${x}</option>`).join("")}</select></label><label>${t("ระยะเวลาใช้งาน")} <b>*</b><input name="usageDuration" maxlength="60" placeholder="${t("เช่น 1 เดือน")}"/></label></div><div class="form-grid"><label>${t("สิทธิ์ที่แชร์ได้")} <b>*</b><input name="sharedSeats" type="number" min="2" max="20" value="2"/></label><label>${t("เงื่อนไขการแชร์")} <small>${t("ไม่บังคับ")}</small><input name="sharingConditions" maxlength="300" placeholder="${t("เช่น ใช้ได้พร้อมกัน 2 เครื่อง")}"/></label></div></div></div>
+      <div class="create-step-actions"><span></span><button type="button" class="button primary" data-action="create-step" data-step="2">${t("ต่อไป: ตั้งค่ากลุ่ม")} ${icon("arrow",18)}</button></div>
+    </section>
+    <section class="create-step-panel" data-create-step-panel="2" ${createGroupStep===2?"":"hidden"}>
+      <div class="create-form-section"><h2>${icon("users",20)} ${t("ตั้งค่ากลุ่ม")}</h2><label>${t("ชื่อกลุ่ม")} <b>*</b><input name="name" maxlength="70" required placeholder="${t("เช่น หารค่าสมัครกับเพื่อน")}"/></label><div class="form-grid"><label>${t("สมาชิกขั้นต่ำ")} <b>*</b><input name="minimumMembers" type="number" min="2" max="6" value="3" required/></label><label>${t("สมาชิกสูงสุด")} <b>*</b><input name="capacity" type="number" min="2" max="6" value="4" required/></label></div><label>${t("วันปิดรับสมาชิก")} <b>*</b><input name="closesAt" type="date" min="${groupDateMin}" required/></label><fieldset class="visibility-picker"><legend>${t("การมองเห็นกลุ่ม")}</legend>${[["public","สาธารณะ"],["link","เฉพาะผู้มีลิงก์"],["private","ส่วนตัว"]].map(([value,label])=>`<label><input type="radio" name="visibilityMode" value="${value}" ${value==="public"?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><label>${t("หมายเหตุถึงสมาชิก")} <small>${t("ไม่บังคับ")}</small><textarea name="memberNote" maxlength="500" placeholder="${t("เช่น นัดโอนภายใน 2 วันหลังครบจำนวน")}"></textarea></label></div>
+      <div class="create-form-section"><h2>${icon("calc",20)} ${t("ค่าใช้จ่าย")}</h2><div class="form-grid"><label>${t("ราคาสินค้ารวม (บาท)")} <b>*</b><input name="product" type="number" inputmode="decimal" min="0.01" step="0.01" value="${bahtInput(selectedListing?.price || 0)}" required/></label><label id="shipping-total-wrap">${t("ค่าจัดส่งรวม (บาท)")}<input name="shippingTotal" type="number" inputmode="decimal" min="0" step="0.01" value="0.00"/></label></div><p class="create-fee-note">${t("ค่าธรรมเนียมแพลตฟอร์ม 2% คำนวณให้อัตโนมัติ")}</p><div class="preview-cost" id="create-preview"></div></div>
+      <section class="create-form-section" id="physical-delivery-section"><h2>${icon("truck",20)} ${t("การรับสินค้า")}</h2><fieldset class="delivery-picker">${[["ship_to_owner","จัดส่งรวมมาที่ผู้สร้างกลุ่ม แล้วนัดรับ"],["ship_separately","จัดส่งแยกให้สมาชิกแต่ละคน"],["pickup","นัดรับด้วยตนเอง"]].map(([value,label],i)=>`<label><input type="radio" name="deliveryMethod" value="${value}" ${i===0?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><label id="pickup-location-wrap" hidden>${t("สถานที่นัดรับ")} <b>*</b><input name="pickupLocation" maxlength="180" placeholder="${t("ระบุสถานที่นัดรับ")}"/></label></section>
+      <section class="create-form-section digital-handoff" id="digital-handoff-section" hidden><h2>${icon("lock",20)} ${t("การส่งมอบสิทธิ์ดิจิทัล")}</h2><p>${t("ระบุวิธีส่งมอบหลังกลุ่มยืนยันยอด")}</p><textarea name="digitalHandoff" maxlength="500" placeholder="${t("เช่น ส่งคำเชิญทางอีเมลหลังชำระเงิน")}"></textarea></section>
+      <div class="create-step-actions"><button type="button" class="button outline" data-action="create-step" data-step="1">${t("ย้อนกลับ")}</button><button type="button" class="button primary" data-action="create-step" data-step="3">${t("ตรวจสอบสรุป")} ${icon("arrow",18)}</button></div>
+    </section>
+    <section class="create-step-panel create-review-panel" data-create-step-panel="3" ${createGroupStep===3?"":"hidden"}><div class="create-form-section"><h2>${icon("check",20)} ${t("ตรวจสอบก่อนสร้างกลุ่ม")}</h2><p>${t("ตรวจดูข้อมูลสินค้า จำนวนสมาชิก และยอดต่อคนให้เรียบร้อย")}</p><div id="create-review-summary"></div><div class="info-box">${t("การสร้างกลุ่มยังไม่มีการเรียกเก็บเงิน ระบบจะแสดงยอดให้สมาชิกยืนยันก่อนดำเนินการ")}</div><p id="create-error" class="create-error" role="alert" hidden></p></div><div class="create-step-actions"><button type="button" class="button outline" data-action="create-step" data-step="2">${t("ย้อนกลับ")}</button><button class="button primary" type="submit">${t("สร้างกลุ่ม")}</button></div></section>
+  </form><aside class="create-group-summary" aria-live="polite"><div class="create-summary-heading"><h2>${t("สรุปกลุ่ม")}</h2>${icon("package",28)}</div><div class="create-summary-product"><div id="create-summary-image">${groupImages[0]?`<img src="${groupImages[0]}" alt=""/>`:icon("package",32)}</div><div><strong id="summary-product-title">${escape(selectedListing?.title || t("ชื่อสินค้า"))}</strong><small id="summary-product-category">${escape(t(selectedCategory))}</small></div></div><dl><div><dt>${t("ราคาสินค้า")}</dt><dd id="summary-product-price">—</dd></div><div id="summary-shipping-row"><dt>${t("ค่าจัดส่ง")}</dt><dd id="summary-shipping">—</dd></div><div><dt>${t("ค่าธรรมเนียม (2%)")}</dt><dd id="summary-fee">—</dd></div><div class="summary-per-person"><dt>${t("ประมาณต่อคน")}</dt><dd id="summary-per-person">—</dd></div><div><dt>${t("สมาชิก")}</dt><dd id="summary-members">—</dd></div><div><dt>${t("ปิดรับสมาชิก")}</dt><dd id="summary-deadline">—</dd></div><div><dt>${t("วิธีรับ")}</dt><dd id="summary-delivery">—</dd></div><div><dt>${t("การมองเห็น")}</dt><dd id="summary-visibility">—</dd></div></dl><p>${t("ยอดต่อคนเป็นประมาณการเมื่อสมาชิกครบ")}</p></aside></div>`;
 }
 function secondhandCheckoutPage(id) {
   if (!requireAuth(`/checkout/secondhand/${encodeURIComponent(id)}`))
@@ -3196,7 +3214,10 @@ function render() {
   const demoExpiry = document.querySelector("[data-demo-expiry]");
   if (demoExpiry)
     startDemoCountdown(demoExpiry, Number(demoExpiry.dataset.demoExpiry));
-  if (document.querySelector("#create-form")) updatePreview();
+  if (document.querySelector("#create-form")) {
+    updateCreateFormUI();
+    updatePreview();
+  }
   const filterRow = document.querySelector(".filter-row");
   if (filterRow) {
     filterRow.addEventListener("scroll", updateFilterCarousel, {
@@ -3244,11 +3265,96 @@ function render() {
   }
 }
 const formCosts = (d) => ({
-  product: parseBaht(d.get("product")),
-  delivery: parseBaht(d.get("delivery")),
+  product: parseBaht(d.get("product") || "0"),
+  delivery: Math.ceil(
+    parseBaht(d.get("shippingTotal") || "0") /
+      Math.max(1, Number(d.get("capacity")) || 1),
+  ),
   mode: "per_member_v2",
 });
 window.addEventListener("resize", updateFilterCarousel, { passive: true });
+function updateCreateFormUI() {
+  const form = document.querySelector("#create-form");
+  if (!form) return;
+  const digital = form.querySelector('[name="productType"]:checked')?.value === "digital";
+  const digitalFields = form.querySelector("#digital-product-fields");
+  const deliverySection = form.querySelector("#physical-delivery-section");
+  const handoffSection = form.querySelector("#digital-handoff-section");
+  const pickup = form.querySelector('[name="deliveryMethod"]:checked')?.value === "pickup";
+  if (digitalFields) digitalFields.hidden = !digital;
+  if (deliverySection) deliverySection.hidden = digital;
+  if (handoffSection) handoffSection.hidden = !digital;
+  form.querySelector("#shipping-total-wrap").hidden = digital;
+  form.querySelector("#summary-shipping-row").hidden = digital;
+  form.querySelector("#pickup-location-wrap").hidden = digital || !pickup;
+  for (const name of ["digitalPlatform", "digitalService", "usageDuration"])
+    form.querySelector(`[name="${name}"]`).required = digital;
+  form.querySelector('[name="pickupLocation"]').required = !digital && pickup;
+  const productType = form.querySelector('[name="productType"]:checked')?.value || "physical";
+  form.dataset.productType = productType;
+}
+function updateCreateStep(step) {
+  const form = document.querySelector("#create-form");
+  if (!form) return;
+  createGroupStep = step;
+  form.querySelectorAll("[data-create-step-panel]").forEach((panel) => {
+    panel.hidden = Number(panel.dataset.createStepPanel) !== step;
+  });
+  form.querySelectorAll(".create-stepper [data-step]").forEach((button) => {
+    const active = Number(button.dataset.step) === step;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-current", active ? "step" : "false");
+  });
+  form.querySelector("#create-error").hidden = true;
+  if (step === 3) updatePreview();
+  form.querySelector(`[data-create-step-panel="${step}"] h2`)?.focus({ preventScroll: true });
+  window.scrollTo({ top: document.querySelector(".create-group-layout")?.offsetTop || 0, behavior: "smooth" });
+}
+function validateCreatePanel(step) {
+  const form = document.querySelector("#create-form");
+  const panel = form?.querySelector(`[data-create-step-panel="${step}"]`);
+  if (!form || !panel) return true;
+      const invalid = [...panel.querySelectorAll("[required]")].find((field) => !field.checkValidity());
+  if (invalid) {
+    invalid.reportValidity();
+    invalid.focus();
+    return false;
+  }
+  if (step === 1 && !selectedCreateCategories.length) {
+    alertMessage(t("เลือกอย่างน้อย 1 หมวดหมู่"));
+    return false;
+  }
+  if (step === 2) {
+    const data = new FormData(form);
+    const closesAt = String(data.get("closesAt") || "");
+    const today = new Date();
+    const todayLocal = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    if (closesAt < todayLocal) {
+      const deadline = form.querySelector('[name="closesAt"]');
+      deadline.setCustomValidity(t("วันปิดรับสมาชิกต้องไม่ย้อนหลัง"));
+      deadline.reportValidity();
+      deadline.focus();
+      deadline.setCustomValidity("");
+      return false;
+    }
+    if (Number(data.get("minimumMembers")) > Number(data.get("capacity"))) {
+      const min = form.querySelector('[name="minimumMembers"]');
+      min.setCustomValidity(t("สมาชิกขั้นต่ำต้องไม่มากกว่าสมาชิกสูงสุด"));
+      min.reportValidity();
+      min.focus();
+      min.setCustomValidity("");
+      return false;
+    }
+    try {
+      parseBaht(data.get("product"));
+      parseBaht(data.get("shippingTotal") || "0");
+    } catch (error) {
+      alertMessage(errorMessage(error));
+      return false;
+    }
+  }
+  return true;
+}
 function updatePreview() {
   const f = document.querySelector("#create-form"),
     box = document.querySelector("#create-preview");
@@ -3256,8 +3362,25 @@ function updatePreview() {
   try {
     const d = new FormData(f),
       count = assertCapacity(Number(d.get("capacity"))),
-      costs = costBreakdown(formCosts(d), count);
-    box.innerHTML = `<small>${t("ประมาณเมื่อสมาชิกครบ {count} คน", { count })}</small><strong>${money(Math.ceil(costs.total / count))} ${t("/ คน")}</strong><p>${t("รวมค่าส่งต่อคนและค่าธรรมเนียมแอป 2% แล้ว")}</p>`;
+      costs = costBreakdown(formCosts(d), count),
+      moneyOrZero = (value) => money(Number.isFinite(value) ? value : 0);
+    box.innerHTML = `<small>${t("ประมาณเมื่อสมาชิกครบ {count} คน", { count })}</small><strong>${moneyOrZero(Math.ceil(costs.total / count))} ${t("/ คน")}</strong><p>${t("รวมค่าส่งและค่าธรรมเนียมแพลตฟอร์ม 2% แล้ว")}</p>`;
+    const put = (selector, value) => { const el = f.querySelector(selector); if (el) el.textContent = value; };
+    put("#summary-product-title", d.get("productTitle") || t("ชื่อสินค้า"));
+    put("#summary-product-category", selectedCreateCategories.map((x) => t(x)).join(" · ") || t("หมวดหมู่สินค้า"));
+    put("#summary-product-price", moneyOrZero(costs.product));
+    put("#summary-shipping", moneyOrZero(parseBaht(d.get("shippingTotal") || "0")));
+    put("#summary-fee", moneyOrZero(costs.service));
+    put("#summary-per-person", `${moneyOrZero(Math.ceil(costs.total / count))} / ${t("คน")}`);
+    put("#summary-members", `${d.get("minimumMembers") || "2"}–${count} ${t("คน")}`);
+    put("#summary-deadline", d.get("closesAt") || "—");
+    const deliveryLabels = { ship_to_owner: "จัดส่งรวม", ship_separately: "จัดส่งแยก", pickup: "นัดรับ" };
+    put("#summary-delivery", f.dataset.productType === "digital" ? t("ส่งมอบสิทธิ์ดิจิทัล") : t(deliveryLabels[d.get("deliveryMethod")] || "จัดส่งรวม"));
+    put("#summary-visibility", t(({ public: "สาธารณะ", link: "เฉพาะผู้มีลิงก์", private: "ส่วนตัว" })[d.get("visibilityMode")] || "สาธารณะ"));
+    const image = f.querySelector("#create-summary-image");
+    if (image) image.innerHTML = groupImages[0] ? `<img src="${groupImages[0]}" alt=""/>` : icon("package", 32);
+    const review = f.querySelector("#create-review-summary");
+    if (review) review.innerHTML = `<strong>${escape(d.get("productTitle") || t("ชื่อสินค้า"))}</strong><p>${escape(d.get("name") || "—")} · ${escape(t(deliveryLabels[d.get("deliveryMethod")] || "จัดส่งรวม"))}</p><b>${moneyOrZero(Math.ceil(costs.total / count))} / ${t("คน")}</b>`;
   } catch (e) {
     box.innerHTML = `<small>${escape(errorMessage(e))}</small>`;
   }
@@ -3584,6 +3707,10 @@ document.addEventListener("change", async (e) => {
     isGroup = input.id === "group-images",
     isAvatar = input.id === "profile-avatar",
     isListing = input.id === "listing-images";
+  if (input.closest("#create-form")) {
+    updateCreateFormUI();
+    updatePreview();
+  }
   const checkoutForm = input.closest("#secondhand-checkout-form");
   if (checkoutForm) {
     updateSecondhandCheckoutSummary(checkoutForm);
@@ -3624,6 +3751,7 @@ document.addEventListener("change", async (e) => {
         groupImages,
         true,
       );
+      updatePreview();
     } else if (isListing) {
       listingImages.push(...images);
       renderListingImages();
@@ -3801,7 +3929,11 @@ document.addEventListener("click", async (e) => {
     id = btn.dataset.id,
     actionSession = activeSupabaseSession;
   try {
-    if (action === "profile-menu-toggle") {
+    if (action === "create-step") {
+      const targetStep = Number(btn.dataset.step);
+      if (targetStep < createGroupStep || validateCreatePanel(createGroupStep))
+        updateCreateStep(targetStep);
+    } else if (action === "profile-menu-toggle") {
       profileMenuOpen = !profileMenuOpen;
       render();
       return;
@@ -5011,6 +5143,14 @@ document.addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
       const d = new FormData(f);
+      if (createGroupStep !== 3) {
+        if (!validateCreatePanel(1)) return updateCreateStep(1);
+        if (!validateCreatePanel(2)) return updateCreateStep(2);
+        updateCreateStep(3);
+        return;
+      }
+      if (!validateCreatePanel(1)) return updateCreateStep(1);
+      if (!validateCreatePanel(2)) return updateCreateStep(2);
       if (imagesLoading) throw Error(t("กำลังเตรียมรูป กรุณารอสักครู่"));
       if (!state.user)
         throw Object.assign(new Error(), { code: "orderUnauthorized" });
@@ -5018,37 +5158,88 @@ document.addEventListener("submit", async (e) => {
       if (!categories.length) throw new Error(t("เลือกอย่างน้อย 1 หมวดหมู่"));
       if (categories.some((category) => category.length > 60))
         throw new Error(t("ชื่อหมวดหมู่ต้องไม่เกิน 60 ตัวอักษร"));
-      if (!listing(d.get("listingId")))
-        throw Error(t("ไม่พบสินค้า กรุณาเลือกสินค้าใหม่"));
+      const productType = d.get("productType") === "digital" ? "digital" : "physical";
+      const requestId = String(d.get("requestId") || crypto.randomUUID());
+      const productId = `custom-${requestId}`;
+      const category = categories[0] === "อื่น ๆ (ระบุชื่อเอง)"
+        ? String(d.get("otherCategory") || "").trim()
+        : categories[0];
+      const productDetails = {
+        type: productType,
+        url: String(d.get("productUrl") || "").trim(),
+        platform: String(d.get("digitalPlatform") || ""),
+        serviceType: String(d.get("digitalService") || ""),
+        duration: String(d.get("usageDuration") || "").trim(),
+        sharedSeats: Number(d.get("sharedSeats") || 0),
+        sharingConditions: String(d.get("sharingConditions") || "").trim(),
+      };
+      const product = {
+        id: productId,
+        sellerId: state.user.id,
+        sellerName: state.user.name,
+        title: String(d.get("productTitle") || "").trim(),
+        category,
+        kind: productType === "digital" ? "บริการ" : "สินค้า",
+        price: parseBaht(d.get("product")),
+        art: "custom",
+        mark: productType === "digital" ? "ดิจิทัล" : "หาร",
+        description: String(d.get("productDescription") || "").trim(),
+        terms: productType === "digital"
+          ? `${productDetails.platform} · ${productDetails.serviceType} · ${productDetails.duration}${productDetails.sharingConditions ? ` · ${productDetails.sharingConditions}` : ""}`
+          : "",
+        images: [...groupImages],
+        productDetails,
+      };
+      const visibilityMode = String(d.get("visibilityMode") || "public");
+      const visibility = visibilityMode === "public" ? "public" : "link";
+      const groupDetails = {
+        minimumMembers: Number(d.get("minimumMembers")),
+        closesAt: String(d.get("closesAt") || ""),
+        memberNote: String(d.get("memberNote") || "").trim(),
+        visibilityMode,
+        product: productDetails,
+        shippingTotal: productType === "physical" ? parseBaht(d.get("shippingTotal") || "0") : 0,
+        deliveryMethod: productType === "digital" ? "digital" : String(d.get("deliveryMethod") || "ship_to_owner"),
+        pickupLocation: String(d.get("pickupLocation") || "").trim(),
+        digitalHandoff: String(d.get("digitalHandoff") || "").trim(),
+      };
       if (supabaseConfigured) {
         const groupId = await createSupabaseGroup({
-          listingId: d.get("listingId"),
+          product,
+          details: groupDetails,
           name: d.get("name"),
           categories,
           images: groupImages,
-          visibility: d.get("visibility"),
+          visibility,
           capacity: Number(d.get("capacity")),
-          price: parseBaht(d.get("product")),
-          delivery: parseBaht(d.get("delivery")),
-          requestId: d.get("requestId"),
+          price: product.price,
+          delivery: formCosts(d).delivery,
+          requestId,
         });
         if (!(await refreshSupabaseGroups(actionSession))) return;
+        groupImages = [];
+        selectedCreateCategories = [];
+        createGroupStep = 1;
         go(`/groups/${groupId}`);
         alertMessage(t("สร้างกลุ่มแล้ว"));
         return;
       }
       const g = createGroup({
         id: "g" + Date.now(),
-        listingId: d.get("listingId"),
+        listingId: productId,
         name: d.get("name"),
         ownerId: state.user.id,
-        visibility: d.get("visibility"),
+        visibility,
         capacity: Number(d.get("capacity")),
         costs: formCosts(d),
       });
-      g.category = categories[0];
-      g.categories = categories;
+      const groupCategories = categories.includes("อื่น ๆ (ระบุชื่อเอง)")
+        ? [...categories.filter((item) => item !== "อื่น ๆ (ระบุชื่อเอง)"), category]
+        : categories;
+      g.category = groupCategories[0];
+      g.categories = groupCategories;
       g.images = [...groupImages];
+      Object.assign(g, groupDetails);
       const notification = {
         id: crypto.randomUUID(),
         recipient: state.user.id,
@@ -5060,16 +5251,22 @@ document.addEventListener("submit", async (e) => {
       };
       save({
         ...state,
+        customListings: [product, ...(state.customListings || [])],
         groups: [g, ...state.groups],
         notifications: [notification, ...state.notifications],
       });
       groupImages = [];
       selectedCreateCategories = [];
+      createGroupStep = 1;
 
       go(`/groups/${g.id}`);
       alertMessage(t("สร้างกลุ่มแล้ว"));
     } catch (err) {
-      alertMessage(storageError(err));
+      const errorBox = f.querySelector("#create-error");
+      if (errorBox && createGroupStep === 3) {
+        errorBox.textContent = storageError(err);
+        errorBox.hidden = false;
+      } else alertMessage(storageError(err));
     }
   } else if (f.id === "group-chat-form") {
     e.preventDefault();
