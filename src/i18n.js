@@ -843,6 +843,9 @@ const labels = {
     "Secondhand chat or order storage is not ready yet. Run the latest Supabase migrations.",
   "ฐานข้อมูลยังไม่รองรับข้อมูลกลุ่มใหม่ กรุณาติดตั้ง migration ล่าสุดแล้วโหลดหน้านี้ใหม่":
     "The database is missing group fields. Apply the latest migration and reload this page.",
+  โหลดข้อมูลกลุ่มไม่สำเร็จ: "Could not load group data",
+  รายละเอียดข้อผิดพลาด: "Error details",
+  ไม่มีรายละเอียด: "No details available",
   ค้นหาสินค้าในตลาดมือสอง: "Search the second hand market",
   "ค้นหาชื่อสินค้า หมวดหมู่ หรือรายละเอียด":
     "Search item names, categories, or descriptions",

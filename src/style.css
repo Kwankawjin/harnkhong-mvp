@@ -13087,6 +13087,37 @@ dialog:not([open]),
   font-size: 0.8rem;
 }
 
+.create-load-warning {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid #f0cf84;
+  border-radius: 12px;
+  background: #fff9e9;
+  color: #5b471b;
+}
+.create-load-warning p {
+  margin: 4px 0;
+}
+.load-error-details {
+  margin-top: 8px;
+  font-size: 0.78rem;
+}
+.load-error-details code {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  color: #536d87;
+}
+@media (max-width: 600px) {
+  .create-load-warning {
+    flex-direction: column;
+  }
+}
+
 .create-fee-note,
 .digital-handoff > p {
   margin: -5px 0 12px;

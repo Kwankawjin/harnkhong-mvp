@@ -3019,6 +3019,7 @@ function groupsLoadingSkeleton() {
   </section>`;
 }
 function render() {
+  const createGroupRoute = location.pathname === "/groups/create";
   if (
     !/^\/groups\/[^/]+\/chat$/.test(location.pathname) &&
     groupChatPollTimer
@@ -3086,7 +3087,7 @@ function render() {
       </div>
     </header>
 
-    <main class="main-wrap${location.pathname === "/" ? " home-main" : ""}" id="main">${groupsLoading ? groupsLoadingSkeleton() : groupsError ? `<div class="empty"><h2>${t("โหลดกลุ่มไม่สำเร็จ")}</h2><p>${escape(authErrorMessage(groupsError))}</p><button class="button primary" data-action="refresh-groups">${t("ลองอีกครั้ง")}</button></div>` : route()}</main>
+    <main class="main-wrap${location.pathname === "/" ? " home-main" : ""}" id="main">${groupsLoading && !createGroupRoute ? groupsLoadingSkeleton() : groupsError && !createGroupRoute ? `<div class="empty"><h2>${t("โหลดกลุ่มไม่สำเร็จ")}</h2><p>${escape(authErrorMessage(groupsError))}</p><details class="load-error-details"><summary>${t("รายละเอียดข้อผิดพลาด")}</summary><code>${escape(`${groupsError?.code || groupsError?.name || "Error"}: ${groupsError?.message || "ไม่มีรายละเอียด"}`)}</code></details><button class="button primary" data-action="refresh-groups">${t("ลองอีกครั้ง")}</button></div>` : `${groupsLoading ? `<section class="create-load-warning" role="status"><strong>${t("กำลังโหลดกลุ่มจาก Supabase")}</strong></section>` : ""}${groupsError ? `<section class="create-load-warning" role="alert"><div><strong>${t("โหลดข้อมูลกลุ่มไม่สำเร็จ")}</strong><p>${escape(authErrorMessage(groupsError))}</p><details class="load-error-details"><summary>${t("รายละเอียดข้อผิดพลาด")}</summary><code>${escape(`${groupsError?.code || groupsError?.name || "Error"}: ${groupsError?.message || "ไม่มีรายละเอียด"}`)}</code></details></div><button class="button outline" data-action="refresh-groups">${t("ลองอีกครั้ง")}</button></section>` : ""}${route()}`}</main>
 
     <nav class="bottom-nav" aria-label="${t("เมนูด้านล่าง")}">
       ${bottomNav.map(([href, ic, label]) => a(href, `${icon(ic, 22)}<span>${label}</span>`, location.pathname === href ? "active" : "")).join("")}
