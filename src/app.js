@@ -42,6 +42,9 @@ import {
 } from "./supabase.js";
 import { createAuthSessionSync } from "./auth-session.js";
 
+const BANK_PAYMENT_QR_SRC = "/images/bank-payment-qr.webp";
+const BANK_PAYMENT_RECIPIENT = "จิณห์นิภา บรรจบสมัย";
+
 let doodleFooterRoot = null;
 let profileBadgeRoot = null;
 import { loadGroupMessages, sendGroupMessage } from "./group-chat.js";
@@ -1833,7 +1836,7 @@ function secondhandCheckoutPage(id) {
   const itemImage = coverImage
     ? `<img src="${escape(coverImage)}" alt="${escape(product.title)}"/>`
     : `<div class="checkout-product-art">${art(product)}</div>`;
-  return `<div class="group-checkout-page secondhand-market-checkout"><div class="checkout-page-head"><div><span class="chip">${t("ตลาดมือสอง")}</span><h1>${t("สั่งซื้อสินค้า")}</h1></div>${a(`/products/${encodeURIComponent(product.id)}`, `← ${t("กลับไปดูสินค้า")}`, "checkout-back-link")}</div><div class="checkout-steps"><span class="active">1 · ${t("ตรวจสอบข้อมูล")}</span><i></i><span>2 · ${t("ชำระเงิน")}</span><i></i><span>3 · ${t("เสร็จสิ้น")}</span></div><form id="secondhand-checkout-form" data-id="${escape(product.id)}" data-price="${Number(product.price) || 0}" data-seller="${escape(product.sellerId)}" data-reference="${escape(reference)}" data-order-number="${escape(orderNumber)}" data-expires="${expires}" class="checkout-layout"><div class="checkout-info-column"><section class="checkout-panel"><h3>${icon("map-pin", 20)} ${t("ที่อยู่ในการจัดส่ง")}</h3><div class="checkout-address"><div class="checkout-address-contact"><strong>${escape(state.user?.name || "—")}</strong><span>${escape(address.phone || "—")}</span></div>${addressParts.length ? `<div class="checkout-address-details">${addressParts.map(([label, value]) => `<span><small>${escape(label)}</small><b>${escape(value)}</b></span>`).join("")}</div>` : `<p>${t("ยังไม่ได้ระบุที่อยู่")} · ${a("/profile", t("เพิ่มที่อยู่"), "checkout-address-edit")}</p>`}${addressParts.length ? a("/profile", t("แก้ไขที่อยู่"), "checkout-address-edit") : ""}</div></section><section class="checkout-panel"><h3>${icon("package", 20)} ${t("รายละเอียดสินค้า")}</h3><div class="checkout-product">${itemImage}<div><strong>${escape(product.title)}</strong><span>${t("สภาพ")}: ${escape(t(product.condition || "—"))}</span><span>${t("คำอธิบาย")}: ${escape(product.description || "—")}</span><label>${t("จำนวนสินค้า")}<input name="quantity" type="number" min="1" max="${Math.max(1, Number(product.quantity) || 1)}" value="1" required/></label><label>${t("วิธีรับสินค้า")}<select name="delivery" required>${deliveryOptions}</select></label></div><b>${money(product.price)}</b></div></section><section class="checkout-panel checkout-note"><h3>${icon("edit", 20)} ${t("หมายเหตุถึงผู้ขาย")}</h3><textarea name="note" maxlength="200" placeholder="${t("เช่น นัดรับ / ขอรูปเพิ่มเติม / สอบถามสภาพสินค้า...")}" aria-label="${t("หมายเหตุถึงผู้ขาย")}"></textarea><small>0 / 200</small></section></div><section class="checkout-panel checkout-pay-panel"><h3>${icon("package", 22)} ${t("ชำระเงิน")}</h3><p>${t("สแกน QR เพื่อชำระค่าสินค้า")}</p><div class="checkout-qr-row"><div class="demo-qr"><img id="secondhand-checkout-qr" data-reference="${escape(reference)}" data-amount="${Number(product.price) || 0}" data-expires="${expires}" alt="${t("QR สำหรับชำระเงิน")}"/></div><div class="checkout-bank"><strong>${t("ชำระเงิน")}</strong><span>${t("ยอดค่าสินค้า")}</span><b>${escape(state.user?.name || "—")}</b></div></div><div class="checkout-amount"><span>${t("ยอดชำระทั้งหมด")}</span><strong id="secondhand-checkout-total">${money(product.price)}</strong></div><div class="demo-expiry-box"><span>${t("กรุณาชำระภายใน")}<b>8 ${t("ชั่วโมง")}</b></span><strong class="demo-countdown">08 : 00 : 00</strong></div><small class="demo-expired-message" hidden>${t("หมดเวลาชำระเงิน กรุณาสร้างคำสั่งซื้อใหม่")}</small><small class="checkout-reference">${t("รหัสอ้างอิง")}: ${escape(reference)}</small><button class="button primary full checkout-confirm-button" type="submit">${icon("check", 20)} ${t("ยืนยันการสั่งซื้อ")}</button></section></form></div>`;
+  return `<div class="group-checkout-page secondhand-market-checkout"><div class="checkout-page-head"><div><span class="chip">${t("ตลาดมือสอง")}</span><h1>${t("สั่งซื้อสินค้า")}</h1></div>${a(`/products/${encodeURIComponent(product.id)}`, `← ${t("กลับไปดูสินค้า")}`, "checkout-back-link")}</div><div class="checkout-steps"><span class="active">1 · ${t("ตรวจสอบข้อมูล")}</span><i></i><span>2 · ${t("ชำระเงิน")}</span><i></i><span>3 · ${t("เสร็จสิ้น")}</span></div><form id="secondhand-checkout-form" data-id="${escape(product.id)}" data-price="${Number(product.price) || 0}" data-seller="${escape(product.sellerId)}" data-reference="${escape(reference)}" data-order-number="${escape(orderNumber)}" data-expires="${expires}" class="checkout-layout"><div class="checkout-info-column"><section class="checkout-panel"><h3>${icon("map-pin", 20)} ${t("ที่อยู่ในการจัดส่ง")}</h3><div class="checkout-address"><div class="checkout-address-contact"><strong>${escape(state.user?.name || "—")}</strong><span>${escape(address.phone || "—")}</span></div>${addressParts.length ? `<div class="checkout-address-details">${addressParts.map(([label, value]) => `<span><small>${escape(label)}</small><b>${escape(value)}</b></span>`).join("")}</div>` : `<p>${t("ยังไม่ได้ระบุที่อยู่")} · ${a("/profile", t("เพิ่มที่อยู่"), "checkout-address-edit")}</p>`}${addressParts.length ? a("/profile", t("แก้ไขที่อยู่"), "checkout-address-edit") : ""}</div></section><section class="checkout-panel"><h3>${icon("package", 20)} ${t("รายละเอียดสินค้า")}</h3><div class="checkout-product">${itemImage}<div><strong>${escape(product.title)}</strong><span>${t("สภาพ")}: ${escape(t(product.condition || "—"))}</span><span>${t("คำอธิบาย")}: ${escape(product.description || "—")}</span><label>${t("จำนวนสินค้า")}<input name="quantity" type="number" min="1" max="${Math.max(1, Number(product.quantity) || 1)}" value="1" required/></label><label>${t("วิธีรับสินค้า")}<select name="delivery" required>${deliveryOptions}</select></label></div><b>${money(product.price)}</b></div></section><section class="checkout-panel checkout-note"><h3>${icon("edit", 20)} ${t("หมายเหตุถึงผู้ขาย")}</h3><textarea name="note" maxlength="200" placeholder="${t("เช่น นัดรับ / ขอรูปเพิ่มเติม / สอบถามสภาพสินค้า...")}" aria-label="${t("หมายเหตุถึงผู้ขาย")}"></textarea><small>0 / 200</small></section></div><section class="checkout-panel checkout-pay-panel"><h3>${icon("package", 22)} ${t("ชำระเงิน")}</h3><p>${t("สแกน QR เพื่อชำระค่าสินค้า")}</p><div class="checkout-qr-row bank-transfer-qr-row"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div class="checkout-bank"><span>${t("ชื่อบัญชีรับโอน")}</span><strong>${BANK_PAYMENT_RECIPIENT}</strong><small>${t("โอนตามยอดชำระทั้งหมดด้านล่าง")}</small></div></div><div class="checkout-amount"><span>${t("ยอดชำระทั้งหมด")}</span><strong id="secondhand-checkout-total">${money(product.price)}</strong></div><div class="demo-expiry-box"><span>${t("กรุณาชำระภายใน")}<b>8 ${t("ชั่วโมง")}</b></span><strong class="demo-countdown">08 : 00 : 00</strong></div><small class="demo-expired-message" hidden>${t("หมดเวลาชำระเงิน กรุณาสร้างคำสั่งซื้อใหม่")}</small><small class="checkout-reference">${t("รหัสอ้างอิง")}: ${escape(reference)}</small><p class="payment-next-step-note">${t("หลังสร้างคำสั่งซื้อ ระบบจะแสดง QR ตัวกลางสำหรับขั้นตอนยืนยันแบบ Demo")}</p><button class="button primary full checkout-confirm-button" type="submit">${icon("check", 20)} ${t("ยืนยันการสั่งซื้อ")}</button></section></form></div>`;
 }
 function secondhandPaymentPendingPage() {
   let pending = null;
@@ -1856,7 +1859,7 @@ function secondhandPaymentPendingPage() {
     ? `<img src="${escape(image)}" alt="${escape(pending.title || product.title)}"/>`
     : `<div class="pending-order-image-placeholder">${icon("package", 34)}</div>`;
   const total = Number(pending.total) || 0;
-  return `<section class="secondhand-pending-page"><div class="pending-page-decoration" aria-hidden="true">${icon("package", 150)}</div><header class="pending-page-heading"><span class="pending-payment-icon"><svg viewBox="0 0 96 76" fill="none" aria-hidden="true"><rect x="6" y="8" width="70" height="48" rx="8" stroke="currentColor" stroke-width="5"/><path d="M8 23h66M18 38h18M18 47h10" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>${icon("clock", 34)}</span><h1>${t("รอชำระเงิน")}</h1><p>${t("กรุณาชำระเงินและยืนยันยอดภายใน 8 ชั่วโมง")}<br/>${t("หลังจากสร้างคำสั่งซื้อ")}</p></header><article class="pending-order-card"><div class="pending-order-number"><strong>${t("เลขที่คำสั่งซื้อ")}</strong><b>${escape(pending.orderNumber)}</b></div><div class="pending-order-item">${itemImage}<div><strong>${escape(pending.title || product.title)}</strong><small>${pending.condition ? `${t("สภาพ")}: ${escape(t(pending.condition))} · ` : ""}${money(pending.unitPrice || product.price)} · ${t("{count} ชิ้น", { count: pending.quantity || 1 })}</small>${pending.description ? `<small>${t("คำอธิบาย")}: ${escape(pending.description)}</small>` : ""}</div><b>${money(total)}</b></div><div class="pending-order-total"><strong>${t("ยอดชำระทั้งหมด")}</strong><b>${money(total)}</b></div><div class="pending-order-countdown"><span>${icon("clock", 22)} ${t("เหลือเวลาชำระ")}</span><strong data-pending-deadline="${Number(pending.expiresAt)}">08:00:00</strong></div><p class="pending-order-expired" hidden>${t("หมดเวลาชำระเงิน กรุณาสร้างคำสั่งซื้อใหม่")}</p></article><div class="pending-order-actions">${a("/", `${icon("home", 20)} ${t("ไปหน้าแรก")}`, "button outline")}${a("/my-orders", `${icon("package", 20)} ${t("ไปหน้าคำสั่งซื้อของฉัน")}`, "button primary")}</div></section>`;
+  return `<section class="secondhand-pending-page"><div class="pending-page-decoration" aria-hidden="true">${icon("package", 150)}</div><header class="pending-page-heading"><span class="pending-payment-icon"><svg viewBox="0 0 96 76" fill="none" aria-hidden="true"><rect x="6" y="8" width="70" height="48" rx="8" stroke="currentColor" stroke-width="5"/><path d="M8 23h66M18 38h18M18 47h10" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>${icon("clock", 34)}</span><h1>${t("รอชำระเงิน")}</h1><p>${t("กรุณาชำระเงินและยืนยันยอดภายใน 8 ชั่วโมง")}<br/>${t("หลังจากสร้างคำสั่งซื้อ")}</p></header><article class="pending-order-card"><div class="pending-order-number"><strong>${t("เลขที่คำสั่งซื้อ")}</strong><b>${escape(pending.orderNumber)}</b></div><div class="pending-order-item">${itemImage}<div><strong>${escape(pending.title || product.title)}</strong><small>${pending.condition ? `${t("สภาพ")}: ${escape(t(pending.condition))} · ` : ""}${money(pending.unitPrice || product.price)} · ${t("{count} ชิ้น", { count: pending.quantity || 1 })}</small>${pending.description ? `<small>${t("คำอธิบาย")}: ${escape(pending.description)}</small>` : ""}</div><b>${money(total)}</b></div><div class="pending-order-total"><strong>${t("ยอดชำระทั้งหมด")}</strong><b>${money(total)}</b></div><div class="pending-order-countdown"><span>${icon("clock", 22)} ${t("เหลือเวลาชำระ")}</span><strong data-pending-deadline="${Number(pending.expiresAt)}">08:00:00</strong></div><p class="pending-order-expired" hidden>${t("หมดเวลาชำระเงิน กรุณาสร้างคำสั่งซื้อใหม่")}</p><section class="pending-payment-section"><h2>${t("ชำระเงินด้วย QR")}</h2><div class="pending-payment-qr-grid"><div class="pending-qr-card"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><strong>${t("QR สำหรับโอนเงิน")}</strong><span>${t("ชื่อบัญชีรับโอน")}</span><b>${BANK_PAYMENT_RECIPIENT}</b><small>${money(total)} · ${t("รหัสอ้างอิง")}: ${escape(pending.reference || pending.orderNumber)}</small></div></div><div class="pending-qr-card pending-demo-qr-card"><img id="secondhand-pending-demo-qr" data-reference="${escape(pending.reference || pending.orderNumber)}" data-amount="${total}" data-expires="${Number(pending.expiresAt)}" data-listing-id="${escape(pending.listingId)}" data-order-number="${escape(pending.orderNumber)}" alt="${t("QR ตัวกลางสำหรับยืนยันคำสั่งซื้อแบบ Demo")}"/><div><strong>${t("QR ตัวกลาง (Demo)")}</strong><span>${t("สแกนเพื่อเปิดขั้นตอนยืนยันในระบบจำลอง")}</span><small>${t("QR นี้ใช้เปิดหน้าตรวจสอบและยืนยันสถานะคำสั่งซื้อ")}</small></div></div></div></section></article><div class="pending-order-actions">${a("/", `${icon("home", 20)} ${t("ไปหน้าแรก")}`, "button outline")}${a("/my-orders", `${icon("package", 20)} ${t("ไปหน้าคำสั่งซื้อของฉัน")}`, "button primary")}</div></section>`;
 }
 function secondhandPurchaseSuccessPage(listingId, orderNumber, amount, paidAt) {
   const product = listing(listingId) || {};
@@ -1914,6 +1917,27 @@ function initializeSecondhandPendingCountdown() {
   };
   tick();
   secondhandPendingTimer = setInterval(tick, 1000);
+}
+async function initializeSecondhandPendingQr() {
+  const qr = document.querySelector("#secondhand-pending-demo-qr");
+  if (!qr) return;
+  try {
+    qr.src = await QRCode.toDataURL(
+      demoAcceptUrl(qr.dataset.reference, qr.dataset.amount, {
+        expires: Number(qr.dataset.expires),
+        secondhandListing: qr.dataset.listingId,
+        orderNumber: qr.dataset.orderNumber,
+      }).href,
+      {
+        errorCorrectionLevel: "M",
+        margin: 2,
+        width: 320,
+        color: { dark: "#092847", light: "#ffffff" },
+      },
+    );
+  } catch {
+    /* Keep the payment instructions visible if QR rendering fails. */
+  }
 }
 
 function newProduct() {
@@ -3462,6 +3486,7 @@ function render() {
   void initializeSecondhandDetailMap();
   initializeSecondhandCheckout();
   initializeSecondhandPendingCountdown();
+  void initializeSecondhandPendingQr();
 
   const footerMount = document.querySelector("#interactive-footer");
   if (footerMount) {
@@ -5185,6 +5210,7 @@ document.addEventListener("submit", async (e) => {
         JSON.stringify({
           orderId,
           orderNumber,
+          reference: f.dataset.reference,
           listingId: product.id,
           title: product.title,
           image: product.images?.[0] || product.image || "",

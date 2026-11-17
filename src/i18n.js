@@ -365,6 +365,20 @@ const labels = {
     "This email is already used by another demo account.",
   "เปิด QR จำลองและแจ้งชำระ": "Open demo QR and report payment",
   "QR สำหรับทดลองจ่าย": "Demo payment QR",
+  "QR สำหรับโอนเงินเข้าบัญชี": "Bank transfer QR",
+  "ชื่อบัญชีรับโอน": "Recipient account name",
+  "โอนตามยอดชำระทั้งหมดด้านล่าง": "Transfer the total shown below.",
+  "หลังสร้างคำสั่งซื้อ ระบบจะแสดง QR ตัวกลางสำหรับขั้นตอนยืนยันแบบ Demo":
+    "After creating the order, an intermediary demo QR will be shown for confirmation.",
+  "QR สำหรับโอนเงิน": "Bank transfer QR",
+  "ชำระเงินด้วย QR": "Pay by QR",
+  "QR ตัวกลาง (Demo)": "Intermediary QR (Demo)",
+  "สแกนเพื่อเปิดขั้นตอนยืนยันในระบบจำลอง":
+    "Scan to open the simulated confirmation step.",
+  "QR นี้ใช้เปิดหน้าตรวจสอบและยืนยันสถานะคำสั่งซื้อ":
+    "This QR opens the order review and demo confirmation page.",
+  "QR ตัวกลางสำหรับยืนยันคำสั่งซื้อแบบ Demo":
+    "Intermediary QR for demo order confirmation",
   "QR ตัวอย่าง สแกนจ่ายไม่ได้": "Sample QR · Cannot be scanned for payment",
   ยอดส่วนแบ่งของคุณ: "Your share",
   "ดาวน์โหลด PNG ตัวอย่าง": "Download sample PNG",
