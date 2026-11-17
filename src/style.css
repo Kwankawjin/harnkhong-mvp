@@ -4028,6 +4028,7 @@ body.mobile-menu-open {
 .account-layout .account-test-tools {
   grid-column: 1 / -1;
 }
+.account-layout .account-test-tools { grid-row: 5; }
 .account-layout #account-orders { grid-column: 1; }
 .account-layout .account-shortcuts { grid-column: 2; }
 .account-overview,
@@ -4049,8 +4050,13 @@ body.mobile-menu-open {
 .account-profile-line {
   display: flex;
   align-items: center;
-  gap: 17px;
-  padding: 6px 0 22px;
+  gap: 22px;
+  padding: 0 0 22px;
+}
+.account-profile-line > .avatar.large {
+  width: 112px;
+  height: 112px;
+  font-size: 2.25rem;
 }
 .account-profile-line > div:not(.account-profile-actions) {
   flex: 1;
@@ -4059,7 +4065,7 @@ body.mobile-menu-open {
 .account-profile-actions {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 9px;
   flex-wrap: wrap;
   flex: 0 0 auto;
@@ -4360,6 +4366,8 @@ body.mobile-menu-open {
   border-radius: 12px;
   padding: 14px;
   min-width: 0;
+  border: 1px solid #e0e4ff;
+  background: rgba(255, 255, 255, 0.62);
 }
 .account-summary-tile > div { min-width: 0; }
 .account-summary-tile .account-summary-icon {
@@ -4375,21 +4383,21 @@ body.mobile-menu-open {
 .account-summary-tile > div > small { color: var(--text-sub); }
 .account-summary-tile > div > strong { color: var(--navy); }
 .account-summary-tile.violet {
-  background: #f5f2fe;
   color: #47319d;
 }
 .account-summary-tile.mint {
-  background: #edfaf3;
   color: #0b7950;
 }
 .account-summary-tile.blue {
-  background: #edf6ff;
   color: #17569c;
 }
 .account-summary-tile.rose {
-  background: #fff1f3;
   color: #a72c48;
 }
+.account-summary-tile.violet .account-summary-icon { background: #eee8ff; }
+.account-summary-tile.mint .account-summary-icon { background: #e1f7ed; }
+.account-summary-tile.blue .account-summary-icon { background: #e2efff; }
+.account-summary-tile.rose .account-summary-icon { background: #ffebef; }
 .account-summary-tile span,
 .account-summary-tile small {
   display: block;

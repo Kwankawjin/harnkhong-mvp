@@ -792,6 +792,16 @@ const labels = {
     "Membership and cost changes appear here.",
   สำรวจสินค้า: "Browse products",
   บัญชีของฉัน: "My account",
+  "สรุปข้อมูลของฉัน": "My account summary",
+  "ยอดยืนยันกลุ่มและคำสั่งซื้อโดยรวม": "An overview of your groups and orders.",
+  "คำสั่งซื้อเดิม": "Past orders",
+  ยอดค้างชำระ: "Outstanding balance",
+  "ยอดชำระเสร็จแล้ว": "Paid total",
+  "ความปลอดภัยของเว็บไซต์": "Website security",
+  "ข้อมูลส่วนตัวและการทำรายการของคุณได้รับการปกป้อง เพื่อให้ใช้งานได้อย่างปลอดภัยและมั่นใจ":
+    "Your personal information and activity are protected for a safer experience.",
+  "บัญชีตัวอย่างเก็บข้อมูลไว้ในเบราว์เซอร์นี้เท่านั้น":
+    "Demo account data is stored only in this browser.",
   เข้าสู่ระบบหรือลงทะเบียนเพื่อจัดการข้อมูลส่วนตัว:
     "Log in or sign up to manage your profile.",
   จัดการบทบาทและทดลองใช้งานหลายบัญชี:
