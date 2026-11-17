@@ -47,6 +47,8 @@ const BANK_PAYMENT_RECIPIENT = "จิณห์นิภา บรรจบส�
 
 let doodleFooterRoot = null;
 let profileBadgeRoot = null;
+let adminPageModule = null;
+let adminPageModulePromise = null;
 import { loadGroupMessages, sendGroupMessage } from "./group-chat.js";
 import {
   loadSupabaseGroups,
@@ -3323,6 +3325,20 @@ function groupsLoadingSkeleton() {
   </section>`;
 }
 function render() {
+  if (location.pathname === "/admin" || location.pathname.startsWith("/admin/")) {
+    doodleFooterRoot?.unmount();
+    doodleFooterRoot = null;
+    profileBadgeRoot?.unmount();
+    profileBadgeRoot = null;
+    adminPageModulePromise ||= import("./admin.js");
+    adminPageModulePromise.then((module) => {
+      adminPageModule = module;
+      if (location.pathname === "/admin" || location.pathname.startsWith("/admin/"))
+        module.mountAdminPage({ supabase, supabaseConfigured });
+    });
+    return;
+  }
+  adminPageModule?.unmountAdminPage();
   const createGroupRoute = location.pathname === "/groups/create";
   if (
     !/^\/groups\/[^/]+\/chat$/.test(location.pathname) &&
