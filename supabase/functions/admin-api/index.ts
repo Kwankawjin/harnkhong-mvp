@@ -61,7 +61,7 @@ async function userIndex(client: any) {
 
 async function listGroups(client: any, limit = 200) {
   const { data, error } = await client.from("groups")
-    .select("id, name, owner_id, status, created_at")
+    .select("id, name, owner_id, listing_id, product_satang, delivery_per_member_satang, service_satang, total_satang, status, created_at, products(title)")
     .order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
   const users = await userIndex(client);
@@ -72,7 +72,49 @@ async function listGroups(client: any, limit = 200) {
     if (memberError) throw memberError;
     counts = (members || []).reduce((map: Map<string, number>, row: any) => map.set(row.group_id, (map.get(row.group_id) || 0) + 1), new Map());
   }
-  return (data || []).map((row: any) => ({ ...row, owner_email: users.get(row.owner_id)?.email || "", member_count: counts.get(row.id) || 0 }));
+  return (data || []).map((row: any) => ({ ...row, product_title: row.products?.title || "", products: undefined, owner_email: users.get(row.owner_id)?.email || "", member_count: counts.get(row.id) || 0 }));
+}
+
+async function dashboardOverview(client: any, body: Record<string, unknown>, actor: any) {
+  const allowedRanges = new Set([7, 30, 90]);
+  const rangeDays = Number(body.rangeDays);
+  const days = allowedRanges.has(rangeDays) ? rangeDays : 7;
+  const end = new Date();
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - (days - 1));
+  start.setUTCHours(0, 0, 0, 0);
+  const startIso = start.toISOString();
+  const usersById = await userIndex(client);
+  const [users, groups, waiting, products, trendRows, activityRows, recentGroups] = await Promise.all([
+    (async () => { const { count, error } = await client.from("profiles").select("id", { count: "exact", head: true }); if (error) throw error; return count; })(),
+    (async () => { const { count, error } = await client.from("groups").select("id", { count: "exact", head: true }); if (error) throw error; return count; })(),
+    (async () => { const { count, error } = await client.from("groups").select("id", { count: "exact", head: true }).eq("status", "awaiting_approval"); if (error) throw error; return count; })(),
+    (async () => { const { count, error } = await client.from("products").select("id", { count: "exact", head: true }).eq("active", true); if (error) throw error; return count; })(),
+    (async () => { const { data, error } = await client.from("groups").select("created_at").gte("created_at", startIso).lte("created_at", end.toISOString()); if (error) throw error; return data || []; })(),
+    (async () => { const { data, error } = await client.from("group_events").select("id, event_type, actor_id, group_id, created_at, groups(name)").order("created_at", { ascending: false }).limit(10); if (error) throw error; return data || []; })(),
+    listGroups(client, 8),
+  ]);
+  const byDay = new Map<string, number>();
+  for (let offset = 0; offset < days; offset += 1) {
+    const day = new Date(start); day.setUTCDate(start.getUTCDate() + offset);
+    byDay.set(day.toISOString().slice(0, 10), 0);
+  }
+  for (const row of trendRows) {
+    const key = new Date(row.created_at).toISOString().slice(0, 10);
+    if (byDay.has(key)) byDay.set(key, (byDay.get(key) || 0) + 1);
+  }
+  const activity = [
+    ...activityRows.map((row: any) => ({ kind: row.event_type, actor: usersById.get(row.actor_id)?.email || "สมาชิก", target: row.groups?.name || "กลุ่ม", created_at: row.created_at })),
+    ...[...usersById.values()].filter((user: any) => user.created_at >= startIso).map((user: any) => ({ kind: "member_registered", actor: user.email || "สมาชิก", target: "สมัครสมาชิก", created_at: user.created_at })),
+  ].sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 10);
+  return {
+    stats: { users, groups, awaitingGroups: waiting, activeProducts: products },
+    analytics: { rangeDays: days, start: startIso, end: end.toISOString(), groupsByDay: [...byDay].map(([date, count]) => ({ date, count })), paidSales: null },
+    paymentOverview: { available: false, reason: "ยังไม่มีข้อมูลการชำระเงินในระบบหารของ" },
+    recentActivity: activity,
+    recentGroups,
+    system: { supabase: "connected", authentication: "authorized", paymentVerification: "unavailable", updatedAt: new Date().toISOString(), checkedBy: actor.email },
+  };
 }
 
 async function handleAction(req: Request, ctx: any) {
@@ -93,26 +135,7 @@ async function handleAction(req: Request, ctx: any) {
   const db = ctx.supabaseAdmin;
 
   if (action === "overview") {
-    const [users, groups, awaitingGroups, readyGroups, recentGroups] = await Promise.all([
-      (async () => (await userIndex(db)).size)(),
-      (async () => {
-        const { count, error } = await db.from("groups").select("id", { count: "exact", head: true });
-        if (error) throw error;
-        return count || 0;
-      })(),
-      (async () => {
-        const { count, error } = await db.from("groups").select("id", { count: "exact", head: true }).eq("status", "awaiting_approval");
-        if (error) throw error;
-        return count || 0;
-      })(),
-      (async () => {
-        const { count, error } = await db.from("groups").select("id", { count: "exact", head: true }).eq("status", "ready");
-        if (error) throw error;
-        return count || 0;
-      })(),
-      listGroups(db, 8),
-    ]);
-    return response(req, { stats: { users, groups, awaitingGroups, readyGroups }, recentGroups });
+    return response(req, await dashboardOverview(db, body, ctx.userClaims));
   }
   if (action === "users") {
     const users = await userIndex(db);

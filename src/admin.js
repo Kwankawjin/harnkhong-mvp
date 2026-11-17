@@ -13,6 +13,7 @@ let currentClient = null;
 let pageGeneration = 0;
 let feedback = "";
 let busy = false;
+let dashboardRangeDays = 7;
 
 const escapeHtml = (value = "") =>
   String(value).replace(/[&<>"']/g, (char) => ({
@@ -79,8 +80,22 @@ function statusPill(status) {
 }
 
 function dashboardContent(data) {
-  const rows = (data.recentGroups || []).map((group) => `<tr><td><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(String(group.id).slice(0, 8))}</small></td><td>${escapeHtml(group.owner_email || "สมาชิก")}</td><td>${escapeHtml(group.member_count)}</td><td>${statusPill(group.status)}</td><td>${formatDate(group.created_at)}</td></tr>`).join("");
-  return `<section class="admin-welcome"><div><h2>ยินดีต้อนรับกลับ</h2><p>ภาพรวมสมาชิกและกลุ่มหารของ HarnKhong</p></div><span class="admin-welcome-mark" aria-hidden="true">HK</span></section><section class="admin-stat-grid">${statCard("สมาชิกทั้งหมด", data.stats.users, "บัญชีสมาชิก", "♙", "blue")}${statCard("กลุ่มหารของ", data.stats.groups, "กลุ่มทั้งหมด", "♧", "violet")}${statCard("รอสมาชิกยืนยัน", data.stats.awaitingGroups, "กลุ่มที่กำลังเปิดรับการยืนยัน", "✓", "amber")}${statCard("พร้อมดำเนินการ", data.stats.readyGroups, "กลุ่มที่สมาชิกยืนยันครบแล้ว", "◇", "green")}</section><section class="admin-panel"><div class="admin-panel-heading"><div><h2>กลุ่มหารของล่าสุด</h2><p>สถานะและจำนวนสมาชิกในแต่ละกลุ่ม</p></div><a href="/admin#/groups">ดูกลุ่มทั้งหมด <span aria-hidden="true">→</span></a></div>${table(["กลุ่ม", "หัวหน้ากลุ่ม", "สมาชิก", "สถานะ", "วันที่สร้าง"], rows, "ยังไม่มีกลุ่มหารของ")}</section>`;
+  const money = (satang) => satang == null ? "—" : `฿${(Number(satang) / 100).toLocaleString("th-TH", { minimumFractionDigits: 2 })}`;
+  const rows = (data.recentGroups || []).map((group) => `<tr><td><strong>${escapeHtml(group.product_title || group.name)}</strong><small>${escapeHtml(group.name)}</small></td><td>${escapeHtml(group.owner_email || "สมาชิก")}</td><td>${money(group.total_satang)}</td><td>${statusPill(group.status)}</td><td>${formatDate(group.created_at)}</td><td><a class="admin-row-link" href="/admin#/groups">ดูกลุ่ม</a></td></tr>`).join("");
+  const trend = data.analytics?.groupsByDay || [];
+  const maxCount = Math.max(1, ...trend.map((day) => day.count));
+  const hasTrend = trend.some((day) => day.count > 0);
+  const tickEvery = trend.length > 60 ? 15 : trend.length > 14 ? 5 : 1;
+  const chart = hasTrend ? `<div class="admin-chart" role="img" aria-label="จำนวนกลุ่มที่สร้างในแต่ละวันย้อนหลัง ${data.analytics.rangeDays} วัน">${trend.map((day, index) => `<div class="admin-chart-column"><span class="admin-chart-value">${day.count || ""}</span><span class="admin-chart-bar" style="--bar-height:${Math.max(day.count ? 10 : 2, Math.round((day.count / maxCount) * 100))}%"></span>${index % tickEvery === 0 || index === trend.length - 1 ? `<time datetime="${escapeHtml(day.date)}">${new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${day.date}T12:00:00Z`))}</time>` : "<span></span>"}</div>`).join("")}</div>` : `<p class="admin-inline-empty">ยังไม่มีข้อมูลในช่วงวันที่นี้</p>`;
+  const activityNames = { member_registered: "สมัครสมาชิกใหม่", group_created: "สร้างกลุ่มใหม่", member_joined: "เข้าร่วมกลุ่ม", member_left: "ออกจากกลุ่ม", costs_changed: "เปลี่ยนข้อมูลค่าใช้จ่าย", leadership_transferred: "เปลี่ยนหัวหน้ากลุ่ม", share_approved: "ยืนยันข้อมูลกลุ่ม", group_details_changed: "แก้ไขข้อมูลกลุ่ม" };
+  const activity = (data.recentActivity || []).map((item) => `<li><span class="admin-activity-dot" aria-hidden="true"></span><div><strong>${escapeHtml(activityNames[item.kind] || "กิจกรรมกลุ่ม")}</strong><p>${escapeHtml(item.actor || "สมาชิก")} · ${escapeHtml(item.target || "")}</p></div><time datetime="${escapeHtml(item.created_at)}">${formatDate(item.created_at)}</time></li>`).join("");
+  const statusLine = (label, state) => `<div class="admin-system-row"><span>${label}</span><strong class="${state === "unavailable" ? "is-unavailable" : "is-ok"}"><i></i>${state === "connected" ? "เชื่อมต่อแล้ว" : state === "authorized" ? "ยืนยันสิทธิ์แล้ว" : "ยังไม่มีข้อมูล"}</strong></div>`;
+  return `<section class="admin-welcome"><div><h2>ยินดีต้อนรับกลับ</h2><p>ภาพรวมข้อมูลจริงของระบบหารของ</p></div><span class="admin-welcome-mark" aria-hidden="true">HK</span></section>
+    <section class="admin-stat-grid">${statCard("สมาชิกทั้งหมด", data.stats.users ?? "—", "บัญชี Supabase Auth", "♙", "blue")}${statCard("กลุ่มทั้งหมด", data.stats.groups ?? "—", "กลุ่มหารของ", "♧", "violet")}${statCard("กลุ่มรอยืนยัน", data.stats.awaitingGroups ?? "—", "สถานะรอสมาชิกยืนยัน", "✓", "amber")}${statCard("สินค้าเปิดขาย", data.stats.activeProducts ?? "—", "สินค้าที่ Active", "◇", "green")}</section>
+    <section class="admin-panel admin-analytics"><div class="admin-panel-heading"><div><h2>แนวโน้มกลุ่มหารของ</h2><p>จำนวนกลุ่มที่สร้าง · ยอดขายที่ยืนยันแล้วไม่มีแหล่งข้อมูลในระบบหารของ</p></div><label class="admin-range-label">ช่วงวันที่<select data-admin-range aria-label="ช่วงวันที่ของกราฟ"><option value="7" ${dashboardRangeDays === 7 ? "selected" : ""}>7 วัน</option><option value="30" ${dashboardRangeDays === 30 ? "selected" : ""}>30 วัน</option><option value="90" ${dashboardRangeDays === 90 ? "selected" : ""}>90 วัน</option></select></label></div><div class="admin-analytics-body"><div>${chart}</div><aside class="admin-sales-unavailable"><span>ยอดขายที่ยืนยันแล้ว</span><strong>ยังไม่มีข้อมูล</strong><small>ระบบหารของยังไม่มีรายการชำระเงินที่บันทึกในฐานข้อมูล</small></aside></div></section>
+    <section class="admin-dashboard-grid"><div class="admin-panel"><div class="admin-panel-heading"><div><h2>การชำระเงิน</h2><p>ตัวเลขจะแสดงเมื่อมีข้อมูลการชำระเงินจริง</p></div></div><div class="admin-unavailable"><strong>ยังไม่มีข้อมูลการชำระเงิน</strong><span>ระบบกลุ่มหารของปัจจุบันยังไม่มีตารางรายการชำระ จึงไม่แสดงยอดหรือจำนวนรอตรวจสอบ</span></div></div><div class="admin-panel"><div class="admin-panel-heading"><div><h2>กิจกรรมล่าสุด</h2><p>รายการจากประวัติกลุ่มและสมาชิกที่สมัคร</p></div></div>${activity ? `<ul class="admin-activity-list">${activity}</ul>` : `<p class="admin-inline-empty">ยังไม่มีกิจกรรม</p>`}</div></section>
+    <section class="admin-panel"><div class="admin-panel-heading"><div><h2>กลุ่มหารของล่าสุด</h2><p>ข้อมูลกลุ่มที่มีอยู่จริงในระบบปัจจุบัน</p></div><a href="/admin#/groups">ดูกลุ่มทั้งหมด <span aria-hidden="true">→</span></a></div>${table(["สินค้า / กลุ่ม", "ผู้สร้าง", "ยอดต่อกลุ่ม", "สถานะ", "วันที่", ""], rows, "ยังไม่มีกลุ่มหารของ")}</section>
+    <section class="admin-panel admin-system"><div class="admin-panel-heading"><div><h2>สถานะระบบ</h2><p>ตรวจสอบจากการโหลดข้อมูลครั้งนี้</p></div></div><div class="admin-system-grid">${statusLine("Supabase", data.system.supabase)}${statusLine("Authentication", data.system.authentication)}${statusLine("การตรวจสอบการชำระ", data.system.paymentVerification)}<div class="admin-system-row"><span>อัปเดตล่าสุด</span><strong>${formatDate(data.system.updatedAt)}</strong></div></div></section>`;
 }
 
 async function invoke(action, payload = {}) {
@@ -96,7 +111,7 @@ async function invoke(action, payload = {}) {
 
 async function getSectionContent(section) {
   if (section === "dashboard") {
-    const data = await invoke("overview");
+    const data = await invoke("overview", { rangeDays: dashboardRangeDays });
     return dashboardContent(data);
   }
   if (section === "users") {
@@ -237,6 +252,13 @@ document.addEventListener("click", async (event) => {
   } else if (action === "reload") {
     mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
   }
+});
+
+document.addEventListener("change", (event) => {
+  const select = event.target.closest("[data-admin-range]");
+  if (!select || !currentClient) return;
+  dashboardRangeDays = Number(select.value) || 7;
+  mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
 });
 
 window.addEventListener("popstate", () => {
