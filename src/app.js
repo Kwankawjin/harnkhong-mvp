@@ -2582,7 +2582,7 @@ function profile() {
     );
   return `<div class="account-page account-dashboard">
     <div class="account-dashboard-layout">
-      <aside class="account-dashboard-sidebar"><div class="account-profile-badge"><div id="profile-lanyard-badge"></div><p>${t("แตะหรือกด Enter ที่บัตรเพื่อพลิกดูอีกด้าน")}</p></div></aside>
+      <aside class="account-dashboard-sidebar"><div class="account-profile-badge"><div id="profile-lanyard-badge"></div></div></aside>
       <header class="account-dashboard-heading">${title(t("บัญชีของฉัน"), t(supabaseConfigured ? "จัดการโปรไฟล์และกลุ่มของคุณ" : "จัดการบทบาทและทดลองใช้งานหลายบัญชี"))}${a("/subscription", `${icon("sparkles", 20)} <span><strong>${t("แพ็กเกจสมาชิก")}</strong><small>${subscriptionFor() === "plus" ? t("Plus · 49 บาท/เดือน") : t("Free · ใช้งานฟรี")}</small></span>${icon("arrow", 18)}`, "account-shortcut subscription-account-link")}</header>
       <main class="account-dashboard-content">
     <div class="account-layout">
