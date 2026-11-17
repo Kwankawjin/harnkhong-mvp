@@ -85,10 +85,11 @@ async function dashboardOverview(client: any, body: Record<string, unknown>, act
   start.setUTCHours(0, 0, 0, 0);
   const startIso = start.toISOString();
   const usersById = await userIndex(client);
-  const [users, groups, waiting, products, trendRows, activityRows, recentGroups] = await Promise.all([
+  const [users, groups, waiting, ready, products, trendRows, activityRows, recentGroups] = await Promise.all([
     (async () => { const { count, error } = await client.from("profiles").select("id", { count: "exact", head: true }); if (error) throw error; return count; })(),
     (async () => { const { count, error } = await client.from("groups").select("id", { count: "exact", head: true }); if (error) throw error; return count; })(),
     (async () => { const { count, error } = await client.from("groups").select("id", { count: "exact", head: true }).eq("status", "awaiting_approval"); if (error) throw error; return count; })(),
+    (async () => { const { count, error } = await client.from("groups").select("id", { count: "exact", head: true }).eq("status", "ready"); if (error) throw error; return count; })(),
     (async () => { const { count, error } = await client.from("products").select("id", { count: "exact", head: true }).eq("active", true); if (error) throw error; return count; })(),
     (async () => { const { data, error } = await client.from("groups").select("created_at").gte("created_at", startIso).lte("created_at", end.toISOString()); if (error) throw error; return data || []; })(),
     (async () => { const { data, error } = await client.from("group_events").select("id, event_type, actor_id, group_id, created_at, groups(name)").order("created_at", { ascending: false }).limit(10); if (error) throw error; return data || []; })(),
@@ -108,7 +109,7 @@ async function dashboardOverview(client: any, body: Record<string, unknown>, act
     ...[...usersById.values()].filter((user: any) => user.created_at >= startIso).map((user: any) => ({ kind: "member_registered", actor: user.email || "สมาชิก", target: "สมัครสมาชิก", created_at: user.created_at })),
   ].sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 10);
   return {
-    stats: { users, groups, awaitingGroups: waiting, activeProducts: products },
+    stats: { users, groups, awaitingGroups: waiting, readyGroups: ready, activeProducts: products },
     analytics: { rangeDays: days, start: startIso, end: end.toISOString(), groupsByDay: [...byDay].map(([date, count]) => ({ date, count })), paidSales: null },
     paymentOverview: { available: false, reason: "ยังไม่มีข้อมูลการชำระเงินในระบบหารของ" },
     recentActivity: activity,
