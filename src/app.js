@@ -996,64 +996,12 @@ function updateSecondhandCheckoutSummary(form) {
   const qr = form.querySelector("#secondhand-checkout-qr");
   if (qr) qr.dataset.amount = String(total);
 }
-function watchGroupApproval(groupId, userId, revision, dialog, expiresAt) {
-  if (!supabaseConfigured) return;
-  let checking = false;
-  const stop = () => clearInterval(timer);
-  const check = async () => {
-    if (
-      checking ||
-      !dialog.isConnected ||
-      !dialog.open ||
-      Date.now() >= expiresAt
-    ) {
-      stop();
-      return;
-    }
-    checking = true;
-    try {
-      const { data, error } = await supabase
-        .from("group_approvals")
-        .select("revision")
-        .eq("group_id", groupId)
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (error) throw error;
-      if (Number(data?.revision) !== revision) return;
-      stop();
-      const current = group(groupId);
-      if (current)
-        state.groups = state.groups.map((item) =>
-          item.id === groupId
-            ? { ...item, approvals: { ...item.approvals, [userId]: revision } }
-            : item,
-        );
-      const status = dialog.querySelector(".demo-pending-status");
-      if (status) {
-        status.classList.add("is-approved");
-        status.querySelector("b").textContent = t("สำเร็จ");
-      }
-      const note = dialog.querySelector(".demo-only-note");
-      if (note) note.textContent = t("ยืนยันยอดจากโทรศัพท์แล้ว");
-      render();
-      alertMessage(t("ยืนยันยอดจากโทรศัพท์แล้ว"));
-    } catch {
-      /* Keep checking until the QR expires; the phone remains the source of truth. */
-    } finally {
-      checking = false;
-    }
-  };
-  const timer = setInterval(check, 1500);
-  dialog.addEventListener("close", stop, { once: true });
-  check();
-}
 function paymentDialog(order, reference) {
   const amount = order.payments[state.user.id].amountSatang;
   const expires = Date.now() + 5 * 60 * 60 * 1000;
   return `<dialog id="payment-dialog" class="payment-dialog share-approval-dialog" aria-labelledby="payment-title"><div class="payment-head"><span class="chip">${t("จำลองเท่านั้น")}</span><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิดหน้าต่าง")}">✕</button></div><h2 id="payment-title">${t("สแกน QR เพื่อยืนยันยอด")}</h2><p>${t("สแกนด้วยโทรศัพท์เพื่อตรวจสอบและยอมรับยอด")}</p><div class="demo-qr"><img id="payment-qr" data-reference="${escape(reference)}" data-amount="${amount}" data-expires="${expires}" alt="${t("QR สำหรับยอมรับยอดจำลอง")}"/></div><div class="approval-amount-panel"><small>${t("ยอดชำระจำลอง")}</small><strong class="payment-amount">${money(amount)}</strong></div><div class="demo-expiry-box"><span>${t("กรุณายอมรับภายใน")}<b>5 ${t("ชั่วโมง")}</b></span><strong class="demo-countdown">05 : 00 : 00</strong></div><small class="demo-expired-message" hidden>${t("หมดเวลายอมรับ กรุณาสร้าง QR ใหม่")}</small><div class="demo-reference-row"><span>${t("รหัสอ้างอิง")}</span><b>${escape(reference)}</b></div><div class="demo-pending-status"><span>${t("สถานะการยืนยัน")}</span><b>${t("รอยืนยัน")}</b></div><div class="demo-only-note">${t("การยืนยันนี้เป็นการยอมรับจำนวนเงินจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง")}</div></dialog>`;
 }
-function shareApprovalDialog(amount, reference, g, p) {
-  const expires = Date.now() + 5 * 60 * 60 * 1000;
+function shareApprovalDialog(amount, g, p) {
   const addr = state.user?.address || {};
   const addressParts = [
     [t("บ้านเลขที่"), addr.houseNo],
@@ -1072,7 +1020,7 @@ function shareApprovalDialog(amount, reference, g, p) {
   const itemImage = coverImage
     ? `<img src="${escape(coverImage)}" alt="${escape(p?.title || g.name)}"/>`
     : `<div class="checkout-product-art ${isDigitalProduct ? "is-digital" : ""}">${art({ ...p, category: g.category || p?.category })}</div>`;
-  return `<dialog id="share-approval-dialog" class="payment-dialog share-approval-dialog" aria-labelledby="share-approval-title"><div class="checkout-page-head"><div><h2 id="share-approval-title">${t("สั่งซื้อ (หารของ)")}</h2></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิดหน้าต่าง")}">✕</button></div><div class="checkout-steps"><span class="active">1 · ${t("ตรวจสอบข้อมูล")}</span><i></i><span class="active">2 · ${t("ยืนยันยอด")}</span><i></i><span>3 · ${t("เสร็จสิ้น")}</span></div><div class="checkout-layout"><div class="checkout-info-column"><section class="checkout-panel"><h3>${icon("map-pin", 20)} ${t("ที่อยู่ในการจัดส่ง")}</h3><div class="checkout-address"><div class="checkout-address-contact"><strong>${escape(state.user?.name || "—")}</strong><span>${escape(addr.phone || "—")}</span></div>${addressParts.length ? `<div class="checkout-address-details">${addressParts.map(([label, value]) => `<span><small>${escape(label)}</small><b>${escape(value)}</b></span>`).join("")}</div>` : `<p>${t("ยังไม่ได้ระบุที่อยู่")}</p>`}</div></section><section class="checkout-panel"><h3>${icon("package", 20)} ${t("รายละเอียดสินค้า")}</h3><div class="checkout-product">${itemImage}<div><strong>${escape(p?.title || g.name)}</strong><span>${t("กลุ่มหาร")}: ${escape(g.name)}</span><span>${escape(p?.description || t("สินค้าในกลุ่มหารของ"))}</span></div><b>${money(amount)}</b></div></section><section class="checkout-panel checkout-note"><h3>${icon("edit", 20)} ${t("หมายเหตุถึงผู้จัดกลุ่ม")}</h3><textarea maxlength="200" placeholder="${t("เช่น สีที่ต้องการ / รายละเอียดเพิ่มเติม...")}" aria-label="${t("หมายเหตุถึงผู้จัดกลุ่ม")}"></textarea><small>0 / 200</small></section></div><section class="checkout-panel checkout-pay-panel"><h3>${icon("package", 22)} ${t("ชำระเงิน")}</h3><p>${t("สแกน QR เพื่อชำระเงินและยืนยันยอด")}</p><div class="pending-payment-qr-grid share-approval-qr-grid"><div class="pending-qr-card"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><strong>${t("QR บัญชีรับเงิน")}</strong><span>${t("ชื่อบัญชีรับโอน")}</span><b>${BANK_PAYMENT_RECIPIENT}</b><small>${t("ยอดส่วนของคุณ")}: ${money(amount)}</small></div></div><div class="pending-qr-card pending-demo-qr-card"><img id="share-approval-qr" data-expires="${expires}" alt="${t("QR ตัวกลางสำหรับยืนยันยอดส่วนแบ่ง")}"/><div><strong>${t("QR ตัวกลาง")}</strong><span>${t("สแกนเพื่อเปิดหน้ายืนยันยอดส่วนแบ่ง")}</span><small>${t("ใช้ QR นี้เพื่อยืนยันยอดส่วนแบ่งกับกลุ่ม")}</small></div></div></div><div class="checkout-amount"><span>${t("ยอดชำระ")} (${t("ส่วนของคุณ")})</span><strong>${money(amount)}</strong></div><div class="demo-expiry-box"><span>${t("กรุณายืนยันภายใน")}<b>5 ${t("ชั่วโมง")}</b></span><strong class="demo-countdown">05 : 00 : 00</strong></div><small class="demo-expired-message" hidden>${t("QR หมดอายุแล้ว กรุณาสร้างใหม่")}</small><div class="demo-pending-status"><span>${t("สถานะการยืนยัน")}</span><b>${t("รอยืนยัน")}</b></div><small class="checkout-reference">${t("รหัสอ้างอิง")}: ${escape(reference)}</small></section></div></dialog>`;
+  return `<dialog id="share-approval-dialog" class="payment-dialog share-approval-dialog" aria-labelledby="share-approval-title"><div class="checkout-page-head"><div><h2 id="share-approval-title">${t("สั่งซื้อ (หารของ)")}</h2></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิดหน้าต่าง")}">✕</button></div><div class="checkout-steps"><span class="active">1 · ${t("ตรวจสอบข้อมูล")}</span><i></i><span class="active">2 · ${t("ยืนยันยอด")}</span><i></i><span>3 · ${t("เสร็จสิ้น")}</span></div><div class="checkout-layout"><div class="checkout-info-column"><section class="checkout-panel"><h3>${icon("map-pin", 20)} ${t("ที่อยู่ในการจัดส่ง")}</h3><div class="checkout-address"><div class="checkout-address-contact"><strong>${escape(state.user?.name || "—")}</strong><span>${escape(addr.phone || "—")}</span></div>${addressParts.length ? `<div class="checkout-address-details">${addressParts.map(([label, value]) => `<span><small>${escape(label)}</small><b>${escape(value)}</b></span>`).join("")}</div>` : `<p>${t("ยังไม่ได้ระบุที่อยู่")}</p>`}</div></section><section class="checkout-panel"><h3>${icon("package", 20)} ${t("รายละเอียดสินค้า")}</h3><div class="checkout-product">${itemImage}<div><strong>${escape(p?.title || g.name)}</strong><span>${t("กลุ่มหาร")}: ${escape(g.name)}</span><span>${escape(p?.description || t("สินค้าในกลุ่มหารของ"))}</span></div><b>${money(amount)}</b></div></section><section class="checkout-panel checkout-note"><h3>${icon("edit", 20)} ${t("หมายเหตุถึงผู้จัดกลุ่ม")}</h3><textarea maxlength="200" placeholder="${t("เช่น สีที่ต้องการ / รายละเอียดเพิ่มเติม...")}" aria-label="${t("หมายเหตุถึงผู้จัดกลุ่ม")}"></textarea><small>0 / 200</small></section></div><section class="checkout-panel checkout-pay-panel"><h3>${icon("package", 22)} ${t("ชำระเงิน")}</h3><p>${t("สแกน QR เพื่อชำระเงิน")}</p><div class="checkout-qr-row bank-transfer-qr-row share-approval-bank-qr"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div class="checkout-bank"><strong>${t("QR บัญชีรับเงิน")}</strong><span>${t("ชื่อบัญชีรับโอน")}</span><b>${BANK_PAYMENT_RECIPIENT}</b><small>${t("ยอดส่วนของคุณ")}: ${money(amount)}</small></div></div><div class="checkout-amount"><span>${t("ยอดชำระ")} (${t("ส่วนของคุณ")})</span><strong>${money(amount)}</strong></div><button class="button primary full" type="button" data-action="confirm-share-amount" data-id="${escape(g.id)}" data-revision="${Number(g.revision)}">${t("ยืนยันยอดส่วนแบ่ง")}</button></section></div></dialog>`;
 }
 function demoApprovalPage(success = false) {
   const params = new URLSearchParams(location.search),
@@ -4844,40 +4792,45 @@ document.addEventListener("click", async (e) => {
       }
       go("/my-groups");
       alertMessage(t("ลบห้องแล้ว"));
-    } else if (action === "approve") {
+        } else if (action === "approve") {
       const current = group(id);
       if (!current || !current.members.includes(state.user?.id))
         throw Object.assign(new Error(), { code: "orderUnauthorized" });
-      const amount = shares(current)[state.user.id],
-        revision = Number(btn.dataset.revision),
-        reference = demoReference();
+      const amount = shares(current)[state.user.id];
       const product = listing(current.listingId);
       document.body.insertAdjacentHTML(
         "beforeend",
-        shareApprovalDialog(amount, reference, current, product),
+        shareApprovalDialog(amount, current, product),
       );
       const dialog = document.querySelector("#share-approval-dialog");
       dialog.addEventListener("close", () => dialog.remove(), { once: true });
       dialog.showModal();
-      const expires = Number(
-          dialog.querySelector("#share-approval-qr").dataset.expires,
-        ),
-        acceptUrl = demoAcceptUrl(reference, amount, {
-          expires,
-          group: id,
-          revision,
-        });
-      dialog.querySelector("#share-approval-qr").src = await QRCode.toDataURL(
-        acceptUrl.href,
-        {
-          errorCorrectionLevel: "M",
-          margin: 2,
-          width: 420,
-          color: { dark: "#092847", light: "#ffffff" },
-        },
-      );
-      startDemoCountdown(dialog, expires);
-      watchGroupApproval(id, state.user.id, revision, dialog, expires);
+    } else if (action === "confirm-share-amount") {
+      const current = group(id),
+        revision = Number(btn.dataset.revision);
+      if (!current || !current.members.includes(state.user?.id))
+        throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      if (Number(current.revision) !== revision)
+        throw new Error(t("ยอดส่วนแบ่งเปลี่ยนแล้ว กรุณาตรวจสอบใหม่"));
+      if (supabaseConfigured) {
+        await approveSupabaseGroup(id, revision);
+        if (!(await refreshSupabaseGroups(actionSession))) return;
+      } else {
+        const next = approve(current, state.user.id, revision);
+        updateGroup(next);
+        if (allApproved(next))
+          next.members.forEach((member) =>
+            notice(
+              t("ยืนยันยอดครบแล้ว"),
+              t("สมาชิกยืนยันยอดส่วนแบ่งครบแล้ว"),
+              `/orders/${id}`,
+              member,
+            ),
+          );
+      }
+      btn.closest("dialog")?.close();
+      render();
+      alertMessage(t("ยืนยันยอดส่วนแบ่งแล้ว"));
     } else if (action === "copy-link") {
       const current = group(id);
       if (!current) throw new Error(t("ไม่พบกลุ่ม"));

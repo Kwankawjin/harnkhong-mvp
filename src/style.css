@@ -6564,22 +6564,6 @@ dialog:not([open]),
   background: #fff;
   image-rendering: pixelated;
 }
-.share-approval-qr-grid {
-  margin: 14px 0;
-}
-.share-approval-qr-grid .pending-qr-card {
-  flex-direction: column;
-  align-items: flex-start;
-}
-.share-approval-qr-grid .bank-payment-qr-frame,
-.share-approval-qr-grid .pending-demo-qr-card > img {
-  flex-basis: 148px;
-  width: 148px;
-  height: 148px;
-}
-.share-approval-qr-grid .pending-qr-card > div:last-child {
-  width: 100%;
-}
 .pending-order-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -7236,11 +7220,6 @@ dialog:not([open]),
   right: 34px;
   bottom: 32px;
   color: #77737e;
-}
-@media (max-width: 760px) {
-  .share-approval-qr-grid {
-    grid-template-columns: 1fr;
-  }
 }
 .checkout-pay-panel {
   padding: 22px;
