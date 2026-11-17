@@ -2796,7 +2796,7 @@ function myProfilePage() {
     ${title(t("หน้าโปรไฟล์ของฉัน"), t("ข้อมูลที่แสดงบนบัตรสมาชิกของคุณ"))}
     <div class="my-profile-actions">${a("/profile", `← ${t("กลับไปบัญชีของฉัน")}`, "button subtle")}<button class="button outline" data-action="edit-profile">${icon("settings", 17)} ${t("แก้ไขโปรไฟล์")}</button></div>
     <div class="my-profile-layout">
-      <section class="my-profile-badge-panel" aria-label="${t("บัตรโปรไฟล์คล้องสาย")}"><div id="profile-lanyard-badge"></div><p>${t("แตะหรือกด Enter ที่บัตรเพื่อพลิกดูอีกด้าน")}</p></section>
+      <section class="my-profile-badge-panel" aria-label="${t("บัตรโปรไฟล์คล้องสาย")}"><div id="profile-lanyard-badge"></div></section>
       <section class="my-profile-details" aria-labelledby="my-profile-details-heading"><div class="my-profile-user-heading"><span class="avatar large">${avatar}</span><div><h2 id="my-profile-details-heading">${escape(user.name)}</h2><p>${escape(user.email || "—")}</p></div></div><dl><div><dt>${t("ชื่อ")}</dt><dd>${escape(user.name)}</dd></div><div><dt>${t("อีเมล")}</dt><dd>${escape(user.email || "—")}</dd></div><div><dt>${t("เรตโปรไฟล์")}</dt><dd><span class="my-profile-rating-empty">— / 5 · ${t("ยังไม่มีรีวิว")}</span><small>${t("คะแนนจะแสดงเมื่อมีรีวิวจากผู้ใช้")}</small></dd></div></dl>${user.bio ? `<div class="my-profile-bio"><h3>${t("เกี่ยวกับฉัน")}</h3><p>${escape(user.bio)}</p></div>` : `<div class="my-profile-bio is-empty"><h3>${t("เกี่ยวกับฉัน")}</h3><p>${t("เพิ่มคำแนะนำตัวได้จากปุ่มแก้ไขโปรไฟล์")}</p></div>`}</section>
     </div>
   </div>`;
@@ -3326,7 +3326,7 @@ function render() {
           cardColor: "#f5f9ff",
           flipButton: false,
           cardWidth: 260,
-          height: "500px",
+          height: "620px",
           className: "hk-lanyard",
           ariaLabel: t("แตะหรือกด Enter ที่บัตรเพื่อพลิกดูอีกด้าน"),
         }),

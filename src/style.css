@@ -4107,7 +4107,7 @@ body.mobile-menu-open {
 }
 #profile-lanyard-badge {
   width: 100%;
-  min-height: 500px;
+  min-height: 620px;
 }
 .account-profile-badge > p {
   margin: 0 0 5px;
@@ -4186,13 +4186,14 @@ body.mobile-menu-open {
 }
 .my-profile-badge-panel {
   min-width: 0;
-  padding: 8px;
-  border-radius: 14px;
-  background: #eaf3fc;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 #profile-lanyard-badge {
   width: 100%;
-  min-height: 500px;
+  min-height: 620px;
 }
 .hk-lanyard {
   position: relative;
@@ -4204,10 +4205,7 @@ body.mobile-menu-open {
 .hk-lanyard .left-0 { left: 0; }
 .hk-lanyard .top-0 { top: 0; }
 .my-profile-badge-panel > p {
-  margin: 0 0 6px;
-  color: #365776;
-  text-align: center;
-  font-size: 0.8rem;
+  display: none;
 }
 .my-profile-details {
   min-width: 0;
@@ -9808,7 +9806,7 @@ dialog:not([open]),
   color: #a9bac8;
 }
 :root[data-theme="dark"] .my-profile-badge-panel {
-  background: #172a39;
+  background: transparent;
 }
 :root[data-theme="dark"] .account-profile-badge {
   background: transparent;
