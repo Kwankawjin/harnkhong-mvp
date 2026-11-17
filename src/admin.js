@@ -10,6 +10,7 @@ const navItems = [
   ["settings", "ตั้งค่า", "settings"],
 ];
 
+const INITIAL_ADMIN = "harnkhong@gmail.com";
 let currentClient = null;
 let pageGeneration = 0;
 let feedback = "";
@@ -61,7 +62,7 @@ function shell(content, { user, section, login = false } = {}) {
   document.body.classList.toggle("admin-mode", !login);
   document.title = login ? "เข้าสู่ระบบผู้ดูแล | HarnKhong" : `${sectionTitle(section)} | HarnKhong Admin`;
   root.innerHTML = login
-    ? `<main class="admin-login-wrap"><section class="admin-login"><a class="admin-brand" href="/"><img src="/images/harnkhong-logo.png" alt=""/><strong>HarnKhong</strong></a><h1>เข้าสู่ระบบผู้ดูแล</h1><p>ใช้บัญชีที่ได้รับสิทธิ์ผู้ดูแลระบบเท่านั้น</p><form id="admin-login-form"><label>อีเมล<input type="email" name="email" autocomplete="username" required/></label><label>รหัสผ่าน<input type="password" name="password" autocomplete="current-password" required/></label><button class="admin-primary" type="submit" ${busy ? "disabled" : ""}>${busy ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}</button>${feedback ? `<p class="admin-feedback" role="alert">${escapeHtml(feedback)}</p>` : ""}</form><a class="admin-return" href="/">กลับไปหน้าเว็บไซต์</a></section></main>`
+    ? `<main class="admin-login-wrap"><section class="admin-login"><a class="admin-brand" href="/"><img src="/images/harnkhong-logo.png" alt=""/><strong>HarnKhong</strong></a><h1>เข้าสู่ระบบผู้ดูแล</h1><p>ใช้บัญชี Google ${INITIAL_ADMIN} เพื่อเข้าใช้งาน</p><button type="button" class="admin-google-button" data-admin-action="google-login" ${busy ? "disabled" : ""}><span class="admin-google-mark" aria-hidden="true">G</span>เข้าสู่ระบบด้วย Google</button><p class="admin-login-hint">ระบบให้สิทธิ์เฉพาะอีเมลผู้ดูแลที่กำหนดไว้เท่านั้น</p><div class="admin-login-divider"><span>หรือใช้อีเมลและรหัสผ่าน</span></div><form id="admin-login-form"><label>อีเมล<input type="email" name="email" autocomplete="username" required/></label><label>รหัสผ่าน<input type="password" name="password" autocomplete="current-password" required/></label><button class="admin-primary" type="submit" ${busy ? "disabled" : ""}>${busy ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}</button>${feedback ? `<p class="admin-feedback" role="alert">${escapeHtml(feedback)}</p>` : ""}</form><a class="admin-return" href="/">กลับไปหน้าเว็บไซต์</a></section></main>`
     : `<div class="admin-layout"><aside class="admin-sidebar"><a class="admin-brand" href="/"><img src="/images/harnkhong-logo.png" alt=""/><strong>HarnKhong</strong><small>ADMIN</small></a><nav aria-label="เมนูผู้ดูแล">${navItems.map(([key, label, icon]) => `<a href="/admin#/${key}" class="admin-nav-link ${section === key ? "active" : ""}" ${section === key ? 'aria-current="page"' : ""}><span>${adminIcon(icon)}</span>${label}</a>`).join("")}</nav><div class="admin-sidebar-bottom"><span class="admin-online-dot"></span>เชื่อมต่อระบบแล้ว</div></aside><main class="admin-main"><header class="admin-topbar"><div><span class="admin-crumb">HarnKhong / Admin</span><h1>${sectionTitle(section)}</h1></div><div class="admin-account"><span class="admin-account-avatar">${escapeHtml((user?.email || "A").slice(0, 1).toUpperCase())}</span><span><strong>${escapeHtml(user?.email || "ผู้ดูแล")}</strong><small>ผู้ดูแลระบบ</small></span><button type="button" data-admin-action="logout" class="admin-logout">ออกจากระบบ</button></div></header><div class="admin-content">${content}</div></main></div><div class="admin-toast" role="status" aria-live="polite">${escapeHtml(feedback)}</div>`;
 }
 
@@ -135,9 +136,29 @@ async function getSectionContent(section) {
 }
 
 async function renderAuthenticated(generation) {
-  const { data: { user }, error } = await currentClient.auth.getUser();
+  const { data: { user: firstUser }, error: userError } = await currentClient.auth.getUser();
   if (generation !== pageGeneration) return;
-  if (error || !user) return renderLogin("กรุณาเข้าสู่ระบบบัญชีผู้ดูแล");
+  if (userError || !firstUser) return renderLogin("กรุณาเข้าสู่ระบบบัญชีผู้ดูแล");
+  let user = firstUser;
+  try {
+    const access = await invoke("bootstrap");
+    if (access.refresh_required) {
+      const { error } = await currentClient.auth.refreshSession();
+      if (error) throw error;
+      if (generation !== pageGeneration) return;
+      const { data, error: refreshedUserError } = await currentClient.auth.getUser();
+      if (refreshedUserError || !data.user) throw refreshedUserError || new Error("ไม่พบข้อมูลบัญชีหลังยืนยันสิทธิ์");
+      user = data.user;
+    }
+  } catch (err) {
+    if (generation !== pageGeneration) return;
+    const message = err.message?.includes("ADMIN_NOT_ALLOWED")
+      ? "บัญชีนี้ไม่มีสิทธิ์ Admin กรุณาเลือก Google บัญชี harnkhong@gmail.com"
+      : err.message?.includes("ADMIN_EMAIL_UNCONFIRMED")
+        ? "บัญชีนี้ยังยืนยันอีเมลไม่ครบ กรุณายืนยันอีเมล Google แล้วลองใหม่"
+        : err.message || "ตรวจสอบสิทธิ์ Admin ไม่สำเร็จ";
+    return renderLogin(message);
+  }
   const root = document.querySelector("#app");
   if (!root) return;
   const section = activeSection();
@@ -170,12 +191,11 @@ async function renderLogin(message = "") {
     try {
       const { error } = await currentClient.auth.signInWithPassword({ email: String(values.get("email")).trim(), password: String(values.get("password")) });
       if (error) throw error;
-      await invoke("bootstrap");
-      await currentClient.auth.refreshSession();
       feedback = "";
+      busy = false;
       await renderAuthenticated(pageGeneration);
     } catch (error) {
-      feedback = error.message?.includes("ADMIN_NOT_ALLOWED") ? "บัญชีนี้ยังไม่ได้รับสิทธิ์ผู้ดูแลระบบ" : error.message?.includes("ADMIN_EMAIL_UNCONFIRMED") ? "กรุณายืนยันอีเมลก่อนเข้าใช้งานระบบผู้ดูแล" : error.message?.includes("Failed to fetch") ? "ยังเชื่อมต่อระบบ Admin ไม่ได้ กรุณาตรวจว่าได้ติดตั้ง Edge Function แล้ว" : "เข้าสู่ระบบไม่สำเร็จ ตรวจสอบอีเมลและรหัสผ่านอีกครั้ง";
+      feedback = error.message?.includes("ADMIN_NOT_ALLOWED") ? "บัญชีนี้ไม่มีสิทธิ์ Admin กรุณาใช้ harnkhong@gmail.com" : error.message?.includes("ADMIN_EMAIL_UNCONFIRMED") ? "กรุณายืนยันอีเมลก่อนเข้าใช้งานระบบผู้ดูแล" : error.message?.toLowerCase().includes("provider is not enabled") ? "Google OAuth ยังไม่ได้เปิดใน Supabase Auth กรุณาตั้งค่า Google provider ก่อน" : error.message?.includes("Failed to fetch") ? "ยังเชื่อมต่อระบบ Admin ไม่ได้ กรุณาตรวจว่าได้ติดตั้ง Edge Function แล้ว" : "เข้าสู่ระบบไม่สำเร็จ ตรวจสอบอีเมลและรหัสผ่านอีกครั้ง";
       busy = false;
       renderLogin(feedback);
       return;
@@ -212,7 +232,30 @@ document.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-admin-action]");
   if (!button || !currentClient) return;
   const action = button.dataset.adminAction;
-  if (action === "logout") {
+  if (action === "google-login") {
+    if (busy) return;
+    // A stale customer sign-in return path must not override the Admin OAuth callback.
+    sessionStorage.removeItem("harn-return");
+    busy = true;
+    button.disabled = true;
+    button.textContent = "กำลังเชื่อมต่อ Google…";
+    try {
+      const { error } = await currentClient.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${location.origin}/admin`,
+          queryParams: { prompt: "select_account" },
+        },
+      });
+      if (error) throw error;
+    } catch (error) {
+      feedback = error.message?.toLowerCase().includes("provider is not enabled")
+        ? "Google OAuth ยังไม่ได้เปิดใน Supabase Auth กรุณาตั้งค่า Google provider ก่อน"
+        : error.message || "เริ่มเข้าสู่ระบบด้วย Google ไม่สำเร็จ";
+      busy = false;
+      renderLogin(feedback);
+    }
+  } else if (action === "logout") {
     await currentClient.auth.signOut();
     feedback = "ออกจากระบบแล้ว";
     renderLogin();

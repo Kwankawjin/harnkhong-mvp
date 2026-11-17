@@ -39,13 +39,13 @@ async function authorize(ctx: any, allowBootstrap = false) {
   if (!user.email_confirmed_at) {
     throw Object.assign(new Error("ADMIN_EMAIL_UNCONFIRMED"), { status: 403 });
   }
-  if (user.app_metadata?.role === "admin") return user;
+  if (user.app_metadata?.role === "admin") return { user, bootstrapped: false };
   if (!allowBootstrap) throw Object.assign(new Error("ADMIN_NOT_ALLOWED"), { status: 403 });
   const { data, error: updateError } = await ctx.supabaseAdmin.auth.admin.updateUserById(userId, {
     app_metadata: { ...user.app_metadata, role: "admin" },
   });
   if (updateError || !data.user) throw Object.assign(new Error("ไม่สามารถกำหนดสิทธิ์ผู้ดูแลได้"), { status: 500 });
-  return data.user;
+  return { user: data.user, bootstrapped: true };
 }
 
 async function countRows(client: any, table: string) {
@@ -85,8 +85,12 @@ async function handleAction(req: Request, ctx: any) {
   try { body = await req.json(); } catch { return response(req, { error: "Invalid request" }, 400); }
   const action = String(body.action || "");
   if (action === "bootstrap") {
-    const user = await authorize(ctx, true);
-    return response(req, { ok: true, role: user.app_metadata?.role || "admin" });
+    const access = await authorize(ctx, true);
+    return response(req, {
+      ok: true,
+      role: access.user.app_metadata?.role || "admin",
+      refresh_required: access.bootstrapped,
+    });
   }
   await authorize(ctx);
   const db = ctx.supabaseAdmin;
