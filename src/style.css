@@ -2824,6 +2824,10 @@ body.mobile-menu-open {
   overflow: hidden;
   border-radius: 12px;
 }
+.group-product-art.is-digital .product-art {
+  background: #f0edff;
+  color: #2f328a;
+}
 .group-product-art .product-art:before {
   width: 54px;
   height: 51px;
@@ -7056,9 +7060,46 @@ dialog:not([open]),
 .checkout-product-art {
   width: 100px;
   height: 100px;
+  min-width: 0;
+  flex: none;
   border-radius: 14px;
   object-fit: cover;
   background: #fff1ee;
+}
+.checkout-product-art {
+  position: relative;
+  overflow: hidden;
+}
+.checkout-product-art.is-digital { background: #f0edff; }
+.checkout-product-art .product-art {
+  overflow: hidden;
+  background: #f0edff;
+  color: #2f328a;
+}
+.checkout-product-art .product-art:before {
+  width: 64px;
+  height: 58px;
+  border-radius: 8px;
+}
+.checkout-product-art .product-art:after {
+  width: 52px;
+  height: 43px;
+  left: calc(50% + 5px);
+  top: 32px;
+  border-radius: 8px;
+}
+.checkout-product-art .product-art span {
+  font-size: 1rem;
+}
+.checkout-product-art .product-art small {
+  right: 4px;
+  bottom: 4px;
+  max-width: calc(100% - 8px);
+  padding: 2px 5px;
+  overflow: hidden;
+  font-size: 0.48rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .checkout-product-art svg {
   width: 100%;
