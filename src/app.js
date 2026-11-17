@@ -6226,7 +6226,8 @@ if (supabaseConfigured) {
       if (
         result.user &&
         (["/login", "/register"].includes(location.pathname) ||
-          sessionStorage.getItem("harn-return"))
+          (!location.pathname.startsWith("/admin") &&
+            Boolean(sessionStorage.getItem("harn-return"))))
       )
         finishAuth(result.user);
       else {
