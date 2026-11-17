@@ -10,6 +10,7 @@ const navItems = [
   ["settings", "ตั้งค่า", "settings"],
 ];
 
+const INITIAL_ADMIN = "harnkhong@gmail.com";
 let currentClient = null;
 let pageGeneration = 0;
 let feedback = "";
