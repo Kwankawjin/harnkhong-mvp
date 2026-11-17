@@ -720,11 +720,13 @@ const labels = {
   ยอดที่คุณต้องยืนยัน: "Your share to approve",
   ยอดประมาณเมื่อเข้าร่วม: "Estimated share after joining",
   " · คุณยืนยันแล้ว": " · You have approved",
+  " · รอแอดมินยืนยันยอด": " · Waiting for admin approval",
   " · กรุณาตรวจสอบก่อนยืนยัน": " · Please review before approving",
   "ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง":
     "Joining recalculates the total. Every member must approve again.",
   เข้าร่วมกลุ่ม: "Join group",
   คุณยืนยันยอดรอบนี้แล้ว: "You have approved this revision",
+  "รอแอดมินตรวจยอดรอบล่าสุด": "Waiting for admin review of this revision",
   ออกจากกลุ่ม: "Leave group",
   แก้ไขค่าใช้จ่าย: "Edit costs",
   แก้ไขค่าส่งต่อคน: "Edit delivery per member",

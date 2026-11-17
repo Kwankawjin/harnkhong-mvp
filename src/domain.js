@@ -125,7 +125,9 @@ export function shares(group) {
 }
 export const allApproved = (group) =>
   group.members.length === group.capacity &&
-  group.members.every((id) => group.approvals[id] === group.revision);
+  group.members.every((id) => group.approvals[id] === group.revision) &&
+  (group.adminApprovedRevision === undefined ||
+    group.adminApprovedRevision === group.revision);
 function revise(group, patch, reason) {
   return {
     ...group,

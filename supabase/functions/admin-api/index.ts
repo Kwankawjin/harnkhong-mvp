@@ -61,7 +61,7 @@ async function userIndex(client: any) {
 
 async function listGroups(client: any, limit = 200) {
   const { data, error } = await client.from("groups")
-    .select("id, name, owner_id, listing_id, product_satang, delivery_per_member_satang, service_satang, total_satang, status, created_at, products(title)")
+    .select("id, name, owner_id, listing_id, capacity, product_satang, delivery_per_member_satang, service_satang, total_satang, revision, status, admin_approved_revision, admin_approved_at, created_at, products(title), members:group_members(user_id,approvals:group_approvals(revision,approved_at))")
     .order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
   const users = await userIndex(client);
@@ -72,7 +72,22 @@ async function listGroups(client: any, limit = 200) {
     if (memberError) throw memberError;
     counts = (members || []).reduce((map: Map<string, number>, row: any) => map.set(row.group_id, (map.get(row.group_id) || 0) + 1), new Map());
   }
-  return (data || []).map((row: any) => ({ ...row, product_title: row.products?.title || "", products: undefined, owner_email: users.get(row.owner_id)?.email || "", member_count: counts.get(row.id) || 0 }));
+  return (data || []).map((row: any) => {
+    const members = row.members || [];
+    const currentApprovals = members.flatMap((member: any) => member.approvals || [])
+      .filter((approval: any) => Number(approval.revision) === Number(row.revision));
+    const lastApprovalAt = currentApprovals.map((approval: any) => approval.approved_at).sort().at(-1) || null;
+    return {
+      ...row,
+      product_title: row.products?.title || "",
+      products: undefined,
+      members: undefined,
+      owner_email: users.get(row.owner_id)?.email || "",
+      member_count: counts.get(row.id) || 0,
+      approval_count: currentApprovals.length,
+      last_approval_at: lastApprovalAt,
+    };
+  });
 }
 
 async function listPayments(client: any, limit = 200) {
@@ -188,6 +203,23 @@ async function handleAction(req: Request, ctx: any) {
     if (error) throw error;
     if (!data) return response(req, { error: "รายการนี้ถูกตรวจแล้วหรือไม่พบรายการ" }, 409);
     return response(req, { ok: true, payment: data });
+  }
+  if (action === "confirm-group-revision") {
+    const groupId = String(body.groupId || "");
+    const revision = Number(body.revision);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(groupId)
+      || !Number.isSafeInteger(revision) || revision < 1) {
+      return response(req, { error: "ข้อมูลกลุ่มหรือรอบยอดไม่ถูกต้อง" }, 400);
+    }
+    const { data, error } = await ctx.supabase.rpc("confirm_group_revision", {
+      p_group: groupId,
+      p_revision: revision,
+    });
+    if (error) {
+      const status = error.code === "40001" ? 409 : error.code === "42501" ? 403 : error.code === "23514" ? 409 : 500;
+      return response(req, { error: status === 409 ? "สมาชิกยังยืนยันไม่ครบ หรือกลุ่มมีการเปลี่ยนยอดแล้ว" : status === 403 ? "บัญชีนี้ไม่มีสิทธิ์ยืนยันยอดกลุ่ม" : "ยืนยันยอดกลุ่มไม่สำเร็จ" }, status);
+    }
+    return response(req, { ok: true, group: data });
   }
   return response(req, { error: "ไม่รู้จักคำสั่งนี้" }, 400);
 }

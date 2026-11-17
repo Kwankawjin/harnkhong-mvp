@@ -3221,17 +3221,21 @@ body.mobile-menu-open {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #ea580c !important;
+  color: #8a5a00 !important;
   font-size: 0.84rem !important;
   font-weight: 500;
-  margin: 18px 0 0 !important;
+  margin: 14px 0 0 !important;
   line-height: 1.4;
+  padding: 12px 14px;
+  border: 1px solid #f3d389;
+  border-radius: 12px;
+  background: #fff4d7;
 }
 
 .group-page .summary-card .summary-warning .warning-icon {
   display: flex;
   align-items: center;
-  color: #ea580c;
+  color: #8a5a00;
   flex-shrink: 0;
 }
 

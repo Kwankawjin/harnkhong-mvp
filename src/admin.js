@@ -17,6 +17,8 @@ let busy = false;
 let dashboardRangeDays = 7;
 let paymentMonitorTimer = null;
 let seenPaymentReportIds = null;
+let groupApprovalMonitorTimer = null;
+let seenGroupApprovalCounts = null;
 
 const escapeHtml = (value = "") =>
   String(value).replace(/[&<>"']/g, (char) => ({
@@ -52,6 +54,36 @@ function paymentsContent(rows) {
   return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>รายการชำระเงิน</h2><p>ตรวจรายการเงินเข้าในบัญชีธนาคารก่อนยืนยัน ยอดถูกคำนวณและล็อกจากฐานข้อมูล</p></div><div class="admin-panel-actions"><button type="button" class="admin-secondary" data-admin-action="enable-payment-alerts">${alerts}</button><button type="button" class="admin-secondary" data-admin-action="reload">รีเฟรช</button></div></div>${table(["กลุ่ม / รอบยอด", "สมาชิก", "ยอดโอน", "สถานะ", "แจ้งเมื่อ", "ตรวจสอบ"], rendered, "ยังไม่มีรายการชำระเงิน")}${rows.length ? "" : '<p class="admin-truth-note">รายการจะแสดงหลังสมาชิกกดแจ้งว่าโอนแล้ว</p>'}</section>`;
 }
 
+function groupsContent(rows) {
+  const alerts = typeof Notification !== "undefined" && Notification.permission === "granted"
+    ? "เปิดแจ้งเตือนบนอุปกรณ์นี้แล้ว"
+    : "เปิดแจ้งเตือนยอดกลุ่ม";
+  const prioritizedRows = [...rows].sort((a, b) => {
+    const waitingForAdmin = (row) => Number(row.member_count) === Number(row.capacity)
+      && Number(row.approval_count) === Number(row.member_count)
+      && Number(row.admin_approved_revision) !== Number(row.revision);
+    const priority = Number(waitingForAdmin(b)) - Number(waitingForAdmin(a));
+    if (priority) return priority;
+    return String(b.last_approval_at || b.created_at).localeCompare(String(a.last_approval_at || a.created_at));
+  });
+  const rendered = prioritizedRows.map((row) => {
+    const count = Number(row.approval_count || 0);
+    const members = Number(row.member_count || 0);
+    const reviewed = Number(row.admin_approved_revision) === Number(row.revision);
+    const canReview = row.status !== "cancelled" && members === Number(row.capacity) && count === members && !reviewed;
+    const state = reviewed
+      ? '<span class="admin-status good">ยืนยันยอดรอบนี้แล้ว</span>'
+      : canReview
+        ? '<span class="admin-status pending">รอคุณยืนยันยอด</span>'
+        : `<span class="admin-status ${count ? "pending" : ""}">สมาชิกยืนยัน ${escapeHtml(count)} / ${escapeHtml(members)} คน</span>`;
+    const action = canReview
+      ? `<button type="button" class="admin-primary" data-admin-action="confirm-group-revision" data-group-id="${escapeHtml(row.id)}" data-revision="${escapeHtml(row.revision)}">ตรวจยอดและยืนยันรอบ</button>`
+      : reviewed ? formatDate(row.admin_approved_at) : "รอสมาชิกยืนยันครบ";
+    return `<tr><td><strong>${escapeHtml(row.name)}</strong><small>รอบยอด ${escapeHtml(row.revision)}</small></td><td>${escapeHtml(row.owner_email || "สมาชิก")}</td><td>${state}<small>สมาชิกในกลุ่ม ${escapeHtml(members)} / ${escapeHtml(row.capacity)} คน</small>${row.last_approval_at ? `<small>ยืนยันล่าสุด ${formatDate(row.last_approval_at)}</small>` : ""}</td><td>${formatMoney(row.total_satang)}</td><td>${action}</td></tr>`;
+  }).join("");
+  return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>กลุ่มหารของ</h2><p>ยอดจะเปลี่ยนเป็นยืนยันแล้วหลังคุณตรวจและรับรองรอบปัจจุบัน</p></div><div class="admin-panel-actions"><button type="button" class="admin-secondary" data-admin-action="enable-group-alerts">${alerts}</button><button type="button" class="admin-secondary" data-admin-action="reload">รีเฟรช</button></div></div>${table(["ชื่อกลุ่ม / รอบยอด", "เจ้าของ", "สมาชิกยืนยันยอด", "ยอดรวมกลุ่ม", "ตรวจสอบ"], rendered, "ยังไม่มีกลุ่ม")}</section>`;
+}
+
 async function pollPaymentReports() {
   const { rows = [] } = await invoke("payments");
   const incoming = seenPaymentReportIds === null ? [] : rows.filter((row) => row.status === "reported" && !seenPaymentReportIds.has(row.id));
@@ -76,6 +108,56 @@ function startPaymentMonitor() {
   if (paymentMonitorTimer) return;
   pollPaymentReports().catch(() => {});
   paymentMonitorTimer = window.setInterval(() => pollPaymentReports().catch(() => {}), 15000);
+}
+
+async function pollGroupApprovals() {
+  const { rows = [] } = await invoke("groups");
+  const current = new Map(rows.map((row) => [row.id, {
+    revision: Number(row.revision),
+    count: Number(row.approval_count || 0),
+  }]));
+  const incoming = seenGroupApprovalCounts === null
+    ? []
+    : rows.flatMap((row) => {
+      const count = Number(row.approval_count || 0);
+      const previous = seenGroupApprovalCounts.get(row.id);
+      const revisionChanged = previous && previous.revision !== Number(row.revision);
+      return count > 0 && (!previous || revisionChanged || count > previous.count)
+        ? [{ row, count }]
+        : [];
+    });
+  seenGroupApprovalCounts = current;
+  if (incoming.length) {
+    const { row, count } = incoming[incoming.length - 1];
+    const message = `${row.name} · สมาชิกยืนยัน ${count}/${row.member_count} คน`;
+    feedback = `มีสมาชิกยืนยันยอดใหม่: ${message}`;
+    for (const item of incoming) {
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        const notice = new Notification("HarnKhong · สมาชิกยืนยันยอด", {
+          body: `${item.row.name} · ยืนยันแล้ว ${item.count}/${item.row.member_count} คน`,
+          tag: `group-approval-${item.row.id}-${item.row.revision}-${item.count}`,
+        });
+        notice.onclick = () => {
+          window.focus();
+          history.pushState({}, "", "/admin#/groups");
+          mountAdminPage({ supabase: currentClient, supabaseConfigured: Boolean(currentClient) });
+          notice.close();
+        };
+      }
+    }
+  }
+  if (activeSection() === "groups") {
+    const content = document.querySelector(".admin-content");
+    if (content) content.innerHTML = groupsContent(rows);
+  }
+  const toast = document.querySelector(".admin-toast");
+  if (toast && incoming.length) toast.textContent = feedback;
+}
+
+function startGroupApprovalMonitor() {
+  if (groupApprovalMonitorTimer) return;
+  pollGroupApprovals().catch(() => {});
+  groupApprovalMonitorTimer = window.setInterval(() => pollGroupApprovals().catch(() => {}), 15000);
 }
 
 function sectionTitle(section) {
@@ -172,7 +254,7 @@ async function getSectionContent(section) {
   }
   if (section === "groups") {
     const { rows } = await invoke("groups");
-    return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>กลุ่มหารของ</h2><p>ภาพรวมกลุ่มที่สร้างบนแพลตฟอร์ม</p></div></div>${table(["ชื่อกลุ่ม", "เจ้าของ", "สมาชิก", "สถานะ", "สร้างเมื่อ"], rows.map((row) => `<tr><td><strong>${escapeHtml(row.name)}</strong></td><td>${escapeHtml(row.owner_email || "สมาชิก")}</td><td>${escapeHtml(row.member_count)}</td><td>${statusPill(row.status)}</td><td>${formatDate(row.created_at)}</td></tr>`).join(""), "ยังไม่มีกลุ่ม")}</section>`;
+    return groupsContent(rows);
   }
   return `<section class="admin-panel admin-settings"><h2>สิทธิ์ผู้ดูแลระบบ</h2><p>สิทธิ์ตรวจจาก <code>app_metadata.role = admin</code> และรายชื่อที่กำหนดใน Edge Function ทุกครั้งก่อนเข้าถึงข้อมูล</p><dl><div><dt>บัญชีผู้ดูแล</dt><dd>${ADMIN_EMAILS.map(escapeHtml).join("<br>")}</dd></div><div><dt>เพิ่มผู้ดูแลในอนาคต</dt><dd>เพิ่มอีเมลใน secret <code>ADMIN_EMAILS</code> ของ Edge Function แล้วให้ผู้ใช้เข้าสู่ระบบครั้งแรกเพื่อกำหนดสิทธิ์</dd></div><div><dt>รหัสผ่าน</dt><dd>จัดการผ่าน Supabase Auth เท่านั้น ไม่มีการเก็บรหัสผ่านไว้ในเว็บ</dd></div></dl><p class="admin-truth-note">รายการที่มีสิทธิ์สูงอ่านและแก้ไขผ่าน Edge Function ฝั่งเซิร์ฟเวอร์ ไม่ส่ง Service Role Key มาที่เบราว์เซอร์</p></section>`;
 }
@@ -210,6 +292,7 @@ async function renderAuthenticated(generation) {
     if (generation !== pageGeneration) return;
     shell(content, { user, section });
     startPaymentMonitor();
+    startGroupApprovalMonitor();
   } catch (err) {
     if (generation !== pageGeneration) return;
     shell(errorState(err.message || "ไม่สามารถโหลดข้อมูลจากระบบได้"), { user, section });
@@ -261,8 +344,11 @@ export function mountAdminPage({ supabase, supabaseConfigured }) {
 export function unmountAdminPage() {
   pageGeneration += 1;
   window.clearInterval(paymentMonitorTimer);
+  window.clearInterval(groupApprovalMonitorTimer);
   paymentMonitorTimer = null;
+  groupApprovalMonitorTimer = null;
   seenPaymentReportIds = null;
+  seenGroupApprovalCounts = null;
   currentClient = null;
   document.body.classList.remove("admin-mode");
 }
@@ -303,8 +389,11 @@ document.addEventListener("click", async (event) => {
     }
   } else if (action === "logout") {
     window.clearInterval(paymentMonitorTimer);
+    window.clearInterval(groupApprovalMonitorTimer);
     paymentMonitorTimer = null;
+    groupApprovalMonitorTimer = null;
     seenPaymentReportIds = null;
+    seenGroupApprovalCounts = null;
     await currentClient.auth.signOut();
     feedback = "ออกจากระบบแล้ว";
     renderLogin();
@@ -318,6 +407,31 @@ document.addEventListener("click", async (event) => {
       feedback = permission === "granted" ? "เปิดแจ้งเตือนรายการโอนแล้ว" : "เบราว์เซอร์ไม่ได้รับอนุญาตให้แจ้งเตือน";
     }
     mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+  } else if (action === "enable-group-alerts") {
+    if (typeof Notification === "undefined") {
+      feedback = "เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือนบนอุปกรณ์";
+    } else {
+      const permission = await Notification.requestPermission();
+      feedback = permission === "granted" ? "เปิดแจ้งเตือนสมาชิกยืนยันยอดแล้ว" : "เบราว์เซอร์ไม่ได้รับอนุญาตให้แจ้งเตือน";
+    }
+    mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+  } else if (action === "confirm-group-revision") {
+    const groupId = button.dataset.groupId;
+    const revision = Number(button.dataset.revision);
+    if (!groupId || !Number.isSafeInteger(revision) || busy) return;
+    if (!confirm("ตรวจสอบยอดรอบปัจจุบันแล้ว และยืนยันให้สมาชิกเห็นว่ายอดรอบนี้ผ่านแล้วใช่หรือไม่?")) return;
+    busy = true;
+    button.disabled = true;
+    button.textContent = "กำลังบันทึก…";
+    try {
+      await invoke("confirm-group-revision", { groupId, revision });
+      feedback = "ยืนยันยอดรอบกลุ่มแล้ว";
+    } catch (error) {
+      feedback = error.message || "ยืนยันยอดรอบกลุ่มไม่สำเร็จ";
+    } finally {
+      busy = false;
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+    }
   } else if (action === "verify-group-payment") {
     const paymentId = button.dataset.paymentId;
     if (!paymentId || busy) return;

@@ -55,6 +55,9 @@ export function mapDatabaseGroup(
     costs,
     members,
     revision: Number(row.revision),
+    adminApprovedRevision: row.admin_approved_revision == null
+      ? null
+      : Number(row.admin_approved_revision),
     approvals,
     status: row.status,
     orderId: null,

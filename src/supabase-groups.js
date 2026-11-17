@@ -19,7 +19,7 @@ export async function loadSupabaseGroups(client = supabase) {
       client
         .from("groups")
         .select(
-          "id,listing_id,owner_id,name,category,categories,images,details,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,created_at,members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)",
+          "id,listing_id,owner_id,name,category,categories,images,details,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,admin_approved_revision,created_at,members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)",
         )
         .order("created_at", { ascending: false })
         .order("joined_at", { referencedTable: "members" })
