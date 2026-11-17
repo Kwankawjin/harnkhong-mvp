@@ -852,7 +852,21 @@ function gallery(images = [], editable = false) {
 }
 function profileDialog() {
   const user = state.user;
-  return `<dialog id="profile-dialog" class="profile-dialog" aria-labelledby="profile-dialog-title"><form id="profile-form" class="auth-form"><header><div><h2 id="profile-dialog-title">${t("แก้ไขโปรไฟล์")}</h2><p>${t(supabaseConfigured ? "แก้ไขชื่อและข้อมูลแนะนำตัว" : "ปรับข้อมูลที่แสดงในบัญชีเดโมของคุณ")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิดหน้าต่าง")}">✕</button></header>${supabaseConfigured ? "" : `<div class="profile-cover"></div><div class="profile-avatar-editor"><span class="avatar large" id="profile-avatar-preview">${isLocalImage(user.avatar) ? `<img src="${user.avatar}" alt=""/>` : escape(user.name.slice(0, 1))}</span><label class="button outline">${t("เปลี่ยนรูป")}<input id="profile-avatar" type="file" accept="image/jpeg,image/png,image/webp"/></label><button class="button subtle" type="button" data-action="avatar-remove">${t("ลบรูป")}</button></div><p id="avatar-status" role="status"></p><p class="field-help">${t("JPG, PNG, WebP ไม่เกิน 5 MB · บันทึกเฉพาะในเครื่อง")}</p>`}<label>${t("ชื่อ")}<input name="name" value="${escape(user.name)}" maxlength="70" required autocomplete="name"/></label><label>${t("อีเมล")}<input name="email" type="email" value="${escape(user.email || "")}" maxlength="254" autocomplete="email" ${supabaseConfigured ? "readonly" : ""}/></label><label>${t("เกี่ยวกับฉัน")}<textarea name="bio" maxlength="160" rows="3">${escape(user.bio || "")}</textarea></label><small id="bio-counter">${(user.bio || "").length} / 160</small><footer class="dialog-footer"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("บันทึกการเปลี่ยนแปลง")}</button></footer></form></dialog>`;
+  return `<dialog id="profile-dialog" class="profile-dialog" aria-labelledby="profile-dialog-title"><form id="profile-form" class="auth-form"><header><div><h2 id="profile-dialog-title">${t("แก้ไขโปรไฟล์")}</h2><p>${t(supabaseConfigured ? "แก้ไขชื่อและข้อมูลแนะนำตัว" : "ปรับข้อมูลที่แสดงในบัญชีเดโมของคุณ")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิดหน้าต่าง")}">✕</button></header><div class="profile-cover"></div><div class="profile-avatar-editor"><span class="avatar large" id="profile-avatar-preview">${profileAvatarMarkup(user)}</span><label class="button outline">${t("เปลี่ยนรูป")}<input id="profile-avatar" type="file" accept="image/jpeg,image/png,image/webp"/></label><button class="button subtle" type="button" data-action="avatar-remove">${t("ลบรูป")}</button></div><p id="avatar-status" role="status"></p><p class="field-help">${t(supabaseConfigured ? "JPG, PNG, WebP ไม่เกิน 5 MB · บันทึกกับโปรไฟล์" : "JPG, PNG, WebP ไม่เกิน 5 MB · บันทึกเฉพาะในเครื่อง")}</p><label>${t("ชื่อ")}<input name="name" value="${escape(user.name)}" maxlength="70" required autocomplete="name"/></label><label>${t("อีเมล")}<input name="email" type="email" value="${escape(user.email || "")}" maxlength="254" autocomplete="email" ${supabaseConfigured ? "readonly" : ""}/></label><label>${t("เกี่ยวกับฉัน")}<textarea name="bio" maxlength="160" rows="3">${escape(user.bio || "")}</textarea></label><small id="bio-counter">${(user.bio || "").length} / 160</small><footer class="dialog-footer"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("บันทึกการเปลี่ยนแปลง")}</button></footer></form></dialog>`;
+}
+function profileAvatarSrc(value) {
+  if (isLocalImage(value)) return value;
+  if (typeof value !== "string" || !value) return "";
+  if (/^https?:\/\//i.test(value)) return value;
+  if (supabaseConfigured && value.includes("/"))
+    return supabase.storage.from("avatars").getPublicUrl(value).data.publicUrl;
+  return "";
+}
+function profileAvatarMarkup(user) {
+  const src = profileAvatarSrc(user?.avatar);
+  return src
+    ? `<img src="${escape(src)}" alt=""/>`
+    : escape(user?.name?.slice(0, 1) || "?");
 }
 const demoReference = () =>
   `REF-${new Date()
@@ -2557,9 +2571,7 @@ function profile() {
     );
   const unpaidAmount = sumPayments(unpaid);
   const verifiedAmount = sumPayments(verified);
-  const avatar = isLocalImage(state.user.avatar)
-    ? `<img src="${state.user.avatar}" alt=""/>`
-    : escape(state.user.name.slice(0, 1));
+  const avatar = profileAvatarMarkup(state.user);
   const stat = (iconName, label, value, sub, tone) =>
     `<div class="account-stat"><span class="account-stat-icon ${tone}">${icon(iconName, 22)}</span><div><small>${label}</small><strong>${value}</strong><span>${sub}</span></div></div>`;
   const shortcut = (href, iconName, label, sub, tone) =>
@@ -2568,25 +2580,18 @@ function profile() {
       `<span class="account-shortcut-icon ${tone}">${icon(iconName, 21)}</span><span><strong>${label}</strong><small>${sub}</small></span>${icon("arrow", 18)}`,
       "account-shortcut",
     );
-  return `<div class="account-page">
-    ${title(t("บัญชีของฉัน"), t(supabaseConfigured ? "จัดการโปรไฟล์และกลุ่มของคุณ" : "จัดการบทบาทและทดลองใช้งานหลายบัญชี"))}
-    ${a("/subscription", `${icon("sparkles", 20)} <span><strong>${t("แพ็กเกจสมาชิก")}</strong><small>${subscriptionFor() === "plus" ? t("Plus · 49 บาท/เดือน") : t("Free · ใช้งานฟรี")}</small></span>${icon("arrow", 18)}`, "account-shortcut subscription-account-link")}
+  return `<div class="account-page account-dashboard">
+    <div class="account-dashboard-layout">
+      <aside class="account-dashboard-sidebar"><div class="account-profile-badge"><div id="profile-lanyard-badge"></div><p>${t("แตะหรือกด Enter ที่บัตรเพื่อพลิกดูอีกด้าน")}</p></div></aside>
+      <header class="account-dashboard-heading">${title(t("บัญชีของฉัน"), t(supabaseConfigured ? "จัดการโปรไฟล์และกลุ่มของคุณ" : "จัดการบทบาทและทดลองใช้งานหลายบัญชี"))}${a("/subscription", `${icon("sparkles", 20)} <span><strong>${t("แพ็กเกจสมาชิก")}</strong><small>${subscriptionFor() === "plus" ? t("Plus · 49 บาท/เดือน") : t("Free · ใช้งานฟรี")}</small></span>${icon("arrow", 18)}`, "account-shortcut subscription-account-link")}</header>
+      <main class="account-dashboard-content">
     <div class="account-layout">
       <div class="account-main">
         <section class="account-card account-overview" aria-labelledby="account-name">
-          <div class="account-profile-feature">
-            <div class="account-profile-meta"><div class="account-profile-line"><span class="avatar large">${avatar}</span><div><h2 id="account-name">${escape(state.user.name)}</h2><p>${sellerRole ? t("บัญชีผู้ขายเดโม") : t(supabaseConfigured ? "สมาชิก" : "สมาชิกเดโม")}</p><span class="account-demo-chip">${t(supabaseConfigured ? "บัญชี Supabase Auth" : "บัญชีจำลอง · เก็บข้อมูลในเบราว์เซอร์นี้")}</span></div><button class="button outline" data-action="edit-profile">${icon("settings", 17)} ${t("ตั้งค่าบัญชี")}</button>${supabaseConfigured ? `<button class="button subtle" data-action="logout">${t("ออกจากระบบ")}</button>` : ""}</div><p class="account-profile-email"><span>${t("อีเมล")}</span><strong>${escape(state.user.email || "—")}</strong></p></div>
-            <div class="account-profile-badge"><div id="profile-lanyard-badge"></div><p>${t("แตะหรือกด Enter ที่บัตรเพื่อพลิกดูอีกด้าน")}</p></div>
-          </div>
+          <div class="account-profile-line"><span class="avatar large">${avatar}</span><div><h2 id="account-name">${escape(state.user.name)}</h2><p>${sellerRole ? t("บัญชีผู้ขายเดโม") : t(supabaseConfigured ? "สมาชิก" : "สมาชิกเดโม")}</p><span class="account-demo-chip">${t(supabaseConfigured ? "บัญชี Supabase Auth" : "บัญชีจำลอง · เก็บข้อมูลในเบราว์เซอร์นี้")}</span></div><div class="account-profile-actions"><button class="button outline" data-action="edit-profile">${icon("settings", 17)} ${t("ตั้งค่าบัญชี")}</button>${supabaseConfigured ? `<button class="button subtle" data-action="logout">${t("ออกจากระบบ")}</button>` : ""}</div></div>
+          <p class="account-profile-email"><span>${t("อีเมล")}</span><strong>${escape(state.user.email || "—")}</strong></p>
           ${state.user.bio ? `<p class="account-bio user-content">${escape(state.user.bio)}</p>` : ""}
           <div class="account-demo-note">${icon("shield", 21)}<div><strong>${t(supabaseConfigured ? "โปรไฟล์ ที่อยู่ และกลุ่มใช้ Supabase" : "บัญชีนี้เป็นตัวจำลอง")}</strong><p>${t(supabaseConfigured ? "กลุ่มและการยืนยันยอดใช้ข้อมูลร่วมกันผ่าน Supabase; คำสั่งซื้อและการชำระเงินยังไม่เปิดใช้ในโหมดนี้" : "ไม่มีการยืนยันตัวตนจริง ข้อมูลเดโมบันทึกในเบราว์เซอร์นี้เท่านั้น")}</p></div></div>
-          <div class="account-stats">
-            ${stat("users", t("กลุ่มที่เข้าร่วม"), mine.length, t("กลุ่ม"), "blue")}
-            ${stat("calc", t("คำสั่งซื้อเดโม"), orders.length, t("รายการ"), "mint")}
-            ${stat("calc", t("ยอดรอแจ้งชำระ"), money(unpaidAmount), t("เดโมเท่านั้น"), "violet")}
-            ${stat("check", t("ยอดยืนยันเดโมแล้ว"), money(verifiedAmount), t("เดโมเท่านั้น"), "rose")}
-            ${stat("check", t("ยอดส่วนแบ่งที่ยืนยัน"), money(approvedGroupShare), t("{count} กลุ่ม · ยังไม่ใช่ยอดชำระเงินจริง", { count: approvedGroups.length }), "mint")}
-          </div>
         </section>
         <section class="account-card account-summary" aria-labelledby="account-summary-title"><div class="account-card-heading"><div><h2 id="account-summary-title">${t("สรุปยอดของฉัน")}</h2><p>${t("ยอดยืนยันกลุ่มและคำสั่งซื้อเดโม")}</p></div>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button subtle")}</div><div class="account-summary-grid"><div class="account-summary-tile violet"><span>${t("รอแจ้งชำระ")}</span><strong>${money(unpaidAmount)}</strong><small>${t("{count} รายการ", { count: unpaid.length })}</small></div><div class="account-summary-tile mint"><span>${t("รอตรวจยอดเดโม")}</span><strong>${reported.length}</strong><small>${t("รายการ")}</small></div><div class="account-summary-tile blue"><span>${t("ยืนยันยอดเดโมแล้ว")}</span><strong>${money(verifiedAmount)}</strong><small>${t("{count} รายการ", { count: verified.length })}</small></div><div class="account-summary-tile rose"><span>${t("ยอดส่วนแบ่งที่ยืนยัน")}</span><strong>${money(approvedGroupShare)}</strong><small>${t("{count} กลุ่ม · ยังไม่ใช่ยอดชำระเงินจริง", { count: approvedGroups.length })}</small></div></div></section>
         ${
@@ -2609,6 +2614,8 @@ function profile() {
         <section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("อัปเดตคำสั่งซื้อ")}</h2>${a("/my-orders", `${t("ดูทั้งหมด")} ${icon("arrow", 17)}`, "account-all-link")}</div>${orders.length ? `<div class="order-updates-grid">${orders.slice(0, 3).map(accountOrderRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีคำสั่งซื้อเดโม")}</strong><p>${t("เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่")}</p>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button outline")}</div>`}</section>
         <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t("ทางลัด")}</h2><div class="account-shortcut-grid">${shortcut("/my-groups", "users", t("กลุ่มของฉัน"), t("ดูและจัดการกลุ่มที่เข้าร่วม"), "blue")}${shortcut("/notifications", "bell", t("การแจ้งเตือน"), t("อัปเดตยอดและกิจกรรม"), "amber")}${shortcut("/explore", "search", t("สำรวจสินค้า"), t("ค้นหาสินค้าและเข้าร่วมกลุ่ม"), "violet")}${shortcut("/my-orders", "check", t("รายการชำระเดโม"), t("ดูสถานะคำสั่งซื้อของฉัน"), "mint")}</div></section>
       </aside>
+      </div>
+    </main>
     </div>${profileDialog()}
   </div>`;
 }
@@ -2673,6 +2680,7 @@ function profileBadgeFace(user, back = false) {
       ),
     );
   }
+  const avatarSrc = profileAvatarSrc(user.avatar);
   return e(
     "div",
     { style: base },
@@ -2689,6 +2697,31 @@ function profileBadgeFace(user, back = false) {
         { style: { fontSize: 14, letterSpacing: "-.02em" } },
         "HarnKhong",
       ),
+    ),
+    e(
+      "div",
+      {
+        style: {
+          display: "grid",
+          placeItems: "center",
+          width: 76,
+          height: 76,
+          margin: "18px 0 12px",
+          overflow: "hidden",
+          borderRadius: "50%",
+          background: "#c9f1e7",
+          color: "#087e68",
+          fontSize: 30,
+          fontWeight: 700,
+        },
+      },
+      avatarSrc
+        ? e("img", {
+            src: avatarSrc,
+            alt: "",
+            style: { width: "100%", height: "100%", objectFit: "cover" },
+          })
+        : user.name?.slice(0, 1) || "?",
     ),
     e(
       "div",
@@ -2758,9 +2791,7 @@ function myProfilePage() {
       t("เข้าสู่ระบบเพื่อดูหน้าโปรไฟล์ของคุณ"),
     );
   const user = state.user;
-  const avatar = isLocalImage(user.avatar)
-    ? `<img src="${escape(user.avatar)}" alt=""/>`
-    : escape(user.name.slice(0, 1));
+  const avatar = profileAvatarMarkup(user);
   return `<div class="my-profile-page">
     ${title(t("หน้าโปรไฟล์ของฉัน"), t("ข้อมูลที่แสดงบนบัตรสมาชิกของคุณ"))}
     <div class="my-profile-actions">${a("/profile", `← ${t("กลับไปบัญชีของฉัน")}`, "button subtle")}<button class="button outline" data-action="edit-profile">${icon("settings", 17)} ${t("แก้ไขโปรไฟล์")}</button></div>
@@ -3252,7 +3283,7 @@ function render() {
         <div class="header-actions">
           ${/^\/groups\/[^/]+$/.test(location.pathname) ? "" : `<div class="header-create-menu-wrap"><button type="button" class="button primary header-create-btn" data-action="listing-menu-toggle" aria-expanded="${listingMenuOpen}" aria-haspopup="menu">${icon("plus", 18)} ${t("สร้างกลุ่มหารของ")}</button>${listingMenuOpen ? `<div class="header-create-dropdown" role="menu">${a("/groups/create", `<span class="header-create-option-icon">${icon("users", 20)}</span><span><strong>${t("สร้างกลุ่มหารของ")}</strong><small>${t("ชวนคนร่วมซื้อ")}</small></span>`, "header-create-option")}</div>` : ""}</div>`}
           ${a("/notifications", `${icon("bell", 22)}<span class="sr-only">${t("การแจ้งเตือน")}</span>${unread ? `<i>${unread}</i>` : ""}`, "icon-button header-notifications-btn")}
-          ${state.user ? `<div class="profile-menu-wrap"><button type="button" class="profile-pill" data-action="profile-menu-toggle" aria-expanded="${profileMenuOpen}" aria-haspopup="menu"><span class="avatar tiny">${escape(state.user.name.slice(0, 1))}</span><span class="header-user-name">${escape(state.user.name)}</span><span class="profile-menu-chevron" aria-hidden="true">⌄</span></button>${profileMenuOpen ? `<div class="profile-dropdown" role="menu"><div class="profile-dropdown-heading"><strong>${escape(state.user.name)}</strong><small>${escape(state.user.email || "")}</small></div>${a("/profile", `${icon("user", 18)}<span>${t("บัญชี")}</span>`, "profile-dropdown-link")}${a("/chat", `${icon("chat", 18)}<span>${t("แชตกลุ่ม")}</span>`, "profile-dropdown-link")}${a("/notifications", `${icon("bell", 18)}<span>${t("การแจ้งเตือน")}</span>${unread ? `<i>${unread}</i>` : ""}`, "profile-dropdown-link")}<button type="button" role="menuitem" class="profile-dropdown-link" data-action="theme-toggle"><span class="profile-dropdown-theme-icon" aria-hidden="true">${theme === "dark" ? "☀" : "☾"}</span><span>${theme === "dark" ? t("โหมดสว่าง") : t("โหมดมืด")}</span><small class="profile-dropdown-state">${theme === "dark" ? t("เปิด") : t("ปิด")}</small></button></div>` : ""}</div>` : `<div class="profile-menu-wrap"><button type="button" class="profile-pill profile-menu-guest" data-action="profile-menu-toggle" aria-label="${t("เมนูบัญชี")}" aria-expanded="${profileMenuOpen}" aria-haspopup="menu">${icon("user", 18)}<span class="profile-menu-chevron" aria-hidden="true">⌄</span></button>${profileMenuOpen ? `<div class="profile-dropdown" role="menu"><div class="profile-dropdown-heading"><strong>${t("บัญชี")}</strong><small>${t("เข้าสู่ระบบเพื่อใช้งานบัญชี แชต และการแจ้งเตือน")}</small></div>${a("/profile", `${icon("user", 18)}<span>${t("บัญชี")}</span>`, "profile-dropdown-link")}${a("/chat", `${icon("chat", 18)}<span>${t("แชตกลุ่ม")}</span>`, "profile-dropdown-link")}${a("/notifications", `${icon("bell", 18)}<span>${t("การแจ้งเตือน")}</span>`, "profile-dropdown-link")}<button type="button" role="menuitem" class="profile-dropdown-link" data-action="theme-toggle"><span class="profile-dropdown-theme-icon" aria-hidden="true">${theme === "dark" ? "☀" : "☾"}</span><span>${theme === "dark" ? t("โหมดสว่าง") : t("โหมดมืด")}</span><small class="profile-dropdown-state">${theme === "dark" ? t("เปิด") : t("ปิด")}</small></button><button type="button" role="menuitem" class="profile-dropdown-link" data-action="open-auth" data-step="1">${icon("user", 18)}<span>${t("เข้าสู่ระบบ")}</span></button></div>` : ""}</div><button type="button" class="button primary header-login-btn" data-action="open-auth" data-step="1">${icon("user", 18)} ${t("เข้าสู่ระบบ")}</button>`}
+          ${state.user ? `<div class="profile-menu-wrap"><button type="button" class="profile-pill" data-action="profile-menu-toggle" aria-expanded="${profileMenuOpen}" aria-haspopup="menu"><span class="avatar tiny">${profileAvatarMarkup(state.user)}</span><span class="header-user-name">${escape(state.user.name)}</span><span class="profile-menu-chevron" aria-hidden="true">⌄</span></button>${profileMenuOpen ? `<div class="profile-dropdown" role="menu"><div class="profile-dropdown-heading"><strong>${escape(state.user.name)}</strong><small>${escape(state.user.email || "")}</small></div>${a("/profile", `${icon("user", 18)}<span>${t("บัญชี")}</span>`, "profile-dropdown-link")}${a("/chat", `${icon("chat", 18)}<span>${t("แชตกลุ่ม")}</span>`, "profile-dropdown-link")}${a("/notifications", `${icon("bell", 18)}<span>${t("การแจ้งเตือน")}</span>${unread ? `<i>${unread}</i>` : ""}`, "profile-dropdown-link")}<button type="button" role="menuitem" class="profile-dropdown-link" data-action="theme-toggle"><span class="profile-dropdown-theme-icon" aria-hidden="true">${theme === "dark" ? "☀" : "☾"}</span><span>${theme === "dark" ? t("โหมดสว่าง") : t("โหมดมืด")}</span><small class="profile-dropdown-state">${theme === "dark" ? t("เปิด") : t("ปิด")}</small></button></div>` : ""}</div>` : `<div class="profile-menu-wrap"><button type="button" class="profile-pill profile-menu-guest" data-action="profile-menu-toggle" aria-label="${t("เมนูบัญชี")}" aria-expanded="${profileMenuOpen}" aria-haspopup="menu">${icon("user", 18)}<span class="profile-menu-chevron" aria-hidden="true">⌄</span></button>${profileMenuOpen ? `<div class="profile-dropdown" role="menu"><div class="profile-dropdown-heading"><strong>${t("บัญชี")}</strong><small>${t("เข้าสู่ระบบเพื่อใช้งานบัญชี แชต และการแจ้งเตือน")}</small></div>${a("/profile", `${icon("user", 18)}<span>${t("บัญชี")}</span>`, "profile-dropdown-link")}${a("/chat", `${icon("chat", 18)}<span>${t("แชตกลุ่ม")}</span>`, "profile-dropdown-link")}${a("/notifications", `${icon("bell", 18)}<span>${t("การแจ้งเตือน")}</span>`, "profile-dropdown-link")}<button type="button" role="menuitem" class="profile-dropdown-link" data-action="theme-toggle"><span class="profile-dropdown-theme-icon" aria-hidden="true">${theme === "dark" ? "☀" : "☾"}</span><span>${theme === "dark" ? t("โหมดสว่าง") : t("โหมดมืด")}</span><small class="profile-dropdown-state">${theme === "dark" ? t("เปิด") : t("ปิด")}</small></button><button type="button" role="menuitem" class="profile-dropdown-link" data-action="open-auth" data-step="1">${icon("user", 18)}<span>${t("เข้าสู่ระบบ")}</span></button></div>` : ""}</div><button type="button" class="button primary header-login-btn" data-action="open-auth" data-step="1">${icon("user", 18)} ${t("เข้าสู่ระบบ")}</button>`}
           <button type="button" class="icon-button mobile-menu-toggle" data-action="mobile-menu-toggle" aria-label="${mobileMenuOpen ? t("ปิดเมนู") : t("เปิดเมนู")}" aria-expanded="${mobileMenuOpen}" aria-controls="mobile-menu"><span></span><span></span></button>
         </div>
       </div>
@@ -3912,10 +3943,12 @@ function updateListingPreview() {
 }
 function updateAvatarPreview() {
   const el = document.querySelector("#profile-avatar-preview");
-  if (el)
-    el.innerHTML = isLocalImage(profileAvatar)
-      ? `<img src="${profileAvatar}" alt=""/>`
+  if (el) {
+    const src = profileAvatarSrc(profileAvatar);
+    el.innerHTML = src
+      ? `<img src="${escape(src)}" alt=""/>`
       : escape(state.user.name.slice(0, 1));
+  }
 }
 document.addEventListener("change", async (e) => {
   const input = e.target,
@@ -3977,7 +4010,9 @@ document.addEventListener("change", async (e) => {
     }
     status.textContent = isListing
       ? t("เพิ่มรูปแล้ว รูปแรกจะแสดงเป็นภาพหน้าปก")
-      : t("รูปพร้อมแล้ว จะบันทึกพร้อมกลุ่ม");
+      : isAvatar
+        ? t("รูปพร้อมแล้ว จะบันทึกพร้อมโปรไฟล์")
+        : t("รูปพร้อมแล้ว จะบันทึกพร้อมกลุ่ม");
   } catch (err) {
     status.textContent = storageError(err);
   } finally {
@@ -5340,22 +5375,51 @@ document.addEventListener("submit", async (e) => {
         if (!name || name.length > 70 || bio.length > 160)
           throw Object.assign(new Error(), { code: "prototypeInvalidProfile" });
         const userId = state.user.id;
-        const { error } = await supabase
+        let avatarPath = state.user.avatar || null;
+        let uploadedAvatarPath = null;
+        if (isLocalImage(profileAvatar)) {
+          const blob = await (await fetch(profileAvatar)).blob();
+          uploadedAvatarPath = `${userId}/${crypto.randomUUID()}.jpg`;
+          const { error: uploadError } = await supabase.storage
+            .from("avatars")
+            .upload(uploadedAvatarPath, blob, {
+              cacheControl: "3600",
+              contentType: "image/jpeg",
+              upsert: false,
+            });
+          if (uploadError) throw uploadError;
+          avatarPath = uploadedAvatarPath;
+        } else if (!profileAvatar) {
+          avatarPath = null;
+        }
+        const { data: profile, error } = await supabase
           .from("profiles")
-          .update({ display_name: name, bio })
-          .eq("id", userId);
-        if (error) throw error;
-        const { data: profile, error: readError } = await supabase
-          .from("profiles")
-          .select("display_name,bio")
+          .update({ display_name: name, bio, avatar_url: avatarPath })
           .eq("id", userId)
+          .select("display_name,bio,avatar_url")
           .single();
-        if (readError) throw readError;
+        if (error) {
+          if (uploadedAvatarPath)
+            await supabase.storage.from("avatars").remove([uploadedAvatarPath]);
+          throw error;
+        }
         if (state.user?.id !== userId) return;
+        const oldAvatarPath = state.user.avatar;
         state = {
           ...state,
-          user: { ...state.user, name: profile.display_name, bio: profile.bio },
+          user: {
+            ...state.user,
+            name: profile.display_name,
+            bio: profile.bio,
+            avatar: profile.avatar_url || "",
+          },
         };
+        if (
+          oldAvatarPath &&
+          oldAvatarPath !== profile.avatar_url &&
+          oldAvatarPath.startsWith(`${userId}/`)
+        )
+          await supabase.storage.from("avatars").remove([oldAvatarPath]);
         render();
         alertMessage(t("บันทึกโปรไฟล์แล้ว"));
         return;

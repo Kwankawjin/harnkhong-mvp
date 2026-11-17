@@ -353,6 +353,10 @@ const labels = {
   ยกเลิก: "Cancel",
   "JPG, PNG, WebP ไม่เกิน 5 MB · บันทึกเฉพาะในเครื่อง":
     "JPG, PNG, WebP, max 5 MB · Stored locally only",
+  "JPG, PNG, WebP ไม่เกิน 5 MB · บันทึกกับโปรไฟล์":
+    "JPG, PNG, WebP, max 5 MB · Saved with your profile",
+  "รูปพร้อมแล้ว จะบันทึกพร้อมโปรไฟล์":
+    "Image ready. It will be saved with your profile.",
   บันทึกการเปลี่ยนแปลง: "Save changes",
   บันทึกโปรไฟล์แล้ว: "Profile saved.",
   อีเมลนี้ใช้กับบัญชีเดโมอื่นแล้ว:
