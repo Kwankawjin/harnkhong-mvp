@@ -58,6 +58,7 @@ import {
   joinSupabaseGroup,
   leaveSupabaseGroup,
   approveSupabaseGroup,
+  reportSupabaseGroupPayment,
   updateSupabaseGroupDetails,
   transferSupabaseGroup,
   removeSupabaseGroupMember,
@@ -1612,6 +1613,10 @@ function groupPage(id) {
           : t("พร้อมสรุปคำสั่งซื้อ")
         : t("รอยืนยันยอด")
       : t("กำลังเปิดรับสมาชิก");
+  const paymentReport = g.paymentReport;
+  const groupPaymentSection = isMember && supabaseConfigured && full && allApproved(g) && Number(alloc[me]) > 0
+    ? `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${paymentReport?.status === "verified" ? t("ตรวจยอดแล้ว") : paymentReport?.status === "reported" ? t("แจ้งโอนแล้ว รอแอดมินตรวจยอด") : t("โอนเงินเข้าบัญชี")}</h2><p>${paymentReport?.status === "reported" ? t("ระบบส่งรายการให้แอดมินตรวจสอบยอดเงินจริงแล้ว") : paymentReport?.status === "verified" ? t("แอดมินตรวจสอบยอดโอนของคุณแล้ว") : t("สแกน QR บัญชีธนาคาร แล้วกดแจ้งโอนหลังโอนเงินจริง เพื่อให้แอดมินตรวจยอด")}</p></div>${paymentReport?.status === "reported" || paymentReport?.status === "verified" ? `<div class="group-payment-reported"><strong>${money(alloc[me])}</strong><span>${paymentReport.status === "verified" ? t("ยืนยันรับเงินแล้ว") : t("กำลังรอตรวจสอบ")}</span></div>` : `<div class="group-payment-transfer"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><small>${t("ชื่อบัญชีรับโอน")}</small><strong>${BANK_PAYMENT_RECIPIENT}</strong><small>${t("ยอดที่ต้องโอน")}</small><b>${money(alloc[me])}</b>${paymentReport?.status === "rejected" && paymentReport.rejection_note ? `<p class="group-payment-rejection">${escape(paymentReport.rejection_note)}</p>` : ""}<button class="button primary full" type="button" data-action="report-group-payment" data-id="${escape(id)}" data-revision="${Number(g.revision)}">${t("โอนแล้ว แจ้งแอดมินตรวจยอด")}</button></div></div>`}</section>`
+    : "";
   const actions = `
     ${!isMember && !full && !locked ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
     ${isMember && !approved && !locked ? `<button class="button primary full summary-action-btn" data-action="approve" data-id="${id}" data-revision="${g.revision}"><span>${t("ยืนยันยอด {amount}", { amount: money(alloc[me]) })}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
@@ -1622,7 +1627,7 @@ function groupPage(id) {
     ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${id}"><span class="summary-btn-left">${icon("link", 18)} <span>${t("คัดลอกลิงก์เชิญ")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${locked ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("กลุ่มถูกล็อกตามยอดคำสั่งซื้อเดโมแล้ว")}</span></div>` : ""}
     ${isMember && !supabaseConfigured ? a(`/orders/${id}`, `<span class="summary-btn-left">${icon("calc", 19)} <span>${t("ดูสรุปคำสั่งซื้อเดโม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button subtle full summary-action-btn") : ""}
-    ${isMember && supabaseConfigured ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("คำสั่งซื้อของกลุ่มนี้ยังไม่เชื่อมระบบร่วมกัน จึงยังสร้างคำสั่งซื้อหรือแจ้งชำระไม่ได้")}</span></div>` : ""}
+    ${isMember && supabaseConfigured && !full ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("เมื่อสมาชิกครบและยืนยันยอดทุกคนแล้ว ระบบจะแสดง QR โอนเงินและปุ่มแจ้งโอน")}</span></div>` : ""}
   `;
   return `<div class="group-page">
     <nav class="breadcrumb product-breadcrumb" aria-label="${t("เส้นทางนำทาง")}">
@@ -1649,6 +1654,7 @@ function groupPage(id) {
           </div>
         </section>
         <section class="cost-card group-cost-card" aria-labelledby="cost-heading"><h2 id="cost-heading">${t("ค่าใช้จ่ายรอบที่ {revision}", { revision: g.revision })}</h2><div><span>${t("ราคาสินค้า")}</span><b>${money(p.price ?? costs.product)}</b></div><div><span>${t("ค่าส่งรวม")}</span><b>${money(groupDetails.shippingTotal ?? costs.delivery)}</b></div><div><span>${t("ค่าธรรมเนียมแพลตฟอร์ม 2%")}</span><b>${money(costs.service)}</b></div><div class="total"><span>${t("รวมทั้งหมด")}</span><b>${money(sum)}</b></div><p>${t("หารตามจำนวนสมาชิกปัจจุบัน เศษสตางค์จัดสรรตามลำดับที่เข้ากลุ่ม")}</p></section>
+        ${groupPaymentSection}
         <details class="group-history"><summary>${t("ประวัติการเปลี่ยนยอด")}</summary>${g.history
           .slice()
           .reverse()
@@ -4809,7 +4815,23 @@ document.addEventListener("click", async (e) => {
       }
       go("/my-groups");
       alertMessage(t("ลบห้องแล้ว"));
-        } else if (action === "approve") {
+        } else if (action === "report-group-payment") {
+      const current = group(id),
+        revision = Number(btn.dataset.revision);
+      if (!supabaseConfigured || !current || !state.user || !current.members.includes(state.user.id))
+        throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      if (current.status !== "ready" || !allApproved(current))
+        throw new Error(t("กลุ่มยังไม่พร้อมรับชำระ กรุณารอสมาชิกยืนยันยอดให้ครบก่อน"));
+      if (Number(current.revision) !== revision)
+        throw new Error(t("ยอดส่วนแบ่งเปลี่ยนแล้ว กรุณาตรวจสอบใหม่"));
+      if (!confirm(t("ยืนยันว่าโอนเงินจริงตาม QR แล้ว? แอดมินจะตรวจยอดจากรายการเงินเข้าก่อนยืนยัน"))) return;
+      btn.disabled = true;
+      btn.textContent = t("กำลังส่งแจ้งเตือนแอดมิน…");
+      await reportSupabaseGroupPayment(id, revision);
+      if (!(await refreshSupabaseGroups(actionSession))) return;
+      render();
+      alertMessage(t("แจ้งโอนแล้ว แอดมินจะตรวจสอบยอดเงินจริง"));
+    } else if (action === "approve") {
       const current = group(id);
       if (!current || !current.members.includes(state.user?.id))
         throw Object.assign(new Error(), { code: "orderUnauthorized" });

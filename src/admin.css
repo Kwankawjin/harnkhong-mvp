@@ -51,6 +51,7 @@ body.admin-mode #app { min-height: 100vh; }
 .admin-panel-heading h2, .admin-settings h2 { margin: 0; color: #102a43; font-size: 18px; }
 .admin-panel-heading p, .admin-settings > p { margin: 4px 0 0; color: #5c7793; font-size: 13px; }
 .admin-panel-heading > a { color: #0968e3; font-size: 13px; font-weight: 700; }
+.admin-panel-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .admin-table-scroll { width: 100%; overflow-x: auto; }
 .admin-panel table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
 .admin-panel th { padding: 12px 20px; border-top: 1px solid #e9eff6; border-bottom: 1px solid #e9eff6; background: #f8fafd; color: #5b7691; font-size: 11px; font-weight: 700; }
@@ -175,6 +176,7 @@ body.admin-mode #app { min-height: 100vh; }
   .admin-stat > div > span, .admin-stat small { font-size: 10px; }
   .admin-stat strong { font-size: 19px; }
   .admin-panel-heading { align-items: flex-start; padding: 19px 16px 14px; }
+  .admin-panel-actions { justify-content: flex-start; }
   .admin-panel-heading h2 { font-size: 16px; }
   .admin-panel-heading p { max-width: 42ch; font-size: 11px; }
   .admin-panel th, .admin-panel td { padding: 12px 13px; }

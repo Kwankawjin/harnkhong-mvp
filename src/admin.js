@@ -2,6 +2,7 @@ import "./admin.css";
 
 const navItems = [
   ["dashboard", "ภาพรวม", "grid"],
+  ["payments", "การชำระเงิน", "payments"],
   ["users", "สมาชิก", "users"],
   ["groups", "กลุ่มหารของ", "groups"],
   ["settings", "ตั้งค่า", "settings"],
@@ -14,6 +15,8 @@ let pageGeneration = 0;
 let feedback = "";
 let busy = false;
 let dashboardRangeDays = 7;
+let paymentMonitorTimer = null;
+let seenPaymentReportIds = null;
 
 const escapeHtml = (value = "") =>
   String(value).replace(/[&<>"']/g, (char) => ({
@@ -31,6 +34,50 @@ function formatDate(value) {
   return Number.isNaN(date.valueOf()) ? "—" : new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
+function formatMoney(satang) {
+  return satang == null ? "—" : `฿${(Number(satang) / 100).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function paymentStatus(status) {
+  const label = status === "reported" ? "รอตรวจสอบ" : status === "verified" ? "ยืนยันรับเงินแล้ว" : status === "rejected" ? "ยอดไม่ตรง" : status || "—";
+  const tone = status === "verified" ? "good" : status === "reported" ? "pending" : "bad";
+  return `<span class="admin-status ${tone}">${escapeHtml(label)}</span>`;
+}
+
+function paymentsContent(rows) {
+  const rendered = rows.map((row) => `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>รอบยอด ${escapeHtml(row.revision)}</small></td><td><strong>${escapeHtml(row.member_name)}</strong><small>${escapeHtml(row.member_email)}</small></td><td>${formatMoney(row.amount_satang)}</td><td>${paymentStatus(row.status)}${row.rejection_note ? `<small>${escapeHtml(row.rejection_note)}</small>` : ""}</td><td>${formatDate(row.reported_at)}</td><td>${row.status === "reported" ? `<button type="button" class="admin-primary admin-payment-verify" data-admin-action="verify-group-payment" data-payment-id="${escapeHtml(row.id)}">ยืนยันหลังตรวจยอด</button>` : row.verified_at ? formatDate(row.verified_at) : "—"}</td></tr>`).join("");
+  const alerts = typeof Notification !== "undefined" && Notification.permission === "granted"
+    ? "เปิดแจ้งเตือนบนอุปกรณ์นี้แล้ว"
+    : "เปิดแจ้งเตือนเมื่อมีคนแจ้งโอน";
+  return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>รายการชำระเงิน</h2><p>ตรวจรายการเงินเข้าในบัญชีธนาคารก่อนยืนยัน ยอดถูกคำนวณและล็อกจากฐานข้อมูล</p></div><div class="admin-panel-actions"><button type="button" class="admin-secondary" data-admin-action="enable-payment-alerts">${alerts}</button><button type="button" class="admin-secondary" data-admin-action="reload">รีเฟรช</button></div></div>${table(["กลุ่ม / รอบยอด", "สมาชิก", "ยอดโอน", "สถานะ", "แจ้งเมื่อ", "ตรวจสอบ"], rendered, "ยังไม่มีรายการชำระเงิน")}${rows.length ? "" : '<p class="admin-truth-note">รายการจะแสดงหลังสมาชิกกดแจ้งว่าโอนแล้ว</p>'}</section>`;
+}
+
+async function pollPaymentReports() {
+  const { rows = [] } = await invoke("payments");
+  const incoming = seenPaymentReportIds === null ? [] : rows.filter((row) => row.status === "reported" && !seenPaymentReportIds.has(row.id));
+  seenPaymentReportIds = new Set(rows.map((row) => row.id));
+  for (const row of incoming) {
+    const message = `${row.group_name} · ${row.member_name} · ${formatMoney(row.amount_satang)}`;
+    feedback = `มีรายการแจ้งโอนใหม่: ${message}`;
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      const notice = new Notification("HarnKhong · มีรายการแจ้งโอน", { body: message, tag: `payment-${row.id}` });
+      notice.onclick = () => { window.focus(); history.pushState({}, "", "/admin#/payments"); mountAdminPage({ supabase: currentClient, supabaseConfigured: Boolean(currentClient) }); notice.close(); };
+    }
+  }
+  if (activeSection() === "payments") {
+    const content = document.querySelector(".admin-content");
+    if (content) content.innerHTML = paymentsContent(rows);
+  }
+  const toast = document.querySelector(".admin-toast");
+  if (toast && incoming.length) toast.textContent = feedback;
+}
+
+function startPaymentMonitor() {
+  if (paymentMonitorTimer) return;
+  pollPaymentReports().catch(() => {});
+  paymentMonitorTimer = window.setInterval(() => pollPaymentReports().catch(() => {}), 15000);
+}
+
 function sectionTitle(section) {
   return navItems.find(([key]) => key === section)?.[1] || "ภาพรวม";
 }
@@ -38,6 +85,7 @@ function sectionTitle(section) {
 function adminIcon(name) {
   const paths = {
     grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    payments: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>',
     users: '<path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM20 8v6M23 11h-6"/>',
     groups: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5v1"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.2.9-1.2 2.1-1.4-.6a8 8 0 0 1-1.7 1l-.2 1.5h-2.4l-.2-1.5a8 8 0 0 1-1.9 0l-.2 1.5H9.1l-.2-1.5a8 8 0 0 1-1.7-1l-1.4.6-1.2-2.1 1.2-.9a7 7 0 0 1 0-2l-1.2-.9 1.2-2.1 1.4.6a8 8 0 0 1 1.7-1l.2-1.5h2.4l.2 1.5a8 8 0 0 1 1.9 0l.2-1.5h2.4l.2 1.5a8 8 0 0 1 1.7 1l1.4-.6 1.2 2.1-1.2.9a7 7 0 0 1 0 1.9Z"/>',
@@ -114,6 +162,10 @@ async function getSectionContent(section) {
     const data = await invoke("overview", { rangeDays: dashboardRangeDays });
     return dashboardContent(data);
   }
+  if (section === "payments") {
+    const { rows = [] } = await invoke("payments");
+    return paymentsContent(rows);
+  }
   if (section === "users") {
     const { rows } = await invoke("users");
     return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>สมาชิก</h2><p>ข้อมูลบัญชีจาก Supabase Auth และโปรไฟล์สมาชิก</p></div></div>${table(["ชื่อที่แสดง", "อีเมล", "สถานะบัญชี", "สมัครเมื่อ"], rows.map((user) => `<tr><td><strong>${escapeHtml(user.display_name || "ยังไม่ตั้งชื่อ")}</strong></td><td>${escapeHtml(user.email || "—")}</td><td>${user.email_confirmed_at ? '<span class="admin-status good">ยืนยันอีเมลแล้ว</span>' : '<span class="admin-status pending">ยังไม่ยืนยัน</span>'}</td><td>${formatDate(user.created_at)}</td></tr>`).join(""), "ยังไม่มีสมาชิก")}</section>`;
@@ -157,6 +209,7 @@ async function renderAuthenticated(generation) {
     const content = await getSectionContent(section);
     if (generation !== pageGeneration) return;
     shell(content, { user, section });
+    startPaymentMonitor();
   } catch (err) {
     if (generation !== pageGeneration) return;
     shell(errorState(err.message || "ไม่สามารถโหลดข้อมูลจากระบบได้"), { user, section });
@@ -207,6 +260,9 @@ export function mountAdminPage({ supabase, supabaseConfigured }) {
 
 export function unmountAdminPage() {
   pageGeneration += 1;
+  window.clearInterval(paymentMonitorTimer);
+  paymentMonitorTimer = null;
+  seenPaymentReportIds = null;
   currentClient = null;
   document.body.classList.remove("admin-mode");
 }
@@ -246,11 +302,39 @@ document.addEventListener("click", async (event) => {
       renderLogin(feedback);
     }
   } else if (action === "logout") {
+    window.clearInterval(paymentMonitorTimer);
+    paymentMonitorTimer = null;
+    seenPaymentReportIds = null;
     await currentClient.auth.signOut();
     feedback = "ออกจากระบบแล้ว";
     renderLogin();
   } else if (action === "reload") {
     mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+  } else if (action === "enable-payment-alerts") {
+    if (typeof Notification === "undefined") {
+      feedback = "เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือนบนอุปกรณ์";
+    } else {
+      const permission = await Notification.requestPermission();
+      feedback = permission === "granted" ? "เปิดแจ้งเตือนรายการโอนแล้ว" : "เบราว์เซอร์ไม่ได้รับอนุญาตให้แจ้งเตือน";
+    }
+    mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+  } else if (action === "verify-group-payment") {
+    const paymentId = button.dataset.paymentId;
+    if (!paymentId || busy) return;
+    if (!confirm("ตรวจรายการเงินเข้าในบัญชีธนาคารแล้ว และยืนยันว่าได้รับยอดนี้ครบถ้วนใช่หรือไม่?")) return;
+    busy = true;
+    button.disabled = true;
+    button.textContent = "กำลังบันทึก…";
+    try {
+      await invoke("verify-group-payment", { paymentId });
+      feedback = "ยืนยันยอดรับเงินแล้ว";
+      seenPaymentReportIds?.add(paymentId);
+    } catch (error) {
+      feedback = error.message || "ยืนยันยอดไม่สำเร็จ";
+    } finally {
+      busy = false;
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+    }
   }
 });
 

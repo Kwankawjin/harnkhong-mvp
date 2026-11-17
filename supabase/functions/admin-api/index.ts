@@ -75,6 +75,28 @@ async function listGroups(client: any, limit = 200) {
   return (data || []).map((row: any) => ({ ...row, product_title: row.products?.title || "", products: undefined, owner_email: users.get(row.owner_id)?.email || "", member_count: counts.get(row.id) || 0 }));
 }
 
+async function listPayments(client: any, limit = 200) {
+  const { data, error } = await client.from("group_payment_reports")
+    .select("id, group_id, user_id, revision, amount_satang, status, reported_at, verified_at, verified_by, rejection_note")
+    .order("reported_at", { ascending: false }).limit(limit);
+  if (error) throw error;
+  const groupIds = [...new Set((data || []).map((row: any) => row.group_id))];
+  const [users, groupsResult] = await Promise.all([
+    userIndex(client),
+    groupIds.length
+      ? client.from("groups").select("id,name").in("id", groupIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (groupsResult.error) throw groupsResult.error;
+  const groups = new Map((groupsResult.data || []).map((group: any) => [group.id, group.name]));
+  return (data || []).map((row: any) => ({
+    ...row,
+    group_name: groups.get(row.group_id) || "กลุ่มที่ถูกลบ",
+    member_email: users.get(row.user_id)?.email || "",
+    member_name: users.get(row.user_id)?.user_metadata?.display_name || users.get(row.user_id)?.email || "สมาชิก",
+  }));
+}
+
 async function dashboardOverview(client: any, body: Record<string, unknown>, actor: any) {
   const allowedRanges = new Set([7, 30, 90]);
   const rangeDays = Number(body.rangeDays);
@@ -132,7 +154,7 @@ async function handleAction(req: Request, ctx: any) {
       refresh_required: access.bootstrapped,
     });
   }
-  await authorize(ctx);
+  const admin = await authorize(ctx);
   const db = ctx.supabaseAdmin;
 
   if (action === "overview") {
@@ -150,6 +172,22 @@ async function handleAction(req: Request, ctx: any) {
   }
   if (action === "groups") {
     return response(req, { rows: await listGroups(db) });
+  }
+  if (action === "payments") {
+    return response(req, { rows: await listPayments(db) });
+  }
+  if (action === "verify-group-payment") {
+    const paymentId = String(body.paymentId || "");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(paymentId)) {
+      return response(req, { error: "รหัสรายการชำระเงินไม่ถูกต้อง" }, 400);
+    }
+    const { data, error } = await db.from("group_payment_reports")
+      .update({ status: "verified", verified_at: new Date().toISOString(), verified_by: admin.user.id, rejection_note: null })
+      .eq("id", paymentId).eq("status", "reported")
+      .select("id, status, amount_satang, verified_at").maybeSingle();
+    if (error) throw error;
+    if (!data) return response(req, { error: "รายการนี้ถูกตรวจแล้วหรือไม่พบรายการ" }, 409);
+    return response(req, { ok: true, payment: data });
   }
   return response(req, { error: "ไม่รู้จักคำสั่งนี้" }, 400);
 }

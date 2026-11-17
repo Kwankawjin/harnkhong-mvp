@@ -48,17 +48,21 @@ export async function loadSupabaseGroups(client = supabase) {
   );
   const names = Object.assign({}, ...bundles.map((bundle) => bundle.names));
   const memberIds = [...new Set(Object.keys(names))];
+  const paymentReportsByGroup = new Map();
   if (memberIds.length && client.auth?.getSession) {
     const { data: sessionData, error: sessionError } =
       await client.auth.getSession();
     if (sessionError) throw sessionError;
     if (sessionData?.session?.user?.id) {
-      const { data: profileRows, error: profileError } = await client
-        .from("profiles")
-        .select("id,display_name,bio,avatar_url")
-        .in("id", memberIds);
-      if (profileError) throw profileError;
-      for (const profile of profileRows || []) {
+      const userId = sessionData.session.user.id;
+      const [profileResult, paymentResult] = await Promise.all([
+        client.from("profiles").select("id,display_name,bio,avatar_url").in("id", memberIds),
+        client.from("group_payment_reports").select("group_id,revision,amount_satang,status,reported_at,rejection_note").eq("user_id", userId),
+      ]);
+      if (profileResult.error) throw profileResult.error;
+      if (paymentResult.error) throw paymentResult.error;
+      for (const report of paymentResult.data || []) paymentReportsByGroup.set(report.group_id, report);
+      for (const profile of profileResult.data || []) {
         names[profile.id] = {
           ...names[profile.id],
           id: profile.id,
@@ -70,7 +74,10 @@ export async function loadSupabaseGroups(client = supabase) {
     }
   }
   return {
-    groups: bundles.map((bundle) => bundle.group),
+    groups: bundles.map((bundle) => ({
+      ...bundle.group,
+      paymentReport: paymentReportsByGroup.get(bundle.group.id) || null,
+    })),
     names,
     listings: [
       ...(productResult.data || []).map((row) => {
@@ -181,6 +188,14 @@ export async function approveSupabaseGroup(groupId, revision) {
     p_group: groupId,
     p_revision: revision,
   });
+}
+export async function reportSupabaseGroupPayment(groupId, revision) {
+  const { data, error } = await supabase.rpc("report_group_payment", {
+    p_group: groupId,
+    p_revision: revision,
+  });
+  if (error) throw error;
+  return data;
 }
 export async function changeSupabaseDelivery(groupId, delivery) {
   return runMutation("change_group_delivery", {

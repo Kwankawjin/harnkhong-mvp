@@ -2781,6 +2781,27 @@ body.mobile-menu-open {
 .group-page .cost-card {
   margin-bottom: 18px;
 }
+.group-page .group-payment-panel {
+  margin-bottom: 18px;
+  border: 1px solid #d4e2ff;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #f4f7ff, #fff);
+  box-shadow: var(--shadow-sm);
+  padding: 22px;
+}
+.group-payment-panel h2 { margin: 8px 0 4px; font-size: 1.2rem; }
+.group-payment-panel > div:first-child p { margin: 0; color: var(--text-sub); }
+.group-payment-transfer { display: grid; grid-template-columns: 154px minmax(0, 1fr); gap: 18px; align-items: center; margin-top: 18px; }
+.group-payment-transfer .bank-payment-qr-frame { width: 154px; height: 154px; }
+.group-payment-transfer > div:last-child { display: grid; gap: 6px; justify-items: start; }
+.group-payment-transfer > div:last-child > small { color: var(--text-sub); }
+.group-payment-transfer > div:last-child > strong { color: var(--ink); }
+.group-payment-transfer > div:last-child > b,
+.group-payment-reported > strong { color: var(--blue); font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.group-payment-transfer .button { margin-top: 8px; }
+.group-payment-rejection { color: #a32a21; margin: 4px 0; }
+.group-payment-reported { display: grid; justify-items: start; gap: 5px; margin-top: 16px; }
+.group-payment-reported > span { color: var(--text-sub); }
 .group-heading-line {
   display: flex;
   justify-content: space-between;
@@ -3260,6 +3281,8 @@ body.mobile-menu-open {
   }
 }
 @media (max-width: 680px) {
+  .group-payment-transfer { grid-template-columns: 1fr; }
+  .group-payment-transfer .bank-payment-qr-frame { width: 132px; height: 132px; }
   .group-detail-main > section,
   .group-product-details,
   .group-history {
