@@ -2624,7 +2624,7 @@ function profileBadgeFace(user, back = false) {
     color: "#102f5b",
     background: back
       ? "linear-gradient(155deg, #f8fbff 0%, #eaf2ff 100%)"
-      : "linear-gradient(155deg, #ffffff 0%, #f1f6ff 100%)",
+      : "linear-gradient(155deg, #ffffff 0%, #f2efff 100%)",
   };
   const labelStyle = {
     fontSize: 9,
@@ -2716,7 +2716,53 @@ function profileBadgeFace(user, back = false) {
     { style: base },
     e(
       "div",
-      { style: { display: "flex", alignItems: "center", gap: 8 } },
+      {
+        "aria-hidden": true,
+        style: {
+          position: "absolute",
+          inset: "auto 0 0",
+          height: 96,
+          overflow: "hidden",
+          pointerEvents: "none",
+        },
+      },
+      e(
+        "svg",
+        {
+          viewBox: "0 0 320 96",
+          preserveAspectRatio: "none",
+          style: { position: "absolute", inset: 0, width: "100%", height: "100%" },
+        },
+        e("path", {
+          d: "M0 82 C65 68 107 92 170 65 C222 42 264 12 320 18 L320 96 L0 96 Z",
+          fill: "#e9e5ff",
+        }),
+        e("path", {
+          d: "M0 96 C72 80 117 95 191 71 C243 54 278 38 320 43 L320 96 Z",
+          fill: "#dcd6ff",
+          opacity: 0.85,
+        }),
+      ),
+      e(
+        "svg",
+        {
+          viewBox: "0 0 64 64",
+          fill: "none",
+          stroke: "#fff",
+          strokeWidth: 4,
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
+          style: { position: "absolute", width: 54, height: 54, right: 20, bottom: 13, opacity: 0.9 },
+        },
+        e("path", { d: "M7 11h7l6 30h29l7-22H18" }),
+        e("path", { d: "M22 27h29M25 20l3 21m15-21-3 21" }),
+        e("circle", { cx: 26, cy: 51, r: 3.5, fill: "#fff", stroke: "none" }),
+        e("circle", { cx: 47, cy: 51, r: 3.5, fill: "#fff", stroke: "none" }),
+      ),
+    ),
+    e(
+      "div",
+      { style: { position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 8 } },
       e("img", {
         src: "/images/harnkhong-logo.png",
         alt: "",
@@ -2736,7 +2782,7 @@ function profileBadgeFace(user, back = false) {
           placeItems: "center",
           width: 76,
           height: 76,
-          margin: "18px 0 12px",
+          margin: "20px 0 0",
           overflow: "hidden",
           borderRadius: "50%",
           background: "#c9f1e7",
@@ -2755,7 +2801,7 @@ function profileBadgeFace(user, back = false) {
     ),
     e(
       "div",
-      { style: { margin: "auto 0 16px" } },
+      { style: { position: "relative", zIndex: 1, marginTop: 24 } },
       e("span", { style: labelStyle }, t("โปรไฟล์สมาชิก")),
       e(
         "strong",
@@ -2775,33 +2821,41 @@ function profileBadgeFace(user, back = false) {
       "div",
       {
         style: {
+          position: "relative",
+          zIndex: 1,
           borderTop: "1px solid rgba(16,47,91,.16)",
-          paddingTop: 11,
+          marginTop: 18,
+          paddingTop: 14,
         },
       },
-      e("span", { style: labelStyle }, t("อีเมล")),
+      e("span", { style: labelStyle }, t("แนะนำตัว")),
       e(
-        "div",
+        "p",
         {
           style: {
-            marginTop: 4,
-            fontSize: 12,
+            margin: "6px 0 0",
+            fontSize: 13,
+            lineHeight: 1.5,
             overflowWrap: "anywhere",
-            color: "#284766",
+            whiteSpace: "pre-wrap",
           },
         },
-        user.email || "—",
+        user.bio || t("ยังไม่ได้เพิ่มคำแนะนำตัว"),
       ),
     ),
     e(
       "div",
       {
         style: {
+          position: "relative",
+          zIndex: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 8,
-          marginTop: 13,
+          marginTop: "auto",
+          borderTop: "1px solid rgba(16,47,91,.16)",
+          paddingTop: 12,
         },
       },
       e("span", { style: { ...labelStyle, letterSpacing: ".04em" } }, t("เรตโปรไฟล์")),
