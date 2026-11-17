@@ -19,6 +19,10 @@ let paymentMonitorTimer = null;
 let seenPaymentReportIds = null;
 let groupApprovalMonitorTimer = null;
 let seenGroupApprovalCounts = null;
+let cachedAdminGroups = [];
+let cachedPaymentReports = [];
+let groupSearchQuery = "";
+let groupCategoryFilter = "all";
 
 const escapeHtml = (value = "") =>
   String(value).replace(/[&<>"']/g, (char) => ({
@@ -46,18 +50,49 @@ function paymentStatus(status) {
   return `<span class="admin-status ${tone}">${escapeHtml(label)}</span>`;
 }
 
-function paymentsContent(rows) {
+function groupApprovalRows(rows, emptyText = "ยังไม่มีสมาชิกยืนยันยอด", pendingOnly = true) {
+  const displayRows = pendingOnly
+    ? rows.filter((row) => Number(row.approval_count || 0) > 0
+      && Number(row.admin_approved_revision) !== Number(row.revision))
+    : rows;
+  const rendered = displayRows.map((row) => {
+    const count = Number(row.approval_count || 0);
+    const members = Number(row.member_count || 0);
+    const reviewed = Number(row.admin_approved_revision) === Number(row.revision);
+    const canReview = row.status !== "cancelled" && members === Number(row.capacity) && count === members && !reviewed;
+    const state = reviewed
+      ? '<span class="admin-status good">ยืนยันยอดรอบนี้แล้ว</span>'
+      : canReview
+        ? '<span class="admin-status pending">รอคุณตรวจยอดรอบนี้</span>'
+        : `<span class="admin-status ${count ? "pending" : ""}">สมาชิกยืนยัน ${escapeHtml(count)} / ${escapeHtml(members)} คน</span>`;
+    const action = canReview
+      ? `<button type="button" class="admin-primary" data-admin-action="confirm-group-revision" data-group-id="${escapeHtml(row.id)}" data-revision="${escapeHtml(row.revision)}">ตรวจยอดและยืนยันรอบ</button>`
+      : reviewed ? formatDate(row.admin_approved_at) : `<small>รอสมาชิกครบ ${escapeHtml(members)} / ${escapeHtml(row.capacity)} คน</small>`;
+    return `<tr><td><strong>${escapeHtml(row.name)}</strong><small>รอบยอด ${escapeHtml(row.revision)} · ${(row.category_labels || []).map(escapeHtml).join(" · ")}</small></td><td>${state}<small>ยอดรวม ${formatMoney(row.total_satang)}</small></td><td>${formatDate(row.last_approval_at)}</td><td>${action}</td></tr>`;
+  }).join("");
+  return table(["กลุ่ม / รอบยอด", "สมาชิกยืนยัน", "ยืนยันล่าสุด", "ตรวจสอบ"], rendered, emptyText);
+}
+
+function paymentsContent(rows, groupRows = cachedAdminGroups) {
   const rendered = rows.map((row) => `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>รอบยอด ${escapeHtml(row.revision)}</small></td><td><strong>${escapeHtml(row.member_name)}</strong><small>${escapeHtml(row.member_email)}</small></td><td>${formatMoney(row.amount_satang)}</td><td>${paymentStatus(row.status)}${row.rejection_note ? `<small>${escapeHtml(row.rejection_note)}</small>` : ""}</td><td>${formatDate(row.reported_at)}</td><td>${row.status === "reported" ? `<button type="button" class="admin-primary admin-payment-verify" data-admin-action="verify-group-payment" data-payment-id="${escapeHtml(row.id)}">ยืนยันหลังตรวจยอด</button>` : row.verified_at ? formatDate(row.verified_at) : "—"}</td></tr>`).join("");
   const alerts = typeof Notification !== "undefined" && Notification.permission === "granted"
     ? "เปิดแจ้งเตือนบนอุปกรณ์นี้แล้ว"
     : "เปิดแจ้งเตือนเมื่อมีคนแจ้งโอน";
-  return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>รายการชำระเงิน</h2><p>ตรวจรายการเงินเข้าในบัญชีธนาคารก่อนยืนยัน ยอดถูกคำนวณและล็อกจากฐานข้อมูล</p></div><div class="admin-panel-actions"><button type="button" class="admin-secondary" data-admin-action="enable-payment-alerts">${alerts}</button><button type="button" class="admin-secondary" data-admin-action="reload">รีเฟรช</button></div></div>${table(["กลุ่ม / รอบยอด", "สมาชิก", "ยอดโอน", "สถานะ", "แจ้งเมื่อ", "ตรวจสอบ"], rendered, "ยังไม่มีรายการชำระเงิน")}${rows.length ? "" : '<p class="admin-truth-note">รายการจะแสดงหลังสมาชิกกดแจ้งว่าโอนแล้ว</p>'}</section>`;
+  const pending = groupRows.filter((row) => Number(row.approval_count || 0) > 0
+    && Number(row.admin_approved_revision) !== Number(row.revision));
+  return `<section class="admin-panel admin-payment-approval-queue"><div class="admin-panel-heading"><div><h2>ยอดที่สมาชิกยืนยัน รอแอดมินตรวจ</h2><p>รายการนี้ขึ้นทันทีเมื่อสมาชิกกดยืนยันยอด แยกจากการแจ้งโอน</p></div><button type="button" class="admin-secondary" data-admin-action="reload">รีเฟรช</button></div>${groupApprovalRows(groupRows, "ยังไม่มีสมาชิกยืนยันยอด")}${pending.length ? "" : '<p class="admin-truth-note">เมื่อสมาชิกกดยืนยันยอด กลุ่มจะแสดงในรายการนี้</p>'}</section><section class="admin-panel"><div class="admin-panel-heading"><div><h2>รายการชำระเงินจริง</h2><p>ตรวจรายการเงินเข้าในบัญชีธนาคาร หลังสมาชิกแจ้งว่าโอนแล้ว</p></div><div class="admin-panel-actions"><button type="button" class="admin-secondary" data-admin-action="enable-payment-alerts">${alerts}</button></div></div>${table(["กลุ่ม / รอบยอด", "สมาชิก", "ยอดโอน", "สถานะ", "แจ้งเมื่อ", "ตรวจสอบ"], rendered, "ยังไม่มีรายการชำระเงิน")}${rows.length ? "" : '<p class="admin-truth-note">รายการจะแสดงหลังสมาชิกกดแจ้งว่าโอนแล้ว</p>'}</section>`;
 }
 
-function groupsContent(rows) {
-  const alerts = typeof Notification !== "undefined" && Notification.permission === "granted"
-    ? "เปิดแจ้งเตือนบนอุปกรณ์นี้แล้ว"
-    : "เปิดแจ้งเตือนยอดกลุ่ม";
+function categoriesForGroup(row) {
+  return Array.isArray(row.category_labels) && row.category_labels.length
+    ? row.category_labels
+    : Array.isArray(row.categories) && row.categories.length
+      ? row.categories
+      : row.category ? [row.category] : ["ไม่ระบุหมวดหมู่"];
+}
+
+function groupResultsContent(rows) {
+  const query = groupSearchQuery.trim().toLocaleLowerCase("th-TH");
   const prioritizedRows = [...rows].sort((a, b) => {
     const waitingForAdmin = (row) => Number(row.member_count) === Number(row.capacity)
       && Number(row.approval_count) === Number(row.member_count)
@@ -66,22 +101,32 @@ function groupsContent(rows) {
     if (priority) return priority;
     return String(b.last_approval_at || b.created_at).localeCompare(String(a.last_approval_at || a.created_at));
   });
-  const rendered = prioritizedRows.map((row) => {
-    const count = Number(row.approval_count || 0);
-    const members = Number(row.member_count || 0);
-    const reviewed = Number(row.admin_approved_revision) === Number(row.revision);
-    const canReview = row.status !== "cancelled" && members === Number(row.capacity) && count === members && !reviewed;
-    const state = reviewed
-      ? '<span class="admin-status good">ยืนยันยอดรอบนี้แล้ว</span>'
-      : canReview
-        ? '<span class="admin-status pending">รอคุณยืนยันยอด</span>'
-        : `<span class="admin-status ${count ? "pending" : ""}">สมาชิกยืนยัน ${escapeHtml(count)} / ${escapeHtml(members)} คน</span>`;
-    const action = canReview
-      ? `<button type="button" class="admin-primary" data-admin-action="confirm-group-revision" data-group-id="${escapeHtml(row.id)}" data-revision="${escapeHtml(row.revision)}">ตรวจยอดและยืนยันรอบ</button>`
-      : reviewed ? formatDate(row.admin_approved_at) : "รอสมาชิกยืนยันครบ";
-    return `<tr><td><strong>${escapeHtml(row.name)}</strong><small>รอบยอด ${escapeHtml(row.revision)}</small></td><td>${escapeHtml(row.owner_email || "สมาชิก")}</td><td>${state}<small>สมาชิกในกลุ่ม ${escapeHtml(members)} / ${escapeHtml(row.capacity)} คน</small>${row.last_approval_at ? `<small>ยืนยันล่าสุด ${formatDate(row.last_approval_at)}</small>` : ""}</td><td>${formatMoney(row.total_satang)}</td><td>${action}</td></tr>`;
-  }).join("");
-  return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>กลุ่มหารของ</h2><p>ยอดจะเปลี่ยนเป็นยืนยันแล้วหลังคุณตรวจและรับรองรอบปัจจุบัน</p></div><div class="admin-panel-actions"><button type="button" class="admin-secondary" data-admin-action="enable-group-alerts">${alerts}</button><button type="button" class="admin-secondary" data-admin-action="reload">รีเฟรช</button></div></div>${table(["ชื่อกลุ่ม / รอบยอด", "เจ้าของ", "สมาชิกยืนยันยอด", "ยอดรวมกลุ่ม", "ตรวจสอบ"], rendered, "ยังไม่มีกลุ่ม")}</section>`;
+  const filtered = prioritizedRows.filter((row) => {
+    const categoryMatch = groupCategoryFilter === "all" || categoriesForGroup(row).includes(groupCategoryFilter);
+    const nameMatch = !query || `${row.name || ""} ${row.product_title || ""}`.toLocaleLowerCase("th-TH").includes(query);
+    return categoryMatch && nameMatch;
+  });
+  const byCategory = new Map();
+  for (const row of filtered) {
+    for (const category of categoriesForGroup(row)) {
+      if (groupCategoryFilter !== "all" && category !== groupCategoryFilter) continue;
+      if (!byCategory.has(category)) byCategory.set(category, []);
+      byCategory.get(category).push(row);
+    }
+  }
+  if (!byCategory.size) return '<p class="admin-group-no-results">ไม่พบกลุ่มที่ตรงกับคำค้นหาหรือหมวดหมู่</p>';
+  return [...byCategory].sort(([a], [b]) => a.localeCompare(b, "th-TH")).map(([category, categoryRows]) =>
+    `<section class="admin-group-category"><div class="admin-group-category-heading"><h3>${escapeHtml(category)}</h3><span>${categoryRows.length} กลุ่ม</span></div>${groupApprovalRows(categoryRows, "ไม่มีข้อมูลกลุ่ม", false)}</section>`,
+  ).join("");
+}
+
+function groupsContent(rows) {
+  cachedAdminGroups = rows;
+  const categories = [...new Set(rows.flatMap(categoriesForGroup))].sort((a, b) => a.localeCompare(b, "th-TH"));
+  const alerts = typeof Notification !== "undefined" && Notification.permission === "granted"
+    ? "เปิดแจ้งเตือนบนอุปกรณ์นี้แล้ว"
+    : "เปิดแจ้งเตือนยอดกลุ่ม";
+  return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>กลุ่มหารของ</h2><p>ค้นหากลุ่มและดูรายการแยกตามหมวดหมู่</p></div><div class="admin-panel-actions"><button type="button" class="admin-secondary" data-admin-action="enable-group-alerts">${alerts}</button><button type="button" class="admin-secondary" data-admin-action="reload">รีเฟรช</button></div></div><div class="admin-group-filters"><label class="admin-group-filter admin-group-search">ค้นหาชื่อกลุ่ม<input type="search" data-admin-group-search value="${escapeHtml(groupSearchQuery)}" placeholder="พิมพ์ชื่อกลุ่มหรือสินค้า"/></label><label class="admin-group-filter admin-group-category-filter">หมวดหมู่<select data-admin-group-category><option value="all" ${groupCategoryFilter === "all" ? "selected" : ""}>ทุกหมวดหมู่</option>${categories.map((category) => `<option value="${escapeHtml(category)}" ${groupCategoryFilter === category ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}</select></label></div><div class="admin-group-results">${groupResultsContent(rows)}</div></section>`;
 }
 
 async function pollPaymentReports() {
@@ -96,9 +141,10 @@ async function pollPaymentReports() {
       notice.onclick = () => { window.focus(); history.pushState({}, "", "/admin#/payments"); mountAdminPage({ supabase: currentClient, supabaseConfigured: Boolean(currentClient) }); notice.close(); };
     }
   }
+  cachedPaymentReports = rows;
   if (activeSection() === "payments") {
     const content = document.querySelector(".admin-content");
-    if (content) content.innerHTML = paymentsContent(rows);
+    if (content) content.innerHTML = paymentsContent(rows, cachedAdminGroups);
   }
   const toast = document.querySelector(".admin-toast");
   if (toast && incoming.length) toast.textContent = feedback;
@@ -127,6 +173,7 @@ async function pollGroupApprovals() {
         : [];
     });
   seenGroupApprovalCounts = current;
+  cachedAdminGroups = rows;
   if (incoming.length) {
     const { row, count } = incoming[incoming.length - 1];
     const message = `${row.name} · สมาชิกยืนยัน ${count}/${row.member_count} คน`;
@@ -139,7 +186,7 @@ async function pollGroupApprovals() {
         });
         notice.onclick = () => {
           window.focus();
-          history.pushState({}, "", "/admin#/groups");
+          history.pushState({}, "", "/admin#/payments");
           mountAdminPage({ supabase: currentClient, supabaseConfigured: Boolean(currentClient) });
           notice.close();
         };
@@ -148,7 +195,24 @@ async function pollGroupApprovals() {
   }
   if (activeSection() === "groups") {
     const content = document.querySelector(".admin-content");
-    if (content) content.innerHTML = groupsContent(rows);
+    if (content) {
+      const active = document.activeElement;
+      const focusedFilter = active?.matches?.("[data-admin-group-search], [data-admin-group-category]")
+        ? active.hasAttribute("data-admin-group-search") ? "search" : "category"
+        : "";
+      const selection = focusedFilter === "search" ? active.selectionStart : null;
+      content.innerHTML = groupsContent(rows);
+      const nextFilter = focusedFilter === "search"
+        ? content.querySelector("[data-admin-group-search]")
+        : focusedFilter === "category" ? content.querySelector("[data-admin-group-category]") : null;
+      if (nextFilter) {
+        nextFilter.focus();
+        if (focusedFilter === "search" && selection !== null) nextFilter.setSelectionRange(selection, selection);
+      }
+    }
+  } else if (activeSection() === "payments") {
+    const content = document.querySelector(".admin-content");
+    if (content) content.innerHTML = paymentsContent(cachedPaymentReports, rows);
   }
   const toast = document.querySelector(".admin-toast");
   if (toast && incoming.length) toast.textContent = feedback;
@@ -245,8 +309,13 @@ async function getSectionContent(section) {
     return dashboardContent(data);
   }
   if (section === "payments") {
-    const { rows = [] } = await invoke("payments");
-    return paymentsContent(rows);
+    const [{ rows: paymentRows = [] }, { rows: groupRows = [] }] = await Promise.all([
+      invoke("payments"),
+      invoke("groups"),
+    ]);
+    cachedPaymentReports = paymentRows;
+    cachedAdminGroups = groupRows;
+    return paymentsContent(paymentRows, groupRows);
   }
   if (section === "users") {
     const { rows } = await invoke("users");
@@ -254,6 +323,7 @@ async function getSectionContent(section) {
   }
   if (section === "groups") {
     const { rows } = await invoke("groups");
+    cachedAdminGroups = rows;
     return groupsContent(rows);
   }
   return `<section class="admin-panel admin-settings"><h2>สิทธิ์ผู้ดูแลระบบ</h2><p>สิทธิ์ตรวจจาก <code>app_metadata.role = admin</code> และรายชื่อที่กำหนดใน Edge Function ทุกครั้งก่อนเข้าถึงข้อมูล</p><dl><div><dt>บัญชีผู้ดูแล</dt><dd>${ADMIN_EMAILS.map(escapeHtml).join("<br>")}</dd></div><div><dt>เพิ่มผู้ดูแลในอนาคต</dt><dd>เพิ่มอีเมลใน secret <code>ADMIN_EMAILS</code> ของ Edge Function แล้วให้ผู้ใช้เข้าสู่ระบบครั้งแรกเพื่อกำหนดสิทธิ์</dd></div><div><dt>รหัสผ่าน</dt><dd>จัดการผ่าน Supabase Auth เท่านั้น ไม่มีการเก็บรหัสผ่านไว้ในเว็บ</dd></div></dl><p class="admin-truth-note">รายการที่มีสิทธิ์สูงอ่านและแก้ไขผ่าน Edge Function ฝั่งเซิร์ฟเวอร์ ไม่ส่ง Service Role Key มาที่เบราว์เซอร์</p></section>`;
@@ -452,7 +522,22 @@ document.addEventListener("click", async (event) => {
   }
 });
 
+document.addEventListener("input", (event) => {
+  const search = event.target.closest("[data-admin-group-search]");
+  if (!search) return;
+  groupSearchQuery = search.value;
+  const results = document.querySelector(".admin-group-results");
+  if (results) results.innerHTML = groupResultsContent(cachedAdminGroups);
+});
+
 document.addEventListener("change", (event) => {
+  const category = event.target.closest("[data-admin-group-category]");
+  if (category) {
+    groupCategoryFilter = category.value || "all";
+    const results = document.querySelector(".admin-group-results");
+    if (results) results.innerHTML = groupResultsContent(cachedAdminGroups);
+    return;
+  }
   const select = event.target.closest("[data-admin-range]");
   if (!select || !currentClient) return;
   dashboardRangeDays = Number(select.value) || 7;

@@ -708,6 +708,7 @@ const labels = {
   " · หัวหน้ากลุ่ม": " · Group leader",
   ยืนยันแล้ว: "Approved",
   รอยืนยัน: "Pending",
+  รอจ่าย: "Waiting to pay",
   ราคาสินค้า: "Product price",
   ค่าส่ง: "Delivery",
   ค่าบริการ: "Service fee",

@@ -125,6 +125,18 @@ body.admin-mode #app { min-height: 100vh; }
 .admin-empty p { margin-bottom: 18px; color: #536f8b; font-size: 13px; }
 .admin-toast { position: fixed; right: 22px; bottom: 20px; z-index: 20; max-width: 360px; padding: 12px 16px; border: 1px solid #f3d389; border-radius: 12px; background: #fff4d7; color: #815400; box-shadow: 0 10px 30px #17324d1c; font-size: 12px; font-weight: 700; }
 .admin-toast:empty { display: none; }
+.admin-payment-approval-queue { margin-bottom: 14px; }
+.admin-group-filters { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(190px, .55fr); gap: 12px; padding: 0 24px 18px; }
+.admin-group-filter { display: grid; gap: 6px; color: #536f8b; font-size: 11px; font-weight: 700; }
+.admin-group-filter input, .admin-group-filter select { width: 100%; min-height: 40px; padding: 0 12px; border: 1px solid #d5e2f0; border-radius: 9px; background: #fff; color: #173653; font: inherit; font-size: 13px; }
+.admin-group-filter input:focus-visible, .admin-group-filter select:focus-visible { outline: 3px solid rgba(9,104,227,.2); outline-offset: 1px; }
+.admin-group-category { padding: 0 24px 18px; }
+.admin-group-category + .admin-group-category { padding-top: 4px; }
+.admin-group-category-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 13px 0; border-top: 1px solid #e9eff6; }
+.admin-group-category-heading h3 { margin: 0; color: #16334f; font-size: 15px; }
+.admin-group-category-heading span { color: #607b99; font-size: 11px; }
+.admin-group-category .admin-table-scroll { border: 1px solid #edf1f6; border-radius: 10px; }
+.admin-group-no-results { margin: 0; padding: 28px 20px; color: #607b99; font-size: 13px; text-align: center; }
 .admin-login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(ellipse at 30% 0%, #e7f2ff 0, transparent 50%), #f3f7fc; }
 .admin-login { width: min(100%, 420px); padding: 36px; border: 1px solid #dfE8f3; border-radius: 18px; background: #fff; box-shadow: 0 18px 48px rgba(28,58,92,.09); }
 .admin-login .admin-brand { padding: 0; }
@@ -195,6 +207,8 @@ body.admin-mode #app { min-height: 100vh; }
   .admin-system-row:nth-child(odd) { border-left: 0; }
   .admin-system-row:nth-child(3) { border-left: 0; }
   .admin-activity-list { padding: 0 15px 12px; }
+  .admin-group-filters { grid-template-columns: 1fr; padding: 0 16px 15px; }
+  .admin-group-category { padding-inline: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .admin-spinner { animation-duration: 2s; }

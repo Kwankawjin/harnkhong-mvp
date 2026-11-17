@@ -61,7 +61,7 @@ async function userIndex(client: any) {
 
 async function listGroups(client: any, limit = 200) {
   const { data, error } = await client.from("groups")
-    .select("id, name, owner_id, listing_id, capacity, product_satang, delivery_per_member_satang, service_satang, total_satang, revision, status, admin_approved_revision, admin_approved_at, created_at, products(title), members:group_members(user_id,approvals:group_approvals(revision,approved_at))")
+    .select("id, name, owner_id, listing_id, category, categories, capacity, product_satang, delivery_per_member_satang, service_satang, total_satang, revision, status, admin_approved_revision, admin_approved_at, created_at, products(title), members:group_members(user_id,approvals:group_approvals(revision,approved_at))")
     .order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
   const users = await userIndex(client);
@@ -80,6 +80,9 @@ async function listGroups(client: any, limit = 200) {
     return {
       ...row,
       product_title: row.products?.title || "",
+      category_labels: Array.isArray(row.categories) && row.categories.length
+        ? row.categories
+        : row.category ? [row.category] : ["ไม่ระบุหมวดหมู่"],
       products: undefined,
       members: undefined,
       owner_email: users.get(row.owner_id)?.email || "",
