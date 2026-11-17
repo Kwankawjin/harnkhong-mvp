@@ -48,12 +48,6 @@ async function authorize(ctx: any, allowBootstrap = false) {
   return { user: data.user, bootstrapped: true };
 }
 
-async function countRows(client: any, table: string) {
-  const { count, error } = await client.from(table).select("*", { count: "exact", head: true });
-  if (error) throw error;
-  return count || 0;
-}
-
 async function userIndex(client: any) {
   const users = new Map<string, any>();
   for (let page = 1; page <= 10; page += 1) {
@@ -65,17 +59,20 @@ async function userIndex(client: any) {
   return users;
 }
 
-async function listOrders(client: any, limit = 100) {
-  const { data, error } = await client.from("secondhand_orders")
-    .select("id, listing_title, buyer_id, seller_id, unit_price_satang, quantity, total_satang, delivery_method, status, created_at")
+async function listGroups(client: any, limit = 200) {
+  const { data, error } = await client.from("groups")
+    .select("id, name, owner_id, status, created_at")
     .order("created_at", { ascending: false }).limit(limit);
   if (error) throw error;
   const users = await userIndex(client);
-  return (data || []).map((order: any) => ({
-    ...order,
-    buyer_email: users.get(order.buyer_id)?.email || "",
-    seller_email: users.get(order.seller_id)?.email || "",
-  }));
+  const ids = (data || []).map((row: any) => row.id);
+  let counts = new Map<string, number>();
+  if (ids.length) {
+    const { data: members, error: memberError } = await client.from("group_members").select("group_id").in("group_id", ids);
+    if (memberError) throw memberError;
+    counts = (members || []).reduce((map: Map<string, number>, row: any) => map.set(row.group_id, (map.get(row.group_id) || 0) + 1), new Map());
+  }
+  return (data || []).map((row: any) => ({ ...row, owner_email: users.get(row.owner_id)?.email || "", member_count: counts.get(row.id) || 0 }));
 }
 
 async function handleAction(req: Request, ctx: any) {
@@ -96,24 +93,26 @@ async function handleAction(req: Request, ctx: any) {
   const db = ctx.supabaseAdmin;
 
   if (action === "overview") {
-    const [users, orders, pendingPayments, products, groups, recentOrders] = await Promise.all([
+    const [users, groups, awaitingGroups, readyGroups, recentGroups] = await Promise.all([
       (async () => (await userIndex(db)).size)(),
-      countRows(db, "secondhand_orders"),
       (async () => {
-        const { count, error } = await db.from("secondhand_orders").select("id", { count: "exact", head: true }).eq("status", "pending_payment");
+        const { count, error } = await db.from("groups").select("id", { count: "exact", head: true });
         if (error) throw error;
         return count || 0;
       })(),
-      countRows(db, "secondhand_listings"),
-      countRows(db, "groups"),
-      listOrders(db, 8),
+      (async () => {
+        const { count, error } = await db.from("groups").select("id", { count: "exact", head: true }).eq("status", "awaiting_approval");
+        if (error) throw error;
+        return count || 0;
+      })(),
+      (async () => {
+        const { count, error } = await db.from("groups").select("id", { count: "exact", head: true }).eq("status", "ready");
+        if (error) throw error;
+        return count || 0;
+      })(),
+      listGroups(db, 8),
     ]);
-    return response(req, { stats: { users, orders, pendingPayments, products, groups }, recentOrders });
-  }
-  if (action === "orders") return response(req, { rows: await listOrders(db) });
-  if (action === "payments") {
-    const rows = await listOrders(db);
-    return response(req, { rows: rows.filter((row: any) => ["pending_payment", "payment_secured"].includes(row.status)) });
+    return response(req, { stats: { users, groups, awaitingGroups, readyGroups }, recentGroups });
   }
   if (action === "users") {
     const users = await userIndex(db);
@@ -125,37 +124,8 @@ async function handleAction(req: Request, ctx: any) {
       .map(({ id, email, email_confirmed_at, created_at, display_name }: any) => ({ id, email, email_confirmed_at, created_at, display_name }));
     return response(req, { rows });
   }
-  if (action === "products") {
-    const { data, error } = await db.from("secondhand_listings").select("id, owner_id, seller_name, title, category, price_satang, active, created_at").order("created_at", { ascending: false }).limit(200);
-    if (error) throw error;
-    return response(req, { rows: data || [] });
-  }
   if (action === "groups") {
-    const { data, error } = await db.from("groups").select("id, name, owner_id, status, created_at").order("created_at", { ascending: false }).limit(200);
-    if (error) throw error;
-    const users = await userIndex(db);
-    const ids = (data || []).map((row: any) => row.id);
-    let counts = new Map<string, number>();
-    if (ids.length) {
-      const { data: members, error: memberError } = await db.from("group_members").select("group_id").in("group_id", ids);
-      if (memberError) throw memberError;
-      counts = (members || []).reduce((map: Map<string, number>, row: any) => map.set(row.group_id, (map.get(row.group_id) || 0) + 1), new Map());
-    }
-    return response(req, { rows: (data || []).map((row: any) => ({ ...row, owner_email: users.get(row.owner_id)?.email || "", member_count: counts.get(row.id) || 0 })) });
-  }
-  if (action === "confirm-payment") {
-    const orderId = String(body.orderId || "");
-    const amount = Number(body.amountSatang);
-    if (!/^[0-9a-f-]{36}$/i.test(orderId) || !Number.isSafeInteger(amount) || amount < 0) {
-      return response(req, { error: "ข้อมูลยืนยันการชำระเงินไม่ถูกต้อง" }, 400);
-    }
-    const { data, error } = await db.rpc("confirm_admin_secondhand_payment", {
-      p_order_id: orderId,
-      p_amount_satang: amount,
-      p_verified_by: ctx.userClaims.sub,
-    });
-    if (error) throw error;
-    return response(req, { ok: true, verification: data });
+    return response(req, { rows: await listGroups(db) });
   }
   return response(req, { error: "ไม่รู้จักคำสั่งนี้" }, 400);
 }

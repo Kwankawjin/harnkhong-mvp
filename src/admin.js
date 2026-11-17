@@ -2,10 +2,7 @@ import "./admin.css";
 
 const navItems = [
   ["dashboard", "ภาพรวม", "grid"],
-  ["orders", "คำสั่งซื้อ", "orders"],
-  ["payments", "การชำระเงิน", "payments"],
   ["users", "สมาชิก", "users"],
-  ["products", "สินค้า", "products"],
   ["groups", "กลุ่มหารของ", "groups"],
   ["settings", "ตั้งค่า", "settings"],
 ];
@@ -27,13 +24,6 @@ function activeSection() {
   return navItems.some(([key]) => key === requested) ? requested : "dashboard";
 }
 
-function formatMoney(satang) {
-  const amount = Number(satang);
-  return Number.isFinite(amount)
-    ? new Intl.NumberFormat("th-TH", { style: "currency", currency: "THB" }).format(amount / 100)
-    : "—";
-}
-
 function formatDate(value) {
   if (!value) return "—";
   const date = new Date(value);
@@ -47,10 +37,7 @@ function sectionTitle(section) {
 function adminIcon(name) {
   const paths = {
     grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
-    orders: '<path d="M8 4h8l3 3v13H5V4h3Z"/><path d="M8 4v4h8V4M8 12h8M8 16h5"/>',
-    payments: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/>',
     users: '<path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM20 8v6M23 11h-6"/>',
-    products: '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 8 9 5 9-5M3 8v9l9 5 9-5V8M12 13v9"/>',
     groups: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5v1"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.2.9-1.2 2.1-1.4-.6a8 8 0 0 1-1.7 1l-.2 1.5h-2.4l-.2-1.5a8 8 0 0 1-1.9 0l-.2 1.5H9.1l-.2-1.5a8 8 0 0 1-1.7-1l-1.4.6-1.2-2.1 1.2-.9a7 7 0 0 1 0-2l-1.2-.9 1.2-2.1 1.4.6a8 8 0 0 1 1.7-1l.2-1.5h2.4l.2 1.5a8 8 0 0 1 1.9 0l.2-1.5h2.4l.2 1.5a8 8 0 0 1 1.7 1l1.4-.6 1.2 2.1-1.2.9a7 7 0 0 1 0 1.9Z"/>',
   };
@@ -85,18 +72,15 @@ function table(headers, rows, emptyText = "ยังไม่มีข้อม�
 
 function statusPill(status) {
   const labels = {
-    pending_payment: "รอตรวจสอบ", payment_secured: "ชำระแล้ว", preparing_order: "กำลังเตรียม",
-    shipped: "จัดส่งแล้ว", delivered: "ถึงผู้รับ", completed: "เสร็จสิ้น", cancelled: "ยกเลิก",
-    disputed: "มีข้อโต้แย้ง", refunded: "คืนเงินแล้ว", awaiting_approval: "รอสมาชิกยืนยัน",
-    ready: "พร้อมดำเนินการ",
+    cancelled: "ยกเลิก", awaiting_approval: "รอสมาชิกยืนยัน", ready: "พร้อมดำเนินการ",
   };
-  const tone = status === "payment_secured" || status === "completed" || status === "ready" ? "good" : status === "cancelled" || status === "disputed" || status === "refunded" ? "bad" : "pending";
+  const tone = status === "ready" ? "good" : status === "cancelled" ? "bad" : "pending";
   return `<span class="admin-status ${tone}">${escapeHtml(labels[status] || status || "—")}</span>`;
 }
 
 function dashboardContent(data) {
-  const rows = (data.recentOrders || []).map((order) => `<tr><td><strong>${escapeHtml(order.listing_title)}</strong><small>${escapeHtml(String(order.id).slice(0, 8))}</small></td><td>${escapeHtml(order.buyer_email || "สมาชิก")}</td><td>${formatMoney(order.total_satang)}</td><td>${statusPill(order.status)}</td><td>${formatDate(order.created_at)}</td></tr>`).join("");
-  return `<section class="admin-welcome"><div><h2>ยินดีต้อนรับกลับ</h2><p>ภาพรวมการใช้งาน HarnKhong จากข้อมูลในระบบปัจจุบัน</p></div><span class="admin-welcome-mark" aria-hidden="true">HK</span></section><section class="admin-stat-grid">${statCard("สมาชิกทั้งหมด", data.stats.users, "บัญชีสมาชิก", "♙", "blue")}${statCard("คำสั่งซื้อ", data.stats.orders, "รายการทั้งหมด", "▤", "violet")}${statCard("รอตรวจสอบเงิน", data.stats.pendingPayments, "ต้องตรวจจากรายการเงินเข้าจริง", "฿", "amber")}${statCard("สินค้า", data.stats.products, "ประกาศมือสอง", "◇", "green")}</section><section class="admin-panel"><div class="admin-panel-heading"><div><h2>คำสั่งซื้อล่าสุด</h2><p>สถานะและยอดจากข้อมูลที่บันทึกไว้ในระบบ</p></div><a href="/admin#/orders">ดูคำสั่งซื้อ <span aria-hidden="true">→</span></a></div>${table(["สินค้า", "ผู้ซื้อ", "ยอดรวม", "สถานะ", "วันที่"], rows, "ยังไม่มีคำสั่งซื้อ")}</section><p class="admin-truth-note">การยืนยันชำระเงินทำได้หลังแอดมินตรวจสอบยอดเงินเข้าจริง และระบบจะบันทึกผู้ยืนยันกับยอดที่ตรวจสอบ</p>`;
+  const rows = (data.recentGroups || []).map((group) => `<tr><td><strong>${escapeHtml(group.name)}</strong><small>${escapeHtml(String(group.id).slice(0, 8))}</small></td><td>${escapeHtml(group.owner_email || "สมาชิก")}</td><td>${escapeHtml(group.member_count)}</td><td>${statusPill(group.status)}</td><td>${formatDate(group.created_at)}</td></tr>`).join("");
+  return `<section class="admin-welcome"><div><h2>ยินดีต้อนรับกลับ</h2><p>ภาพรวมสมาชิกและกลุ่มหารของ HarnKhong</p></div><span class="admin-welcome-mark" aria-hidden="true">HK</span></section><section class="admin-stat-grid">${statCard("สมาชิกทั้งหมด", data.stats.users, "บัญชีสมาชิก", "♙", "blue")}${statCard("กลุ่มหารของ", data.stats.groups, "กลุ่มทั้งหมด", "♧", "violet")}${statCard("รอสมาชิกยืนยัน", data.stats.awaitingGroups, "กลุ่มที่กำลังเปิดรับการยืนยัน", "✓", "amber")}${statCard("พร้อมดำเนินการ", data.stats.readyGroups, "กลุ่มที่สมาชิกยืนยันครบแล้ว", "◇", "green")}</section><section class="admin-panel"><div class="admin-panel-heading"><div><h2>กลุ่มหารของล่าสุด</h2><p>สถานะและจำนวนสมาชิกในแต่ละกลุ่ม</p></div><a href="/admin#/groups">ดูกลุ่มทั้งหมด <span aria-hidden="true">→</span></a></div>${table(["กลุ่ม", "หัวหน้ากลุ่ม", "สมาชิก", "สถานะ", "วันที่สร้าง"], rows, "ยังไม่มีกลุ่มหารของ")}</section>`;
 }
 
 async function invoke(action, payload = {}) {
@@ -115,19 +99,9 @@ async function getSectionContent(section) {
     const data = await invoke("overview");
     return dashboardContent(data);
   }
-  if (section === "orders" || section === "payments") {
-    const { rows } = await invoke(section === "orders" ? "orders" : "payments");
-    const payments = section === "payments";
-    const rendered = rows.map((row) => `<tr><td><strong>${escapeHtml(row.listing_title)}</strong><small>${escapeHtml(String(row.id).slice(0, 8))}</small></td><td>${escapeHtml(row.buyer_email || "สมาชิก")}</td><td>${escapeHtml(row.seller_email || "—")}</td><td>${formatMoney(row.total_satang)}</td><td>${statusPill(row.status)}</td><td>${formatDate(row.created_at)}</td>${payments ? `<td>${row.status === "pending_payment" ? `<button type="button" class="admin-confirm-payment" data-admin-action="confirm-payment" data-order-id="${escapeHtml(row.id)}" data-amount="${escapeHtml(row.total_satang)}">ยืนยันรับเงิน</button>` : `<span class="admin-verified">ตรวจแล้ว</span>`}</td>` : ""}</tr>`).join("");
-    return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>${payments ? "รายการรอตรวจสอบ" : "รายการคำสั่งซื้อ"}</h2><p>${payments ? "ตรวจยอดกับบัญชีธนาคารก่อนกดยืนยัน ระบบจะไม่เชื่อข้อมูลจากเบราว์เซอร์" : "รายการซื้อขายมือสองที่บันทึกในระบบ"}</p></div><button type="button" class="admin-secondary" data-admin-action="reload">รีเฟรช</button></div>${table(["สินค้า / เลขที่", "ผู้ซื้อ", "ผู้ขาย", "ยอด", "สถานะ", "วันที่", ...(payments ? ["การตรวจสอบ"] : [])], rendered, payments ? "ไม่มีรายการรอชำระเงิน" : "ยังไม่มีคำสั่งซื้อ")}</section>`;
-  }
   if (section === "users") {
     const { rows } = await invoke("users");
     return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>สมาชิก</h2><p>ข้อมูลบัญชีจาก Supabase Auth และโปรไฟล์สมาชิก</p></div></div>${table(["ชื่อที่แสดง", "อีเมล", "สถานะบัญชี", "สมัครเมื่อ"], rows.map((user) => `<tr><td><strong>${escapeHtml(user.display_name || "ยังไม่ตั้งชื่อ")}</strong></td><td>${escapeHtml(user.email || "—")}</td><td>${user.email_confirmed_at ? '<span class="admin-status good">ยืนยันอีเมลแล้ว</span>' : '<span class="admin-status pending">ยังไม่ยืนยัน</span>'}</td><td>${formatDate(user.created_at)}</td></tr>`).join(""), "ยังไม่มีสมาชิก")}</section>`;
-  }
-  if (section === "products") {
-    const { rows } = await invoke("products");
-    return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>สินค้าในตลาดมือสอง</h2><p>ดูข้อมูลประกาศที่สมาชิกลงไว้</p></div></div>${table(["สินค้า", "ผู้ขาย", "ราคา", "สถานะ", "ลงประกาศเมื่อ"], rows.map((row) => `<tr><td><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.category || "")}</small></td><td>${escapeHtml(row.seller_name)}</td><td>${formatMoney(row.price_satang)}</td><td>${row.active ? '<span class="admin-status good">เปิดขาย</span>' : '<span class="admin-status pending">ปิดประกาศ</span>'}</td><td>${formatDate(row.created_at)}</td></tr>`).join(""), "ยังไม่มีสินค้า")}</section>`;
   }
   if (section === "groups") {
     const { rows } = await invoke("groups");
@@ -262,22 +236,6 @@ document.addEventListener("click", async (event) => {
     renderLogin();
   } else if (action === "reload") {
     mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
-  } else if (action === "confirm-payment") {
-    const orderId = button.dataset.orderId;
-    const amount = Number(button.dataset.amount);
-    if (!orderId || !Number.isSafeInteger(amount) || amount < 0) return;
-    const formatted = formatMoney(amount);
-    if (!confirm(`ยืนยันว่าได้ตรวจยอดเงินเข้า ${formatted} สำหรับคำสั่งซื้อนี้แล้วใช่หรือไม่?\n\nระบบจะบันทึกยอดตามคำสั่งซื้อที่ล็อกไว้`)) return;
-    button.disabled = true;
-    button.textContent = "กำลังบันทึก…";
-    try {
-      await invoke("confirm-payment", { orderId, amountSatang: amount });
-      feedback = "บันทึกการตรวจสอบเงินเข้าแล้ว";
-      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
-    } catch (error) {
-      feedback = error.message || "ยืนยันการชำระเงินไม่สำเร็จ";
-      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
-    }
   }
 });
 
