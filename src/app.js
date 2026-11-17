@@ -1687,7 +1687,7 @@ function groupPage(id) {
         <section class="members-card group-members-card" aria-labelledby="members-heading">
           <div class="group-section-head"><div><h2 id="members-heading">${t("สมาชิก {count} / {capacity} คน", { count: g.members.length, capacity: g.capacity })}</h2><p>${status}</p></div><strong>${remaining ? t("ว่าง {count} ที่", { count: remaining }) : t("สมาชิกครบแล้ว")}</strong></div>
           <div class="progress" role="progressbar" aria-label="${t("ความคืบหน้า")}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${(g.members.length / g.capacity) * 100}%"></span></div>
-          <div class="group-member-list">${g.members.map((memberId) => `<div class="group-member-row"><span class="avatar small">${escape(name(memberId).slice(0, 1))}</span><div class="group-member-name"><strong>${escape(name(memberId))}</strong>${memberId === g.ownerId && !name(memberId).includes("หัวหน้ากลุ่ม") ? `<small>${t("หัวหน้ากลุ่ม")}</small>` : ""}</div><span class="member-approval ${g.approvals[memberId] === g.revision ? "approved" : ""}">${g.approvals[memberId] === g.revision ? t("ยืนยันแล้ว") : t("รอยืนยัน")}</span><b>${money(alloc[memberId])}</b>${isOwner && !locked && memberId !== me ? `<button class="button danger-soft" data-action="kick-member" data-id="${id}" data-member="${memberId}">${t("เตะออก")}</button>` : ""}</div>`).join("")}
+          <div class="group-member-list">${g.members.map((memberId) => { const memberName = name(memberId); const memberProfile = state.profiles?.[memberId] || {}; const memberAvatar = profileAvatarMarkup({ name: memberName, avatar: memberProfile.avatar || memberProfile.avatar_url || "" }); const profileHref = `/profile/member/${encodeURIComponent(memberId)}?group=${encodeURIComponent(id)}`; return `<div class="group-member-row">${a(profileHref, `<span class="avatar small">${memberAvatar}</span><span class="group-member-name"><strong>${escape(memberName)}</strong>${memberId === g.ownerId && !memberName.includes("หัวหน้ากลุ่ม") ? `<small>${t("หัวหน้ากลุ่ม")}</small>` : ""}</span>`, "group-member-person")}<span class="member-approval ${g.approvals[memberId] === g.revision ? "approved" : ""}">${g.approvals[memberId] === g.revision ? t("ยืนยันแล้ว") : t("รอยืนยัน")}</span><b>${money(alloc[memberId])}</b>${isOwner && !locked && memberId !== me ? `<button class="button danger-soft" data-action="kick-member" data-id="${id}" data-member="${memberId}">${t("เตะออก")}</button>` : ""}</div>`; }).join("")}
             ${remaining ? `<div class="group-open-row"><span class="avatar small">${icon("plus", 18)}</span><div><strong>${t("ยังว่างอีก {count} ที่", { count: remaining })}</strong><small>${t("รอสมาชิกเข้าร่วม")}</small></div>${!isMember && !locked ? a(`/groups/${id}/join`, t("เข้าร่วมกลุ่ม"), "button outline") : ""}</div>` : ""}
           </div>
         </section>
@@ -2885,6 +2885,40 @@ function myProfilePage() {
     </div>
   </div>`;
 }
+function memberProfilePage(memberId) {
+  const groupId = new URLSearchParams(location.search).get("group");
+  const currentGroup = group(groupId);
+  if (!requireAuth(location.pathname + location.search))
+    return authRequiredView(
+      t("โปรไฟล์สมาชิก"),
+      t("เข้าสู่ระบบเพื่อดูโปรไฟล์สมาชิกในกลุ่ม"),
+    );
+  if (
+    !currentGroup ||
+    !state.user ||
+    !currentGroup.members.includes(state.user.id) ||
+    !currentGroup.members.includes(memberId)
+  )
+    return notFound();
+  const profile =
+    memberId === state.user.id
+      ? state.user
+      : state.profiles?.[memberId] || { id: memberId, name: name(memberId) };
+  const memberName = profile.name || name(memberId);
+  const avatar = profileAvatarMarkup({
+    name: memberName,
+    avatar: profile.avatar || profile.avatar_url || "",
+  });
+  return `<section class="member-profile-page">
+    ${a(`/groups/${encodeURIComponent(currentGroup.id)}`, `← ${t("กลับไปดูกลุ่ม")}`, "button subtle")}
+    <article class="member-profile-card">
+      <header class="member-profile-heading"><span class="avatar large">${avatar}</span><div><span class="member-profile-kicker">${t("สมาชิกในกลุ่ม")}</span><h1>${escape(memberName)}</h1><p>${escape(currentGroup.name)}</p></div></header>
+      <section class="member-profile-bio"><h2>${t("เกี่ยวกับฉัน")}</h2><p>${escape(profile.bio || t("ยังไม่ได้เพิ่มคำแนะนำตัว"))}</p></section>
+      <div class="member-profile-rating"><span>${t("เรตโปรไฟล์")}</span><div><strong>— / 5</strong><small>${t("ยังไม่มีรีวิว")}</small></div></div>
+      <footer class="member-profile-actions">${a(`/groups/${encodeURIComponent(currentGroup.id)}/chat`, `${icon("chat", 18)} ${t("แชทกลุ่ม")}`, "button primary")}${a(`/groups/${encodeURIComponent(currentGroup.id)}`, t("ดูกลุ่ม"), "button outline")}</footer>
+    </article>
+  </section>`;
+}
 function sellerOrders() {
   const orders = state.orders.filter(
     (o) => o && typeof o === "object" && orderPermissions(o, state.user).seller,
@@ -3281,6 +3315,8 @@ function route() {
   if (path === "/chat") return chatList();
   if (/^\/chat\/[^/]+$/.test(path)) return chatPage(path.split("/")[2]);
   if (path === "/notifications") return notifications();
+  if (/^\/profile\/member\/[^/]+$/.test(path))
+    return memberProfilePage(path.split("/")[3]);
   if (path === "/profile/me") return myProfilePage();
   if (path === "/profile") return profile();
   if (/^\/shops\/[^/]+$/.test(path)) return shopPage(path.split("/")[2]);

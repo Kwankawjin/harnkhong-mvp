@@ -46,9 +46,32 @@ export async function loadSupabaseGroups(client = supabase) {
       events: row.events || [],
     }),
   );
+  const names = Object.assign({}, ...bundles.map((bundle) => bundle.names));
+  const memberIds = [...new Set(Object.keys(names))];
+  if (memberIds.length && client.auth?.getSession) {
+    const { data: sessionData, error: sessionError } =
+      await client.auth.getSession();
+    if (sessionError) throw sessionError;
+    if (sessionData?.session?.user?.id) {
+      const { data: profileRows, error: profileError } = await client
+        .from("profiles")
+        .select("id,display_name,bio,avatar_url")
+        .in("id", memberIds);
+      if (profileError) throw profileError;
+      for (const profile of profileRows || []) {
+        names[profile.id] = {
+          ...names[profile.id],
+          id: profile.id,
+          name: profile.display_name || names[profile.id]?.name,
+          bio: profile.bio || "",
+          avatar: profile.avatar_url || "",
+        };
+      }
+    }
+  }
   return {
     groups: bundles.map((bundle) => bundle.group),
-    names: Object.assign({}, ...bundles.map((bundle) => bundle.names)),
+    names,
     listings: [
       ...(productResult.data || []).map((row) => {
         const price = Number(row.price_satang);

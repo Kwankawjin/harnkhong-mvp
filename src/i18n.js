@@ -140,6 +140,8 @@ const labels = {
   "แตะหรือกด Enter ที่บัตรเพื่อพลิกดูอีกด้าน":
     "Tap or press Enter on the badge to flip it over.",
   "โปรไฟล์สมาชิก": "Member profile",
+  "เข้าสู่ระบบเพื่อดูโปรไฟล์สมาชิกในกลุ่ม":
+    "Log in to view a group member’s profile.",
   "เรตโปรไฟล์": "Profile rating",
   "ยังไม่มีรีวิว": "No reviews yet",
   "คะแนนจะแสดงเมื่อมีรีวิวจากผู้ใช้":
