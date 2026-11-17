@@ -371,6 +371,22 @@ const labels = {
   "หลังสร้างคำสั่งซื้อ ระบบจะแสดง QR ตัวกลางสำหรับขั้นตอนยืนยันแบบ Demo":
     "After creating the order, an intermediary demo QR will be shown for confirmation.",
   "QR สำหรับโอนเงิน": "Bank transfer QR",
+  "QR บัญชีรับเงิน": "Payment account QR",
+  "ยอดส่วนของคุณ": "Your share",
+  "สแกน QR เพื่อชำระเงินและยืนยันยอด":
+    "Scan the QR to pay and confirm your share.",
+  "QR ตัวกลางสำหรับยืนยันยอดส่วนแบ่ง":
+    "Intermediary QR for confirming your share",
+  "สแกนเพื่อเปิดหน้ายืนยันยอดส่วนแบ่ง":
+    "Scan to open the share confirmation page.",
+  "ใช้ QR นี้เพื่อยืนยันยอดส่วนแบ่งกับกลุ่ม":
+    "Use this QR to confirm your share with the group.",
+  "กรุณายืนยันภายใน": "Please confirm within",
+  "QR หมดอายุแล้ว กรุณาสร้างใหม่": "QR expired. Please create a new one.",
+  "ยืนยันยอดสำเร็จ!": "Share confirmed!",
+  "บันทึกการยืนยันยอดเรียบร้อยแล้ว": "Share confirmation saved.",
+  "QR นี้ใช้บันทึกการยืนยันยอดส่วนแบ่ง ไม่ใช่การแจ้งโอนเงิน":
+    "This QR records your share confirmation; it does not report a bank transfer.",
   "ชำระเงินด้วย QR": "Pay by QR",
   "QR ตัวกลาง (Demo)": "Intermediary QR (Demo)",
   "สแกนเพื่อเปิดขั้นตอนยืนยันในระบบจำลอง":
