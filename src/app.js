@@ -1661,7 +1661,7 @@ function groupPage(id) {
         <section class="group-identity-card" aria-labelledby="group-title">
           <div class="group-heading-line"><div><h1 id="group-title">${escape(g.name)}</h1><p>${t("หมวดหมู่")}: ${groupCategories.map((category) => escape(t(category))).join(" · ")}</p></div><span class="group-state ${full ? "is-full" : "is-open"}">${status}</span></div>
           <div class="group-product-strip">
-            <div class="group-product-art" role="img" aria-label="${escape(t(groupCategory))}">${p.images?.[0] ? `<img src="${escape(p.images[0])}" alt=""/>` : art({ ...p, category: groupCategory })}</div>
+            ${p.images?.[0] ? `<div class="group-product-art" role="img" aria-label="${escape(t(groupCategory))}"><img src="${escape(p.images[0])}" alt=""/></div>` : p.productDetails?.type === "digital" ? "" : `<div class="group-product-art" role="img" aria-label="${escape(t(groupCategory))}">${art({ ...p, category: groupCategory })}</div>`}
             <div class="group-product-copy"><span>${t("สินค้าในกลุ่ม")}</span><strong>${escape(p.title || g.name)}</strong><small>${escape(t(groupCategory))}${p.productDetails?.type === "digital" ? ` · ${escape(p.productDetails.platform || "")} ${escape(p.productDetails.serviceType || "")}` : ""}</small>${p.productDetails?.url ? `<a href="${escape(p.productDetails.url)}" target="_blank" rel="noopener noreferrer">${t("เปิดลิงก์สินค้า")}</a>` : ""}</div>
             <div class="group-product-price"><span>${t("ราคาสินค้า")}</span><strong>${money(p.price ?? g.costs.product)}</strong></div>
           </div>
@@ -3079,7 +3079,7 @@ function render() {
     ${icons}
     <header class="site-header${headerScrolled ? " is-scrolled" : ""}${mobileMenuOpen ? " menu-open" : ""}">
       <div class="header-inner">
-        ${a("/", `<span class="logo-mark">H</span><span class="logo-text">HarnKhong<small>${t("หารของด้วยกัน")}</small></span>`, "brand")}
+        ${a("/", `<img class="logo-mark" src="/images/harnkhong-logo.png" alt=""/><span class="logo-text">HarnKhong<small>${t("หารของด้วยกัน")}</small></span>`, "brand")}
         <nav class="desktop-nav" aria-label="${t("เมนูหลัก")}">
           ${desktopNav.map(([href, , label]) => a(href, label, "nav-link " + (location.pathname === href || (href === "/marketplace/secondhand" && location.pathname.startsWith("/checkout/secondhand/")) ? "active" : ""))).join("")}
         </nav>

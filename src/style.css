@@ -190,12 +190,8 @@ body.mobile-menu-open {
 .logo-mark {
   width: 40px;
   height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #0968e3, #0752b3);
-  color: #ffffff;
-  box-shadow: 0 6px 16px rgba(9, 104, 227, 0.32);
+  display: block;
+  object-fit: contain;
   transition: transform 0.2s ease;
 }
 .brand:hover .logo-mark {
