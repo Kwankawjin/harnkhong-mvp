@@ -2574,7 +2574,10 @@ function profile() {
     <div class="account-layout">
       <div class="account-main">
         <section class="account-card account-overview" aria-labelledby="account-name">
-          <div class="account-profile-line"><span class="avatar large">${avatar}</span><div><h2 id="account-name">${escape(state.user.name)}</h2><p>${sellerRole ? t("บัญชีผู้ขายเดโม") : t(supabaseConfigured ? "สมาชิก" : "สมาชิกเดโม")}</p><span class="account-demo-chip">${t(supabaseConfigured ? "บัญชี Supabase Auth" : "บัญชีจำลอง · เก็บข้อมูลในเบราว์เซอร์นี้")}</span></div>${a("/profile/me", `${icon("user", 17)} ${t("หน้าโปรไฟล์ของฉัน")}`, "button outline") }<button class="button outline" data-action="edit-profile">${icon("settings", 17)} ${t("ตั้งค่าบัญชี")}</button>${supabaseConfigured ? `<button class="button subtle" data-action="logout">${t("ออกจากระบบ")}</button>` : ""}</div>
+          <div class="account-profile-feature">
+            <div class="account-profile-meta"><div class="account-profile-line"><span class="avatar large">${avatar}</span><div><h2 id="account-name">${escape(state.user.name)}</h2><p>${sellerRole ? t("บัญชีผู้ขายเดโม") : t(supabaseConfigured ? "สมาชิก" : "สมาชิกเดโม")}</p><span class="account-demo-chip">${t(supabaseConfigured ? "บัญชี Supabase Auth" : "บัญชีจำลอง · เก็บข้อมูลในเบราว์เซอร์นี้")}</span></div><button class="button outline" data-action="edit-profile">${icon("settings", 17)} ${t("ตั้งค่าบัญชี")}</button>${supabaseConfigured ? `<button class="button subtle" data-action="logout">${t("ออกจากระบบ")}</button>` : ""}</div><p class="account-profile-email"><span>${t("อีเมล")}</span><strong>${escape(state.user.email || "—")}</strong></p></div>
+            <div class="account-profile-badge"><div id="profile-lanyard-badge"></div><p>${t("แตะหรือกด Enter ที่บัตรเพื่อพลิกดูอีกด้าน")}</p></div>
+          </div>
           ${state.user.bio ? `<p class="account-bio user-content">${escape(state.user.bio)}</p>` : ""}
           <div class="account-demo-note">${icon("shield", 21)}<div><strong>${t(supabaseConfigured ? "โปรไฟล์ ที่อยู่ และกลุ่มใช้ Supabase" : "บัญชีนี้เป็นตัวจำลอง")}</strong><p>${t(supabaseConfigured ? "กลุ่มและการยืนยันยอดใช้ข้อมูลร่วมกันผ่าน Supabase; คำสั่งซื้อและการชำระเงินยังไม่เปิดใช้ในโหมดนี้" : "ไม่มีการยืนยันตัวตนจริง ข้อมูลเดโมบันทึกในเบราว์เซอร์นี้เท่านั้น")}</p></div></div>
           <div class="account-stats">
@@ -3277,7 +3280,7 @@ function render() {
     ${authModalActive ? `<dialog class="auth-modal-overlay" id="auth-modal-overlay" aria-label="${t("เข้าสู่ระบบ")}">${renderPhoneMockup(mockupCurrentStep, true)}</dialog>` : ""}
   `;
 
-  if (location.pathname === "/profile/me" && state.user) {
+  if (["/profile", "/profile/me"].includes(location.pathname) && state.user) {
     const badgeMount = document.querySelector("#profile-lanyard-badge");
     if (badgeMount) {
       profileBadgeRoot = createRoot(badgeMount);

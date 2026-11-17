@@ -4014,6 +4014,45 @@ body.mobile-menu-open {
   gap: 8px;
   min-height: 42px;
 }
+.account-profile-feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 300px);
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+.account-profile-meta { min-width: 0; }
+.account-profile-email {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 0 73px;
+  overflow-wrap: anywhere;
+}
+.account-profile-email span {
+  color: var(--text-sub);
+  font-size: 0.78rem;
+}
+.account-profile-email strong {
+  color: var(--navy);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.account-profile-badge {
+  min-width: 0;
+  padding: 7px;
+  border-radius: 14px;
+  background: #eaf3fc;
+}
+#profile-lanyard-badge {
+  width: 100%;
+  min-height: 500px;
+}
+.account-profile-badge > p {
+  margin: 0 0 5px;
+  color: #365776;
+  text-align: center;
+  font-size: 0.78rem;
+}
 .account-demo-chip {
   display: inline-block;
   background: #eaf3fc;
@@ -4054,15 +4093,6 @@ body.mobile-menu-open {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-}
-
-.account-profile-line > a.account-my-profile-link {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 42px;
-  white-space: nowrap;
 }
 
 .my-profile-page {
@@ -4480,6 +4510,14 @@ body.mobile-menu-open {
   }
 }
 @media (max-width: 760px) {
+  .account-profile-feature {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .account-profile-badge {
+    width: 100%;
+    max-width: 380px;
+    margin-inline: auto;
+  }
   .my-profile-layout {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -4496,8 +4534,7 @@ body.mobile-menu-open {
   .account-profile-line {
     flex-wrap: wrap;
   }
-  .account-profile-line > button,
-  .account-profile-line > a.account-my-profile-link {
+  .account-profile-line > button {
     margin-left: 0;
     width: 100%;
     justify-content: center;
@@ -9687,6 +9724,18 @@ dialog:not([open]),
 }
 :root[data-theme="dark"] .my-profile-badge-panel {
   background: #172a39;
+}
+:root[data-theme="dark"] .account-profile-badge {
+  background: #172a39;
+}
+:root[data-theme="dark"] .account-profile-badge > p {
+  color: #b7c8d6;
+}
+:root[data-theme="dark"] .account-profile-email strong {
+  color: var(--ink);
+}
+:root[data-theme="dark"] .account-profile-email span {
+  color: #a9bac8;
 }
 :root[data-theme="dark"] .my-profile-badge-panel > p {
   color: #b7c8d6;
