@@ -2607,6 +2607,12 @@ function profile() {
 }
 function profileBadgeFace(user, back = false) {
   const e = React.createElement;
+  const joinedGroups = (state.groups || []).filter(
+    (group) =>
+      Array.isArray(group.members) &&
+      group.members.includes(user.id) &&
+      group.status !== "cancelled",
+  );
   const base = {
     position: "relative",
     boxSizing: "border-box",
@@ -2631,19 +2637,57 @@ function profileBadgeFace(user, back = false) {
     return e(
       "div",
       { style: base },
-      e("span", { style: labelStyle }, t("เกี่ยวกับฉัน")),
-      e(
-        "p",
-        {
-          style: {
-            fontSize: 15,
-            lineHeight: 1.55,
-            overflowWrap: "anywhere",
-            margin: "12px 0 auto",
-          },
-        },
-        user.bio || t("ยังไม่ได้เพิ่มคำแนะนำตัว"),
-      ),
+      e("span", { style: labelStyle }, t("กลุ่มที่เข้าร่วมตอนนี้")),
+      joinedGroups.length
+        ? e(
+            "div",
+            {
+              style: {
+                display: "grid",
+                gap: 9,
+                margin: "12px 0 auto",
+                maxHeight: 340,
+                overflow: "hidden",
+              },
+            },
+            ...joinedGroups.slice(0, 6).map((group) =>
+              e(
+                "div",
+                {
+                  key: group.id,
+                  style: {
+                    border: "1px solid rgba(16,47,91,.12)",
+                    borderRadius: 10,
+                    padding: "9px 11px",
+                    background: "rgba(255,255,255,.56)",
+                    fontSize: 14,
+                    lineHeight: 1.35,
+                    overflowWrap: "anywhere",
+                  },
+                },
+                group.name || t("กลุ่มไม่มีชื่อ"),
+              ),
+            ),
+            joinedGroups.length > 6
+              ? e(
+                  "small",
+                  { style: { color: "#56708e" } },
+                  t("และอีก {count} กลุ่ม", { count: joinedGroups.length - 6 }),
+                )
+              : null,
+          )
+        : e(
+            "p",
+            {
+              style: {
+                fontSize: 15,
+                lineHeight: 1.55,
+                overflowWrap: "anywhere",
+                margin: "12px 0 auto",
+              },
+            },
+            t("ยังไม่ได้เข้าร่วมกลุ่ม"),
+          ),
       e(
         "div",
         {
