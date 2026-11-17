@@ -3976,20 +3976,18 @@ body.mobile-menu-open {
 }
 .account-dashboard-layout {
   display: grid;
-  grid-template-columns: minmax(270px, 320px) minmax(0, 1fr);
-  grid-template-areas: "badge heading" "badge dashboard";
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "heading" "dashboard" "badge";
   align-items: start;
-  gap: 0 30px;
+  gap: 0;
 }
 .account-dashboard-sidebar {
   grid-area: badge;
-  position: sticky;
-  top: 18px;
   min-width: 0;
 }
 .account-dashboard-sidebar .account-profile-badge {
   max-width: 320px;
-  margin-inline: auto;
+  margin: 22px auto 0;
 }
 .account-dashboard-heading {
   grid-area: heading;
@@ -4356,10 +4354,26 @@ body.mobile-menu-open {
   gap: 12px;
 }
 .account-summary-tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   border-radius: 12px;
-  padding: 17px;
+  padding: 14px;
   min-width: 0;
 }
+.account-summary-tile > div { min-width: 0; }
+.account-summary-tile .account-summary-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.72);
+}
+.account-summary-tile > div > span,
+.account-summary-tile > div > small { color: var(--text-sub); }
+.account-summary-tile > div > strong { color: var(--navy); }
 .account-summary-tile.violet {
   background: #f5f2fe;
   color: #47319d;
@@ -4564,23 +4578,18 @@ body.mobile-menu-open {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-@media (min-width: 1050px) {
+@media (min-width: 960px) {
   .account-summary-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 @media (max-width: 760px) {
   .account-dashboard { padding: 12px; }
-  .account-dashboard-layout {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "heading" "badge" "dashboard";
-    gap: 0;
-  }
+  .account-dashboard-layout { grid-template-areas: "heading" "dashboard" "badge"; }
   .account-dashboard-sidebar {
-    position: static;
     width: 100%;
     max-width: 380px;
-    margin: 0 auto 14px;
+    margin: 14px auto 0;
   }
   .account-dashboard-heading {
     flex-direction: column;

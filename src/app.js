@@ -2533,13 +2533,6 @@ function profile() {
     );
   const sellerRole = state.user.role === "seller";
   const mine = state.groups.filter((g) => g.members.includes(state.user.id));
-  const approvedGroups = mine.filter(
-    (g) => g.approvals?.[state.user.id] === g.revision,
-  );
-  const approvedGroupShare = approvedGroups.reduce(
-    (sum, g) => sum + (shares(g)[state.user.id] || 0),
-    0,
-  );
   const orders = state.orders
     .filter(
       (o) =>
@@ -2555,11 +2548,6 @@ function profile() {
     (o) =>
       o.status === "pending_payment" &&
       o.payments?.[state.user.id]?.status === "unpaid",
-  );
-  const reported = orders.filter((o) =>
-    ["payment_reported", "verification_pending"].includes(
-      o.payments?.[state.user.id]?.status,
-    ),
   );
   const verified = orders.filter(
     (o) => o.payments?.[state.user.id]?.status === "verified",
@@ -2593,7 +2581,7 @@ function profile() {
           ${state.user.bio ? `<p class="account-bio user-content">${escape(state.user.bio)}</p>` : ""}
           <div class="account-demo-note">${icon("shield", 21)}<div><strong>${t(supabaseConfigured ? "โปรไฟล์ ที่อยู่ และกลุ่มใช้ Supabase" : "บัญชีนี้เป็นตัวจำลอง")}</strong><p>${t(supabaseConfigured ? "กลุ่มและการยืนยันยอดใช้ข้อมูลร่วมกันผ่าน Supabase; คำสั่งซื้อและการชำระเงินยังไม่เปิดใช้ในโหมดนี้" : "ไม่มีการยืนยันตัวตนจริง ข้อมูลเดโมบันทึกในเบราว์เซอร์นี้เท่านั้น")}</p></div></div>
         </section>
-        <section class="account-card account-summary" aria-labelledby="account-summary-title"><div class="account-card-heading"><div><h2 id="account-summary-title">${t("สรุปยอดของฉัน")}</h2><p>${t("ยอดยืนยันกลุ่มและคำสั่งซื้อเดโม")}</p></div>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button subtle")}</div><div class="account-summary-grid"><div class="account-summary-tile violet"><span>${t("รอแจ้งชำระ")}</span><strong>${money(unpaidAmount)}</strong><small>${t("{count} รายการ", { count: unpaid.length })}</small></div><div class="account-summary-tile mint"><span>${t("รอตรวจยอดเดโม")}</span><strong>${reported.length}</strong><small>${t("รายการ")}</small></div><div class="account-summary-tile blue"><span>${t("ยืนยันยอดเดโมแล้ว")}</span><strong>${money(verifiedAmount)}</strong><small>${t("{count} รายการ", { count: verified.length })}</small></div><div class="account-summary-tile rose"><span>${t("ยอดส่วนแบ่งที่ยืนยัน")}</span><strong>${money(approvedGroupShare)}</strong><small>${t("{count} กลุ่ม · ยังไม่ใช่ยอดชำระเงินจริง", { count: approvedGroups.length })}</small></div></div></section>
+        <section class="account-card account-summary" aria-labelledby="account-summary-title"><div class="account-card-heading"><div><h2 id="account-summary-title">${t("สรุปข้อมูลของฉัน")}</h2><p>${t("ยอดยืนยันกลุ่มและคำสั่งซื้อโดยรวม")}</p></div>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button subtle")}</div><div class="account-summary-grid"><div class="account-summary-tile blue"><span class="account-summary-icon">${icon("users", 22)}</span><div><span>${t("กลุ่มที่เข้าร่วม")}</span><strong>${mine.length}</strong><small>${t("กลุ่ม")}</small></div></div><div class="account-summary-tile mint"><span class="account-summary-icon">${icon("calc", 22)}</span><div><span>${t("คำสั่งซื้อเดิม")}</span><strong>${orders.length}</strong><small>${t("รายการ")}</small></div></div><div class="account-summary-tile violet"><span class="account-summary-icon">${icon("calc", 22)}</span><div><span>${t("ยอดค้างชำระ")}</span><strong>${money(unpaidAmount)}</strong><small>${t("เดโมเท่านั้น")}</small></div></div><div class="account-summary-tile mint"><span class="account-summary-icon">${icon("check", 22)}</span><div><span>${t("ยอดชำระเสร็จแล้ว")}</span><strong>${money(verifiedAmount)}</strong><small>${t("เดโมเท่านั้น")}</small></div></div></div></section>
         ${
           supabaseConfigured
             ? ""
