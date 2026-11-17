@@ -2,6 +2,7 @@ import "./style.css";
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import DoodleCrewFooter from "../components/ui/doodle-crew-footer.tsx";
+import LanyardBadge from "../components/ui/lanyard-badge.tsx";
 import QRCode from "qrcode";
 import {
   demoAccount,
@@ -42,6 +43,7 @@ import {
 import { createAuthSessionSync } from "./auth-session.js";
 
 let doodleFooterRoot = null;
+let profileBadgeRoot = null;
 import { loadGroupMessages, sendGroupMessage } from "./group-chat.js";
 import {
   loadSupabaseGroups,
@@ -2572,7 +2574,7 @@ function profile() {
     <div class="account-layout">
       <div class="account-main">
         <section class="account-card account-overview" aria-labelledby="account-name">
-          <div class="account-profile-line"><span class="avatar large">${avatar}</span><div><h2 id="account-name">${escape(state.user.name)}</h2><p>${sellerRole ? t("บัญชีผู้ขายเดโม") : t(supabaseConfigured ? "สมาชิก" : "สมาชิกเดโม")}</p><span class="account-demo-chip">${t(supabaseConfigured ? "บัญชี Supabase Auth" : "บัญชีจำลอง · เก็บข้อมูลในเบราว์เซอร์นี้")}</span></div><button class="button outline" data-action="edit-profile">${icon("user", 17)} ${t("ตั้งค่าบัญชี")}</button>${supabaseConfigured ? `<button class="button subtle" data-action="logout">${t("ออกจากระบบ")}</button>` : ""}</div>
+          <div class="account-profile-line"><span class="avatar large">${avatar}</span><div><h2 id="account-name">${escape(state.user.name)}</h2><p>${sellerRole ? t("บัญชีผู้ขายเดโม") : t(supabaseConfigured ? "สมาชิก" : "สมาชิกเดโม")}</p><span class="account-demo-chip">${t(supabaseConfigured ? "บัญชี Supabase Auth" : "บัญชีจำลอง · เก็บข้อมูลในเบราว์เซอร์นี้")}</span></div>${a("/profile/me", `${icon("user", 17)} ${t("หน้าโปรไฟล์ของฉัน")}`, "button outline") }<button class="button outline" data-action="edit-profile">${icon("settings", 17)} ${t("ตั้งค่าบัญชี")}</button>${supabaseConfigured ? `<button class="button subtle" data-action="logout">${t("ออกจากระบบ")}</button>` : ""}</div>
           ${state.user.bio ? `<p class="account-bio user-content">${escape(state.user.bio)}</p>` : ""}
           <div class="account-demo-note">${icon("shield", 21)}<div><strong>${t(supabaseConfigured ? "โปรไฟล์ ที่อยู่ และกลุ่มใช้ Supabase" : "บัญชีนี้เป็นตัวจำลอง")}</strong><p>${t(supabaseConfigured ? "กลุ่มและการยืนยันยอดใช้ข้อมูลร่วมกันผ่าน Supabase; คำสั่งซื้อและการชำระเงินยังไม่เปิดใช้ในโหมดนี้" : "ไม่มีการยืนยันตัวตนจริง ข้อมูลเดโมบันทึกในเบราว์เซอร์นี้เท่านั้น")}</p></div></div>
           <div class="account-stats">
@@ -2605,6 +2607,164 @@ function profile() {
         <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t("ทางลัด")}</h2><div class="account-shortcut-grid">${shortcut("/my-groups", "users", t("กลุ่มของฉัน"), t("ดูและจัดการกลุ่มที่เข้าร่วม"), "blue")}${shortcut("/notifications", "bell", t("การแจ้งเตือน"), t("อัปเดตยอดและกิจกรรม"), "amber")}${shortcut("/explore", "search", t("สำรวจสินค้า"), t("ค้นหาสินค้าและเข้าร่วมกลุ่ม"), "violet")}${shortcut("/my-orders", "check", t("รายการชำระเดโม"), t("ดูสถานะคำสั่งซื้อของฉัน"), "mint")}</div></section>
       </aside>
     </div>${profileDialog()}
+  </div>`;
+}
+function profileBadgeFace(user, back = false) {
+  const e = React.createElement;
+  const base = {
+    position: "relative",
+    boxSizing: "border-box",
+    width: "100%",
+    height: "100%",
+    padding: "24px 22px",
+    display: "flex",
+    flexDirection: "column",
+    color: "#102f5b",
+    background: back
+      ? "linear-gradient(155deg, #f8fbff 0%, #eaf2ff 100%)"
+      : "linear-gradient(155deg, #ffffff 0%, #f1f6ff 100%)",
+  };
+  const labelStyle = {
+    fontSize: 9,
+    fontWeight: 700,
+    letterSpacing: ".14em",
+    textTransform: "uppercase",
+    color: "#56708e",
+  };
+  if (back) {
+    return e(
+      "div",
+      { style: base },
+      e("span", { style: labelStyle }, t("เกี่ยวกับฉัน")),
+      e(
+        "p",
+        {
+          style: {
+            fontSize: 15,
+            lineHeight: 1.55,
+            overflowWrap: "anywhere",
+            margin: "12px 0 auto",
+          },
+        },
+        user.bio || t("ยังไม่ได้เพิ่มคำแนะนำตัว"),
+      ),
+      e(
+        "div",
+        {
+          style: {
+            borderTop: "1px solid rgba(16,47,91,.18)",
+            paddingTop: 12,
+          },
+        },
+        e("span", { style: labelStyle }, t("สถานะสมาชิก")),
+        e(
+          "strong",
+          { style: { display: "block", marginTop: 5, fontSize: 16 } },
+          user.role === "seller" ? t("ผู้ขาย") : t("สมาชิก HarnKhong"),
+        ),
+        e(
+          "small",
+          { style: { display: "block", marginTop: 9, color: "#56708e" } },
+          t("แตะบัตรเพื่อพลิกกลับ"),
+        ),
+      ),
+    );
+  }
+  return e(
+    "div",
+    { style: base },
+    e(
+      "div",
+      { style: { display: "flex", alignItems: "center", gap: 8 } },
+      e("img", {
+        src: "/images/harnkhong-logo.png",
+        alt: "",
+        style: { width: 38, height: 38, objectFit: "contain" },
+      }),
+      e(
+        "strong",
+        { style: { fontSize: 14, letterSpacing: "-.02em" } },
+        "HarnKhong",
+      ),
+    ),
+    e(
+      "div",
+      { style: { margin: "auto 0 16px" } },
+      e("span", { style: labelStyle }, t("โปรไฟล์สมาชิก")),
+      e(
+        "strong",
+        {
+          style: {
+            display: "block",
+            marginTop: 7,
+            fontSize: 24,
+            lineHeight: 1.15,
+            overflowWrap: "anywhere",
+          },
+        },
+        user.name,
+      ),
+    ),
+    e(
+      "div",
+      {
+        style: {
+          borderTop: "1px solid rgba(16,47,91,.16)",
+          paddingTop: 11,
+        },
+      },
+      e("span", { style: labelStyle }, t("อีเมล")),
+      e(
+        "div",
+        {
+          style: {
+            marginTop: 4,
+            fontSize: 12,
+            overflowWrap: "anywhere",
+            color: "#284766",
+          },
+        },
+        user.email || "—",
+      ),
+    ),
+    e(
+      "div",
+      {
+        style: {
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          marginTop: 13,
+        },
+      },
+      e("span", { style: { ...labelStyle, letterSpacing: ".04em" } }, t("เรตโปรไฟล์")),
+      e(
+        "div",
+        { style: { textAlign: "right" } },
+        e("strong", { style: { display: "block", fontSize: 13 } }, "— / 5"),
+        e("small", { style: { color: "#56708e", fontSize: 9 } }, t("ยังไม่มีรีวิว")),
+      ),
+    ),
+  );
+}
+function myProfilePage() {
+  if (!requireAuth("/profile/me"))
+    return authRequiredView(
+      t("หน้าโปรไฟล์ของฉัน"),
+      t("เข้าสู่ระบบเพื่อดูหน้าโปรไฟล์ของคุณ"),
+    );
+  const user = state.user;
+  const avatar = isLocalImage(user.avatar)
+    ? `<img src="${escape(user.avatar)}" alt=""/>`
+    : escape(user.name.slice(0, 1));
+  return `<div class="my-profile-page">
+    ${title(t("หน้าโปรไฟล์ของฉัน"), t("ข้อมูลที่แสดงบนบัตรสมาชิกของคุณ"))}
+    <div class="my-profile-actions">${a("/profile", `← ${t("กลับไปบัญชีของฉัน")}`, "button subtle")}<button class="button outline" data-action="edit-profile">${icon("settings", 17)} ${t("แก้ไขโปรไฟล์")}</button></div>
+    <div class="my-profile-layout">
+      <section class="my-profile-badge-panel" aria-label="${t("บัตรโปรไฟล์คล้องสาย")}"><div id="profile-lanyard-badge"></div><p>${t("แตะหรือกด Enter ที่บัตรเพื่อพลิกดูอีกด้าน")}</p></section>
+      <section class="my-profile-details" aria-labelledby="my-profile-details-heading"><div class="my-profile-user-heading"><span class="avatar large">${avatar}</span><div><h2 id="my-profile-details-heading">${escape(user.name)}</h2><p>${escape(user.email || "—")}</p></div></div><dl><div><dt>${t("ชื่อ")}</dt><dd>${escape(user.name)}</dd></div><div><dt>${t("อีเมล")}</dt><dd>${escape(user.email || "—")}</dd></div><div><dt>${t("เรตโปรไฟล์")}</dt><dd><span class="my-profile-rating-empty">— / 5 · ${t("ยังไม่มีรีวิว")}</span><small>${t("คะแนนจะแสดงเมื่อมีรีวิวจากผู้ใช้")}</small></dd></div></dl>${user.bio ? `<div class="my-profile-bio"><h3>${t("เกี่ยวกับฉัน")}</h3><p>${escape(user.bio)}</p></div>` : `<div class="my-profile-bio is-empty"><h3>${t("เกี่ยวกับฉัน")}</h3><p>${t("เพิ่มคำแนะนำตัวได้จากปุ่มแก้ไขโปรไฟล์")}</p></div>`}</section>
+    </div>
   </div>`;
 }
 function sellerOrders() {
@@ -3003,6 +3163,7 @@ function route() {
   if (path === "/chat") return chatList();
   if (/^\/chat\/[^/]+$/.test(path)) return chatPage(path.split("/")[2]);
   if (path === "/notifications") return notifications();
+  if (path === "/profile/me") return myProfilePage();
   if (path === "/profile") return profile();
   if (/^\/shops\/[^/]+$/.test(path)) return shopPage(path.split("/")[2]);
   if (/^\/orders\/[^/]+$/.test(path)) return orderPage(path.split("/")[2]);
@@ -3074,6 +3235,8 @@ function render() {
 
   doodleFooterRoot?.unmount();
   doodleFooterRoot = null;
+  profileBadgeRoot?.unmount();
+  profileBadgeRoot = null;
 
   document.querySelector("#app").innerHTML = `
     ${icons}
@@ -3081,7 +3244,7 @@ function render() {
       <div class="header-inner">
         ${a("/", `<img class="logo-mark" src="/images/harnkhong-logo.png" alt=""/><span class="logo-text">HarnKhong<small>${t("หารของด้วยกัน")}</small></span>`, "brand")}
         <nav class="desktop-nav" aria-label="${t("เมนูหลัก")}">
-          ${desktopNav.map(([href, , label]) => a(href, label, "nav-link " + (location.pathname === href || (href === "/marketplace/secondhand" && location.pathname.startsWith("/checkout/secondhand/")) ? "active" : ""))).join("")}
+          ${desktopNav.map(([href, , label]) => a(href, label, "nav-link " + (location.pathname === href || (href === "/profile" && location.pathname.startsWith("/profile/")) || (href === "/marketplace/secondhand" && location.pathname.startsWith("/checkout/secondhand/")) ? "active" : ""))).join("")}
         </nav>
         <div class="header-actions">
           ${/^\/groups\/[^/]+$/.test(location.pathname) ? "" : `<div class="header-create-menu-wrap"><button type="button" class="button primary header-create-btn" data-action="listing-menu-toggle" aria-expanded="${listingMenuOpen}" aria-haspopup="menu">${icon("plus", 18)} ${t("สร้างกลุ่มหารของ")}</button>${listingMenuOpen ? `<div class="header-create-dropdown" role="menu">${a("/groups/create", `<span class="header-create-option-icon">${icon("users", 20)}</span><span><strong>${t("สร้างกลุ่มหารของ")}</strong><small>${t("ชวนคนร่วมซื้อ")}</small></span>`, "header-create-option")}</div>` : ""}</div>`}
@@ -3092,7 +3255,7 @@ function render() {
       </div>
       <div class="mobile-menu${mobileMenuOpen ? " is-open" : ""}" id="mobile-menu" aria-hidden="${!mobileMenuOpen}">
         <nav aria-label="${t("เมนูหลัก")}">
-          ${nav.map(([href, ic, label]) => a(href, `${icon(ic, 21)}<span>${label}</span>`, location.pathname === href ? "active" : "")).join("")}
+          ${nav.map(([href, ic, label]) => a(href, `${icon(ic, 21)}<span>${label}</span>`, location.pathname === href || (href === "/profile" && location.pathname.startsWith("/profile/")) ? "active" : "")).join("")}
         </nav>
         <div class="mobile-menu-actions">
           ${/^\/groups\/[^/]+$/.test(location.pathname) ? "" : a("/groups/create", `${icon("plus", 18)} ${t("เปิดกลุ่ม")}`, "button primary")}
@@ -3104,7 +3267,7 @@ function render() {
     <main class="main-wrap${location.pathname === "/" ? " home-main" : ""}" id="main">${groupsLoading && !createGroupRoute ? groupsLoadingSkeleton() : groupsError && !createGroupRoute ? `<div class="empty"><h2>${t("โหลดกลุ่มไม่สำเร็จ")}</h2><p>${escape(authErrorMessage(groupsError))}</p><details class="load-error-details"><summary>${t("รายละเอียดข้อผิดพลาด")}</summary><code>${escape(`${groupsError?.code || groupsError?.name || "Error"}: ${groupsError?.message || "ไม่มีรายละเอียด"}`)}</code></details><button class="button primary" data-action="refresh-groups">${t("ลองอีกครั้ง")}</button></div>` : `${groupsLoading ? `<section class="create-load-warning" role="status"><strong>${t("กำลังโหลดกลุ่มจาก Supabase")}</strong></section>` : ""}${groupsError ? `<section class="create-load-warning" role="alert"><div><strong>${t("โหลดข้อมูลกลุ่มไม่สำเร็จ")}</strong><p>${escape(authErrorMessage(groupsError))}</p><details class="load-error-details"><summary>${t("รายละเอียดข้อผิดพลาด")}</summary><code>${escape(`${groupsError?.code || groupsError?.name || "Error"}: ${groupsError?.message || "ไม่มีรายละเอียด"}`)}</code></details></div><button class="button outline" data-action="refresh-groups">${t("ลองอีกครั้ง")}</button></section>` : ""}${route()}`}</main>
 
     <nav class="bottom-nav" aria-label="${t("เมนูด้านล่าง")}">
-      ${bottomNav.map(([href, ic, label]) => a(href, `${icon(ic, 22)}<span>${label}</span>`, location.pathname === href ? "active" : "")).join("")}
+      ${bottomNav.map(([href, ic, label]) => a(href, `${icon(ic, 22)}<span>${label}</span>`, location.pathname === href || (href === "/profile" && location.pathname.startsWith("/profile/")) ? "active" : "")).join("")}
     </nav>
 
     <div id="toast" role="status" aria-live="polite"></div>
@@ -3113,6 +3276,29 @@ function render() {
 
     ${authModalActive ? `<dialog class="auth-modal-overlay" id="auth-modal-overlay" aria-label="${t("เข้าสู่ระบบ")}">${renderPhoneMockup(mockupCurrentStep, true)}</dialog>` : ""}
   `;
+
+  if (location.pathname === "/profile/me" && state.user) {
+    const badgeMount = document.querySelector("#profile-lanyard-badge");
+    if (badgeMount) {
+      profileBadgeRoot = createRoot(badgeMount);
+      profileBadgeRoot.render(
+        React.createElement(LanyardBadge, {
+          front: profileBadgeFace(state.user),
+          back: profileBadgeFace(state.user, true),
+          strapText: "HarnKhong",
+          strapLabel: t("โปรไฟล์สมาชิก"),
+          strapColor: "#0868d8",
+          inkColor: "#ffffff",
+          cardColor: "#f5f9ff",
+          flipButton: false,
+          cardWidth: 260,
+          height: "500px",
+          className: "hk-lanyard",
+          ariaLabel: t("แตะหรือกด Enter ที่บัตรเพื่อพลิกดูอีกด้าน"),
+        }),
+      );
+    }
+  }
 
   initializeListingEditor();
   initializeListingMap();

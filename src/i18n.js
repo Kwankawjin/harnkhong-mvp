@@ -133,6 +133,23 @@ const labels = {
   "พื้นที่ในเครื่องไม่พอ ข้อมูลเดิมยังอยู่ กรุณาลดจำนวนรูปแล้วลองใหม่":
     "Local storage is full. Existing data is intact. Remove some photos and try again.",
   แก้ไขโปรไฟล์: "Edit profile",
+  "หน้าโปรไฟล์ของฉัน": "My profile",
+  "ข้อมูลที่แสดงบนบัตรสมาชิกของคุณ": "Details shown on your member badge",
+  "กลับไปบัญชีของฉัน": "Back to my account",
+  "บัตรโปรไฟล์คล้องสาย": "Hanging profile badge",
+  "แตะหรือกด Enter ที่บัตรเพื่อพลิกดูอีกด้าน":
+    "Tap or press Enter on the badge to flip it over.",
+  "โปรไฟล์สมาชิก": "Member profile",
+  "เรตโปรไฟล์": "Profile rating",
+  "ยังไม่มีรีวิว": "No reviews yet",
+  "คะแนนจะแสดงเมื่อมีรีวิวจากผู้ใช้":
+    "Your rating will appear after you receive a review.",
+  "ยังไม่ได้เพิ่มคำแนะนำตัว": "No bio added yet.",
+  "สถานะสมาชิก": "Membership",
+  "สมาชิก HarnKhong": "HarnKhong member",
+  "แตะบัตรเพื่อพลิกกลับ": "Tap the badge to flip it back.",
+  "เพิ่มคำแนะนำตัวได้จากปุ่มแก้ไขโปรไฟล์":
+    "Add a bio using the Edit profile button.",
   ปรับข้อมูลที่แสดงในบัญชีเดโมของคุณ:
     "Update the details shown on your demo account.",
   แก้ไขชื่อและข้อมูลแนะนำตัว: "Edit your name and bio.",
