@@ -1,7 +1,7 @@
 import { withSupabase } from "npm:@supabase/server";
 import { corsHeaders } from "npm:@supabase/supabase-js@2.118.0/cors";
 
-const INITIAL_ADMIN = "harnkhong@gmail.com";
+const INITIAL_ADMINS = ["harnkhong@gmail.com", "asdwadwaa8@gmail.com"];
 const ALLOWED_ORIGINS = (Deno.env.get("ADMIN_ALLOWED_ORIGINS") || "")
   .split(",").map((origin) => origin.trim()).filter(Boolean);
 
@@ -21,9 +21,9 @@ function response(req: Request, body: unknown, status = 200) {
 }
 
 function allowedEmails() {
-  const configured = (Deno.env.get("ADMIN_EMAILS") || INITIAL_ADMIN)
+  const configured = (Deno.env.get("ADMIN_EMAILS") || "")
     .split(",").map((email) => email.trim().toLowerCase()).filter(Boolean);
-  return new Set([INITIAL_ADMIN, ...configured]);
+  return new Set([...INITIAL_ADMINS, ...configured]);
 }
 
 async function authorize(ctx: any, allowBootstrap = false) {
