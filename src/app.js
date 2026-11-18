@@ -1614,18 +1614,45 @@ function groupPage(id) {
   const estimateCount = g.members.length + (isMember || full ? 0 : 1);
   const estimate = Math.ceil(totalCost(g.costs, estimateCount) / estimateCount);
   const fullEstimate = Math.ceil(totalCost(g.costs, g.capacity) / g.capacity);
+  const allMembersApproved = full && g.members.every((memberId) => g.approvals[memberId] === g.revision);
   const status = locked
     ? t("ปิดรับสมาชิก")
-    : full
-      ? allApproved(g)
-        ? supabaseConfigured
-          ? t("ยอดกลุ่มพร้อมแล้ว")
-          : t("พร้อมสรุปคำสั่งซื้อ")
-        : t("รอยืนยันยอด")
-      : t("กำลังเปิดรับสมาชิก");
+    : !full
+      ? t("กำลังเปิดรับสมาชิก")
+      : allApproved(g)
+        ? supabaseConfigured ? t("ยอดกลุ่มพร้อมแล้ว") : t("พร้อมสรุปคำสั่งซื้อ")
+        : allMembersApproved
+          ? t("รอแอดมินอนุมัติยอดกลุ่ม")
+          : t("รอสมาชิกยืนยันยอด");
   const paymentReport = g.paymentReport;
   const hasCurrentPaymentReport = paymentReport && Number(paymentReport.revision) === Number(g.revision);
   const hasVisiblePaymentReport = hasCurrentPaymentReport && ["reported", "verified"].includes(paymentReport.status);
+  const paymentStatusState = hasCurrentPaymentReport
+    ? paymentReport.status
+    : !supabaseConfigured
+      ? "demo"
+      : !isMember
+        ? "not-member"
+        : locked
+          ? "closed"
+          : !approved
+            ? "approval-needed"
+            : "awaiting-report";
+  const paymentStatusCopy = {
+    reported: ["แจ้งโอนแล้ว รอแอดมินตรวจยอด", "ระบบส่งรายการให้แอดมินตรวจสอบยอดเงินจริงแล้ว", "กำลังรอตรวจสอบ"],
+    verified: ["ตรวจยอดแล้ว", "แอดมินตรวจสอบยอดโอนของคุณแล้ว", "ยืนยันรับเงินแล้ว"],
+    rejected: ["ยอดโอนไม่ตรง", paymentReport?.rejection_note || "แอดมินตรวจสอบแล้วพบว่ายอดยังไม่ตรง กรุณาตรวจสอบและแจ้งโอนใหม่", "แก้ยอดแล้วแจ้งใหม่"],
+    demo: ["ระบบชำระเงินจริงยังไม่พร้อม", "หน้าจอนี้แสดงข้อมูลเดโม ยังไม่มีการตรวจรับเงินจริง", "โหมดเดโม"],
+    "not-member": ["ยังไม่ได้เข้าร่วมกลุ่ม", "เข้าร่วมและยืนยันยอดส่วนแบ่งก่อน จึงจะแจ้งชำระเงินได้", "ชำระเงินได้หลังเข้าร่วมกลุ่ม"],
+    closed: ["กลุ่มปิดแล้ว", "กลุ่มนี้ปิดรับสมาชิกและการชำระเงินแล้ว", "ปิดรับชำระเงิน"],
+    "approval-needed": ["รอยืนยันยอดส่วนแบ่ง", "ยืนยันยอดรอบปัจจุบันก่อน แล้วจึงแจ้งโอนให้แอดมินตรวจได้", "ยังไม่ได้แจ้งโอน"],
+    "awaiting-report": ["ยังไม่ได้แจ้งโอน", "หากโอนแล้ว กดแจ้งโอนเพื่อให้แอดมินตรวจยอดเงินจริง", "รอแจ้งโอน"],
+  }[paymentStatusState];
+  const paymentStatusAmount = hasCurrentPaymentReport
+    ? paymentReport.amount_satang
+    : isMember
+      ? alloc[me]
+      : estimate;
   const earlyPaymentReportPanel = isMember && supabaseConfigured && approved && !adminApproved && !hasVisiblePaymentReport
     ? hasCurrentPaymentReport
       && paymentReport.status !== "rejected"
@@ -1640,7 +1667,7 @@ function groupPage(id) {
   const actions = `
     ${!isMember && !full && !locked ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
     ${isMember && !approved && !locked ? `<button class="button primary full summary-action-btn" data-action="approve" data-id="${id}" data-revision="${g.revision}"><span>${t("ยืนยันยอด {amount}", { amount: money(alloc[me]) })}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
-    ${isMember && approved && !adminApproved ? `<div class="warning summary-warning"><span class="warning-icon">${icon("clock", 18)}</span><span>${t("รอยืนยันยอด")}</span></div>` : ""}
+    ${isMember && approved && !adminApproved ? `<div class="warning summary-warning"><span class="warning-icon">${icon("clock", 18)}</span><span>${full && allMembersApproved ? t("รอแอดมินอนุมัติยอดกลุ่ม") : t("คุณยืนยันยอดแล้ว รอสมาชิกครบ")}</span></div>` : ""}
     ${isMember && approved && adminApproved ? `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันยอดรอบนี้แล้ว")}</div>` : ""}
     ${isMember ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
     ${isMember && !isOwner && !locked ? `<button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${id}"><span class="summary-btn-left">${icon("back", 19)} <span>${t("ออกจากกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
@@ -1648,12 +1675,10 @@ function groupPage(id) {
     ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${id}"><span class="summary-btn-left">${icon("link", 18)} <span>${t("คัดลอกลิงก์เชิญ")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${locked ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("กลุ่มถูกล็อกตามยอดคำสั่งซื้อเดโมแล้ว")}</span></div>` : ""}
     ${isMember && !supabaseConfigured ? a(`/orders/${id}`, `<span class="summary-btn-left">${icon("calc", 19)} <span>${t("ดูสรุปคำสั่งซื้อเดโม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button subtle full summary-action-btn") : ""}
-    ${isMember && supabaseConfigured && !full ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("เมื่อสมาชิกครบและยืนยันยอดทุกคนแล้ว ระบบจะแสดง QR โอนเงินและปุ่มแจ้งโอน")}</span></div>` : ""}
+    ${isMember && supabaseConfigured && !full ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("ยืนยันยอดส่วนแบ่งก่อน เมื่อโอนเงินจริงแล้วแจ้งแอดมินตรวจได้ ส่วนสรุปคำสั่งซื้อรอสมาชิกครบ")}</span></div>` : ""}
   `;
-  const summaryCard = `<div class="summary-card"><small>${isMember ? t("ยอดที่คุณต้องยืนยัน") : full || locked ? t("ประมาณต่อคนปัจจุบัน") : t("ยอดประมาณเมื่อเข้าร่วม")}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full ? `<div class="summary-future-price"><span>${t("เมื่อครบ {count} คน", { count: g.capacity })}</span><b>${money(fullEstimate)} <small>${t("/คน")}</small></b></div>` : ""}<p>${isMember ? t("ยอดรอบที่ {revision}", { revision: g.revision }) + (approved ? adminApproved ? t(" · คุณยืนยันแล้ว") : t(" · รอแอดมินยืนยันยอด") : t(" · กรุณาตรวจสอบก่อนยืนยัน")) : full || locked ? t("กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่") : t("ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง")}</p>${actions}${!full ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน")}</span></p>` : !allApproved(g) && !approved ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${g.members.length === g.capacity && g.members.every((memberId) => g.approvals[memberId] === g.revision) ? t("รอแอดมินตรวจยอดรอบล่าสุด") : t("รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด")}</span></p>` : ""}</div>`;
-  const paymentOrProductDetails = hasVisiblePaymentReport
-    ? `<section class="group-payment-panel group-payment-status-card" aria-labelledby="payment-status-heading"><span class="chip">${t("ชำระเงิน")}</span><h2 id="payment-status-heading">${paymentReport.status === "verified" ? t("ตรวจยอดแล้ว") : t("แจ้งโอนแล้ว รอแอดมินตรวจยอด")}</h2><p>${paymentReport.status === "verified" ? t("แอดมินตรวจสอบยอดโอนของคุณแล้ว") : t("ระบบส่งรายการให้แอดมินตรวจสอบยอดเงินจริงแล้ว")}</p><strong>${money(paymentReport.amount_satang)}</strong><span>${paymentReport.status === "verified" ? t("ยืนยันรับเงินแล้ว") : t("กำลังรอตรวจสอบ")}</span></section>`
-    : `<section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t("รายละเอียดสินค้า")}</h2><p>${escape(g.name)}</p><p>${groupCategories.map((category) => escape(t(category))).join(" · ")}</p><small>${supabaseConfigured ? t("แชตกับผู้ขายยังเป็นเดโมในเครื่องนี้") : t("ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง")}</small></section>`;
+  const summaryCard = `<div class="summary-card"><small>${isMember ? t("ยอดที่คุณต้องยืนยัน") : full || locked ? t("ประมาณต่อคนปัจจุบัน") : t("ยอดประมาณเมื่อเข้าร่วม")}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full ? `<div class="summary-future-price"><span>${t("เมื่อครบ {count} คน", { count: g.capacity })}</span><b>${money(fullEstimate)} <small>${t("/คน")}</small></b></div>` : ""}<p>${isMember ? t("ยอดรอบที่ {revision}", { revision: g.revision }) + (approved ? adminApproved ? t(" · คุณยืนยันแล้ว") : full && allMembersApproved ? t(" · รอแอดมินอนุมัติยอดกลุ่ม") : t(" · คุณยืนยันแล้ว รอสมาชิกครบ") : t(" · กรุณาตรวจสอบก่อนยืนยัน")) : full || locked ? t("กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่") : t("ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง")}</p>${actions}${!full ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน")}</span></p>` : !allApproved(g) && !approved ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${allMembersApproved ? t("รอแอดมินอนุมัติยอดกลุ่ม") : t("รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด")}</span></p>` : ""}</div>`;
+  const paymentStatusCard = `<section class="group-payment-panel group-payment-status-card is-${paymentStatusState}" aria-labelledby="payment-status-heading"><span class="chip">${t("ชำระเงิน")}</span><h2 id="payment-status-heading">${t(paymentStatusCopy[0])}</h2><p>${escape(t(paymentStatusCopy[1]))}</p><strong>${money(paymentStatusAmount)}</strong><span>${t(paymentStatusCopy[2])}</span></section>`;
   return `<div class="group-page">
     <nav class="breadcrumb product-breadcrumb" aria-label="${t("เส้นทางนำทาง")}">
       ${a("/explore", t("สำรวจ"))}<span aria-hidden="true">/</span>
@@ -1674,7 +1699,7 @@ function groupPage(id) {
         <section class="members-card group-members-card" aria-labelledby="members-heading">
           <div class="group-section-head"><div><h2 id="members-heading">${t("สมาชิก {count} / {capacity} คน", { count: g.members.length, capacity: g.capacity })}</h2><p>${status}</p></div><strong>${remaining ? t("ว่าง {count} ที่", { count: remaining }) : t("สมาชิกครบแล้ว")}</strong></div>
           <div class="progress" role="progressbar" aria-label="${t("ความคืบหน้า")}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${(g.members.length / g.capacity) * 100}%"></span></div>
-          <div class="group-member-list">${g.members.map((memberId) => { const memberName = name(memberId); const memberProfile = state.profiles?.[memberId] || {}; const memberAvatar = profileAvatarMarkup({ name: memberName, avatar: memberProfile.avatar || memberProfile.avatar_url || "" }); const profileHref = `/profile/member/${encodeURIComponent(memberId)}?group=${encodeURIComponent(id)}`; const memberApproved = g.approvals[memberId] === g.revision; return `<div class="group-member-row">${a(profileHref, `<span class="avatar small">${memberAvatar}</span><span class="group-member-name"><strong>${escape(memberName)}</strong>${memberId === g.ownerId && !memberName.includes("หัวหน้ากลุ่ม") ? `<small>${t("หัวหน้ากลุ่ม")}</small>` : ""}</span>`, "group-member-person")}<span class="member-approval ${memberApproved && adminApproved ? "approved" : ""}">${memberApproved ? adminApproved ? t("ยืนยันแล้ว") : t("รอยืนยันยอด") : t("รอจ่าย")}</span><b>${money(alloc[memberId])}</b>${isOwner && !locked && memberId !== me ? `<button class="button danger-soft" data-action="kick-member" data-id="${id}" data-member="${memberId}">${t("เตะออก")}</button>` : ""}</div>`; }).join("")}
+          <div class="group-member-list">${g.members.map((memberId) => { const memberName = name(memberId); const memberProfile = state.profiles?.[memberId] || {}; const memberAvatar = profileAvatarMarkup({ name: memberName, avatar: memberProfile.avatar || memberProfile.avatar_url || "" }); const profileHref = `/profile/member/${encodeURIComponent(memberId)}?group=${encodeURIComponent(id)}`; const memberApproved = g.approvals[memberId] === g.revision; return `<div class="group-member-row">${a(profileHref, `<span class="avatar small">${memberAvatar}</span><span class="group-member-name"><strong>${escape(memberName)}</strong>${memberId === g.ownerId && !memberName.includes("หัวหน้ากลุ่ม") ? `<small>${t("หัวหน้ากลุ่ม")}</small>` : ""}</span>`, "group-member-person")}<span class="member-approval ${memberApproved && adminApproved ? "approved" : ""}">${memberApproved ? adminApproved ? t("ยืนยันยอดกลุ่มแล้ว") : t("สมาชิกยืนยันแล้ว") : t("รอยืนยันยอด")}</span><b>${money(alloc[memberId])}</b>${isOwner && !locked && memberId !== me ? `<button class="button danger-soft" data-action="kick-member" data-id="${id}" data-member="${memberId}">${t("เตะออก")}</button>` : ""}</div>`; }).join("")}
             ${remaining ? `<div class="group-open-row"><span class="avatar small">${icon("plus", 18)}</span><div><strong>${t("ยังว่างอีก {count} ที่", { count: remaining })}</strong><small>${t("รอสมาชิกเข้าร่วม")}</small></div>${!isMember && !locked ? a(`/groups/${id}/join`, t("เข้าร่วมกลุ่ม"), "button outline") : ""}</div>` : ""}
           </div>
         </section>
@@ -1690,7 +1715,7 @@ function groupPage(id) {
           .join("")}</details>
       </main>
       <aside class="group-detail-aside">${summaryCard}
-      ${paymentOrProductDetails}
+      ${paymentStatusCard}
       </aside>
     </div>
   </div>`;

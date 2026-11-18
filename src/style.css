@@ -2768,7 +2768,6 @@ body.mobile-menu-open {
   min-width: 0;
 }
 .group-detail-main > section,
-.group-product-details,
 .group-history {
   background: #fff;
   border: 1px solid var(--line);
@@ -3036,6 +3035,20 @@ body.mobile-menu-open {
   border-color: #cfe0ff;
   background: linear-gradient(135deg, #f6f9ff, #ffffff);
 }
+.group-page .group-payment-status-card.is-verified {
+  border-color: #b8e2d1;
+  background: #f5fbf8;
+}
+.group-page .group-payment-status-card.is-rejected {
+  border-color: #f2c7c7;
+  background: #fff8f8;
+}
+.group-page .group-payment-status-card.is-closed,
+.group-page .group-payment-status-card.is-approval-needed,
+.group-page .group-payment-status-card.is-awaiting-report {
+  border-color: #ead9b4;
+  background: #fffbf1;
+}
 .group-page .group-payment-status-card h2 {
   margin: 12px 0 4px;
   color: var(--navy);
@@ -3269,25 +3282,6 @@ body.mobile-menu-open {
   font-size: 0.92rem;
   margin: 10px 0;
 }
-.group-product-details h2 {
-  font-size: 1.08rem;
-  margin: 0 0 14px;
-}
-.group-product-details p {
-  margin-bottom: 11px;
-  font-size: 0.86rem;
-}
-.group-product-details > a:not(.button) {
-  color: var(--blue);
-  font-weight: 700;
-  font-size: 0.86rem;
-}
-.group-product-details > small {
-  display: block;
-  margin-top: 16px;
-  color: var(--text-sub);
-  line-height: 1.5;
-}
 .group-history {
   padding: 0 24px;
 }
@@ -3311,7 +3305,6 @@ body.mobile-menu-open {
   .group-payment-transfer { grid-template-columns: 1fr; }
   .group-payment-transfer .bank-payment-qr-frame { width: 132px; height: 132px; }
   .group-detail-main > section,
-  .group-product-details,
   .group-history {
     padding: 17px;
   }
@@ -9498,7 +9491,7 @@ dialog:not([open]),
   color: #fff;
 }
 :root[data-theme="dark"] .group-page .group-detail-main > section,
-:root[data-theme="dark"] .group-page .group-product-details,
+:root[data-theme="dark"] .group-page .group-payment-status-card,
 :root[data-theme="dark"] .group-page .group-history,
 :root[data-theme="dark"] .group-page .summary-card {
   color: var(--ink);
@@ -9509,6 +9502,7 @@ dialog:not([open]),
 :root[data-theme="dark"] .group-page .group-heading-line h1,
 :root[data-theme="dark"] .group-page .members-card h2,
 :root[data-theme="dark"] .group-page .cost-card h2,
+:root[data-theme="dark"] .group-page .group-payment-status-card h2,
 :root[data-theme="dark"] .group-page .group-product-copy strong,
 :root[data-theme="dark"] .group-page .group-product-price strong,
 :root[data-theme="dark"] .group-page .group-member-row > b,
@@ -9523,8 +9517,9 @@ dialog:not([open]),
 :root[data-theme="dark"] .group-page .group-section-head p,
 :root[data-theme="dark"] .group-page .group-member-name small,
 :root[data-theme="dark"] .group-page .group-open-row small,
-:root[data-theme="dark"] .group-page .group-product-details > small,
 :root[data-theme="dark"] .group-page .group-history p,
+:root[data-theme="dark"] .group-page .group-payment-status-card > p,
+:root[data-theme="dark"] .group-page .group-payment-status-card > span:last-child,
 :root[data-theme="dark"] .group-page .summary-card > small,
 :root[data-theme="dark"]
   .group-page
@@ -9552,7 +9547,8 @@ dialog:not([open]),
 }
 :root[data-theme="dark"] .group-page .group-section-head > strong,
 :root[data-theme="dark"] .group-page .cost-card > div.total b,
-:root[data-theme="dark"] .group-page .summary-card > strong {
+:root[data-theme="dark"] .group-page .summary-card > strong,
+:root[data-theme="dark"] .group-page .group-payment-status-card > strong {
   color: #43d5b0;
 }
 :root[data-theme="dark"] .group-page .group-member-row,
