@@ -69,6 +69,12 @@ body.admin-mode #app { min-height: 100vh; }
 .admin-confirm-payment, .admin-primary { min-height: 38px; padding: 0 14px; border: 0; border-radius: 9px; background: #0968e3; color: #fff; font: inherit; font-size: 12px; font-weight: 700; }
 .admin-confirm-payment:hover, .admin-primary:hover { background: #0752b3; }
 .admin-confirm-payment:disabled, .admin-primary:disabled { cursor: wait; opacity: .65; }
+.admin-danger { min-height: 38px; padding: 0 12px; border: 1px solid #f1c5c3; border-radius: 9px; background: #fff2f1; color: #a32a21; font: inherit; font-size: 12px; font-weight: 700; }
+.admin-danger:hover { border-color: #e79b96; background: #ffe4e2; }
+.admin-danger:disabled { cursor: wait; opacity: .65; }
+.admin-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.admin-row-actions > button { flex: 0 0 auto; }
+.admin-danger:focus-visible { outline: 3px solid rgba(220, 60, 60, .22); outline-offset: 2px; }
 .admin-secondary { min-height: 36px; padding: 0 13px; border: 1px solid #d2e1f2; border-radius: 9px; background: #fff; color: #185eaa; font: inherit; font-size: 12px; font-weight: 700; }
 .admin-secondary:hover { background: #f4f8fd; }
 .admin-truth-note { margin: 16px 2px; color: #4e6987; font-size: 12px; }

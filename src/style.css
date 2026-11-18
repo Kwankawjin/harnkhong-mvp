@@ -3032,22 +3032,59 @@ body.mobile-menu-open {
 }
 
 .group-page .group-payment-status-card {
-  border-color: #cfe0ff;
-  background: linear-gradient(135deg, #f6f9ff, #ffffff);
+  border-color: #f1c453;
+  background: linear-gradient(135deg, #fff7df, #fffdf6);
+  box-shadow: 0 10px 24px rgba(161, 98, 7, 0.09), 0 0 0 2px rgba(241, 196, 83, 0.18);
 }
 .group-page .group-payment-status-card.is-verified {
-  border-color: #b8e2d1;
-  background: #f5fbf8;
+  border: 2px solid #18a66a;
+  background: linear-gradient(135deg, #e9fff2, #f8fffb);
+  box-shadow: 0 12px 28px rgba(5, 150, 92, 0.16), 0 0 0 3px rgba(24, 166, 106, 0.18);
 }
-.group-page .group-payment-status-card.is-rejected {
-  border-color: #f2c7c7;
-  background: #fff8f8;
+.group-page .group-payment-status-card.is-verified h2,
+.group-page .group-payment-status-card.is-verified > strong,
+.group-page .group-payment-status-card.is-verified > span:last-child {
+  color: #087443;
 }
+.group-page .group-payment-status-card.is-reported,
+.group-page .group-payment-status-card.is-demo,
+.group-page .group-payment-status-card.is-not-member,
 .group-page .group-payment-status-card.is-closed,
 .group-page .group-payment-status-card.is-approval-needed,
 .group-page .group-payment-status-card.is-awaiting-report {
-  border-color: #ead9b4;
-  background: #fffbf1;
+  border-color: #e5a900;
+  background: linear-gradient(135deg, #fff2c4, #fffaf0);
+  box-shadow: 0 10px 24px rgba(161, 98, 7, 0.12), 0 0 0 2px rgba(229, 169, 0, 0.2);
+}
+.group-page .group-payment-status-card.is-reported h2,
+.group-page .group-payment-status-card.is-reported > strong,
+.group-page .group-payment-status-card.is-reported > span:last-child,
+.group-page .group-payment-status-card.is-demo h2,
+.group-page .group-payment-status-card.is-demo > strong,
+.group-page .group-payment-status-card.is-demo > span:last-child,
+.group-page .group-payment-status-card.is-not-member h2,
+.group-page .group-payment-status-card.is-not-member > strong,
+.group-page .group-payment-status-card.is-not-member > span:last-child,
+.group-page .group-payment-status-card.is-closed h2,
+.group-page .group-payment-status-card.is-closed > strong,
+.group-page .group-payment-status-card.is-closed > span:last-child,
+.group-page .group-payment-status-card.is-approval-needed h2,
+.group-page .group-payment-status-card.is-approval-needed > strong,
+.group-page .group-payment-status-card.is-approval-needed > span:last-child,
+.group-page .group-payment-status-card.is-awaiting-report h2,
+.group-page .group-payment-status-card.is-awaiting-report > strong,
+.group-page .group-payment-status-card.is-awaiting-report > span:last-child {
+  color: #805500;
+}
+.group-page .group-payment-status-card.is-rejected {
+  border: 2px solid #dc3c3c;
+  background: linear-gradient(135deg, #fff0f0, #fffafa);
+  box-shadow: 0 10px 24px rgba(185, 28, 28, 0.12), 0 0 0 2px rgba(220, 60, 60, 0.18);
+}
+.group-page .group-payment-status-card.is-rejected h2,
+.group-page .group-payment-status-card.is-rejected > strong,
+.group-page .group-payment-status-card.is-rejected > span:last-child {
+  color: #b42323;
 }
 .group-page .group-payment-status-card h2 {
   margin: 12px 0 4px;
@@ -9550,6 +9587,56 @@ dialog:not([open]),
 :root[data-theme="dark"] .group-page .summary-card > strong,
 :root[data-theme="dark"] .group-page .group-payment-status-card > strong {
   color: #43d5b0;
+}
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-verified {
+  border-color: #24c77d;
+  background: linear-gradient(135deg, #102b20, #14251f);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28), 0 0 0 3px rgba(36, 199, 125, 0.2);
+}
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-verified h2,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-verified > strong,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-verified > span:last-child {
+  color: #68e6a6;
+}
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-reported,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-demo,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-not-member,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-closed,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-approval-needed,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-awaiting-report {
+  border-color: #d99a17;
+  background: linear-gradient(135deg, #302712, #272116);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28), 0 0 0 2px rgba(217, 154, 23, 0.18);
+}
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-reported h2,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-reported > strong,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-reported > span:last-child,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-demo h2,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-demo > strong,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-demo > span:last-child,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-not-member h2,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-not-member > strong,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-not-member > span:last-child,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-closed h2,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-closed > strong,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-closed > span:last-child,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-approval-needed h2,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-approval-needed > strong,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-approval-needed > span:last-child,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-awaiting-report h2,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-awaiting-report > strong,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-awaiting-report > span:last-child {
+  color: #ffd56a;
+}
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-rejected {
+  border-color: #f26464;
+  background: linear-gradient(135deg, #32191b, #28191b);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28), 0 0 0 2px rgba(242, 100, 100, 0.18);
+}
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-rejected h2,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-rejected > strong,
+:root[data-theme="dark"] .group-page .group-payment-status-card.is-rejected > span:last-child {
+  color: #ff8888;
 }
 :root[data-theme="dark"] .group-page .group-member-row,
 :root[data-theme="dark"] .group-page .group-open-row {

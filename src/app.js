@@ -62,7 +62,6 @@ import {
   updateSupabaseGroupDetails,
   transferSupabaseGroup,
   removeSupabaseGroupMember,
-  deleteSupabaseGroup,
   getSupabaseInvite,
 } from "./supabase-groups.js";
 import {
@@ -1671,7 +1670,7 @@ function groupPage(id) {
     ${isMember && approved && adminApproved ? `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันยอดรอบนี้แล้ว")}</div>` : ""}
     ${isMember ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
     ${isMember && !isOwner && !locked ? `<button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${id}"><span class="summary-btn-left">${icon("back", 19)} <span>${t("ออกจากกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
-    ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="edit-group" data-id="${id}"><span class="summary-btn-left">${icon("edit", 19)} <span>${t("แก้ไขกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button><button class="button danger-soft full summary-action-btn" data-action="delete-group" data-id="${id}"><span class="summary-btn-left">${icon("trash", 19)} <span>${t("ลบห้อง")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
+    ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="edit-group" data-id="${id}"><span class="summary-btn-left">${icon("edit", 19)} <span>${t("แก้ไขกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${id}"><span class="summary-btn-left">${icon("link", 18)} <span>${t("คัดลอกลิงก์เชิญ")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${locked ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("กลุ่มถูกล็อกตามยอดคำสั่งซื้อเดโมแล้ว")}</span></div>` : ""}
     ${isMember && !supabaseConfigured ? a(`/orders/${id}`, `<span class="summary-btn-left">${icon("calc", 19)} <span>${t("ดูสรุปคำสั่งซื้อเดโม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button subtle full summary-action-btn") : ""}
@@ -4836,49 +4835,7 @@ document.addEventListener("click", async (e) => {
       }
       render();
       alertMessage(t("นำสมาชิกออกจากห้องแล้ว ยอดและการยืนยันถูกอัปเดต"));
-    } else if (action === "delete-group") {
-      const current = group(id);
-      if (!current || current.ownerId !== state.user?.id) return;
-      document.querySelector("#delete-group-dialog")?.remove();
-      document.body.insertAdjacentHTML("beforeend", deleteGroupDialog(current));
-      const dialog = document.querySelector("#delete-group-dialog");
-      dialog.addEventListener("close", () => dialog.remove(), { once: true });
-      dialog.addEventListener("click", (e) => {
-        if (e.target === dialog) dialog.close();
-      });
-      dialog.showModal();
-    } else if (action === "confirm-delete-group") {
-      const dialog =
-        btn.closest("dialog") || document.querySelector("#delete-group-dialog");
-      if (dialog) dialog.close();
-      const current = group(id);
-      if (!current || current.ownerId !== state.user?.id) return;
-      if (supabaseConfigured) {
-        await deleteSupabaseGroup(id);
-        if (!(await refreshSupabaseGroups(actionSession))) return;
-      } else {
-        if (current.members?.length > 1) {
-          current.members
-            .filter((u) => u !== state.user.id)
-            .forEach((u) =>
-              notice(
-                t("ห้องถูกลบ"),
-                t("เจ้าของห้องได้ทำการลบห้อง {name}", { name: current.name }),
-                "/explore",
-                u,
-              ),
-            );
-        }
-        if (state.conversations?.[id]) delete state.conversations[id];
-        save({
-          ...state,
-          groups: state.groups.filter((g) => g.id !== id),
-          orders: state.orders.filter((o) => o.groupId !== id),
-        });
-      }
-      go("/my-groups");
-      alertMessage(t("ลบห้องแล้ว"));
-        } else if (action === "report-group-payment") {
+    } else if (action === "report-group-payment") {
       const current = group(id),
         revision = Number(btn.dataset.revision);
       if (!supabaseConfigured || !current || !state.user || !current.members.includes(state.user.id))

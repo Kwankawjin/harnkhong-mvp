@@ -213,6 +213,39 @@ async function handleAction(req: Request, ctx: any) {
     }
     return response(req, { ok: true, payment: data });
   }
+  if (action === "reject-group-payment") {
+    const paymentId = String(body.paymentId || "");
+    const rejectionNote = String(body.rejectionNote || "").trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(paymentId)
+      || rejectionNote.length < 3 || rejectionNote.length > 500) {
+      return response(req, { error: "กรุณาตรวจรหัสรายการและเหตุผลปฏิเสธ (3–500 ตัวอักษร)" }, 400);
+    }
+    const { data, error } = await db.rpc("reject_group_payment_report", {
+      p_payment_id: paymentId,
+      p_rejected_by: admin.user.id,
+      p_rejection_note: rejectionNote,
+    });
+    if (error) {
+      const status = error.code === "40001" || error.code === "23514" ? 409 : error.code === "P0002" ? 404 : 500;
+      return response(req, {
+        error: status === 409 ? "กลุ่มเปลี่ยนยอดแล้ว หรือรายการนี้ถูกตรวจไปแล้ว" : status === 404 ? "ไม่พบรายการแจ้งโอน" : "ปฏิเสธรายการชำระเงินไม่สำเร็จ",
+      }, status);
+    }
+    return response(req, { ok: true, payment: data });
+  }
+  if (action === "delete-group") {
+    const groupId = String(body.groupId || "");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(groupId)) {
+      return response(req, { error: "รหัสกลุ่มไม่ถูกต้อง" }, 400);
+    }
+    const { data, error } = await db.from("groups").delete().eq("id", groupId).select("id").maybeSingle();
+    if (error) {
+      const status = error.code === "23503" ? 409 : 500;
+      return response(req, { error: status === 409 ? "กลุ่มมีข้อมูลที่ยังลบไม่ได้ กรุณาตรวจสอบรายการที่เกี่ยวข้อง" : "ลบกลุ่มไม่สำเร็จ" }, status);
+    }
+    if (!data) return response(req, { error: "ไม่พบกลุ่มที่ต้องการลบ" }, 404);
+    return response(req, { ok: true, groupId: data.id });
+  }
   if (action === "confirm-group-revision") {
     const groupId = String(body.groupId || "");
     const revision = Number(body.revision);
