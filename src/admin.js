@@ -65,16 +65,22 @@ function groupApprovalRows(rows, emptyText = "ยังไม่มีสมา�
       : canReview
         ? '<span class="admin-status pending">รอคุณตรวจยอดรอบนี้</span>'
         : `<span class="admin-status ${count ? "pending" : ""}">สมาชิกยืนยัน ${escapeHtml(count)} / ${escapeHtml(members)} คน</span>`;
-    const action = canReview
+    const reviewAction = canReview
       ? `<button type="button" class="admin-primary" data-admin-action="confirm-group-revision" data-group-id="${escapeHtml(row.id)}" data-revision="${escapeHtml(row.revision)}">ตรวจยอดและยืนยันรอบ</button>`
-      : reviewed ? formatDate(row.admin_approved_at) : `<small>รอสมาชิกครบ ${escapeHtml(members)} / ${escapeHtml(row.capacity)} คน</small>`;
+      : reviewed ? `<small>ยืนยันรอบแล้ว ${formatDate(row.admin_approved_at)}</small>` : `<small>รอสมาชิกครบ ${escapeHtml(members)} / ${escapeHtml(row.capacity)} คน</small>`;
+    const action = `<div class="admin-row-actions">${reviewAction}<button type="button" class="admin-danger" data-admin-action="delete-group" data-group-id="${escapeHtml(row.id)}" data-group-name="${escapeHtml(row.name)}">ลบกลุ่ม</button></div>`;
     return `<tr><td><strong>${escapeHtml(row.name)}</strong><small>รอบยอด ${escapeHtml(row.revision)} · ${(row.category_labels || []).map(escapeHtml).join(" · ")}</small></td><td>${state}<small>ยอดรวม ${formatMoney(row.total_satang)}</small></td><td>${formatDate(row.last_approval_at)}</td><td>${action}</td></tr>`;
   }).join("");
   return table(["กลุ่ม / รอบยอด", "สมาชิกยืนยัน", "ยืนยันล่าสุด", "ตรวจสอบ"], rendered, emptyText);
 }
 
 function paymentsContent(rows, groupRows = cachedAdminGroups) {
-  const rendered = rows.map((row) => `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>รอบยอด ${escapeHtml(row.revision)}${row.stale_revision ? ` · รอบปัจจุบัน ${escapeHtml(row.current_revision)}` : ""}</small></td><td><strong>${escapeHtml(row.member_name)}</strong><small>${escapeHtml(row.member_email)}</small></td><td>${formatMoney(row.amount_satang)}</td><td>${paymentStatus(row.status, row.stale_revision)}${row.rejection_note ? `<small>${escapeHtml(row.rejection_note)}</small>` : row.stale_revision && row.status === "reported" ? "<small>กลุ่มเปลี่ยนยอดหลังแจ้งโอน</small>" : ""}</td><td>${formatDate(row.reported_at)}</td><td>${row.status === "reported" && !row.stale_revision ? `<button type="button" class="admin-primary admin-payment-verify" data-admin-action="verify-group-payment" data-payment-id="${escapeHtml(row.id)}">ยืนยันหลังตรวจยอด</button>` : row.stale_revision && row.status === "reported" ? "—" : row.verified_at ? formatDate(row.verified_at) : "—"}</td></tr>`).join("");
+  const rendered = rows.map((row) => {
+    const actions = row.status === "reported" && !row.stale_revision
+      ? `<div class="admin-row-actions"><button type="button" class="admin-primary admin-payment-verify" data-admin-action="verify-group-payment" data-payment-id="${escapeHtml(row.id)}">ยอมรับ · ยืนยันรับเงิน</button><button type="button" class="admin-danger" data-admin-action="reject-group-payment" data-payment-id="${escapeHtml(row.id)}">ปฏิเสธ</button></div>`
+      : row.stale_revision && row.status === "reported" ? "—" : row.verified_at ? formatDate(row.verified_at) : "—";
+    return `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>รอบยอด ${escapeHtml(row.revision)}${row.stale_revision ? ` · รอบปัจจุบัน ${escapeHtml(row.current_revision)}` : ""}</small></td><td><strong>${escapeHtml(row.member_name)}</strong><small>${escapeHtml(row.member_email)}</small></td><td>${formatMoney(row.amount_satang)}</td><td>${paymentStatus(row.status, row.stale_revision)}${row.rejection_note ? `<small>${escapeHtml(row.rejection_note)}</small>` : row.stale_revision && row.status === "reported" ? "<small>กลุ่มเปลี่ยนยอดหลังแจ้งโอน</small>" : ""}</td><td>${formatDate(row.reported_at)}</td><td>${actions}</td></tr>`;
+  }).join("");
   const alerts = typeof Notification !== "undefined" && Notification.permission === "granted"
     ? "เปิดแจ้งเตือนบนอุปกรณ์นี้แล้ว"
     : "เปิดแจ้งเตือนเมื่อมีคนแจ้งโอน";
@@ -515,6 +521,47 @@ document.addEventListener("click", async (event) => {
       seenPaymentReportIds?.add(paymentId);
     } catch (error) {
       feedback = error.message || "ยืนยันยอดไม่สำเร็จ";
+    } finally {
+      busy = false;
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+    }
+  } else if (action === "reject-group-payment") {
+    const paymentId = button.dataset.paymentId;
+    if (!paymentId || busy) return;
+    const note = prompt("ระบุเหตุผลที่ปฏิเสธ เพื่อให้สมาชิกทราบว่าต้องแก้ไขอะไร", "ไม่พบยอดเงินเข้าบัญชี กรุณาตรวจสอบและแจ้งโอนใหม่");
+    if (note === null) return;
+    const rejectionNote = note.trim();
+    if (rejectionNote.length < 3 || rejectionNote.length > 500) {
+      feedback = "กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษรและไม่เกิน 500 ตัวอักษร";
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+      return;
+    }
+    if (!confirm("ยืนยันปฏิเสธรายการนี้? สมาชิกจะเห็นเหตุผลและสามารถแจ้งโอนใหม่ได้")) return;
+    busy = true;
+    button.disabled = true;
+    button.textContent = "กำลังบันทึก…";
+    try {
+      await invoke("reject-group-payment", { paymentId, rejectionNote });
+      feedback = "ปฏิเสธรายการแล้ว แจ้งเหตุผลให้สมาชิกทราบแล้ว";
+    } catch (error) {
+      feedback = error.message || "ปฏิเสธรายการไม่สำเร็จ";
+    } finally {
+      busy = false;
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+    }
+  } else if (action === "delete-group") {
+    const groupId = button.dataset.groupId;
+    const groupName = button.dataset.groupName || "กลุ่มนี้";
+    if (!groupId || busy) return;
+    if (!confirm(`ลบ “${groupName}” อย่างถาวรหรือไม่? ข้อมูลสมาชิก แชท และรายการชำระเงินของกลุ่มนี้จะถูกลบด้วย`)) return;
+    busy = true;
+    button.disabled = true;
+    button.textContent = "กำลังลบ…";
+    try {
+      await invoke("delete-group", { groupId });
+      feedback = `ลบกลุ่ม “${groupName}” แล้ว`;
+    } catch (error) {
+      feedback = error.message || "ลบกลุ่มไม่สำเร็จ";
     } finally {
       busy = false;
       mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
