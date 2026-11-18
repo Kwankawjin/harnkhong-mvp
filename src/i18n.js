@@ -726,6 +726,8 @@ const labels = {
   "หลังโอนเงินจริงแล้ว กดปุ่มด้านล่างเพื่อแจ้งแอดมินตรวจยอด": "After transferring the money, press the button below to ask the admin to verify it.",
   "โอนแล้ว แจ้งแอดมินตรวจยอด": "Transferred — notify admin to verify",
   "โอนแล้วใช่ไหม?": "Have you transferred the money?",
+  "แอดมินยืนยันรับเงินแล้ว": "Admin confirmed receipt",
+  "แจ้งโอนแล้ว รอแอดมินตรวจยอด": "Transfer reported — waiting for admin verification",
   "ถ้าคุณโอนยอดส่วนนี้แล้ว แจ้งแอดมินให้ตรวจรายการเงินเข้าได้เลย": "If you have transferred this share, notify the admin to check the incoming payment.",
   "ยืนยันว่าโอนเงินจริงตามยอดรอบนี้แล้วใช่ไหม? รายการจะส่งให้แอดมินตรวจ": "Confirm that you transferred the amount for this revision? The report will be sent to the admin for review.",
   "กรุณายืนยันยอดรอบปัจจุบันก่อนแจ้งโอน": "Approve the current amount before reporting a transfer.",
