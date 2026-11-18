@@ -95,25 +95,38 @@ async function listGroups(client: any, limit = 200) {
 
 async function listPayments(client: any, limit = 200) {
   const { data, error } = await client.from("group_payment_reports")
-    .select("id, group_id, user_id, revision, amount_satang, status, reported_at, verified_at, verified_by, rejection_note")
+    .select("id, group_id, user_id, revision, amount_satang, status, reported_at, transferred_at, slip_path, verified_at, verified_by, rejection_note")
     .order("reported_at", { ascending: false }).limit(limit);
   if (error) throw error;
   const groupIds = [...new Set((data || []).map((row: any) => row.group_id))];
-  const [users, groupsResult] = await Promise.all([
+  const userIds = [...new Set((data || []).map((row: any) => row.user_id))];
+  const [users, groupsResult, profilesResult] = await Promise.all([
     userIndex(client),
     groupIds.length
       ? client.from("groups").select("id,name,revision").in("id", groupIds)
       : Promise.resolve({ data: [], error: null }),
+    userIds.length
+      ? client.from("profiles").select("id,display_name").in("id", userIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
   if (groupsResult.error) throw groupsResult.error;
+  if (profilesResult.error) throw profilesResult.error;
   const groups = new Map((groupsResult.data || []).map((group: any) => [group.id, group]));
-  return (data || []).map((row: any) => ({
-    ...row,
-    group_name: groups.get(row.group_id)?.name || "กลุ่มที่ถูกลบ",
-    current_revision: groups.get(row.group_id)?.revision ?? null,
-    stale_revision: groups.has(row.group_id) && Number(row.revision) !== Number(groups.get(row.group_id).revision),
-    member_email: users.get(row.user_id)?.email || "",
-    member_name: users.get(row.user_id)?.user_metadata?.display_name || users.get(row.user_id)?.email || "สมาชิก",
+  const profileNames = new Map((profilesResult.data || []).map((profile: any) => [profile.id, profile.display_name]));
+  return await Promise.all((data || []).map(async (row: any) => {
+    const { data: signedSlip, error: slipError } = row.slip_path
+      ? await client.storage.from("group-payment-slips").createSignedUrl(row.slip_path, 600)
+      : { data: null, error: null };
+    if (slipError) console.error("Could not sign payment slip", slipError);
+    return {
+      ...row,
+      slip_url: signedSlip?.signedUrl || null,
+      group_name: groups.get(row.group_id)?.name || "กลุ่มที่ถูกลบ",
+      current_revision: groups.get(row.group_id)?.revision ?? null,
+      stale_revision: groups.has(row.group_id) && Number(row.revision) !== Number(groups.get(row.group_id).revision),
+      member_email: users.get(row.user_id)?.email || "",
+      member_name: profileNames.get(row.user_id) || users.get(row.user_id)?.user_metadata?.display_name || users.get(row.user_id)?.email || "สมาชิก",
+    };
   }));
 }
 
@@ -201,6 +214,10 @@ async function handleAction(req: Request, ctx: any) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(paymentId)) {
       return response(req, { error: "รหัสรายการชำระเงินไม่ถูกต้อง" }, 400);
     }
+    const { data: report, error: reportError } = await db.from("group_payment_reports")
+      .select("slip_path").eq("id", paymentId).maybeSingle();
+    if (reportError) throw reportError;
+    if (!report?.slip_path) return response(req, { error: "ยังไม่มีสลิปแนบ จึงยืนยันรับเงินไม่ได้" }, 409);
     const { data, error } = await db.rpc("verify_group_payment_report", {
       p_payment_id: paymentId,
       p_verified_by: admin.user.id,
@@ -220,6 +237,10 @@ async function handleAction(req: Request, ctx: any) {
       || rejectionNote.length < 3 || rejectionNote.length > 500) {
       return response(req, { error: "กรุณาตรวจรหัสรายการและเหตุผลปฏิเสธ (3–500 ตัวอักษร)" }, 400);
     }
+    const { data: report, error: reportError } = await db.from("group_payment_reports")
+      .select("slip_path").eq("id", paymentId).maybeSingle();
+    if (reportError) throw reportError;
+    if (!report?.slip_path) return response(req, { error: "รายการนี้ยังไม่มีสลิปแนบให้ตรวจสอบ" }, 409);
     const { data, error } = await db.rpc("reject_group_payment_report", {
       p_payment_id: paymentId,
       p_rejected_by: admin.user.id,

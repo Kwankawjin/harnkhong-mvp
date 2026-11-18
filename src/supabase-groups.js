@@ -57,7 +57,7 @@ export async function loadSupabaseGroups(client = supabase) {
       const userId = sessionData.session.user.id;
       const [profileResult, paymentResult] = await Promise.all([
         client.from("profiles").select("id,display_name,bio,avatar_url").in("id", memberIds),
-        client.from("group_payment_reports").select("group_id,revision,amount_satang,status,reported_at,rejection_note").eq("user_id", userId),
+        client.from("group_payment_reports").select("group_id,revision,amount_satang,status,reported_at,transferred_at,slip_path,rejection_note").eq("user_id", userId),
       ]);
       if (profileResult.error) throw profileResult.error;
       if (paymentResult.error) throw paymentResult.error;
@@ -196,10 +196,12 @@ export async function approveSupabaseGroup(groupId, revision) {
     p_revision: revision,
   });
 }
-export async function reportSupabaseGroupPayment(groupId, revision) {
-  const { data, error } = await supabase.rpc("report_group_payment", {
+export async function reportSupabaseGroupPayment(groupId, revision, slipPath, transferredAt) {
+  const { data, error } = await supabase.rpc("report_group_payment_with_slip", {
     p_group: groupId,
     p_revision: revision,
+    p_slip_path: slipPath,
+    p_transferred_at: transferredAt,
   });
   if (error) throw error;
   return data;

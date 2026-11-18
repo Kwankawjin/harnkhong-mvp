@@ -2,6 +2,16 @@ import { assertSatang } from "./domain.js";
 
 // Thai source text is the key for UI copy; stored/user-entered content is never translated.
 const labels = {
+  "แนบสลิปโอนเงิน": "Attach transfer slip",
+  "ยังไม่ได้เลือกสลิป (ไม่เกิน 8 MB)": "No slip selected (up to 8 MB)",
+  "วันที่และเวลาที่โอนจริง": "Date and time of transfer",
+  "แนบสลิปแล้วแจ้งแอดมิน": "Attach slip and notify admin",
+  "กรุณาเลือกไฟล์ JPG, PNG หรือ WebP ขนาดไม่เกิน 8 MB": "Choose a JPG, PNG, or WebP file up to 8 MB.",
+  "กรุณาแนบสลิป JPG, PNG หรือ WebP ขนาดไม่เกิน 8 MB": "Attach a JPG, PNG, or WebP slip up to 8 MB.",
+  "กรุณาระบุวันและเวลาที่โอนให้ถูกต้อง": "Enter a valid transfer date and time.",
+  "ยอดโอนไม่ตรง กรุณาโอนใหม่": "Transfer amount mismatch · Please transfer again",
+  "แอดมินปฏิเสธรายการนี้ กรุณาโอนยอดที่ถูกต้องอีกครั้ง แล้วแนบสลิปใหม่เพื่อให้ตรวจสอบ": "The admin rejected this report. Transfer the correct amount and attach a new slip for review.",
+  "ต้องโอนใหม่และแจ้งอีกครั้ง": "Transfer again and resubmit",
   "กำลังโหลดกลุ่มจาก Supabase": "Loading groups from Supabase",
   โหลดกลุ่มไม่สำเร็จ: "Unable to load groups",
   "แชตกลุ่มยังซิงก์ไม่ได้ กรุณาตรวจสอบการตั้งค่าฐานข้อมูล":

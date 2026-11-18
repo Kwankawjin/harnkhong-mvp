@@ -2801,6 +2801,13 @@ body.mobile-menu-open {
 .group-payment-rejection { color: #a32a21; margin: 4px 0; }
 .group-payment-reported { display: grid; justify-items: start; gap: 5px; margin-top: 16px; }
 .group-payment-reported > span { color: var(--text-sub); }
+.group-payment-proof-fields { width: 100%; display: grid; gap: 12px; margin-top: 12px; }
+.group-payment-proof-fields label { display: grid; gap: 6px; width: 100%; color: var(--text-sub); font-size: .88rem; }
+.group-payment-proof-fields input[type="file"],
+.group-payment-proof-fields input[type="datetime-local"] { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid var(--line, #dce5f1); border-radius: 10px; background: #fff; color: var(--ink); font: inherit; font-size: .9rem; }
+.group-payment-proof-fields input[type="file"] { padding: 7px; }
+.group-payment-proof-fields label small { color: var(--text-sub); font-size: .78rem; }
+.group-payment-proof-fields .button { margin-top: 0; }
 .group-heading-line {
   display: flex;
   justify-content: space-between;

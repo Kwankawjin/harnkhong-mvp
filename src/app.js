@@ -1574,6 +1574,12 @@ function legacyProductRoute(id) {
   }
   return `<div class="empty"><h1>${t("ยังไม่มีกลุ่มสำหรับรายการนี้")}</h1><p>${t("เลือกกลุ่มที่เปิดรับอยู่จากหน้าสำรวจได้เลย")}</p>${a("/explore", t("สำรวจกลุ่ม"), "button primary")}</div>`;
 }
+function paymentSlipForm(id, revision) {
+  const localNow = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString().slice(0, 16);
+  return `<div class="group-payment-proof-fields"><label>${t("แนบสลิปโอนเงิน")}<input type="file" accept="image/jpeg,image/png,image/webp" data-payment-slip-input required/><small data-payment-slip-status>${t("ยังไม่ได้เลือกสลิป (ไม่เกิน 8 MB)")}</small></label><label>${t("วันที่และเวลาที่โอนจริง")}<input type="datetime-local" data-payment-transfer-time value="${localNow}" required/></label><button class="button primary full" type="button" data-action="report-group-payment" data-id="${escape(id)}" data-revision="${Number(revision)}" disabled>${t("แนบสลิปแล้วแจ้งแอดมิน")}</button></div>`;
+}
+
 function groupPage(id) {
   const g = group(id);
   if (!g) {
@@ -1640,7 +1646,7 @@ function groupPage(id) {
   const paymentStatusCopy = {
     reported: ["แจ้งโอนแล้ว รอแอดมินตรวจยอด", "ระบบส่งรายการให้แอดมินตรวจสอบยอดเงินจริงแล้ว", "กำลังรอตรวจสอบ"],
     verified: ["ตรวจยอดแล้ว", "แอดมินตรวจสอบยอดโอนของคุณแล้ว", "ยืนยันรับเงินแล้ว"],
-    rejected: ["ยอดโอนไม่ตรง", paymentReport?.rejection_note || "แอดมินตรวจสอบแล้วพบว่ายอดยังไม่ตรง กรุณาตรวจสอบและแจ้งโอนใหม่", "แก้ยอดแล้วแจ้งใหม่"],
+    rejected: ["ยอดโอนไม่ตรง กรุณาโอนใหม่", paymentReport?.rejection_note ? `${paymentReport.rejection_note} กรุณาโอนยอดให้ถูกต้องอีกครั้งและแนบสลิปใหม่` : "แอดมินปฏิเสธรายการนี้ กรุณาโอนยอดให้ถูกต้องอีกครั้งและแนบสลิปใหม่เพื่อให้ตรวจสอบ", "ต้องโอนใหม่และแจ้งอีกครั้ง"],
     demo: ["ระบบชำระเงินจริงยังไม่พร้อม", "หน้าจอนี้แสดงข้อมูลเดโม ยังไม่มีการตรวจรับเงินจริง", "โหมดเดโม"],
     "not-member": ["ยังไม่ได้เข้าร่วมกลุ่ม", "เข้าร่วมและยืนยันยอดส่วนแบ่งก่อน จึงจะแจ้งชำระเงินได้", "ชำระเงินได้หลังเข้าร่วมกลุ่ม"],
     closed: ["กลุ่มปิดแล้ว", "กลุ่มนี้ปิดรับสมาชิกและการชำระเงินแล้ว", "ปิดรับชำระเงิน"],
@@ -1656,12 +1662,12 @@ function groupPage(id) {
     ? hasCurrentPaymentReport
       && paymentReport.status !== "rejected"
       ? `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${paymentReport.status === "verified" ? t("ตรวจยอดแล้ว") : t("แจ้งโอนแล้ว รอแอดมินตรวจยอด")}</h2><p>${paymentReport.status === "verified" ? t("แอดมินตรวจสอบยอดโอนของคุณแล้ว") : t("ระบบส่งรายการให้แอดมินตรวจสอบยอดเงินจริงแล้ว")}</p></div><div class="group-payment-reported"><strong>${money(paymentReport.amount_satang)}</strong><span>${paymentReport.status === "verified" ? t("ยืนยันรับเงินแล้ว") : t("กำลังรอตรวจสอบ")}</span></div></section>`
-      : `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${t("โอนแล้วใช่ไหม?")}</h2><p>${t("ถ้าคุณโอนยอดส่วนนี้แล้ว แจ้งแอดมินให้ตรวจรายการเงินเข้าได้เลย")}</p></div><button class="button primary full" type="button" data-action="report-group-payment" data-id="${escape(id)}" data-revision="${Number(g.revision)}">${t("โอนแล้ว แจ้งแอดมินตรวจยอด")}</button></section>`
+      : `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${paymentReport?.status === "rejected" ? t("ยอดโอนไม่ตรง กรุณาโอนใหม่") : t("โอนแล้วใช่ไหม?")}</h2><p>${paymentReport?.status === "rejected" ? t("แอดมินปฏิเสธรายการนี้ กรุณาโอนยอดที่ถูกต้องอีกครั้ง แล้วแนบสลิปใหม่เพื่อให้ตรวจสอบ") : t("ถ้าคุณโอนยอดส่วนนี้แล้ว แจ้งแอดมินให้ตรวจรายการเงินเข้าได้เลย")}</p></div>${paymentSlipForm(id, g.revision)}</section>`
     : "";
   const groupPaymentSection = isMember && supabaseConfigured && full && allApproved(g) && Number(alloc[me]) > 0
     ? hasVisiblePaymentReport
       ? ""
-      : `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${t("โอนเงินเข้าบัญชี")}</h2><p>${t("สแกน QR บัญชีธนาคาร แล้วกดแจ้งโอนหลังโอนเงินจริง เพื่อให้แอดมินตรวจยอด")}</p></div><div class="group-payment-transfer"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><small>${t("ชื่อบัญชีรับโอน")}</small><strong>${BANK_PAYMENT_RECIPIENT}</strong><small>${t("ยอดที่ต้องโอน")}</small><b>${money(alloc[me])}</b>${paymentReport?.status === "rejected" && paymentReport.rejection_note ? `<p class="group-payment-rejection">${escape(paymentReport.rejection_note)}</p>` : ""}<button class="button primary full" type="button" data-action="report-group-payment" data-id="${escape(id)}" data-revision="${Number(g.revision)}">${t("โอนแล้ว แจ้งแอดมินตรวจยอด")}</button></div></div></section>`
+      : `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${paymentReport?.status === "rejected" ? t("ยอดโอนไม่ตรง กรุณาโอนใหม่") : t("โอนเงินเข้าบัญชี")}</h2><p>${paymentReport?.status === "rejected" ? t("แอดมินปฏิเสธรายการนี้ กรุณาโอนยอดที่ถูกต้องอีกครั้ง แล้วแนบสลิปใหม่เพื่อให้ตรวจสอบ") : t("สแกน QR บัญชีธนาคาร แล้วกดแจ้งโอนหลังโอนเงินจริง เพื่อให้แอดมินตรวจยอด")}</p></div><div class="group-payment-transfer"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><small>${t("ชื่อบัญชีรับโอน")}</small><strong>${BANK_PAYMENT_RECIPIENT}</strong><small>${t("ยอดที่ต้องโอน")}</small><b>${money(alloc[me])}</b>${paymentReport?.status === "rejected" && paymentReport.rejection_note ? `<p class="group-payment-rejection">${escape(paymentReport.rejection_note)}</p>` : ""}${paymentSlipForm(id, g.revision)}</div></div></section>`
     : "";
   const actions = `
     ${!isMember && !full && !locked ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
@@ -4123,6 +4129,21 @@ document.addEventListener("change", async (e) => {
     isGroup = input.id === "group-images",
     isAvatar = input.id === "profile-avatar",
     isListing = input.id === "listing-images";
+  if (input.matches?.("[data-payment-slip-input]")) {
+    const panel = input.closest(".group-payment-panel"),
+      submit = panel?.querySelector('[data-action="report-group-payment"]'),
+      status = panel?.querySelector("[data-payment-slip-status]"),
+      file = input.files?.[0],
+      validTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (file && (!validTypes.includes(file.type) || file.size > 8 * 1024 * 1024)) {
+      input.value = "";
+      if (status) status.textContent = t("กรุณาเลือกไฟล์ JPG, PNG หรือ WebP ขนาดไม่เกิน 8 MB");
+    } else if (status) {
+      status.textContent = file ? file.name : t("ยังไม่ได้เลือกสลิป (ไม่เกิน 8 MB)");
+    }
+    if (submit) submit.disabled = !file;
+    return;
+  }
   if (input.closest("#create-form")) {
     updateCreateFormUI();
     updatePreview();
@@ -4837,17 +4858,37 @@ document.addEventListener("click", async (e) => {
       alertMessage(t("นำสมาชิกออกจากห้องแล้ว ยอดและการยืนยันถูกอัปเดต"));
     } else if (action === "report-group-payment") {
       const current = group(id),
-        revision = Number(btn.dataset.revision);
+        revision = Number(btn.dataset.revision),
+        panel = btn.closest(".group-payment-panel"),
+        fileInput = panel?.querySelector("[data-payment-slip-input]"),
+        transferTime = panel?.querySelector("[data-payment-transfer-time]")?.value,
+        file = fileInput?.files?.[0];
       if (!supabaseConfigured || !current || !state.user || !current.members.includes(state.user.id))
         throw Object.assign(new Error(), { code: "orderUnauthorized" });
       if (current.approvals[state.user.id] !== revision)
         throw new Error(t("กรุณายืนยันยอดรอบปัจจุบันก่อนแจ้งโอน"));
       if (Number(current.revision) !== revision)
         throw new Error(t("ยอดส่วนแบ่งเปลี่ยนแล้ว กรุณาตรวจสอบใหม่"));
-      if (!confirm(t("ยืนยันว่าโอนเงินจริงตามยอดรอบนี้แล้วใช่ไหม? รายการจะส่งให้แอดมินตรวจ"))) return;
+      if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 8 * 1024 * 1024)
+        throw new Error(t("กรุณาแนบสลิป JPG, PNG หรือ WebP ขนาดไม่เกิน 8 MB"));
+      const transferredAt = new Date(transferTime || "");
+      if (!transferTime || Number.isNaN(transferredAt.valueOf()) || transferredAt > new Date(Date.now() + 10 * 60 * 1000))
+        throw new Error(t("กรุณาระบุวันและเวลาที่โอนให้ถูกต้อง"));
+      if (!confirm(t("ยืนยันว่าโอนเงินจริงตามยอดรอบนี้แล้วใช่ไหม? แนบสลิปเพื่อส่งให้แอดมินตรวจ"))) return;
       btn.disabled = true;
-      btn.textContent = t("กำลังส่งแจ้งเตือนแอดมิน…");
-      await reportSupabaseGroupPayment(id, revision);
+      btn.textContent = t("กำลังอัปโหลดสลิป…");
+      const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" })[file.type];
+      const slipPath = `${state.user.id}/${id}/${revision}/${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage.from("group-payment-slips").upload(slipPath, file, {
+        cacheControl: "3600", upsert: false, contentType: file.type,
+      });
+      if (uploadError) throw uploadError;
+      try {
+        await reportSupabaseGroupPayment(id, revision, slipPath, transferredAt.toISOString());
+      } catch (error) {
+        await supabase.storage.from("group-payment-slips").remove([slipPath]);
+        throw error;
+      }
       if (!(await refreshSupabaseGroups(actionSession))) return;
       render();
       alertMessage(t("แจ้งโอนแล้ว แอดมินจะตรวจสอบยอดเงินจริง"));
@@ -4873,7 +4914,6 @@ document.addEventListener("click", async (e) => {
         throw new Error(t("ยอดส่วนแบ่งเปลี่ยนแล้ว กรุณาตรวจสอบใหม่"));
       if (supabaseConfigured) {
         await approveSupabaseGroup(id, revision);
-        await reportSupabaseGroupPayment(id, revision);
         if (!(await refreshSupabaseGroups(actionSession))) return;
       } else {
         const next = approve(current, state.user.id, revision);
@@ -4890,7 +4930,7 @@ document.addEventListener("click", async (e) => {
       }
       btn.closest("dialog")?.close();
       render();
-      alertMessage(supabaseConfigured ? t("แจ้งโอนแล้ว แอดมินจะตรวจสอบยอดเงินจริง") : t("ยืนยันยอดส่วนแบ่งแล้ว"));
+      alertMessage(t("ยืนยันยอดส่วนแบ่งแล้ว"));
     } else if (action === "copy-link") {
       const current = group(id);
       if (!current) throw new Error(t("ไม่พบกลุ่ม"));
