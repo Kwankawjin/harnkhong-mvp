@@ -3032,6 +3032,29 @@ body.mobile-menu-open {
   margin-bottom: 18px;
 }
 
+.group-page .group-payment-status-card {
+  border-color: #cfe0ff;
+  background: linear-gradient(135deg, #f6f9ff, #ffffff);
+}
+.group-page .group-payment-status-card h2 {
+  margin: 12px 0 4px;
+  color: var(--navy);
+  font-size: 1.2rem;
+}
+.group-page .group-payment-status-card > p {
+  margin: 0;
+  color: var(--text-sub);
+}
+.group-page .group-payment-status-card > strong {
+  display: block;
+  margin: 24px 0 10px;
+  color: #0968e3;
+  font-size: 1.55rem;
+}
+.group-page .group-payment-status-card > span:last-child {
+  color: var(--text-sub);
+}
+
 .group-page .summary-card > small {
   display: block;
   color: #64748b;
@@ -5791,6 +5814,18 @@ dialog:not([open]),
 .google-button {
   border-radius: 999px;
   min-height: 46px;
+}
+.auth-forgot-password {
+  display: block;
+  margin: 10px 0 0 auto;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
 }
 .google-button {
   font-size: 0.85rem;

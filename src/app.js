@@ -477,6 +477,7 @@ function go(path) {
   window.scrollTo(0, 0);
 }
 let authModalActive = false;
+let passwordRecoveryPending = false;
 let mockupCurrentStep = 1;
 let tempSignupData = {};
 let groupImages = [];
@@ -691,7 +692,7 @@ function renderPhoneMockup(initialStep = 1, isModal = true) {
           ${input("mockup-login-email", t("อีเมล"), "email", 'autocomplete="email" maxlength="254"')}
           ${input("mockup-login-pw", t("รหัสผ่าน"), "password", 'autocomplete="current-password"')}
           <button class="button primary full" type="submit">${t("เข้าสู่ระบบ")}</button>
-        </form><p class="auth-switch-prompt">${t("ยังไม่มีบัญชี?")} <button type="button" data-action="mockup-step" data-step="2">${t("สมัครสมาชิก")}</button></p>
+        </form>${supabaseConfigured ? `<button type="button" class="auth-forgot-password" data-action="request-password-reset">${t("ลืมรหัสผ่าน? ตั้งรหัสผ่านทางอีเมล")}</button>` : ""}<p class="auth-switch-prompt">${t("ยังไม่มีบัญชี?")} <button type="button" data-action="mockup-step" data-step="2">${t("สมัครสมาชิก")}</button></p>
       </section>
       <section class="mockup-screen ${step === 2 ? "active" : ""}" ${step !== 2 ? "hidden" : ""}>
         <h2 tabindex="-1">${t("สร้างบัญชีของคุณ")}</h2><p>${t(supabaseConfigured ? "สมัครแล้วตรวจอีเมลเพื่อยืนยันบัญชี" : "สมัครเสร็จแล้วไปกรอกที่อยู่สำหรับเดโม")}</p>${google}
@@ -707,6 +708,14 @@ function renderPhoneMockup(initialStep = 1, isModal = true) {
         <small>${t("ขั้นตอนที่ 2 จาก 2")}</small><h2 tabindex="-1">${t("กรอกที่อยู่")}</h2><p>${t(supabaseConfigured ? "ที่อยู่ส่วนนี้เห็นได้เฉพาะคุณ" : "ใช้ข้อมูลตัวอย่างเท่านั้น ข้อมูลบันทึกในเบราว์เซอร์นี้")}</p>
         <form id="mockup-address-form" class="auth-form" novalidate><div class="form-grid">${addressFields.map(([id, label, required]) => `<label>${t(label)}<input id="mockup-${id}" ${required ? "required" : ""} ${id === "phone" ? 'type="tel" maxlength="12" pattern="[0-9 -]{9,12}" autocomplete="tel"' : id === "postal-code" ? 'inputmode="numeric" pattern="[0-9]{5}" maxlength="5" autocomplete="postal-code"' : 'maxlength="100"'}/></label>`).join("")}</div>${supabaseConfigured ? "" : `<label>${t("เลขบัตรประชาชน (ไม่บังคับ ใช้ข้อมูลจำลองเท่านั้น)")}<input id="mockup-id-card" maxlength="17" inputmode="numeric" autocomplete="off"/></label>`}<button class="button primary full" type="submit">${t("ยืนยันข้อมูล")}</button><button class="button subtle full" type="button" data-action="mockup-step" data-step="2">${t("กลับไปแก้ข้อมูลบัญชี")}</button></form>
 
+      </section>
+      <section class="mockup-screen ${step === 4 ? "active" : ""}" ${step !== 4 ? "hidden" : ""}>
+        <h2 tabindex="-1">${t("ตั้งรหัสผ่านใหม่")}</h2><p>${t("ตั้งรหัสผ่านเพื่อเข้าใช้ด้วยอีเมลได้ โดยบัญชี Google เดิมยังใช้ได้")}</p>
+        <form id="mockup-reset-password-form" class="auth-form" novalidate>
+          ${input("mockup-reset-password", t("รหัสผ่านใหม่"), "password", 'autocomplete="new-password" minlength="8"')}
+          ${input("mockup-reset-password-confirm", t("ยืนยันรหัสผ่านใหม่"), "password", 'autocomplete="new-password" minlength="8"')}
+          <button class="button primary full" type="submit">${t("บันทึกรหัสผ่านใหม่")}</button>
+        </form><p class="auth-switch-prompt"><button type="button" data-action="mockup-step" data-step="1">${t("กลับไปเข้าสู่ระบบ")}</button></p>
       </section>
       <footer class="auth-demo-note"><span>${t(supabaseConfigured ? "รหัสผ่านจัดการโดย Supabase Auth" : "เดโมเท่านั้น ไม่เก็บรหัสผ่าน ไม่เชื่อม Google หรือฐานข้อมูล")}</span>${supabaseConfigured ? "" : `<button type="button" data-action="mockup-autofill">${t("ข้อมูลตัวอย่าง")}</button>`}</footer>
     </div>
@@ -1616,15 +1625,16 @@ function groupPage(id) {
       : t("กำลังเปิดรับสมาชิก");
   const paymentReport = g.paymentReport;
   const hasCurrentPaymentReport = paymentReport && Number(paymentReport.revision) === Number(g.revision);
-  const earlyPaymentReportPanel = isMember && supabaseConfigured && approved && !adminApproved
+  const hasVisiblePaymentReport = hasCurrentPaymentReport && ["reported", "verified"].includes(paymentReport.status);
+  const earlyPaymentReportPanel = isMember && supabaseConfigured && approved && !adminApproved && !hasVisiblePaymentReport
     ? hasCurrentPaymentReport
       && paymentReport.status !== "rejected"
       ? `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${paymentReport.status === "verified" ? t("ตรวจยอดแล้ว") : t("แจ้งโอนแล้ว รอแอดมินตรวจยอด")}</h2><p>${paymentReport.status === "verified" ? t("แอดมินตรวจสอบยอดโอนของคุณแล้ว") : t("ระบบส่งรายการให้แอดมินตรวจสอบยอดเงินจริงแล้ว")}</p></div><div class="group-payment-reported"><strong>${money(paymentReport.amount_satang)}</strong><span>${paymentReport.status === "verified" ? t("ยืนยันรับเงินแล้ว") : t("กำลังรอตรวจสอบ")}</span></div></section>`
       : `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${t("โอนแล้วใช่ไหม?")}</h2><p>${t("ถ้าคุณโอนยอดส่วนนี้แล้ว แจ้งแอดมินให้ตรวจรายการเงินเข้าได้เลย")}</p></div><button class="button primary full" type="button" data-action="report-group-payment" data-id="${escape(id)}" data-revision="${Number(g.revision)}">${t("โอนแล้ว แจ้งแอดมินตรวจยอด")}</button></section>`
     : "";
   const groupPaymentSection = isMember && supabaseConfigured && full && allApproved(g) && Number(alloc[me]) > 0
-    ? hasCurrentPaymentReport && (paymentReport.status === "reported" || paymentReport.status === "verified")
-      ? `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${paymentReport.status === "verified" ? t("ตรวจยอดแล้ว") : t("แจ้งโอนแล้ว รอแอดมินตรวจยอด")}</h2><p>${paymentReport.status === "reported" ? t("ระบบส่งรายการให้แอดมินตรวจสอบยอดเงินจริงแล้ว") : t("แอดมินตรวจสอบยอดโอนของคุณแล้ว")}</p></div><div class="group-payment-reported"><strong>${money(paymentReport.amount_satang)}</strong><span>${paymentReport.status === "verified" ? t("ยืนยันรับเงินแล้ว") : t("กำลังรอตรวจสอบ")}</span></div></section>`
+    ? hasVisiblePaymentReport
+      ? ""
       : `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${t("โอนเงินเข้าบัญชี")}</h2><p>${t("สแกน QR บัญชีธนาคาร แล้วกดแจ้งโอนหลังโอนเงินจริง เพื่อให้แอดมินตรวจยอด")}</p></div><div class="group-payment-transfer"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><small>${t("ชื่อบัญชีรับโอน")}</small><strong>${BANK_PAYMENT_RECIPIENT}</strong><small>${t("ยอดที่ต้องโอน")}</small><b>${money(alloc[me])}</b>${paymentReport?.status === "rejected" && paymentReport.rejection_note ? `<p class="group-payment-rejection">${escape(paymentReport.rejection_note)}</p>` : ""}<button class="button primary full" type="button" data-action="report-group-payment" data-id="${escape(id)}" data-revision="${Number(g.revision)}">${t("โอนแล้ว แจ้งแอดมินตรวจยอด")}</button></div></div></section>`
     : "";
   const actions = `
@@ -1640,6 +1650,10 @@ function groupPage(id) {
     ${isMember && !supabaseConfigured ? a(`/orders/${id}`, `<span class="summary-btn-left">${icon("calc", 19)} <span>${t("ดูสรุปคำสั่งซื้อเดโม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button subtle full summary-action-btn") : ""}
     ${isMember && supabaseConfigured && !full ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("เมื่อสมาชิกครบและยืนยันยอดทุกคนแล้ว ระบบจะแสดง QR โอนเงินและปุ่มแจ้งโอน")}</span></div>` : ""}
   `;
+  const summaryCard = `<div class="summary-card"><small>${isMember ? t("ยอดที่คุณต้องยืนยัน") : full || locked ? t("ประมาณต่อคนปัจจุบัน") : t("ยอดประมาณเมื่อเข้าร่วม")}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full ? `<div class="summary-future-price"><span>${t("เมื่อครบ {count} คน", { count: g.capacity })}</span><b>${money(fullEstimate)} <small>${t("/คน")}</small></b></div>` : ""}<p>${isMember ? t("ยอดรอบที่ {revision}", { revision: g.revision }) + (approved ? adminApproved ? t(" · คุณยืนยันแล้ว") : t(" · รอแอดมินยืนยันยอด") : t(" · กรุณาตรวจสอบก่อนยืนยัน")) : full || locked ? t("กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่") : t("ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง")}</p>${actions}${!full ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน")}</span></p>` : !allApproved(g) && !approved ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${g.members.length === g.capacity && g.members.every((memberId) => g.approvals[memberId] === g.revision) ? t("รอแอดมินตรวจยอดรอบล่าสุด") : t("รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด")}</span></p>` : ""}</div>`;
+  const paymentOrProductDetails = hasVisiblePaymentReport
+    ? `<section class="group-payment-panel group-payment-status-card" aria-labelledby="payment-status-heading"><span class="chip">${t("ชำระเงิน")}</span><h2 id="payment-status-heading">${paymentReport.status === "verified" ? t("ตรวจยอดแล้ว") : t("แจ้งโอนแล้ว รอแอดมินตรวจยอด")}</h2><p>${paymentReport.status === "verified" ? t("แอดมินตรวจสอบยอดโอนของคุณแล้ว") : t("ระบบส่งรายการให้แอดมินตรวจสอบยอดเงินจริงแล้ว")}</p><strong>${money(paymentReport.amount_satang)}</strong><span>${paymentReport.status === "verified" ? t("ยืนยันรับเงินแล้ว") : t("กำลังรอตรวจสอบ")}</span></section>`
+    : `<section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t("รายละเอียดสินค้า")}</h2><p>${escape(g.name)}</p><p>${groupCategories.map((category) => escape(t(category))).join(" · ")}</p><small>${supabaseConfigured ? t("แชตกับผู้ขายยังเป็นเดโมในเครื่องนี้") : t("ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง")}</small></section>`;
   return `<div class="group-page">
     <nav class="breadcrumb product-breadcrumb" aria-label="${t("เส้นทางนำทาง")}">
       ${a("/explore", t("สำรวจ"))}<span aria-hidden="true">/</span>
@@ -1675,8 +1689,8 @@ function groupPage(id) {
           )
           .join("")}</details>
       </main>
-      <aside class="group-detail-aside"><div class="summary-card sticky"><small>${isMember ? t("ยอดที่คุณต้องยืนยัน") : full || locked ? t("ประมาณต่อคนปัจจุบัน") : t("ยอดประมาณเมื่อเข้าร่วม")}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full ? `<div class="summary-future-price"><span>${t("เมื่อครบ {count} คน", { count: g.capacity })}</span><b>${money(fullEstimate)} <small>${t("/คน")}</small></b></div>` : ""}<p>${isMember ? t("ยอดรอบที่ {revision}", { revision: g.revision }) + (approved ? adminApproved ? t(" · คุณยืนยันแล้ว") : t(" · รอแอดมินยืนยันยอด") : t(" · กรุณาตรวจสอบก่อนยืนยัน")) : full || locked ? t("กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่") : t("ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง")}</p>${isMember && hasCurrentPaymentReport && paymentReport.status === "verified" ? `<div class="success-line">${icon("check", 18)} ${t("แอดมินยืนยันรับเงินแล้ว")} · ${money(paymentReport.amount_satang)}</div>` : isMember && hasCurrentPaymentReport && paymentReport.status === "reported" ? `<div class="warning summary-warning"><span class="warning-icon">${icon("clock", 18)}</span><span>${t("แจ้งโอนแล้ว รอแอดมินตรวจยอด")}</span></div>` : ""}${actions}${!full ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน")}</span></p>` : !allApproved(g) && !approved ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${g.members.length === g.capacity && g.members.every((memberId) => g.approvals[memberId] === g.revision) ? t("รอแอดมินตรวจยอดรอบล่าสุด") : t("รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด")}</span></p>` : ""}</div>
-      <section class="group-product-details" aria-labelledby="product-details-heading"><h2 id="product-details-heading">${t("รายละเอียดสินค้า")}</h2><p>${escape(g.name)}</p><p>${groupCategories.map((category) => escape(t(category))).join(" · ")}</p><small>${supabaseConfigured ? t("แชตกับผู้ขายยังเป็นเดโมในเครื่องนี้") : t("ยอดที่เห็นเป็นตัวอย่างจากข้อมูลจำลอง กรุณาตกลงรายละเอียดกับผู้ขายก่อนสั่งซื้อจริง")}</small></section>
+      <aside class="group-detail-aside">${summaryCard}
+      ${paymentOrProductDetails}
       </aside>
     </div>
   </div>`;
@@ -4377,6 +4391,19 @@ document.addEventListener("click", async (e) => {
       closeAuthModal();
     } else if (action === "mockup-step") {
       setMockupStep(Number(btn.dataset.step), btn);
+    } else if (action === "request-password-reset") {
+      const emailEl = document.getElementById("mockup-login-email");
+      const email = String(emailEl?.value || "").trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setFieldError(emailEl, t("กรุณากรอกอีเมลให้ถูกต้องก่อนขอรีเซ็ตรหัสผ่าน"));
+        emailEl?.focus();
+        return;
+      }
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: location.origin,
+      });
+      if (error) throw error;
+      alertMessage(t("หากอีเมลนี้มีบัญชีอยู่ ระบบส่งลิงก์ตั้งรหัสผ่านแล้ว กรุณาตรวจกล่องจดหมาย"));
     } else if (action === "mockup-autofill" && !supabaseConfigured) {
       fillMockupDemo();
     } else if (action === "mockup-social") {
@@ -5301,7 +5328,7 @@ document.addEventListener("submit", async (e) => {
   const f = e.target,
     actionSession = activeSupabaseSession;
   if (
-    ["mockup-login-form", "mockup-signup-form", "mockup-address-form"].includes(
+    ["mockup-login-form", "mockup-signup-form", "mockup-address-form", "mockup-reset-password-form"].includes(
       f.id,
     )
   ) {
@@ -5348,6 +5375,34 @@ document.addEventListener("submit", async (e) => {
             setMockupStep(3, f);
           }
         }
+      } else if (f.id === "mockup-reset-password-form") {
+        const passwordEl = document.getElementById("mockup-reset-password");
+        const confirmEl = document.getElementById("mockup-reset-password-confirm");
+        const password = String(passwordEl?.value || "");
+        const confirm = String(confirmEl?.value || "");
+        let firstError = null;
+        if (password.length < 8) {
+          setFieldError(passwordEl, t("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"));
+          firstError = passwordEl;
+        }
+        if (!confirm) {
+          setFieldError(confirmEl, t("กรุณายืนยันรหัสผ่านใหม่"));
+          firstError = firstError || confirmEl;
+        } else if (password !== confirm) {
+          setFieldError(confirmEl, t("รหัสผ่านไม่ตรงกัน"));
+          firstError = firstError || confirmEl;
+        }
+        if (firstError) {
+          firstError.focus();
+          return;
+        }
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
+        passwordRecoveryPending = false;
+        authModalActive = false;
+        mockupCurrentStep = 1;
+        await syncSupabaseSession(activeSupabaseSession);
+        alertMessage(t("ตั้งรหัสผ่านใหม่แล้ว ตอนนี้เข้าได้ทั้งอีเมลและ Google"));
       } else if (f.id === "mockup-signup-form") {
         const nameEl = document.getElementById("mockup-signup-name");
         const emailEl = document.getElementById("mockup-signup-email");
@@ -6251,6 +6306,13 @@ if (supabaseConfigured) {
       };
       groupsLoading = false;
       groupsError = null;
+      if (passwordRecoveryPending) {
+        passwordRecoveryPending = false;
+        authModalActive = true;
+        mockupCurrentStep = 4;
+        render();
+        return result.snapshot;
+      }
       if (result.user && !result.user.address) {
         tempSignupData = result.user;
         mockupCurrentStep = 3;
@@ -6333,6 +6395,7 @@ if (supabaseConfigured) {
       render();
   });
   supabase.auth.onAuthStateChange((event, session) => {
+    if (event === "PASSWORD_RECOVERY") passwordRecoveryPending = true;
     beginSupabaseSession(session);
     const sync = () => {
       if (activeSupabaseSession === session) void authSessionSync.sync(session);
