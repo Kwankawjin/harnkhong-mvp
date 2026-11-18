@@ -723,6 +723,12 @@ const labels = {
   " · คุณยืนยันแล้ว": " · You have approved",
   " · รอแอดมินยืนยันยอด": " · Waiting for admin approval",
   " · กรุณาตรวจสอบก่อนยืนยัน": " · Please review before approving",
+  "หลังโอนเงินจริงแล้ว กดปุ่มด้านล่างเพื่อแจ้งแอดมินตรวจยอด": "After transferring the money, press the button below to ask the admin to verify it.",
+  "โอนแล้ว แจ้งแอดมินตรวจยอด": "Transferred — notify admin to verify",
+  "โอนแล้วใช่ไหม?": "Have you transferred the money?",
+  "ถ้าคุณโอนยอดส่วนนี้แล้ว แจ้งแอดมินให้ตรวจรายการเงินเข้าได้เลย": "If you have transferred this share, notify the admin to check the incoming payment.",
+  "ยืนยันว่าโอนเงินจริงตามยอดรอบนี้แล้วใช่ไหม? รายการจะส่งให้แอดมินตรวจ": "Confirm that you transferred the amount for this revision? The report will be sent to the admin for review.",
+  "กรุณายืนยันยอดรอบปัจจุบันก่อนแจ้งโอน": "Approve the current amount before reporting a transfer.",
   "ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง":
     "Joining recalculates the total. Every member must approve again.",
   เข้าร่วมกลุ่ม: "Join group",

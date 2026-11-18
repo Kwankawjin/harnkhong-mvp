@@ -102,14 +102,16 @@ async function listPayments(client: any, limit = 200) {
   const [users, groupsResult] = await Promise.all([
     userIndex(client),
     groupIds.length
-      ? client.from("groups").select("id,name").in("id", groupIds)
+      ? client.from("groups").select("id,name,revision").in("id", groupIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (groupsResult.error) throw groupsResult.error;
-  const groups = new Map((groupsResult.data || []).map((group: any) => [group.id, group.name]));
+  const groups = new Map((groupsResult.data || []).map((group: any) => [group.id, group]));
   return (data || []).map((row: any) => ({
     ...row,
-    group_name: groups.get(row.group_id) || "กลุ่มที่ถูกลบ",
+    group_name: groups.get(row.group_id)?.name || "กลุ่มที่ถูกลบ",
+    current_revision: groups.get(row.group_id)?.revision ?? null,
+    stale_revision: groups.has(row.group_id) && Number(row.revision) !== Number(groups.get(row.group_id).revision),
     member_email: users.get(row.user_id)?.email || "",
     member_name: users.get(row.user_id)?.user_metadata?.display_name || users.get(row.user_id)?.email || "สมาชิก",
   }));
@@ -199,12 +201,16 @@ async function handleAction(req: Request, ctx: any) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(paymentId)) {
       return response(req, { error: "รหัสรายการชำระเงินไม่ถูกต้อง" }, 400);
     }
-    const { data, error } = await db.from("group_payment_reports")
-      .update({ status: "verified", verified_at: new Date().toISOString(), verified_by: admin.user.id, rejection_note: null })
-      .eq("id", paymentId).eq("status", "reported")
-      .select("id, status, amount_satang, verified_at").maybeSingle();
-    if (error) throw error;
-    if (!data) return response(req, { error: "รายการนี้ถูกตรวจแล้วหรือไม่พบรายการ" }, 409);
+    const { data, error } = await db.rpc("verify_group_payment_report", {
+      p_payment_id: paymentId,
+      p_verified_by: admin.user.id,
+    });
+    if (error) {
+      const status = error.code === "40001" || error.code === "23514" ? 409 : error.code === "P0002" ? 404 : 500;
+      return response(req, {
+        error: status === 409 ? "ยอดกลุ่มเปลี่ยนหลังสมาชิกแจ้งโอน หรือรายการนี้ถูกตรวจแล้ว" : status === 404 ? "ไม่พบรายการแจ้งโอน" : "ยืนยันรายการชำระเงินไม่สำเร็จ",
+      }, status);
+    }
     return response(req, { ok: true, payment: data });
   }
   if (action === "confirm-group-revision") {

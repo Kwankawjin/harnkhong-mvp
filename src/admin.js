@@ -44,9 +44,9 @@ function formatMoney(satang) {
   return satang == null ? "—" : `฿${(Number(satang) / 100).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function paymentStatus(status) {
-  const label = status === "reported" ? "รอตรวจสอบ" : status === "verified" ? "ยืนยันรับเงินแล้ว" : status === "rejected" ? "ยอดไม่ตรง" : status || "—";
-  const tone = status === "verified" ? "good" : status === "reported" ? "pending" : "bad";
+function paymentStatus(status, staleRevision = false) {
+  const label = staleRevision && status === "reported" ? "ยอดรอบเก่า · ต้องแจ้งใหม่" : status === "reported" ? "รอตรวจสอบ" : status === "verified" ? "ยืนยันรับเงินแล้ว" : status === "rejected" ? "ยอดไม่ตรง" : status || "—";
+  const tone = status === "verified" ? "good" : status === "reported" && !staleRevision ? "pending" : "bad";
   return `<span class="admin-status ${tone}">${escapeHtml(label)}</span>`;
 }
 
@@ -74,13 +74,13 @@ function groupApprovalRows(rows, emptyText = "ยังไม่มีสมา�
 }
 
 function paymentsContent(rows, groupRows = cachedAdminGroups) {
-  const rendered = rows.map((row) => `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>รอบยอด ${escapeHtml(row.revision)}</small></td><td><strong>${escapeHtml(row.member_name)}</strong><small>${escapeHtml(row.member_email)}</small></td><td>${formatMoney(row.amount_satang)}</td><td>${paymentStatus(row.status)}${row.rejection_note ? `<small>${escapeHtml(row.rejection_note)}</small>` : ""}</td><td>${formatDate(row.reported_at)}</td><td>${row.status === "reported" ? `<button type="button" class="admin-primary admin-payment-verify" data-admin-action="verify-group-payment" data-payment-id="${escapeHtml(row.id)}">ยืนยันหลังตรวจยอด</button>` : row.verified_at ? formatDate(row.verified_at) : "—"}</td></tr>`).join("");
+  const rendered = rows.map((row) => `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>รอบยอด ${escapeHtml(row.revision)}${row.stale_revision ? ` · รอบปัจจุบัน ${escapeHtml(row.current_revision)}` : ""}</small></td><td><strong>${escapeHtml(row.member_name)}</strong><small>${escapeHtml(row.member_email)}</small></td><td>${formatMoney(row.amount_satang)}</td><td>${paymentStatus(row.status, row.stale_revision)}${row.rejection_note ? `<small>${escapeHtml(row.rejection_note)}</small>` : row.stale_revision && row.status === "reported" ? "<small>กลุ่มเปลี่ยนยอดหลังแจ้งโอน</small>" : ""}</td><td>${formatDate(row.reported_at)}</td><td>${row.status === "reported" && !row.stale_revision ? `<button type="button" class="admin-primary admin-payment-verify" data-admin-action="verify-group-payment" data-payment-id="${escapeHtml(row.id)}">ยืนยันหลังตรวจยอด</button>` : row.stale_revision && row.status === "reported" ? "—" : row.verified_at ? formatDate(row.verified_at) : "—"}</td></tr>`).join("");
   const alerts = typeof Notification !== "undefined" && Notification.permission === "granted"
     ? "เปิดแจ้งเตือนบนอุปกรณ์นี้แล้ว"
     : "เปิดแจ้งเตือนเมื่อมีคนแจ้งโอน";
   const pending = groupRows.filter((row) => Number(row.approval_count || 0) > 0
     && Number(row.admin_approved_revision) !== Number(row.revision));
-  return `<section class="admin-panel admin-payment-approval-queue"><div class="admin-panel-heading"><div><h2>ยอดที่สมาชิกยืนยัน รอแอดมินตรวจ</h2><p>รายการนี้ขึ้นทันทีเมื่อสมาชิกกดยืนยันยอด แยกจากการแจ้งโอน</p></div><button type="button" class="admin-secondary" data-admin-action="reload">รีเฟรช</button></div>${groupApprovalRows(groupRows, "ยังไม่มีสมาชิกยืนยันยอด")}${pending.length ? "" : '<p class="admin-truth-note">เมื่อสมาชิกกดยืนยันยอด กลุ่มจะแสดงในรายการนี้</p>'}</section><section class="admin-panel"><div class="admin-panel-heading"><div><h2>รายการชำระเงินจริง</h2><p>ตรวจรายการเงินเข้าในบัญชีธนาคาร หลังสมาชิกแจ้งว่าโอนแล้ว</p></div><div class="admin-panel-actions"><button type="button" class="admin-secondary" data-admin-action="enable-payment-alerts">${alerts}</button></div></div>${table(["กลุ่ม / รอบยอด", "สมาชิก", "ยอดโอน", "สถานะ", "แจ้งเมื่อ", "ตรวจสอบ"], rendered, "ยังไม่มีรายการชำระเงิน")}${rows.length ? "" : '<p class="admin-truth-note">รายการจะแสดงหลังสมาชิกกดแจ้งว่าโอนแล้ว</p>'}</section>`;
+  return `<section class="admin-panel admin-payment-approval-queue"><div class="admin-panel-heading"><div><h2>ยอดที่สมาชิกยืนยัน รอแอดมินตรวจ</h2><p>คิวนี้แสดงการยืนยันยอดกลุ่ม ส่วนรายการตรวจเงินโอนอยู่ด้านล่าง</p></div><button type="button" class="admin-secondary" data-admin-action="reload">รีเฟรช</button></div>${groupApprovalRows(groupRows, "ยังไม่มีสมาชิกยืนยันยอด")}${pending.length ? "" : '<p class="admin-truth-note">เมื่อสมาชิกกดยืนยันยอด กลุ่มจะแสดงในรายการนี้</p>'}</section><section class="admin-panel"><div class="admin-panel-heading"><div><h2>รายการชำระเงินจริง</h2><p>สมาชิกกดแจ้งโอนแล้ว · ตรวจเงินเข้าก่อนยืนยันรับเงิน</p></div><div class="admin-panel-actions"><button type="button" class="admin-secondary" data-admin-action="enable-payment-alerts">${alerts}</button></div></div>${table(["กลุ่ม / รอบยอด", "สมาชิก", "ยอดโอน", "สถานะ", "แจ้งเมื่อ", "ตรวจสอบ"], rendered, "ยังไม่มีรายการชำระเงิน")}${rows.length ? "" : '<p class="admin-truth-note">รายการจะแสดงหลังสมาชิกแจ้งว่าโอนแล้ว</p>'}</section>`;
 }
 
 function categoriesForGroup(row) {

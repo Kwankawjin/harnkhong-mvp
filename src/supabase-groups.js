@@ -61,7 +61,14 @@ export async function loadSupabaseGroups(client = supabase) {
       ]);
       if (profileResult.error) throw profileResult.error;
       if (paymentResult.error) throw paymentResult.error;
-      for (const report of paymentResult.data || []) paymentReportsByGroup.set(report.group_id, report);
+      const currentRevisions = new Map(
+        bundles.map(({ group }) => [group.id, Number(group.revision)]),
+      );
+      for (const report of paymentResult.data || []) {
+        if (Number(report.revision) === currentRevisions.get(report.group_id)) {
+          paymentReportsByGroup.set(report.group_id, report);
+        }
+      }
       for (const profile of profileResult.data || []) {
         names[profile.id] = {
           ...names[profile.id],
