@@ -919,3 +919,69 @@ h3 {
   color: var(--hk-navy);
   font-weight: 600;
 }
+
+/* Promo code (/subscription) */
+.promo-section {
+  max-width: 760px;
+  margin: 32px auto 0;
+  padding: 24px;
+  background: var(--hk-paper);
+  border: 1px dashed var(--hk-sky-300);
+  border-radius: var(--hk-radius-card);
+}
+.promo-section h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: var(--hk-navy);
+  font-size: 1.15rem;
+}
+.promo-section h2 svg {
+  color: var(--hk-blue);
+}
+.promo-note {
+  margin: 0 0 12px;
+  color: var(--hk-muted);
+}
+.promo-form {
+  display: flex;
+  gap: 8px;
+}
+.promo-form input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--field-edge, var(--hk-sky-300));
+  border-radius: var(--hk-radius-control);
+  font: inherit;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.promo-success {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #15803d 10%, var(--hk-paper));
+  color: #14532d;
+  animation: hk-pop-in 420ms var(--hk-ease-spring) both;
+}
+.promo-success p {
+  margin: 4px 0 0;
+}
+@keyframes hk-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.summary-receipt-note {
+  margin: 6px 0 0;
+  color: var(--hk-muted);
+  font-size: 0.8rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .promo-success {
+    animation: none;
+  }
+}

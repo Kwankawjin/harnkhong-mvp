@@ -106,6 +106,9 @@ export function mapCycles(rows = [], ownerId) {
         payments: Object.fromEntries(
           shares.filter((share) => share.payment_status).map((share) => [share.user_id, share.payment_status]),
         ),
+        receipts: Object.fromEntries(
+          shares.filter((share) => share.received_at).map((share) => [share.user_id, share.received_at]),
+        ),
         rejections: Object.fromEntries(
           shares.filter((share) => share.rejection_note).map((share) => [share.user_id, share.rejection_note]),
         ),

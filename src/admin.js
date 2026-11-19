@@ -368,8 +368,16 @@ function billingContent(subscriptionRows, cycleRows) {
 function payoutsContent(rows) {
   const owed = rows.filter((row) => Number(row.owed_satang) > 0);
   const total = owed.reduce((sum, row) => sum + Number(row.owed_satang), 0);
-  const body = rows.map((row) => `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>${escapeHtml(row.payments)} รายการที่ตรวจแล้ว</small></td><td><strong>${escapeHtml(row.owner_name)}</strong><small>${escapeHtml(row.owner_email)}</small></td><td>${formatMoney(row.gross_satang)}</td><td>−${formatMoney(row.commission_satang)}</td><td>${formatMoney(row.paid_out_satang)}</td><td><strong>${formatMoney(row.owed_satang)}</strong></td><td>${Number(row.owed_satang) > 0 ? `<button type="button" class="admin-primary" data-admin-action="record-payout" data-group-id="${escapeHtml(row.group_id)}" data-group-name="${escapeHtml(row.group_name)}" data-amount="${escapeHtml(formatMoney(row.owed_satang))}">บันทึกว่าโอนแล้ว</button>` : '<span class="admin-status good">โอนครบแล้ว</span>'}</td></tr>`).join("");
-  return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>โอนให้เจ้าของกลุ่ม</h2><p>เงินที่สมาชิกโอนเข้าบัญชีแพลตฟอร์มและแอดมินตรวจแล้ว หักค่าคอม 2% ของแต่ละยอด ค้างโอนรวม ${formatMoney(total)}</p></div></div>${table(["กลุ่ม", "เจ้าของกลุ่ม", "สมาชิกโอนรวม", "ค่าคอม 2%", "โอนให้แล้ว", "ค้างโอน", ""], body, "ยังไม่มียอดที่ต้องโอนให้เจ้าของกลุ่ม")}</section>`;
+  const body = rows.map((row) => {
+    const owed = Number(row.owed_satang) > 0;
+    const held = Number(row.held_satang) > 0;
+    const actions = [
+      owed ? `<button type="button" class="admin-primary" data-admin-action="record-payout" data-group-id="${escapeHtml(row.group_id)}" data-group-name="${escapeHtml(row.group_name)}" data-amount="${escapeHtml(formatMoney(row.owed_satang))}">บันทึกว่าโอนแล้ว</button>` : "",
+      held ? `<button type="button" class="admin-danger" data-admin-action="release-payout" data-group-id="${escapeHtml(row.group_id)}" data-group-name="${escapeHtml(row.group_name)}" data-monthly="${row.billing_mode === "monthly" ? "1" : ""}">ปล่อยเงินก่อนยืนยันครบ</button>` : "",
+    ].filter(Boolean).join("") || '<span class="admin-status good">โอนครบแล้ว</span>';
+    return `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>${escapeHtml(row.payments)} รายการที่ตรวจแล้ว${row.billing_mode === "monthly" ? " · รายเดือน" : ""}</small></td><td><strong>${escapeHtml(row.owner_name)}</strong><small>${escapeHtml(row.owner_email)}${row.commission_waived_now ? " · โค้ดยกเว้นค่าคอม" : ""}</small></td><td>${formatMoney(row.gross_satang)}</td><td>−${formatMoney(row.commission_satang)}</td><td>${formatMoney(row.held_satang)}</td><td>${formatMoney(row.paid_out_satang)}</td><td><strong>${formatMoney(row.owed_satang)}</strong></td><td><div class="admin-row-actions">${actions}</div></td></tr>`;
+  }).join("");
+  return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>โอนให้เจ้าของกลุ่ม</h2><p>เงินในกองกลางโอนให้เจ้าของได้เมื่อสมาชิกที่จ่ายยืนยันรับสินค้าครบ หักค่าคอม 2% ของแต่ละยอด (ยกเว้นผู้ใช้โค้ดพิเศษ) ค้างโอนรวม ${formatMoney(total)}</p></div></div>${table(["กลุ่ม", "เจ้าของกลุ่ม", "สมาชิกโอนรวม", "ค่าคอม 2%", "รอยืนยันรับสินค้า", "โอนให้แล้ว", "พร้อมโอน", ""], body, "ยังไม่มียอดที่ต้องโอนให้เจ้าของกลุ่ม")}</section>`;
 }
 
 async function getSectionContent(section) {
@@ -378,7 +386,7 @@ async function getSectionContent(section) {
     if (error) {
       const message = String(error.message || "");
       throw new Error(error.code === "PGRST202" || message.includes("Could not find the function")
-        ? "ฐานข้อมูลยังไม่มีฟังก์ชันของหน้านี้ กรุณารัน migration 20261120120000_commission_from_owner_payout.sql"
+        ? "ฐานข้อมูลยังไม่มีฟังก์ชันของหน้านี้ กรุณารัน migration 20261120120000_commission_from_owner_payout.sql และ 20261120130000_escrow_receipts_and_promo.sql"
         : billingErrorMessage(error));
     }
     return payoutsContent(data || []);
@@ -663,6 +671,38 @@ document.addEventListener("click", async (event) => {
       feedback = "ปฏิเสธรายการแล้ว แจ้งเหตุผลให้สมาชิกทราบแล้ว";
     } catch (error) {
       feedback = error.message || "ปฏิเสธรายการไม่สำเร็จ";
+    } finally {
+      busy = false;
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+    }
+  } else if (action === "release-payout") {
+    if (busy) return;
+    let cycleNumber = null;
+    if (button.dataset.monthly) {
+      const answer = prompt("ปล่อยเงินของรอบที่เท่าไหร่? (ใส่ตัวเลขรอบ)", "1");
+      if (answer === null) return;
+      cycleNumber = Number(answer);
+      if (!Number.isSafeInteger(cycleNumber) || cycleNumber < 1) {
+        feedback = "เลขรอบไม่ถูกต้อง";
+        mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+        return;
+      }
+    }
+    const reason = prompt(`เหตุผลที่ปล่อยเงินให้เจ้าของกลุ่ม “${button.dataset.groupName}” ก่อนสมาชิกยืนยันรับสินค้าครบ`, "");
+    if (reason === null) return;
+    if (reason.trim().length < 3) {
+      feedback = "กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษร";
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+      return;
+    }
+    busy = true;
+    button.disabled = true;
+    try {
+      const { error } = await currentClient.rpc("admin_release_payout", { p_group: button.dataset.groupId, p_cycle_number: cycleNumber, p_reason: reason.trim() });
+      if (error) throw new Error(billingErrorMessage(error));
+      feedback = "ปล่อยเงินแล้ว ยอดย้ายไปอยู่ในช่องพร้อมโอน";
+    } catch (error) {
+      feedback = error.message || "ปล่อยเงินไม่สำเร็จ";
     } finally {
       busy = false;
       mountAdminPage({ supabase: currentClient, supabaseConfigured: true });

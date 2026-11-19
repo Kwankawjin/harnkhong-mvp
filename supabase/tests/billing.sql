@@ -136,9 +136,20 @@ begin
   reset role;
   perform public.verify_group_cycle_payment(m, 1, a, admin);
   assert (select status = 'paid' from public.group_cycles where id = c1), 'every member except the owner verified: cycle paid';
-  -- Payout: a paid 10475, the platform keeps 2% (210), the owner is owed 10265.
-  assert (select gross_satang = 10475 and commission_satang = 210 and net_satang = 10265 and owed_satang = 10265
-          from private.group_payout_summary(m)), 'the owner is owed the member payment minus 2%';
+  -- Escrow: a paid 10475; the platform keeps 2% (210); 10265 is held until a confirms receipt.
+  assert (select gross_satang = 10475 and commission_satang = 210 and held_satang = 10265 and owed_satang = 0
+          from private.group_payout_summary(m)), 'the money waits in escrow until receipt';
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  begin
+    perform public.confirm_cycle_receipt(m, 1);
+    raise exception 'the owner confirmed receipt';
+  exception when check_violation then null; end;
+  perform set_config('request.jwt.claim.sub', a::text, true);
+  perform public.confirm_cycle_receipt(m, 1);
+  reset role;
+  assert (select held_satang = 0 and owed_satang = 10265 from private.group_payout_summary(m)),
+    'every payer received: the owner is owed the payment minus 2%';
   perform set_config('request.jwt.claim.sub', owner::text, true);
   set local role authenticated;
   assert (public.my_group_payout(m)->>'net')::bigint = 10265, 'the owner sees what they will receive';
@@ -316,5 +327,91 @@ begin
   -- Checked as postgres, so row-level security cannot hide a row that still exists.
   assert not exists (select 1 from public.groups where id = g), 'the admin deleted a group that has payment reports';
   assert not exists (select 1 from public.group_payment_reports where group_id = g), 'its payment reports went with it';
+end $$;
+rollback;
+
+-- Launch promo: HARN-WITH-JINN waives the 2% for 2 months, 50 people at most, once each.
+begin;
+do $$
+declare
+  owner uuid := gen_random_uuid(); a uuid := gen_random_uuid(); admin uuid := gen_random_uuid();
+  g uuid; rev integer; slip text; v jsonb; n integer;
+  product jsonb := '{"type":"physical","title":"ของ 100 บาท","category":"ของใช้ทั่วไป"}';
+  form_details jsonb := jsonb_build_object('minimumMembers', 2, 'closesAt', (current_date + 7)::text);
+begin
+  insert into auth.users(id, aud, role, email)
+    select id, 'authenticated', 'authenticated', id::text || '@example.invalid' from unnest(array[owner, a, admin]) id;
+  insert into public.profiles(id, display_name) values (owner, 'Owner'), (a, 'A'), (admin, 'Admin')
+    on conflict (id) do update set display_name = excluded.display_name;
+
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  v := public.redeem_promo_code(' harn-with-jinn ');
+  assert (v->>'months')::int = 2, 'the code is case- and space-insensitive and gives 2 months';
+  assert (public.my_subscription()->>'feeWaiverUntil') is not null, 'my_subscription shows the waiver';
+  begin
+    perform public.redeem_promo_code('HARN-WITH-JINN');
+    raise exception 'redeemed twice';
+  exception when unique_violation then null; end;
+  begin
+    perform public.redeem_promo_code('NOPE');
+    raise exception 'accepted an unknown code';
+  exception when invalid_parameter_value then null; end;
+
+  -- One-time group 100 split 2: a pays 50, receipt confirmed, owner gets the full 50 (waived).
+  g := public.create_group_from_form(gen_random_uuid(), 'หาร 100', array['ของใช้ทั่วไป'], '[]'::jsonb, 'public', 2, 0, 10000, product, form_details);
+  perform set_config('request.jwt.claim.sub', a::text, true);
+  perform public.join_group(g, gen_random_uuid(), null);
+  select revision into rev from public.groups where id = g;
+  perform public.approve_group(g, rev, gen_random_uuid());
+  slip := a::text || '/' || g::text || '/' || rev::text || '/' || gen_random_uuid()::text || '.png';
+  insert into storage.objects(bucket_id, name, owner) values ('group-payment-slips', slip, a);
+  perform public.report_group_payment_with_slip(g, rev, slip, now());
+  reset role;
+  update public.group_payment_reports set status = 'verified', verified_at = now(), verified_by = admin where group_id = g;
+  assert (select commission_satang = 0 and held_satang = 5000 and owed_satang = 0 from private.group_payout_summary(g)),
+    'with the code, no 2% is kept, and the money is held until receipt';
+  perform set_config('request.jwt.claim.sub', a::text, true);
+  set local role authenticated;
+  perform public.confirm_group_receipt(g);
+  perform public.confirm_group_receipt(g);
+  reset role;
+  assert (select owed_satang = 5000 from private.group_payout_summary(g)), 'receipt confirmed: the owner is owed all 50.00';
+
+  -- Without a code the same payment would lose 1.00.
+  delete from public.promo_redemptions where user_id = owner;
+  assert (select commission_satang = 100 and owed_satang = 4900 from private.group_payout_summary(g)),
+    'no code: 50.00 in, 49.00 to the owner';
+
+  -- Admin release without every receipt.
+  delete from public.group_receipts where group_id = g;
+  assert (select owed_satang = 0 from private.group_payout_summary(g)), 'held again without the receipt';
+  perform set_config('request.jwt.claim.sub', admin::text, true);
+  perform set_config('request.jwt.claims', '{"app_metadata":{"role":"admin"}}', true);
+  set local role authenticated;
+  begin
+    perform public.admin_release_payout(g, null, 'x');
+    raise exception 'released without a reason';
+  exception when invalid_parameter_value then null; end;
+  perform public.admin_release_payout(g, null, 'สมาชิกยืนยันทางแชทแล้ว');
+  perform set_config('request.jwt.claims', '', true);
+  reset role;
+  assert (select owed_satang = 4900 from private.group_payout_summary(g)), 'an admin release pays the owner';
+
+  -- The code runs out after 50 people.
+  delete from public.promo_redemptions where code = 'HARN-WITH-JINN';
+  insert into auth.users(id, aud, role, email)
+    select gen_random_uuid(), 'authenticated', 'authenticated', 'promo' || i || '@example.invalid' from generate_series(1, 50) i;
+  insert into public.promo_redemptions(user_id, code, waiver_until)
+    select id, 'HARN-WITH-JINN', now() + interval '2 months' from auth.users where email like 'promo%@example.invalid';
+  perform set_config('request.jwt.claim.sub', a::text, true);
+  set local role authenticated;
+  begin
+    perform public.redeem_promo_code('HARN-WITH-JINN');
+    raise exception 'the 51st person got the code';
+  exception when check_violation then
+    if sqlerrm <> 'promo_sold_out' then raise; end if;
+  end;
+  reset role;
 end $$;
 rollback;

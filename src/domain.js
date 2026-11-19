@@ -80,9 +80,10 @@ export const OWNER_FEE_PERCENT = 2;
 export const SEAT_MODE = "seat_v3";
 export const platformCommission = (amount) => ownerFee(amount);
 /** What the owner receives for a set of member payments, each with its own 2% taken off. */
-export function ownerPayout(payments) {
+export function ownerPayout(payments, { waived = false } = {}) {
   const gross = payments.reduce((sum, amount) => sum + assertSatang(amount), 0);
-  const commission = payments.reduce((sum, amount) => sum + platformCommission(amount), 0);
+  // The launch promo (HARN-WITH-JINN) waives the commission for its holder.
+  const commission = waived ? 0 : payments.reduce((sum, amount) => sum + platformCommission(amount), 0);
   return { gross, commission, net: gross - commission };
 }
 export function ownerFee(subtotal) {

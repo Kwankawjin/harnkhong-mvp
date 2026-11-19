@@ -114,6 +114,30 @@ export function recordCyclePayment(group, userId, cycleNumber, status, amount) {
   return { ...group, cycles: [...group.cycles.slice(0, -1), next] };
 }
 
+/** A member whose payment was verified confirms they received the product or can use the app. */
+export function confirmCycleReceipt(group, userId, cycleNumber, now = new Date()) {
+  const cycle = group.cycles?.find((c) => c.number === cycleNumber);
+  if (!cycle) fail("noCycle", "ไม่พบรอบนี้");
+  if (userId === cycle.ownerId || cycle.payments[userId] !== "verified")
+    fail("paymentNotVerified", "ยืนยันรับสินค้าได้หลังแอดมินตรวจการชำระของคุณแล้ว");
+  const receipts = { ...(cycle.receipts || {}), [userId]: cycle.receipts?.[userId] || iso(now).toISOString() };
+  return { ...group, cycles: group.cycles.map((c) => (c.number === cycleNumber ? { ...c, receipts } : c)) };
+}
+/** Money of this cycle is released to the owner once every payer is verified and received. */
+export const cycleReleased = (cycle) =>
+  Boolean(cycle) && cyclePayers(cycle).every((id) => cycle.payments[id] === "verified" && cycle.receipts?.[id]);
+
+export const LAUNCH_PROMO = Object.freeze({ code: "HARN-WITH-JINN", months: 2, limit: 50 });
+/** Demo-mode redemption of the launch code; the database enforces the 50-person limit. */
+export function redeemPromo(existing, code, now = new Date()) {
+  if (String(code || "").trim().toUpperCase() !== LAUNCH_PROMO.code) fail("promoInvalid", "โค้ดไม่ถูกต้อง");
+  if (existing) fail("promoAlreadyUsed", "คุณใช้โค้ดนี้ไปแล้ว");
+  const at = iso(now).toISOString();
+  return { code: LAUNCH_PROMO.code, redeemedAt: at, waiverUntil: addMonths(at, LAUNCH_PROMO.months) };
+}
+export const commissionWaived = (promo, now = new Date()) =>
+  Boolean(promo?.waiverUntil) && promo.waiverUntil > iso(now).toISOString();
+
 /** Who transfers money this cycle: everyone in it except the owner. */
 export const cyclePayers = (cycle) => (cycle ? cycle.members.filter((id) => id !== cycle.ownerId) : []);
 
