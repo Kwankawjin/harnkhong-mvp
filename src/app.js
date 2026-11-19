@@ -1377,19 +1377,17 @@ function home() {
   return `
     <section class="hero home-hero">
       <div class="hero-text">
-        <span class="home-hero-kicker">${icon("users", 16)} ${t("หารของเป็นกลุ่ม")}</span>
         <h1><span class="sr-only" data-headline-accessible>${t("หาร")} ${currentHeadline}</span><span class="dynamic-headline headline-loop" aria-hidden="true" data-text-loop="${escape(JSON.stringify(headlines))}" data-static-text="${t("หาร")}"><span class="hero-headline-static">${t("หาร")}</span><span class="headline-rotator-slot"><span class="headline-rotator-measure">${widestHeadline}</span><span class="headline-rotator-window"><span class="headline-rotator-highlight"></span><span class="headline-rotator-current">${currentHeadline}</span><span class="headline-rotator-cursor"></span></span></span></span></h1>
         <p>${t("ชวนเพื่อนหารค่าสินค้าหรือแพ็กเกจ ดูส่วนแบ่งและค่าส่งของแต่ละคนก่อนยืนยัน")}</p>
         <form class="hero-search" id="search-form"><span>${icon("search", 20)}</span><input name="q" placeholder="${t("ค้นหาแอป, เสื้อผ้า, เครื่องสำอาง, อาหาร...")}" aria-label="${t("ค้นหาสินค้าหรือบริการ")}"/><button type="submit">${t("ค้นหา")}</button></form>
-        <div class="hero-quick-tags"><span>${t("ค้นหายอดนิยม:")}</span><button type="button" class="hero-tag" data-action="quick-search" data-category="แอปพลิเคชันและเว็บไซต์" data-query="แอปพลิเคชันและเว็บไซต์">${t("🌐 แอปพลิเคชันและเว็บไซต์")}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="เสื้อผ้าและแฟชั่น" data-query="เสื้อผ้าและแฟชั่น">${t("👗 เสื้อผ้าและแฟชั่น")}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="เครื่องสำอางและความงาม" data-query="เครื่องสำอางและความงาม">${t("💄 เครื่องสำอางและความงาม")}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="อาหารและเครื่องดื่ม" data-query="อาหารและเครื่องดื่ม">${t("🍱 อาหารและเครื่องดื่ม")}</button></div>
+        <div class="hero-quick-tags"><span>${t("ค้นหายอดนิยม:")}</span><button type="button" class="hero-tag" data-action="quick-search" data-category="แอปพลิเคชันและเว็บไซต์" data-query="แอปพลิเคชันและเว็บไซต์">${t("แอปพลิเคชันและเว็บไซต์")}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="เสื้อผ้าและแฟชั่น" data-query="เสื้อผ้าและแฟชั่น">${t("เสื้อผ้าและแฟชั่น")}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="เครื่องสำอางและความงาม" data-query="เครื่องสำอางและความงาม">${t("เครื่องสำอางและความงาม")}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="อาหารและเครื่องดื่ม" data-query="อาหารและเครื่องดื่ม">${t("อาหารและเครื่องดื่ม")}</button></div>
         <div class="hero-points"><span>${icon("shield", 16)} ${t("ตรวจสอบยอดก่อนยืนยัน")}</span><span>${icon("calc", 16)} ${t("คำนวณเศษสตางค์เป๊ะ")}</span><span>${icon("users", 16)} ${t("มีกลุ่มพร้อมเข้าร่วม")}</span></div>
       </div>
       <div class="hero-visual" aria-hidden="true">
-        <div class="hero-halo"></div>
         <div class="hero-phone-showcase">
-          <div class="hero-float-card card-calc"><span class="float-calc-badge">➗ ${t("คำนวณเป๊ะ รวมค่าส่งและบริการ")}</span><div class="float-calc-formula"><strong>฿890 ÷ 5 คน</strong><span class="float-calc-eq">=</span><b class="float-calc-res">฿178.00<small>/คน</small></b></div></div>
+          <div class="hero-float-card card-calc"><span class="float-calc-badge">${icon("calc", 14)} ${t("คำนวณเป๊ะ รวมค่าส่งและบริการ")}</span><div class="float-calc-formula"><strong>฿890 ÷ 5 คน</strong><span class="float-calc-eq">=</span><b class="float-calc-res">฿178.00<small>/คน</small></b></div></div>
           <div class="hero-float-card card-notice"><span class="float-dot-live"></span><div class="float-notice-text"><strong>${t("สมาชิกครบ ทุกคนยืนยันยอด")}</strong><small>${t("ตรวจสอบยอดก่อนสั่งซื้อ")}</small></div><span class="float-notice-check">✓</span></div>
-          <div class="hero-float-card card-badge"><span class="float-sparkle">✨</span><b>${t("ทุกคนเห็นยอดก่อนยืนยัน")}</b></div>
+          <div class="hero-float-card card-badge"><span class="float-sparkle">${icon("sparkles", 14)}</span><b>${t("ทุกคนเห็นยอดก่อนยืนยัน")}</b></div>
           <div class="hero-phone-frame">
             <div class="hero-phone-island"><span class="hero-phone-lens"></span><span class="hero-phone-sensor"></span></div>
             <div class="hero-phone-screen">
@@ -1419,7 +1417,7 @@ function home() {
     <a class="home-promo-strip group" href="/groups/create"><span class="home-promo-icon">${icon("users", 42)}</span><span class="home-promo-copy"><strong>${t("เริ่มหารของกับเพื่อน")}</strong><small>${t("เปิดกลุ่มและแบ่งค่าใช้จ่ายกัน")}</small></span><span class="home-promo-art" aria-hidden="true">🛍️</span><span class="home-promo-button">${t("สร้างกลุ่มหารของ")} ${icon("arrow", 18)}</span></a>
 
     <section class="features-section home-restored-features">
-      <div class="features-header"><span class="features-kicker">${t("ทำไมต้องหารของ")}</span><h2>${t("หารของกับ HarnKhong")}</h2><p>${t("ดูส่วนแบ่งและค่าส่งของแต่ละคนก่อนตัดสินใจ")}</p></div>
+      <div class="features-header"><h2>${t("ทำไมต้องหารของ")}</h2><p>${t("ดูส่วนแบ่งและค่าส่งของแต่ละคนก่อนตัดสินใจ")}</p></div>
       <div class="features-grid">
         <div class="feature-card"><div class="feature-icon-box">${icon("calc", 26)}</div><h3>${t("แยกยอดเป็นรายคน")}</h3><p>${t("ระบบแสดงส่วนแบ่งสินค้าและค่าส่ง พร้อมจัดการเศษสตางค์ให้ยอดรวมตรงกัน")}</p></div>
         <div class="feature-card"><div class="feature-icon-box">${icon("shield", 26)}</div><h3>${t("ยืนยันยอดก่อนสั่ง")}</h3><p>${t("เมื่อจำนวนสมาชิกหรือค่าส่งเปลี่ยน ทุกคนต้องยืนยันยอดล่าสุด คำสั่งซื้อในตอนนี้เป็นเดโม")}</p></div>
