@@ -2,6 +2,9 @@ import { assertSatang } from "./domain.js";
 
 // Thai source text is the key for UI copy; stored/user-entered content is never translated.
 const labels = {
+  "ชำระรายเดือน": "Billed monthly",
+  "ไม่มีค่าใช้จ่าย": "Free of charge",
+  "แพ็กเกจปัจจุบัน": "Current plan",
   "ฐานข้อมูลยังไม่มีฟังก์ชันที่ใช้ กรุณารัน migration ล่าสุดของ Supabase": "The database is missing a function. Please run the latest Supabase migration.",
   "ยังไม่มีที่เก็บสลิปใน Supabase กรุณารัน migration ล่าสุด": "The slip storage bucket is missing. Please run the latest migration.",
   "ไม่มีสิทธิ์อัปโหลดสลิปของยอดรอบนี้ กรุณายืนยันยอดล่าสุดก่อนแล้วลองใหม่": "You cannot upload a slip for this amount yet. Confirm the latest amount and try again.",

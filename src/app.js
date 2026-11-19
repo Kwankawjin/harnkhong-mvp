@@ -2594,6 +2594,40 @@ function subscriptionSlipForm() {
   const localNow = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   return `<div class="group-payment-proof-fields"><label>${t("แนบสลิปโอนเงิน")}<input type="file" accept="image/jpeg,image/png,image/webp" data-payment-slip-input required/><small data-payment-slip-status>${t("ยังไม่ได้เลือกสลิป (ไม่เกิน 8 MB)")}</small></label><label>${t("วันที่และเวลาที่โอนจริง")}<input type="datetime-local" data-payment-transfer-time value="${localNow}" required/></label><button class="button primary full" type="button" data-action="report-subscription-payment" data-slip-submit disabled>${t("แนบสลิปแล้วแจ้งแอดมิน")}</button></div>`;
 }
+/** One plan card: name, a price that counts up, what is included, the action and a short note. */
+function pricingCard({ index, name, price, popular = false, tagline, features, current, action, note }) {
+  return `<article class="hk-plan ${popular ? "is-popular" : "is-side"} ${current ? "is-current" : ""}" style="--plan-index:${index}">
+    ${popular ? `<span class="hk-plan-badge">${icon("sparkles", 14)} ${t("ยอดนิยม")}</span>` : ""}
+    <p class="hk-plan-name">${escape(name)}</p>
+    <div class="hk-plan-price"><strong><span aria-hidden="true">฿</span><span data-count-to="${Number(price)}">${Number(price)}</span><span class="sr-only">${money(price * 100)}</span></strong><span>/ ${t("เดือน")}</span></div>
+    <p class="hk-plan-billing">${price ? t("ชำระรายเดือน") : t("ไม่มีค่าใช้จ่าย")}</p>
+    <p class="hk-plan-tagline">${escape(tagline)}</p>
+    <ul class="hk-plan-features">${features.map((feature) => `<li>${icon("check", 16)}<span>${escape(feature)}</span></li>`).join("")}</ul>
+    <hr/>
+    ${action}
+    <p class="hk-plan-note">${escape(note)}</p>
+    ${current ? `<span class="hk-plan-current">${t("แพ็กเกจปัจจุบัน")}</span>` : ""}
+  </article>`;
+}
+/** Prices count up from zero the first time the cards appear (skipped for reduced motion). */
+function animatePricing() {
+  const root = document.querySelector("[data-pricing]");
+  if (!root || root.dataset.animated) return;
+  root.dataset.animated = "1";
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  root.querySelectorAll("[data-count-to]").forEach((el) => {
+    const target = Number(el.dataset.countTo) || 0;
+    if (!target) return;
+    const start = performance.now(), duration = 700;
+    const step = (now) => {
+      const progress = Math.min(1, (now - start) / duration);
+      el.textContent = String(Math.round(target * (1 - Math.pow(1 - progress, 3))));
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    el.textContent = "0";
+    setTimeout(() => requestAnimationFrame(step), 350);
+  });
+}
 function subscriptionPage() {
   const current = subscriptionFor();
   const sub = mySubscription();
@@ -2625,9 +2659,34 @@ function subscriptionPage() {
         : `<strong>${escape(value)}</strong>`;
   return `<section class="subscription-page">
     <header class="subscription-hero"><div class="subscription-hero-copy"><span class="subscription-badge">${t("แพ็กเกจ")}</span><h1>${t("เลือกแพ็กเกจ")}</h1><p>${t("เริ่มด้วยแพ็กเกจฟรี หรือเลือกแพ็กเกจ Plus")}</p></div><div class="subscription-hero-art" aria-hidden="true"><span class="subscription-art-card"><i>●　━　 + ฿120</i><i>●　━　 - ฿65</i><i>●　━　 - ฿42</i></span><span class="subscription-art-coin">฿</span><span class="subscription-art-spark">✦</span></div></header>
-    <div class="subscription-plans">
-      <article class="subscription-plan ${current === "free" ? "is-current" : ""}"><div class="subscription-plan-top"><span class="subscription-kicker"></span><span class="subscription-plan-pill">${t("เหมาะสำหรับเริ่มต้น")}</span></div><h2>Free</h2><p>${t("ใช้งานแพ็กเกจหลักได้ฟรี")}</p><div class="subscription-price"><strong>฿0</strong><span>/${t("เดือน")}</span></div><button class="button outline full" disabled>${current === "free" ? t("ใช้งานแพ็กเกจนี้อยู่") : t("กลับเป็น Free เมื่อ Plus หมดอายุ")}</button><span class="subscription-plan-emoji free-emoji" aria-hidden="true">☺</span></article>
-      <article class="subscription-plan subscription-plan-plus ${current === "plus" ? "is-current" : ""}"><div class="subscription-plan-top"><span class="subscription-kicker"></span><span class="subscription-plan-pill plus-pill">♛ ${t("ยอดนิยม")}</span></div><h2>Plus</h2><p>${t("เครื่องมือเพิ่มเติมเพื่อจัดการกลุ่มได้มากขึ้น")}</p><div class="subscription-price"><strong>฿49</strong><span>/${t("เดือน")}</span></div>${!state.user ? a("/login", t("เข้าสู่ระบบเพื่อสมัคร Plus"), "button primary full") : pending ? `<button class="button primary full" disabled>${t("รอแอดมินตรวจสลิป")}</button>` : `<a class="button primary full" href="#plus-payment">${active ? t("ต่ออายุอีก 1 เดือน") : t("สมัคร Plus")} ${icon("arrow", 18)}</a>`}<small class="subscription-demo-note">${active ? t("ใช้งานถึง {date} (เหลือ {days} วัน)", { date: shortDate(endsAt), days: daysLeft }) : t("ชำระรายเดือนด้วยการโอนและแนบสลิป แอดมินตรวจแล้วเริ่มใช้งานทันที")}</small><span class="subscription-plan-emoji plus-emoji" aria-hidden="true">♛</span></article>
+    <div class="hk-pricing" data-pricing>
+      ${pricingCard({
+        index: 0,
+        name: "Free",
+        price: 0,
+        tagline: t("ใช้งานแพ็กเกจหลักได้ฟรี"),
+        features: features.filter(([, free]) => free !== false).map(([label, free]) => (free === true ? label : `${label} ${free}`)),
+        current: current === "free",
+        action: `<button class="button outline full" disabled>${current === "free" ? t("ใช้งานแพ็กเกจนี้อยู่") : t("กลับเป็น Free เมื่อ Plus หมดอายุ")}</button>`,
+        note: t("เหมาะสำหรับเริ่มต้น"),
+      })}
+      ${pricingCard({
+        index: 1,
+        name: "Plus",
+        price: 49,
+        popular: true,
+        tagline: t("เครื่องมือเพิ่มเติมเพื่อจัดการกลุ่มได้มากขึ้น"),
+        features: features.map(([label, , plus]) => (plus === true ? label : `${label} ${plus}`)),
+        current: current === "plus",
+        action: !state.user
+          ? a("/login", t("เข้าสู่ระบบเพื่อสมัคร Plus"), "button primary full")
+          : pending
+            ? `<button class="button primary full" disabled>${t("รอแอดมินตรวจสลิป")}</button>`
+            : `<a class="button primary full" href="#plus-payment">${active ? t("ต่ออายุอีก 1 เดือน") : t("สมัคร Plus")} ${icon("arrow", 18)}</a>`,
+        note: active
+          ? t("ใช้งานถึง {date} (เหลือ {days} วัน)", { date: shortDate(endsAt), days: daysLeft })
+          : t("ชำระรายเดือนด้วยการโอนและแนบสลิป แอดมินตรวจแล้วเริ่มใช้งานทันที"),
+      })}
     </div>
     ${state.user ? subscriptionStatusSection(sub, { current, pending, active, endsAt, daysLeft }) : ""}
     <section class="subscription-comparison"><h2>${t("เปรียบเทียบแพ็กเกจ")}</h2><div class="subscription-table-wrap"><table class="subscription-table"><thead><tr><th scope="col">${t("ฟีเจอร์")}</th><th scope="col">Free</th><th scope="col">Plus</th></tr></thead><tbody>${features.map(([label, free, plus]) => `<tr><th scope="row">${escape(label)}</th><td>${mark(free)}</td><td>${mark(plus)}</td></tr>`).join("")}</tbody></table></div></section>
@@ -3678,6 +3737,7 @@ function render() {
   initializeSecondhandCheckout();
   initializeSecondhandPendingCountdown();
   void initializeSecondhandPendingQr();
+  animatePricing();
 
   const footerMount = document.querySelector("#interactive-footer");
   if (footerMount) {
