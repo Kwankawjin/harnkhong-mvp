@@ -534,3 +534,10 @@ h3 {
     padding: 20px;
   }
 }
+
+/* Group facts (minimum members, closing date, delivery) read as separate items. */
+.group-created-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+}
