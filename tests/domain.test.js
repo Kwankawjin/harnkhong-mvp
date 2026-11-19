@@ -48,8 +48,10 @@ test("สร้างกลุ่มสาธารณะและเฉพา�
     assert.deepEqual(g.approvals, {});
     assert.equal(g.status, "awaiting_approval");
     assert.equal(g.history[0].revision, 1);
-    assert.deepEqual(shares(g), { a: 104 });
-    assert.equal(g.costs.mode, "per_member_v2");
+    // New groups price fixed seats; the owner covers empty seats and alone pays the 2% fee.
+    assert.deepEqual(shares(g), { a: 26 + 25 * 3 + 4 + 2 });
+    assert.equal(g.costs.mode, "seat_v3");
+    assert.equal(g.billing, "one_time");
     assert.equal(g.costs.service, undefined);
     assert.deepEqual(input, snapshot);
     g.costs.product = 5;

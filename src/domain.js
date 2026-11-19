@@ -29,6 +29,20 @@ export function parseBaht(value) {
 export function costBreakdown(costs, memberCount = 1) {
   const product = assertSatang(costs?.product),
     delivery = assertSatang(costs?.delivery);
+  if (costs?.mode === SEAT_MODE) {
+    if (!Number.isSafeInteger(memberCount) || memberCount < 1 || memberCount > 20)
+      fail("invalidMembers", "จำนวนที่นั่งไม่ถูกต้อง");
+    const deliveryTotal = assertSatang(delivery * memberCount);
+    const subtotal = assertSatang(product + deliveryTotal);
+    return {
+      product,
+      delivery: deliveryTotal,
+      deliveryPerMember: delivery,
+      service: ownerFee(subtotal),
+      serviceOwnerOnly: true,
+      total: assertSatang(subtotal + ownerFee(subtotal)),
+    };
+  }
   if (costs?.mode === "per_member_v2") {
     if (
       !Number.isSafeInteger(memberCount) ||
@@ -56,6 +70,49 @@ export function costBreakdown(costs, memberCount = 1) {
     total: assertSatang(product + delivery + service),
   };
 }
+/** Platform fee: 2% of the group's subtotal, rounded to the nearest satang, paid by the owner only. */
+export const OWNER_FEE_PERCENT = 2;
+export const SEAT_MODE = "seat_v3";
+export function ownerFee(subtotal) {
+  assertSatang(subtotal);
+  return assertSatang(Number((BigInt(subtotal) * BigInt(OWNER_FEE_PERCENT) + 50n) / 100n));
+}
+export const BILLING_MODES = Object.freeze(["one_time", "monthly"]);
+/**
+ * Fixed seat prices: the product cost is split over every seat (not over the people present),
+ * each seat adds its own delivery. Seat order is join order; the owner holds seat 0.
+ * Empty seats are covered by the owner, and the owner alone adds the 2% fee.
+ */
+export function seatShares(costs, capacity, members, ownerId) {
+  assertCapacityRange(capacity);
+  if (!Array.isArray(members) || !members.length || new Set(members).size !== members.length)
+    fail("invalidMembers", "ต้องมีสมาชิกอย่างน้อย 1 คนและไม่ซ้ำกัน");
+  if (members.length > capacity) fail("fullGroup", "สมาชิกเกินจำนวนที่นั่ง");
+  if (!members.includes(ownerId)) fail("ownerNotMember", "เจ้าของกลุ่มต้องอยู่ในกลุ่ม");
+  const product = assertSatang(costs?.product), delivery = assertSatang(costs?.delivery);
+  const seats = Array.from({ length: capacity }, (_, i) => `seat-${i}`);
+  const seatProduct = allocate(product, seats);
+  const ordered = [ownerId, ...members.filter((id) => id !== ownerId)];
+  const result = {};
+  ordered.forEach((id, index) => {
+    result[id] = seatProduct[`seat-${index}`] + delivery;
+  });
+  for (let index = ordered.length; index < capacity; index += 1)
+    result[ownerId] += seatProduct[`seat-${index}`] + delivery;
+  result[ownerId] += ownerFee(product + delivery * capacity);
+  return result;
+}
+function assertCapacityRange(capacity) {
+  if (!Number.isSafeInteger(capacity) || capacity < 2 || capacity > 20)
+    fail("invalidCapacity", "จำนวนที่นั่งไม่ถูกต้อง");
+  return capacity;
+}
+/** What a person would pay for one seat if they joined now (never includes the owner fee). */
+export function seatPrice(costs, capacity, seatIndex = capacity - 1) {
+  assertCapacityRange(capacity);
+  const seats = Array.from({ length: capacity }, (_, i) => `seat-${i}`);
+  return allocate(assertSatang(costs?.product), seats)[`seat-${Math.min(Math.max(seatIndex, 0), capacity - 1)}`] + assertSatang(costs?.delivery);
+}
 export const totalCost = (costs, memberCount = 1) =>
   costBreakdown(costs, memberCount).total;
 export function createGroup({
@@ -66,8 +123,11 @@ export function createGroup({
   visibility,
   capacity,
   costs,
+  billing = "one_time",
 }) {
   [id, listingId, ownerId].forEach(assertId);
+  if (!BILLING_MODES.includes(billing))
+    fail("invalidBilling", "กรุณาเลือกแบบรายเดือนหรือรอบเดียวจบ");
   if (typeof name !== "string" || !name.trim())
     fail("invalidName", "กรุณาตั้งชื่อกลุ่ม");
   if (!["public", "link"].includes(visibility))
@@ -76,10 +136,11 @@ export function createGroup({
   const nextCosts = {
     product: costs?.product,
     delivery: costs?.delivery,
-    mode: "per_member_v2",
+    mode: SEAT_MODE,
   };
   totalCost(nextCosts, capacity);
   return {
+    billing,
     id,
     listingId,
     name: name.trim(),
@@ -90,7 +151,8 @@ export function createGroup({
     members: [ownerId],
     revision: 1,
     approvals: {},
-    status: "awaiting_approval",
+    status: billing === "monthly" ? "gathering" : "awaiting_approval",
+    ...(billing === "monthly" ? { cycles: [] } : {}),
     history: [
       { revision: 1, reason: "สร้างกลุ่ม", at: new Date().toISOString() },
     ],
@@ -112,6 +174,8 @@ export function allocate(total, members) {
   );
 }
 export function shares(group) {
+  if (group.costs?.mode === SEAT_MODE)
+    return seatShares(group.costs, group.capacity, group.members, group.ownerId);
   const breakdown = costBreakdown(group.costs, group.members.length);
   const base = allocate(
     breakdown.total - (breakdown.deliveryPerMember ?? 0) * group.members.length,
@@ -159,6 +223,9 @@ export function joinGroup(group, userId) {
     fail("alreadyMember", "คุณเป็นสมาชิกกลุ่มนี้แล้ว");
   if (group.members.length >= group.capacity)
     fail("fullGroup", "กลุ่มนี้เต็มแล้ว");
+  if (group.billing === "monthly")
+    // Joining never touches the running cycle: the new member starts paying next cycle.
+    return { ...group, members: [...group.members, userId] };
   return revise(
     group,
     { members: [...group.members, userId] },
@@ -171,6 +238,9 @@ export function leaveGroup(group, userId) {
     fail("notMember", "คุณไม่ได้อยู่ในกลุ่มนี้");
   if (group.ownerId === userId)
     fail("ownerMustTransfer", "หัวหน้ากลุ่มต้องโอนสิทธิ์ก่อนออก");
+  if (group.billing === "monthly")
+    // Leaving keeps this cycle's locked amounts; the member is left out from the next cycle.
+    return { ...group, members: group.members.filter((id) => id !== userId) };
   return revise(
     group,
     { members: group.members.filter((id) => id !== userId) },
@@ -194,9 +264,11 @@ export function changeCosts(group, actorId, costs) {
   const nextCosts = {
     product: group.costs.product,
     delivery: costs?.delivery,
-    mode: "per_member_v2",
+    mode: group.costs.mode === SEAT_MODE ? SEAT_MODE : "per_member_v2",
   };
   totalCost(nextCosts, group.capacity);
+  if (group.billing === "monthly")
+    return { ...group, costs: nextCosts }; // applies from the next cycle; the running cycle is locked
   return revise(group, { costs: nextCosts }, "ค่าใช้จ่ายเปลี่ยน");
 }
 export function approve(group, userId, revision) {
