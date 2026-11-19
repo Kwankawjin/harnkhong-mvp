@@ -1,4 +1,5 @@
 import "./style.css";
+import "./theme.css";
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import DoodleCrewFooter from "../components/ui/doodle-crew-footer.tsx";
@@ -30,7 +31,24 @@ import {
   parseBaht,
   allApproved,
   transferOwner,
+  SEAT_MODE,
+  seatPrice,
 } from "./domain.js";
+import {
+  currentCycle,
+  startFirstCycle,
+  rollCycles,
+  confirmCycle,
+  recordCyclePayment,
+  waitsForNextCycle,
+  emptySubscription,
+  effectivePlan,
+  expireSubscription,
+  reportSubscriptionPayment,
+  verifySubscriptionPayment,
+  groupLimit,
+  PLUS_PRICE_SATANG,
+} from "./billing.js";
 import { messages, translate, formatSatang, bahtInput } from "./i18n.js";
 import {
   supabase,
@@ -63,6 +81,12 @@ import {
   transferSupabaseGroup,
   removeSupabaseGroupMember,
   getSupabaseInvite,
+  startSupabaseCycle,
+  syncSupabaseCycles,
+  confirmSupabaseCycle,
+  reportSupabaseCyclePayment,
+  loadSupabaseSubscription,
+  reportSupabaseSubscriptionPayment,
 } from "./supabase-groups.js";
 import {
   createOrder,
@@ -383,7 +407,7 @@ const restoredOrders = migrateOrders(state.orders, state.groups, [
 ]);
 const restoredGroups = lockOrderedGroups(state.groups, restoredOrders).map(
   (g) => {
-    if (g.orderId || g.costs?.mode === "per_member_v2") return g;
+    if (g.orderId || g.costs?.mode === "per_member_v2" || g.costs?.mode === SEAT_MODE) return g;
     return {
       ...g,
       costs: {
@@ -436,16 +460,17 @@ const name = (id) =>
     ? state.user.name
     : state.profiles?.[id]?.name || demoNames[id] || t("สมาชิกเดโม");
 const money = (n) => formatSatang(n, locale);
-const subscriptionKey = "harnkhong-subscription-v1";
+/** The member's Plus subscription: from Supabase, or the demo copy kept in local state. */
+function mySubscription(userId = state.user?.id) {
+  if (!userId) return null;
+  if (supabaseConfigured) return state.remoteSubscription || null;
+  return expireSubscription(state.subscriptions?.[userId] || emptySubscription(userId));
+}
+/** "plus" while a paid month is running, otherwise "free". */
 function subscriptionFor(userId = state.user?.id) {
-  try {
-    return (
-      JSON.parse(localStorage.getItem(subscriptionKey) || "{}")[userId] ||
-      "free"
-    );
-  } catch {
-    return "free";
-  }
+  const sub = mySubscription(userId);
+  if (!sub) return "free";
+  return supabaseConfigured ? sub.plan || "free" : effectivePlan(sub);
 }
 const escape = (s) =>
   String(s ?? "").replace(
@@ -1243,7 +1268,7 @@ function listingCard(p) {
           </div>
           <div class="price-split">
             <small>${g ? (g.members.includes(state.user?.id) ? t("ยอดปัจจุบันของคุณ") : t("ถ้าคุณเข้าร่วมตอนนี้")) : t("ประมาณเมื่อหาร 4 คน")}</small>
-            <strong>${money(g ? (g.members.includes(state.user?.id) ? shares(g)[state.user.id] : Math.ceil(totalCost(g.costs, Math.min(g.capacity, g.members.length + 1)) / Math.min(g.capacity, g.members.length + 1))) : Math.ceil(p.price / 4))}<small> ${t("/คน")}</small></strong>
+            <strong>${money(g ? (g.members.includes(state.user?.id) ? shares(g)[state.user.id] : joinEstimate(g)) : Math.ceil(p.price / 4))}<small> ${t("/คน")}</small></strong>
           </div>
         </div>
         ${
@@ -1278,10 +1303,13 @@ function groupCard(g) {
   const open = remaining > 0 && !g.orderId && g.status !== "cancelled";
   const isMember = g.members.includes(state.user?.id);
   const nowCount = g.members.length + (open && !isMember ? 1 : 0);
+  const seatMode = g.costs?.mode === SEAT_MODE;
   const now = isMember
     ? shares(g)[state.user.id]
-    : Math.ceil(totalCost(g.costs, nowCount) / nowCount);
-  const full = Math.ceil(totalCost(g.costs, g.capacity) / g.capacity);
+    : seatMode
+      ? joinEstimate(g)
+      : Math.ceil(totalCost(g.costs, nowCount) / nowCount);
+  const full = seatMode ? joinEstimate(g) : Math.ceil(totalCost(g.costs, g.capacity) / g.capacity);
   const destination = `/groups/${g.id}`;
   return `<article class="opportunity-card">
     <div class="opportunity-media">${a(destination, isLocalImage(g.images?.[0]) ? `<img src="${g.images[0]}" alt="${escape(g.name)}" loading="lazy"/>` : art({ ...p, category }), "opportunity-art-link")}</div>
@@ -1377,19 +1405,17 @@ function home() {
   return `
     <section class="hero home-hero">
       <div class="hero-text">
-        <span class="home-hero-kicker">${icon("users", 16)} ${t("หารของเป็นกลุ่ม")}</span>
         <h1><span class="sr-only" data-headline-accessible>${t("หาร")} ${currentHeadline}</span><span class="dynamic-headline headline-loop" aria-hidden="true" data-text-loop="${escape(JSON.stringify(headlines))}" data-static-text="${t("หาร")}"><span class="hero-headline-static">${t("หาร")}</span><span class="headline-rotator-slot"><span class="headline-rotator-measure">${widestHeadline}</span><span class="headline-rotator-window"><span class="headline-rotator-highlight"></span><span class="headline-rotator-current">${currentHeadline}</span><span class="headline-rotator-cursor"></span></span></span></span></h1>
         <p>${t("ชวนเพื่อนหารค่าสินค้าหรือแพ็กเกจ ดูส่วนแบ่งและค่าส่งของแต่ละคนก่อนยืนยัน")}</p>
         <form class="hero-search" id="search-form"><span>${icon("search", 20)}</span><input name="q" placeholder="${t("ค้นหาแอป, เสื้อผ้า, เครื่องสำอาง, อาหาร...")}" aria-label="${t("ค้นหาสินค้าหรือบริการ")}"/><button type="submit">${t("ค้นหา")}</button></form>
-        <div class="hero-quick-tags"><span>${t("ค้นหายอดนิยม:")}</span><button type="button" class="hero-tag" data-action="quick-search" data-category="แอปพลิเคชันและเว็บไซต์" data-query="แอปพลิเคชันและเว็บไซต์">${t("🌐 แอปพลิเคชันและเว็บไซต์")}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="เสื้อผ้าและแฟชั่น" data-query="เสื้อผ้าและแฟชั่น">${t("👗 เสื้อผ้าและแฟชั่น")}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="เครื่องสำอางและความงาม" data-query="เครื่องสำอางและความงาม">${t("💄 เครื่องสำอางและความงาม")}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="อาหารและเครื่องดื่ม" data-query="อาหารและเครื่องดื่ม">${t("🍱 อาหารและเครื่องดื่ม")}</button></div>
+        <div class="hero-quick-tags"><span>${t("ค้นหายอดนิยม:")}</span><button type="button" class="hero-tag" data-action="quick-search" data-category="แอปพลิเคชันและเว็บไซต์" data-query="แอปพลิเคชันและเว็บไซต์">${t("แอปพลิเคชันและเว็บไซต์")}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="เสื้อผ้าและแฟชั่น" data-query="เสื้อผ้าและแฟชั่น">${t("เสื้อผ้าและแฟชั่น")}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="เครื่องสำอางและความงาม" data-query="เครื่องสำอางและความงาม">${t("เครื่องสำอางและความงาม")}</button><button type="button" class="hero-tag" data-action="quick-search" data-category="อาหารและเครื่องดื่ม" data-query="อาหารและเครื่องดื่ม">${t("อาหารและเครื่องดื่ม")}</button></div>
         <div class="hero-points"><span>${icon("shield", 16)} ${t("ตรวจสอบยอดก่อนยืนยัน")}</span><span>${icon("calc", 16)} ${t("คำนวณเศษสตางค์เป๊ะ")}</span><span>${icon("users", 16)} ${t("มีกลุ่มพร้อมเข้าร่วม")}</span></div>
       </div>
       <div class="hero-visual" aria-hidden="true">
-        <div class="hero-halo"></div>
         <div class="hero-phone-showcase">
-          <div class="hero-float-card card-calc"><span class="float-calc-badge">➗ ${t("คำนวณเป๊ะ รวมค่าส่งและบริการ")}</span><div class="float-calc-formula"><strong>฿890 ÷ 5 คน</strong><span class="float-calc-eq">=</span><b class="float-calc-res">฿178.00<small>/คน</small></b></div></div>
+          <div class="hero-float-card card-calc"><span class="float-calc-badge">${icon("calc", 14)} ${t("คำนวณเป๊ะ รวมค่าส่งและบริการ")}</span><div class="float-calc-formula"><strong>฿890 ÷ 5 คน</strong><span class="float-calc-eq">=</span><b class="float-calc-res">฿178.00<small>/คน</small></b></div></div>
           <div class="hero-float-card card-notice"><span class="float-dot-live"></span><div class="float-notice-text"><strong>${t("สมาชิกครบ ทุกคนยืนยันยอด")}</strong><small>${t("ตรวจสอบยอดก่อนสั่งซื้อ")}</small></div><span class="float-notice-check">✓</span></div>
-          <div class="hero-float-card card-badge"><span class="float-sparkle">✨</span><b>${t("ทุกคนเห็นยอดก่อนยืนยัน")}</b></div>
+          <div class="hero-float-card card-badge"><span class="float-sparkle">${icon("sparkles", 14)}</span><b>${t("ทุกคนเห็นยอดก่อนยืนยัน")}</b></div>
           <div class="hero-phone-frame">
             <div class="hero-phone-island"><span class="hero-phone-lens"></span><span class="hero-phone-sensor"></span></div>
             <div class="hero-phone-screen">
@@ -1419,7 +1445,7 @@ function home() {
     <a class="home-promo-strip group" href="/groups/create"><span class="home-promo-icon">${icon("users", 42)}</span><span class="home-promo-copy"><strong>${t("เริ่มหารของกับเพื่อน")}</strong><small>${t("เปิดกลุ่มและแบ่งค่าใช้จ่ายกัน")}</small></span><span class="home-promo-art" aria-hidden="true">🛍️</span><span class="home-promo-button">${t("สร้างกลุ่มหารของ")} ${icon("arrow", 18)}</span></a>
 
     <section class="features-section home-restored-features">
-      <div class="features-header"><span class="features-kicker">${t("ทำไมต้องหารของ")}</span><h2>${t("หารของกับ HarnKhong")}</h2><p>${t("ดูส่วนแบ่งและค่าส่งของแต่ละคนก่อนตัดสินใจ")}</p></div>
+      <div class="features-header"><h2>${t("ทำไมต้องหารของ")}</h2><p>${t("ดูส่วนแบ่งและค่าส่งของแต่ละคนก่อนตัดสินใจ")}</p></div>
       <div class="features-grid">
         <div class="feature-card"><div class="feature-icon-box">${icon("calc", 26)}</div><h3>${t("แยกยอดเป็นรายคน")}</h3><p>${t("ระบบแสดงส่วนแบ่งสินค้าและค่าส่ง พร้อมจัดการเศษสตางค์ให้ยอดรวมตรงกัน")}</p></div>
         <div class="feature-card"><div class="feature-icon-box">${icon("shield", 26)}</div><h3>${t("ยืนยันยอดก่อนสั่ง")}</h3><p>${t("เมื่อจำนวนสมาชิกหรือค่าส่งเปลี่ยน ทุกคนต้องยืนยันยอดล่าสุด คำสั่งซื้อในตอนนี้เป็นเดโม")}</p></div>
@@ -1574,14 +1600,80 @@ function legacyProductRoute(id) {
   }
   return `<div class="empty"><h1>${t("ยังไม่มีกลุ่มสำหรับรายการนี้")}</h1><p>${t("เลือกกลุ่มที่เปิดรับอยู่จากหน้าสำรวจได้เลย")}</p>${a("/explore", t("สำรวจกลุ่ม"), "button primary")}</div>`;
 }
+/** What someone pays if they join now: a fixed seat for seat-priced groups, the old average otherwise. */
+function joinEstimate(g) {
+  if (g.costs?.mode === SEAT_MODE) return seatPrice(g.costs, g.capacity, Math.min(g.members.length, g.capacity - 1));
+  const count = Math.min(g.capacity, g.members.length + 1);
+  return Math.ceil(totalCost(g.costs, count) / count);
+}
 function paymentSlipForm(id, revision) {
   const localNow = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString().slice(0, 16);
-  return `<div class="group-payment-proof-fields"><label>${t("แนบสลิปโอนเงิน")}<input type="file" accept="image/jpeg,image/png,image/webp" data-payment-slip-input required/><small data-payment-slip-status>${t("ยังไม่ได้เลือกสลิป (ไม่เกิน 8 MB)")}</small></label><label>${t("วันที่และเวลาที่โอนจริง")}<input type="datetime-local" data-payment-transfer-time value="${localNow}" required/></label><button class="button primary full" type="button" data-action="report-group-payment" data-id="${escape(id)}" data-revision="${Number(revision)}" disabled>${t("แนบสลิปแล้วแจ้งแอดมิน")}</button></div>`;
+  return `<div class="group-payment-proof-fields"><label>${t("แนบสลิปโอนเงิน")}<input type="file" accept="image/jpeg,image/png,image/webp" data-payment-slip-input required/><small data-payment-slip-status>${t("ยังไม่ได้เลือกสลิป (ไม่เกิน 8 MB)")}</small></label><label>${t("วันที่และเวลาที่โอนจริง")}<input type="datetime-local" data-payment-transfer-time value="${localNow}" required/></label><button class="button primary full" type="button" data-action="report-group-payment" data-slip-submit data-id="${escape(id)}" data-revision="${Number(revision)}" disabled>${t("แนบสลิปแล้วแจ้งแอดมิน")}</button></div>`;
+}
+
+const cycleStatusLabel = {
+  awaiting_confirmation: "รอยืนยันยอดรอบนี้",
+  confirmed: "ยืนยันครบแล้ว รอชำระ",
+  paid: "ชำระครบแล้ว",
+  closed: "ปิดรอบแล้ว",
+};
+const cyclePaymentLabel = {
+  reported: "แจ้งโอนแล้ว รอแอดมินตรวจ",
+  verified: "ชำระแล้ว",
+  rejected: "สลิปไม่ผ่าน กรุณาแนบใหม่",
+};
+const shortDate = (value) =>
+  new Date(value).toLocaleDateString(locale === "en" ? "en-GB" : "th-TH", { day: "numeric", month: "short", year: "numeric" });
+
+function cycleSlipForm(id, cycleNumber) {
+  const localNow = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  return `<div class="group-payment-proof-fields"><label>${t("แนบสลิปโอนเงิน")}<input type="file" accept="image/jpeg,image/png,image/webp" data-payment-slip-input required/><small data-payment-slip-status>${t("ยังไม่ได้เลือกสลิป (ไม่เกิน 8 MB)")}</small></label><label>${t("วันที่และเวลาที่โอนจริง")}<input type="datetime-local" data-payment-transfer-time value="${localNow}" required/></label><button class="button primary full" type="button" data-action="report-cycle-payment" data-slip-submit data-id="${escape(id)}" data-cycle="${Number(cycleNumber)}" ${supabaseConfigured ? "disabled" : ""}>${supabaseConfigured ? t("แนบสลิปแล้วแจ้งแอดมิน") : t("แจ้งโอนแล้ว (เดโม)")}</button></div>`;
+}
+
+/** Summary card and cycle panel for a monthly group: one confirmation per month, amounts locked per cycle. */
+function monthlyGroupView(g, id, { isMember, isOwner, full, locked, estimate }) {
+  const me = state.user?.id;
+  const cycle = currentCycle(g);
+  const inCycle = Boolean(cycle && cycle.members.includes(me));
+  const confirmed = inCycle && Boolean(cycle.confirmations[me]);
+  const payment = inCycle ? cycle.payments[me] : null;
+  const waits = waitsForNextCycle(g, me);
+  const myAmount = inCycle ? cycle.amounts[me] : null;
+  const summary = `<div class="summary-card"><small>${inCycle ? t("ยอดของคุณเดือนนี้") : isMember ? t("ราคาต่อที่นั่งต่อเดือน") : t("ราคาต่อที่นั่งต่อเดือน")}</small><strong>${money(inCycle ? myAmount : estimate)}</strong><p>${cycle ? t("รอบที่ {number}: {start} ถึง {end}", { number: cycle.number, start: shortDate(cycle.start), end: shortDate(cycle.end) }) : t("จ่ายรายเดือน เริ่มนับเมื่อเจ้าของกลุ่มเริ่มรอบแรก")}</p>
+    <div class="summary-actions">
+      ${!isMember && !full && !locked ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
+      ${isOwner && !cycle ? `<button class="button primary full summary-action-btn" data-action="start-cycle" data-id="${escape(id)}"><span>${t("เริ่มรอบแรก")}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
+      ${inCycle && !confirmed && cycle.status !== "closed" ? `<button class="button primary full summary-action-btn" data-action="confirm-cycle" data-id="${escape(id)}" data-cycle="${cycle.number}"><span>${t("ยืนยันยอดเดือนนี้ {amount}", { amount: money(myAmount) })}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
+      ${confirmed ? `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันยอดรอบนี้แล้ว ยืนยันใหม่เมื่อขึ้นเดือนถัดไป")}</div>` : ""}
+      ${waits ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("คุณเข้าร่วมระหว่างรอบ เริ่มจ่ายรอบถัดไปวันที่ {date}", { date: shortDate(cycle.end) })}</span></div>` : ""}
+      ${isMember ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
+      ${isMember && !isOwner ? `<button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${escape(id)}"><span class="summary-btn-left">${icon("back", 19)} <span>${t("ออกจากกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
+      ${isOwner ? `<button class="button outline full summary-action-btn" data-action="edit-group" data-id="${escape(id)}"><span class="summary-btn-left">${icon("edit", 19)} <span>${t("แก้ไขกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
+      ${isOwner ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${escape(id)}"><span class="summary-btn-left">${icon("link", 18)} <span>${t("คัดลอกลิงก์เชิญ")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
+    </div></div>`;
+  const history = (g.cycles || []).slice(0, -1).reverse().slice(0, 6)
+    .map((c) => `<li><span>${t("รอบที่ {number}", { number: c.number })}</span><span>${shortDate(c.start)} – ${shortDate(c.end)}</span><b>${t(cycleStatusLabel[c.closedFrom] || "ปิดรอบแล้ว")}</b></li>`).join("");
+  const panel = !cycle
+    ? `<section class="group-payment-panel cycle-panel" aria-labelledby="cycle-heading"><span class="chip">${t("รอบรายเดือน")}</span><h2 id="cycle-heading">${t("ยังไม่เริ่มรอบแรก")}</h2><p>${isOwner ? t("กดเริ่มรอบแรกเมื่อพร้อม สมาชิกที่อยู่ในกลุ่มตอนนั้นจะอยู่ในรอบแรก ที่นั่งว่างเจ้าของกลุ่มจ่ายแทน") : t("เจ้าของกลุ่มจะเริ่มรอบแรกเมื่อพร้อม แล้วทุกคนยืนยันยอดเดือนละครั้ง")}</p></section>`
+    : `<section class="group-payment-panel cycle-panel" aria-labelledby="cycle-heading"><span class="chip">${t("รอบที่ {number}", { number: cycle.number })}</span><h2 id="cycle-heading">${t(cycleStatusLabel[cycle.status])}</h2><p>${t("{start} ถึง {end} ยอดของรอบนี้ล็อกแล้ว คนเข้าหรือออกระหว่างรอบไม่ทำให้ยอดเปลี่ยน", { start: shortDate(cycle.start), end: shortDate(cycle.end) })}</p>
+      <div class="cycle-progress"><span>${t("ยืนยันแล้ว {done} / {count} คน", { done: Object.keys(cycle.confirmations).length, count: cycle.members.length })}</span><span>${t("ชำระแล้ว {done} / {count} คน", { done: Object.values(cycle.payments).filter((v) => v === "verified").length, count: cycle.members.length })}</span></div>
+      ${confirmed ? payment === "verified" ? `<p class="success-line">${icon("check", 18)} ${t("ชำระแล้ว")} ${money(myAmount)}</p>` : payment === "reported" ? `<p class="summary-warning">${t(cyclePaymentLabel.reported)} ${money(myAmount)}</p>` : `<div class="cycle-pay"><h3>${payment === "rejected" ? t(cyclePaymentLabel.rejected) : t("โอนค่าเดือนนี้ {amount}", { amount: money(myAmount) })}</h3>${payment === "rejected" && cycle.rejections?.[me] ? `<p>${escape(cycle.rejections[me])}</p>` : ""}${paymentQr()}${cycleSlipForm(id, cycle.number)}</div>` : ""}
+      ${history ? `<details class="cycle-history"><summary>${t("รอบที่ผ่านมา")}</summary><ul>${history}</ul></details>` : ""}
+    </section>`;
+  return { summary, panel };
+}
+function paymentQr() {
+  return `<figure class="cycle-qr"><img src="/images/bank-payment-qr.webp" alt="${t("QR บัญชีรับชำระเงิน")}" width="180" height="180" loading="lazy"/><figcaption>${t("สแกนเพื่อโอน แล้วแนบสลิป")}</figcaption></figure>`;
 }
 
 function groupPage(id) {
-  const g = group(id);
+  let g = group(id);
+  if (g && !supabaseConfigured && g.billing === "monthly") {
+    // Demo mode rolls ended months on view, the way the database does on sync.
+    const rolled = rollCycles(g);
+    if (rolled !== g) updateGroup((g = rolled));
+  }
   if (!g) {
     if (
       supabaseConfigured &&
@@ -1605,7 +1697,9 @@ function groupPage(id) {
   const groupDetails = g.details || g;
   const groupCategory = g.category || p.category;
   const groupCategories = g.categories?.length ? g.categories : [groupCategory];
-  const costs = costBreakdown(g.costs, g.members.length);
+  const seatMode = g.costs?.mode === SEAT_MODE;
+  const monthly = g.billing === "monthly";
+  const costs = costBreakdown(g.costs, seatMode ? g.capacity : g.members.length);
   const sum = costs.total;
   const alloc = shares(g);
   const me = state.user?.id;
@@ -1617,10 +1711,15 @@ function groupPage(id) {
   const adminApproved = g.adminApprovedRevision === g.revision;
   const remaining = g.capacity - g.members.length;
   const estimateCount = g.members.length + (isMember || full ? 0 : 1);
-  const estimate = Math.ceil(totalCost(g.costs, estimateCount) / estimateCount);
-  const fullEstimate = Math.ceil(totalCost(g.costs, g.capacity) / g.capacity);
+  const estimate = seatMode ? joinEstimate(g) : Math.ceil(totalCost(g.costs, estimateCount) / estimateCount);
+  const fullEstimate = seatMode ? estimate : Math.ceil(totalCost(g.costs, g.capacity) / g.capacity);
   const allMembersApproved = full && g.members.every((memberId) => g.approvals[memberId] === g.revision);
-  const status = locked
+  const cycle = monthly ? currentCycle(g) : null;
+  const status = monthly
+    ? !cycle
+      ? t("รวบรวมสมาชิก ยังไม่เริ่มรอบแรก")
+      : t(cycleStatusLabel[cycle.status] || "รอยืนยันยอดรอบนี้")
+    : locked
     ? t("ปิดรับสมาชิก")
     : !full
       ? t("กำลังเปิดรับสมาชิก")
@@ -1682,8 +1781,18 @@ function groupPage(id) {
     ${isMember && !supabaseConfigured ? a(`/orders/${id}`, `<span class="summary-btn-left">${icon("calc", 19)} <span>${t("ดูสรุปคำสั่งซื้อเดโม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button subtle full summary-action-btn") : ""}
     ${isMember && supabaseConfigured && !full ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("ยืนยันยอดส่วนแบ่งก่อน เมื่อโอนเงินจริงแล้วแจ้งแอดมินตรวจได้ ส่วนสรุปคำสั่งซื้อรอสมาชิกครบ")}</span></div>` : ""}
   `;
+  if (monthly) {
+    const view = monthlyGroupView(g, id, { isMember, isOwner, full, locked, estimate });
+    return groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategories, status, full, remaining, isMember, isOwner, locked, costs, sum, seatMode, monthly,
+      summaryCard: view.summary, paymentSection: view.panel, paymentStatusCard: "", alloc, me, adminApproved });
+  }
   const summaryCard = `<div class="summary-card"><small>${isMember ? t("ยอดที่คุณต้องยืนยัน") : full || locked ? t("ประมาณต่อคนปัจจุบัน") : t("ยอดประมาณเมื่อเข้าร่วม")}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full ? `<div class="summary-future-price"><span>${t("เมื่อครบ {count} คน", { count: g.capacity })}</span><b>${money(fullEstimate)} <small>${t("/คน")}</small></b></div>` : ""}<p>${isMember ? t("ยอดรอบที่ {revision}", { revision: g.revision }) + (approved ? adminApproved ? t(" · คุณยืนยันแล้ว") : full && allMembersApproved ? t(" · รอแอดมินอนุมัติยอดกลุ่ม") : t(" · คุณยืนยันแล้ว รอสมาชิกครบ") : t(" · กรุณาตรวจสอบก่อนยืนยัน")) : full || locked ? t("กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่") : t("ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง")}</p>${actions}${!full ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน")}</span></p>` : !allApproved(g) && !approved ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${allMembersApproved ? t("รอแอดมินอนุมัติยอดกลุ่ม") : t("รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด")}</span></p>` : ""}</div>`;
   const paymentStatusCard = `<section class="group-payment-panel group-payment-status-card is-${paymentStatusState}" aria-labelledby="payment-status-heading"><span class="chip">${t("ชำระเงิน")}</span><h2 id="payment-status-heading">${t(paymentStatusCopy[0])}</h2><p>${escape(t(paymentStatusCopy[1]))}</p><strong>${money(paymentStatusAmount)}</strong><span>${t(paymentStatusCopy[2])}</span></section>`;
+  return groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategories, status, full, remaining, isMember, isOwner, locked, costs, sum, seatMode, monthly,
+    summaryCard, paymentSection: earlyPaymentReportPanel || groupPaymentSection, paymentStatusCard, alloc, me, adminApproved });
+}
+function groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategories, status, full, remaining, isMember, isOwner, locked, costs, sum, seatMode, monthly, summaryCard, paymentSection, paymentStatusCard, alloc, me, adminApproved }) {
+  const monthlyCycle = monthly ? currentCycle(g) : null;
   return `<div class="group-page">
     <nav class="breadcrumb product-breadcrumb" aria-label="${t("เส้นทางนำทาง")}">
       ${a("/explore", t("สำรวจ"))}<span aria-hidden="true">/</span>
@@ -1694,7 +1803,7 @@ function groupPage(id) {
         <section class="group-identity-card" aria-labelledby="group-title">
           <div class="group-heading-line"><div><h1 id="group-title">${escape(g.name)}</h1><p>${t("หมวดหมู่")}: ${groupCategories.map((category) => escape(t(category))).join(" · ")}</p></div><span class="group-state ${full ? "is-full" : "is-open"}">${status}</span></div>
           <div class="group-product-strip">
-            ${p.images?.[0] ? `<div class="group-product-art" role="img" aria-label="${escape(t(groupCategory))}"><img src="${escape(p.images[0])}" alt=""/></div>` : `<div class="group-product-art ${p.productDetails?.type === "digital" ? "is-digital" : ""}" role="img" aria-label="${escape(t(groupCategory))}">${art({ ...p, category: groupCategory })}</div>`}
+            ${p.images?.[0] || g.images?.[0] ? `<div class="group-product-art" role="img" aria-label="${escape(t(groupCategory))}"><img src="${escape(p.images?.[0] || g.images[0])}" alt=""/></div>` : `<div class="group-product-art ${p.productDetails?.type === "digital" ? "is-digital" : ""}" role="img" aria-label="${escape(t(groupCategory))}">${art({ ...p, category: groupCategory })}</div>`}
             <div class="group-product-copy"><span>${t("สินค้าในกลุ่ม")}</span><strong>${escape(p.title || g.name)}</strong><small>${escape(t(groupCategory))}${p.productDetails?.type === "digital" ? ` · ${escape(p.productDetails.platform || "")} ${escape(p.productDetails.serviceType || "")}` : ""}</small>${p.productDetails?.url ? `<a href="${escape(p.productDetails.url)}" target="_blank" rel="noopener noreferrer">${t("เปิดลิงก์สินค้า")}</a>` : ""}</div>
             <div class="group-product-price"><span>${t("ราคาสินค้า")}</span><strong>${money(p.price ?? g.costs.product)}</strong></div>
           </div>
@@ -1704,12 +1813,12 @@ function groupPage(id) {
         <section class="members-card group-members-card" aria-labelledby="members-heading">
           <div class="group-section-head"><div><h2 id="members-heading">${t("สมาชิก {count} / {capacity} คน", { count: g.members.length, capacity: g.capacity })}</h2><p>${status}</p></div><strong>${remaining ? t("ว่าง {count} ที่", { count: remaining }) : t("สมาชิกครบแล้ว")}</strong></div>
           <div class="progress" role="progressbar" aria-label="${t("ความคืบหน้า")}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${(g.members.length / g.capacity) * 100}%"></span></div>
-          <div class="group-member-list">${g.members.map((memberId) => { const memberName = name(memberId); const memberProfile = state.profiles?.[memberId] || {}; const memberAvatar = profileAvatarMarkup({ name: memberName, avatar: memberProfile.avatar || memberProfile.avatar_url || "" }); const profileHref = `/profile/member/${encodeURIComponent(memberId)}?group=${encodeURIComponent(id)}`; const memberApproved = g.approvals[memberId] === g.revision; return `<div class="group-member-row">${a(profileHref, `<span class="avatar small">${memberAvatar}</span><span class="group-member-name"><strong>${escape(memberName)}</strong>${memberId === g.ownerId && !memberName.includes("หัวหน้ากลุ่ม") ? `<small>${t("หัวหน้ากลุ่ม")}</small>` : ""}</span>`, "group-member-person")}<span class="member-approval ${memberApproved && adminApproved ? "approved" : ""}">${memberApproved ? adminApproved ? t("ยืนยันยอดกลุ่มแล้ว") : t("สมาชิกยืนยันแล้ว") : t("รอยืนยันยอด")}</span><b>${money(alloc[memberId])}</b>${isOwner && !locked && memberId !== me ? `<button class="button danger-soft" data-action="kick-member" data-id="${id}" data-member="${memberId}">${t("เตะออก")}</button>` : ""}</div>`; }).join("")}
+          <div class="group-member-list">${g.members.map((memberId) => { const memberName = name(memberId); const memberProfile = state.profiles?.[memberId] || {}; const memberAvatar = profileAvatarMarkup({ name: memberName, avatar: memberProfile.avatar || memberProfile.avatar_url || "" }); const profileHref = `/profile/member/${encodeURIComponent(memberId)}?group=${encodeURIComponent(id)}`; const memberApproved = monthlyCycle ? Boolean(monthlyCycle.confirmations[memberId]) : g.approvals[memberId] === g.revision; const inThisCycle = !monthlyCycle || monthlyCycle.members.includes(memberId); return `<div class="group-member-row">${a(profileHref, `<span class="avatar small">${memberAvatar}</span><span class="group-member-name"><strong>${escape(memberName)}</strong>${memberId === g.ownerId && !memberName.includes("หัวหน้ากลุ่ม") ? `<small>${t("หัวหน้ากลุ่ม")}</small>` : ""}</span>`, "group-member-person")}<span class="member-approval ${memberApproved && (adminApproved || monthlyCycle) ? "approved" : ""}">${monthlyCycle ? !inThisCycle ? t("เริ่มจ่ายรอบหน้า") : memberApproved ? t("ยืนยันรอบนี้แล้ว") : t("รอยืนยันรอบนี้") : memberApproved ? adminApproved ? t("ยืนยันยอดกลุ่มแล้ว") : t("สมาชิกยืนยันแล้ว") : t("รอยืนยันยอด")}</span><b>${monthlyCycle ? inThisCycle ? money(monthlyCycle.amounts[memberId]) : "–" : money(alloc[memberId])}</b>${isOwner && !locked && memberId !== me ? `<button class="button danger-soft" data-action="kick-member" data-id="${id}" data-member="${memberId}">${t("เตะออก")}</button>` : ""}</div>`; }).join("")}
             ${remaining ? `<div class="group-open-row"><span class="avatar small">${icon("plus", 18)}</span><div><strong>${t("ยังว่างอีก {count} ที่", { count: remaining })}</strong><small>${t("รอสมาชิกเข้าร่วม")}</small></div>${!isMember && !locked ? a(`/groups/${id}/join`, t("เข้าร่วมกลุ่ม"), "button outline") : ""}</div>` : ""}
           </div>
         </section>
-        <section class="cost-card group-cost-card" aria-labelledby="cost-heading"><h2 id="cost-heading">${t("ค่าใช้จ่ายรอบที่ {revision}", { revision: g.revision })}</h2><div><span>${t("ราคาสินค้า")}</span><b>${money(p.price ?? costs.product)}</b></div><div><span>${t("ค่าส่งรวม")}</span><b>${money(groupDetails.shippingTotal ?? costs.delivery)}</b></div><div><span>${t("ค่าธรรมเนียมแพลตฟอร์ม 2%")}</span><b>${money(costs.service)}</b></div><div class="total"><span>${t("รวมทั้งหมด")}</span><b>${money(sum)}</b></div><p>${t("หารตามจำนวนสมาชิกปัจจุบัน เศษสตางค์จัดสรรตามลำดับที่เข้ากลุ่ม")}</p></section>
-    ${earlyPaymentReportPanel || groupPaymentSection}
+        <section class="cost-card group-cost-card" aria-labelledby="cost-heading"><h2 id="cost-heading">${monthly ? t("ค่าใช้จ่ายต่อเดือน") : t("ค่าใช้จ่ายรอบที่ {revision}", { revision: g.revision })}</h2><div><span>${t("ราคาสินค้า")}</span><b>${money(p.price ?? costs.product)}</b></div><div><span>${t("ค่าส่งรวม")}</span><b>${money(groupDetails.shippingTotal ?? costs.delivery)}</b></div>${!seatMode || isOwner ? `<div><span>${seatMode ? t("ค่าธรรมเนียมแพลตฟอร์ม 2% (เจ้าของกลุ่มจ่าย)") : t("ค่าธรรมเนียมแพลตฟอร์ม 2%")}</span><b>${money(costs.service)}</b></div>` : ""}<div class="total"><span>${t("รวมทั้งหมด")}</span><b>${money(seatMode && !isOwner ? sum - costs.service : sum)}</b></div><p>${seatMode ? t("ราคาต่อที่นั่งคงที่ ผู้เข้าร่วมจ่ายเฉพาะราคาที่นั่งและไม่เสียค่าธรรมเนียม เจ้าของกลุ่มจ่ายค่าธรรมเนียม 2% และที่นั่งที่ยังว่าง") : t("หารตามจำนวนสมาชิกปัจจุบัน เศษสตางค์จัดสรรตามลำดับที่เข้ากลุ่ม")}</p></section>
+    ${paymentSection}
         <details class="group-history"><summary>${t("ประวัติการเปลี่ยนยอด")}</summary>${g.history
           .slice()
           .reverse()
@@ -1801,14 +1910,14 @@ function createPage() {
       <div class="create-step-actions"><span></span><button type="button" class="button primary" data-action="create-step" data-step="2">${t("ต่อไป: ตั้งค่ากลุ่ม")} ${icon("arrow",18)}</button></div>
     </section>
     <section class="create-step-panel" data-create-step-panel="2" ${createGroupStep===2?"":"hidden"}>
-      <div class="create-form-section"><h2>${icon("users",20)} ${t("ตั้งค่ากลุ่ม")}</h2><label>${t("ชื่อกลุ่ม")} <b>*</b><input name="name" maxlength="70" required placeholder="${t("เช่น หารค่าสมัครกับเพื่อน")}"/></label><div class="form-grid"><label>${t("สมาชิกขั้นต่ำ")} <b>*</b><input name="minimumMembers" type="number" min="2" max="6" value="3" required/></label><label>${t("สมาชิกสูงสุด")} <b>*</b><input name="capacity" type="number" min="2" max="6" value="4" required/></label></div><label>${t("วันปิดรับสมาชิก")} <b>*</b><input name="closesAt" type="date" min="${groupDateMin}" required/></label><fieldset class="visibility-picker"><legend>${t("การมองเห็นกลุ่ม")}</legend>${[["public","สาธารณะ"],["link","เฉพาะผู้มีลิงก์"],["private","ส่วนตัว"]].map(([value,label])=>`<label><input type="radio" name="visibilityMode" value="${value}" ${value==="public"?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><label>${t("หมายเหตุถึงสมาชิก")} <small>${t("ไม่บังคับ")}</small><textarea name="memberNote" maxlength="500" placeholder="${t("เช่น นัดโอนภายใน 2 วันหลังครบจำนวน")}"></textarea></label></div>
-      <div class="create-form-section"><h2>${icon("calc",20)} ${t("ค่าใช้จ่าย")}</h2><div class="form-grid"><label>${t("ราคาสินค้ารวม (บาท)")} <b>*</b><input name="product" type="number" inputmode="decimal" min="0.01" step="0.01" value="${bahtInput(selectedListing?.price || 0)}" required/></label><label id="shipping-total-wrap">${t("ค่าจัดส่งรวม (บาท)")}<input name="shippingTotal" type="number" inputmode="decimal" min="0" step="0.01" value="0.00"/></label></div><p class="create-fee-note">${t("ค่าธรรมเนียมแพลตฟอร์ม 2% คำนวณให้อัตโนมัติ")}</p><div class="preview-cost" id="create-preview"></div></div>
+      <div class="create-form-section"><h2>${icon("users",20)} ${t("ตั้งค่ากลุ่ม")}</h2><label>${t("ชื่อกลุ่ม")} <b>*</b><input name="name" maxlength="70" required placeholder="${t("เช่น หารค่าสมัครกับเพื่อน")}"/></label><div class="form-grid"><label>${t("สมาชิกขั้นต่ำ")} <b>*</b><input name="minimumMembers" type="number" min="2" max="6" value="3" required/></label><label>${t("สมาชิกสูงสุด")} <b>*</b><input name="capacity" type="number" min="2" max="6" value="4" required/></label></div><label>${t("วันปิดรับสมาชิก")} <b>*</b><input name="closesAt" type="date" min="${groupDateMin}" required/></label><fieldset class="visibility-picker"><legend>${t("การมองเห็นกลุ่ม")}</legend>${[["public","สาธารณะ"],["link","เฉพาะผู้มีลิงก์"],["private","ส่วนตัว"]].map(([value,label])=>`<label><input type="radio" name="visibilityMode" value="${value}" ${value==="public"?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><fieldset class="visibility-picker billing-picker"><legend>${t("รูปแบบการจ่าย")} <b>*</b></legend><label><input type="radio" name="billing" value="one_time" checked/><span>${t("รอบเดียวจบ")}</span></label><label><input type="radio" name="billing" value="monthly"/><span>${t("จ่ายรายเดือน")}</span></label><small>${t("รายเดือน: ยอดต่อที่นั่งคงที่ทุกเดือน ทุกคนยืนยันเดือนละครั้ง")}</small></fieldset><label>${t("หมายเหตุถึงสมาชิก")} <small>${t("ไม่บังคับ")}</small><textarea name="memberNote" maxlength="500" placeholder="${t("เช่น นัดโอนภายใน 2 วันหลังครบจำนวน")}"></textarea></label></div>
+      <div class="create-form-section"><h2>${icon("calc",20)} ${t("ค่าใช้จ่าย")}</h2><div class="form-grid"><label>${t("ราคาสินค้ารวม (บาท)")} <b>*</b><input name="product" type="number" inputmode="decimal" min="0.01" step="0.01" value="${bahtInput(selectedListing?.price || 0)}" required/></label><label id="shipping-total-wrap">${t("ค่าจัดส่งรวม (บาท)")}<input name="shippingTotal" type="number" inputmode="decimal" min="0" step="0.01" value="0.00"/></label></div><p class="create-fee-note">${t("ค่าธรรมเนียมแพลตฟอร์ม 2% ของยอดรวม เจ้าของกลุ่มเป็นผู้จ่าย ผู้เข้าร่วมไม่เสียค่าธรรมเนียม")}</p><div class="preview-cost" id="create-preview"></div></div>
       <section class="create-form-section" id="physical-delivery-section"><h2>${icon("truck",20)} ${t("การรับสินค้า")}</h2><fieldset class="delivery-picker">${[["ship_to_owner","จัดส่งรวมมาที่ผู้สร้างกลุ่ม แล้วนัดรับ"],["ship_separately","จัดส่งแยกให้สมาชิกแต่ละคน"],["pickup","นัดรับด้วยตนเอง"]].map(([value,label],i)=>`<label><input type="radio" name="deliveryMethod" value="${value}" ${i===0?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><label id="pickup-location-wrap" hidden>${t("สถานที่นัดรับ")} <b>*</b><input name="pickupLocation" maxlength="180" placeholder="${t("ระบุสถานที่นัดรับ")}"/></label></section>
       <section class="create-form-section digital-handoff" id="digital-handoff-section" hidden><h2>${icon("lock",20)} ${t("การส่งมอบสิทธิ์ดิจิทัล")}</h2><p>${t("ระบุวิธีส่งมอบหลังกลุ่มยืนยันยอด")}</p><textarea name="digitalHandoff" maxlength="500" placeholder="${t("เช่น ส่งคำเชิญทางอีเมลหลังชำระเงิน")}"></textarea></section>
       <div class="create-step-actions"><button type="button" class="button outline" data-action="create-step" data-step="1">${t("ย้อนกลับ")}</button><button type="button" class="button primary" data-action="create-step" data-step="3">${t("ตรวจสอบสรุป")} ${icon("arrow",18)}</button></div>
     </section>
     <section class="create-step-panel create-review-panel" data-create-step-panel="3" ${createGroupStep===3?"":"hidden"}><div class="create-form-section"><h2>${icon("check",20)} ${t("ตรวจสอบก่อนสร้างกลุ่ม")}</h2><p>${t("ตรวจดูข้อมูลสินค้า จำนวนสมาชิก และยอดต่อคนให้เรียบร้อย")}</p><div id="create-review-summary"></div><div class="info-box">${t("การสร้างกลุ่มยังไม่มีการเรียกเก็บเงิน ระบบจะแสดงยอดให้สมาชิกยืนยันก่อนดำเนินการ")}</div><p id="create-error" class="create-error" role="alert" hidden></p></div><div class="create-step-actions"><button type="button" class="button outline" data-action="create-step" data-step="2">${t("ย้อนกลับ")}</button><button class="button primary" type="submit">${t("สร้างกลุ่ม")}</button></div></section>
-  </form><aside class="create-group-summary" aria-live="polite"><div class="create-summary-heading"><h2>${t("สรุปกลุ่ม")}</h2>${icon("package",28)}</div><div class="create-summary-product"><div id="create-summary-image">${groupImages[0]?`<img src="${groupImages[0]}" alt=""/>`:icon("package",32)}</div><div><strong id="summary-product-title">${escape(selectedListing?.title || t("ชื่อสินค้า"))}</strong><small id="summary-product-category">${escape(t(selectedCategory))}</small></div></div><dl><div><dt>${t("ราคาสินค้า")}</dt><dd id="summary-product-price">—</dd></div><div id="summary-shipping-row"><dt>${t("ค่าจัดส่ง")}</dt><dd id="summary-shipping">—</dd></div><div><dt>${t("ค่าธรรมเนียม (2%)")}</dt><dd id="summary-fee">—</dd></div><div class="summary-per-person"><dt>${t("ประมาณต่อคน")}</dt><dd id="summary-per-person">—</dd></div><div><dt>${t("สมาชิก")}</dt><dd id="summary-members">—</dd></div><div><dt>${t("ปิดรับสมาชิก")}</dt><dd id="summary-deadline">—</dd></div><div><dt>${t("วิธีรับ")}</dt><dd id="summary-delivery">—</dd></div><div><dt>${t("การมองเห็น")}</dt><dd id="summary-visibility">—</dd></div></dl><p>${t("ยอดต่อคนเป็นประมาณการเมื่อสมาชิกครบ")}</p></aside></div>`;
+  </form><aside class="create-group-summary" aria-live="polite"><div class="create-summary-heading"><h2>${t("สรุปกลุ่ม")}</h2>${icon("package",28)}</div><div class="create-summary-product"><div id="create-summary-image">${groupImages[0]?`<img src="${groupImages[0]}" alt=""/>`:icon("package",32)}</div><div><strong id="summary-product-title">${escape(selectedListing?.title || t("ชื่อสินค้า"))}</strong><small id="summary-product-category">${escape(t(selectedCategory))}</small></div></div><dl><div><dt>${t("ราคาสินค้า")}</dt><dd id="summary-product-price">—</dd></div><div id="summary-shipping-row"><dt>${t("ค่าจัดส่ง")}</dt><dd id="summary-shipping">—</dd></div><div><dt>${t("ค่าธรรมเนียม 2% (คุณจ่าย)")}</dt><dd id="summary-fee">—</dd></div><div class="summary-per-person"><dt>${t("ประมาณต่อคน")}</dt><dd id="summary-per-person">—</dd></div><div><dt>${t("สมาชิก")}</dt><dd id="summary-members">—</dd></div><div><dt>${t("ปิดรับสมาชิก")}</dt><dd id="summary-deadline">—</dd></div><div><dt>${t("วิธีรับ")}</dt><dd id="summary-delivery">—</dd></div><div><dt>${t("การมองเห็น")}</dt><dd id="summary-visibility">—</dd></div></dl><p>${t("ยอดต่อคนเป็นประมาณการเมื่อสมาชิกครบ")}</p></aside></div>`;
 }
 function secondhandCheckoutPage(id) {
   if (!requireAuth(`/checkout/secondhand/${encodeURIComponent(id)}`))
@@ -2435,8 +2544,32 @@ function notifications() {
   );
   return `${title(t("การแจ้งเตือน"), t("เหตุการณ์ในกลุ่มและข้อความจำลองของคุณ"))}<div class="narrow">${notes.length ? notes.map((n) => `<button class="notification ${n.read ? "" : "unread"}" data-action="open-notice" data-id="${n.id}"><span class="notice-dot"></span><span><b>${escape(n.title)}</b><small>${escape(n.body)}</small></span>${icon("arrow", 18)}</button>`).join("") : `<div class="empty"><h2>${t("ยังไม่มีการแจ้งเตือน")}</h2><p>${t("เมื่อมีสมาชิกหรือยอดเปลี่ยน รายการจะปรากฏที่นี่")}</p>${a("/explore", t("สำรวจสินค้า"), "button secondary")}</div>`}</div>`;
 }
+function subscriptionStatusSection(sub, { current, pending, active, endsAt, daysLeft }) {
+  const payments = sub?.payments || [];
+  const label = { reported: "รอแอดมินตรวจ", verified: "ยืนยันแล้ว", rejected: "ไม่ผ่าน" };
+  const rejected = payments.find((p) => p.status === "rejected" && !payments.some((q) => q.status !== "rejected" && q.reportedAt > p.reportedAt));
+  return `<section class="subscription-status group-payment-panel" id="plus-payment" aria-labelledby="plus-status-heading">
+    <span class="chip">${current === "plus" ? "Plus" : "Free"}</span>
+    <h2 id="plus-status-heading">${active ? t("Plus ใช้งานอยู่") : pending ? t("รอแอดมินตรวจสลิป") : sub?.status === "expired" ? t("Plus หมดอายุแล้ว") : t("สมัคร Plus ฿49 ต่อเดือน")}</h2>
+    <p>${active ? t("รอบปัจจุบัน {start} ถึง {end} เหลือ {days} วัน ต่ออายุก่อนหมดได้ เดือนใหม่จะต่อจากวันสิ้นสุดเดิม", { start: shortDate(sub.periodStart), end: shortDate(endsAt), days: daysLeft }) : pending ? t("ได้รับสลิปแล้ว แอดมินตรวจแล้ว Plus จะเริ่มใช้งานทันที") : t("โอน ฿49 ตาม QR แล้วแนบสลิป แอดมินตรวจแล้วเริ่มนับ 1 เดือนจากวันที่ยืนยัน หมดอายุแล้วกลับเป็น Free อัตโนมัติ")}</p>
+    ${rejected && !pending ? `<p class="summary-warning">${t("สลิปก่อนหน้าไม่ผ่าน")}${rejected.note ? `: ${escape(rejected.note)}` : ""}</p>` : ""}
+    ${pending
+      ? !supabaseConfigured ? `<button class="button outline" data-action="demo-verify-subscription">${t("ยืนยันสลิป (แอดมินเดโม)")}</button>` : ""
+      : `<div class="cycle-pay"><strong class="plus-amount">${money(PLUS_PRICE_SATANG)}</strong>${paymentQr()}${subscriptionSlipForm()}</div>`}
+    ${payments.length ? `<details class="cycle-history"><summary>${t("ประวัติการชำระ")}</summary><ul>${payments.map((p) => `<li><span>${shortDate(p.reportedAt)}</span><span>${p.coversFrom ? `${shortDate(p.coversFrom)} – ${shortDate(p.coversTo)}` : "–"}</span><b>${t(label[p.status] || p.status)}</b></li>`).join("")}</ul></details>` : ""}
+  </section>`;
+}
+function subscriptionSlipForm() {
+  const localNow = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  return `<div class="group-payment-proof-fields"><label>${t("แนบสลิปโอนเงิน")}<input type="file" accept="image/jpeg,image/png,image/webp" data-payment-slip-input required/><small data-payment-slip-status>${t("ยังไม่ได้เลือกสลิป (ไม่เกิน 8 MB)")}</small></label><label>${t("วันที่และเวลาที่โอนจริง")}<input type="datetime-local" data-payment-transfer-time value="${localNow}" required/></label><button class="button primary full" type="button" data-action="report-subscription-payment" data-slip-submit disabled>${t("แนบสลิปแล้วแจ้งแอดมิน")}</button></div>`;
+}
 function subscriptionPage() {
   const current = subscriptionFor();
+  const sub = mySubscription();
+  const pending = sub?.status === "pending_payment" || (sub?.payments || []).some((p) => p.status === "reported");
+  const active = current === "plus";
+  const endsAt = sub?.periodEnd;
+  const daysLeft = active && endsAt ? Math.max(0, Math.ceil((new Date(endsAt) - Date.now()) / 86400000)) : 0;
   const features = [
     [t("ค้นหาและเข้าร่วมกลุ่ม"), true, true],
     [t("คำนวณยอดหาร"), true, true],
@@ -2462,9 +2595,10 @@ function subscriptionPage() {
   return `<section class="subscription-page">
     <header class="subscription-hero"><div class="subscription-hero-copy"><span class="subscription-badge">${t("แพ็กเกจ")}</span><h1>${t("เลือกแพ็กเกจ")}</h1><p>${t("เริ่มด้วยแพ็กเกจฟรี หรือเลือกแพ็กเกจ Plus")}</p></div><div class="subscription-hero-art" aria-hidden="true"><span class="subscription-art-card"><i>●　━　 + ฿120</i><i>●　━　 - ฿65</i><i>●　━　 - ฿42</i></span><span class="subscription-art-coin">฿</span><span class="subscription-art-spark">✦</span></div></header>
     <div class="subscription-plans">
-      <article class="subscription-plan ${current === "free" ? "is-current" : ""}"><div class="subscription-plan-top"><span class="subscription-kicker"></span><span class="subscription-plan-pill">${t("เหมาะสำหรับเริ่มต้น")}</span></div><h2>Free</h2><p>${t("ใช้งานแพ็กเกจหลักได้ฟรี")}</p><div class="subscription-price"><strong>฿0</strong><span>/${t("เดือน")}</span></div><button class="button outline full" ${current === "free" ? "disabled" : ""} data-action="choose-subscription" data-plan="free">${current === "free" ? t("ใช้งานแพ็กเกจนี้อยู่") : t("ใช้งานแพ็กเกจนี้ต่อไป")}</button><span class="subscription-plan-emoji free-emoji" aria-hidden="true">☺</span></article>
-      <article class="subscription-plan subscription-plan-plus ${current === "plus" ? "is-current" : ""}"><div class="subscription-plan-top"><span class="subscription-kicker"></span><span class="subscription-plan-pill plus-pill">♛ ${t("ยอดนิยม")}</span></div><h2>Plus</h2><p>${t("เครื่องมือเพิ่มเติมเพื่อจัดการกลุ่มได้มากขึ้น")}</p><div class="subscription-price"><strong>฿49</strong><span>/${t("เดือน")}</span></div><button class="button primary full" ${current === "plus" ? "disabled" : ""} data-action="choose-subscription" data-plan="plus">${current === "plus" ? t("ใช้งานแพ็กเกจนี้อยู่") : `${t("ทดลองใช้ Plus (Mockup)")} ${icon("arrow", 18)}`}</button><small class="subscription-demo-note">${t("การเลือกแพ็กเกจนี้เป็น Mockup ไม่มีการเรียกเก็บเงิน")}</small><span class="subscription-plan-emoji plus-emoji" aria-hidden="true">♛</span></article>
+      <article class="subscription-plan ${current === "free" ? "is-current" : ""}"><div class="subscription-plan-top"><span class="subscription-kicker"></span><span class="subscription-plan-pill">${t("เหมาะสำหรับเริ่มต้น")}</span></div><h2>Free</h2><p>${t("ใช้งานแพ็กเกจหลักได้ฟรี")}</p><div class="subscription-price"><strong>฿0</strong><span>/${t("เดือน")}</span></div><button class="button outline full" disabled>${current === "free" ? t("ใช้งานแพ็กเกจนี้อยู่") : t("กลับเป็น Free เมื่อ Plus หมดอายุ")}</button><span class="subscription-plan-emoji free-emoji" aria-hidden="true">☺</span></article>
+      <article class="subscription-plan subscription-plan-plus ${current === "plus" ? "is-current" : ""}"><div class="subscription-plan-top"><span class="subscription-kicker"></span><span class="subscription-plan-pill plus-pill">♛ ${t("ยอดนิยม")}</span></div><h2>Plus</h2><p>${t("เครื่องมือเพิ่มเติมเพื่อจัดการกลุ่มได้มากขึ้น")}</p><div class="subscription-price"><strong>฿49</strong><span>/${t("เดือน")}</span></div>${!state.user ? a("/login", t("เข้าสู่ระบบเพื่อสมัคร Plus"), "button primary full") : pending ? `<button class="button primary full" disabled>${t("รอแอดมินตรวจสลิป")}</button>` : `<a class="button primary full" href="#plus-payment">${active ? t("ต่ออายุอีก 1 เดือน") : t("สมัคร Plus")} ${icon("arrow", 18)}</a>`}<small class="subscription-demo-note">${active ? t("ใช้งานถึง {date} (เหลือ {days} วัน)", { date: shortDate(endsAt), days: daysLeft }) : t("ชำระรายเดือนด้วยการโอนและแนบสลิป แอดมินตรวจแล้วเริ่มใช้งานทันที")}</small><span class="subscription-plan-emoji plus-emoji" aria-hidden="true">♛</span></article>
     </div>
+    ${state.user ? subscriptionStatusSection(sub, { current, pending, active, endsAt, daysLeft }) : ""}
     <section class="subscription-comparison"><h2>${t("เปรียบเทียบแพ็กเกจ")}</h2><div class="subscription-table-wrap"><table class="subscription-table"><thead><tr><th scope="col">${t("ฟีเจอร์")}</th><th scope="col">Free</th><th scope="col">Plus</th></tr></thead><tbody>${features.map(([label, free, plus]) => `<tr><th scope="row">${escape(label)}</th><td>${mark(free)}</td><td>${mark(plus)}</td></tr>`).join("")}</tbody></table></div></section>
   </section>`;
 }
@@ -3679,7 +3813,7 @@ const formCosts = (d) => ({
     parseBaht(d.get("shippingTotal") || "0") /
       Math.max(1, Number(d.get("capacity")) || 1),
   ),
-  mode: "per_member_v2",
+  mode: SEAT_MODE,
 });
 window.addEventListener("resize", updateFilterCarousel, { passive: true });
 function updateCreateFormUI() {
@@ -3784,14 +3918,15 @@ function updatePreview() {
       count = assertCapacity(Number(d.get("capacity"))),
       costs = costBreakdown(formCosts(d), count),
       moneyOrZero = (value) => money(Number.isFinite(value) ? value : 0);
-    box.innerHTML = `<small>${t("ประมาณเมื่อสมาชิกครบ {count} คน", { count })}</small><strong>${moneyOrZero(Math.ceil(costs.total / count))} ${t("/ คน")}</strong><p>${t("รวมค่าส่งและค่าธรรมเนียมแพลตฟอร์ม 2% แล้ว")}</p>`;
+    const seat = seatPrice(formCosts(d), count, count - 1);
+    box.innerHTML = `<small>${d.get("billing") === "monthly" ? t("ราคาต่อที่นั่งต่อเดือน") : t("ราคาต่อที่นั่ง")}</small><strong>${moneyOrZero(seat)} ${t("/ คน")}</strong><p>${t("รวมค่าส่งและค่าธรรมเนียมแพลตฟอร์ม 2% แล้ว")}</p>`;
     const put = (selector, value) => { const el = document.querySelector(selector); if (el) el.textContent = value; };
     put("#summary-product-title", d.get("productTitle") || t("ชื่อสินค้า"));
     put("#summary-product-category", selectedCreateCategories.map((x) => t(x)).join(" · ") || t("หมวดหมู่สินค้า"));
     put("#summary-product-price", moneyOrZero(costs.product));
     put("#summary-shipping", moneyOrZero(parseBaht(d.get("shippingTotal") || "0")));
     put("#summary-fee", moneyOrZero(costs.service));
-    put("#summary-per-person", `${moneyOrZero(Math.ceil(costs.total / count))} / ${t("คน")}`);
+    put("#summary-per-person", `${moneyOrZero(seat)} / ${t("คน")}`);
     put("#summary-members", `${d.get("minimumMembers") || "2"}–${count} ${t("คน")}`);
     put("#summary-deadline", d.get("closesAt") || "—");
     const deliveryLabels = { ship_to_owner: "จัดส่งรวม", ship_separately: "จัดส่งแยก", pickup: "นัดรับ" };
@@ -4131,7 +4266,7 @@ document.addEventListener("change", async (e) => {
     isListing = input.id === "listing-images";
   if (input.matches?.("[data-payment-slip-input]")) {
     const panel = input.closest(".group-payment-panel"),
-      submit = panel?.querySelector('[data-action="report-group-payment"]'),
+      submit = panel?.querySelector("[data-slip-submit]"),
       status = panel?.querySelector("[data-payment-slip-status]"),
       file = input.files?.[0],
       validTypes = ["image/jpeg", "image/png", "image/webp"];
@@ -4731,24 +4866,44 @@ document.addEventListener("click", async (e) => {
       alertMessage(t("เริ่มข้อมูลเดโมใหม่แล้ว"));
     } else if (action === "refresh-groups") {
       await refreshSupabaseGroups();
-    } else if (action === "choose-subscription") {
-      if (!state.user)
-        throw Object.assign(new Error(), { code: "orderUnauthorized" });
-      const plan = btn.dataset.plan === "plus" ? "plus" : "free";
-      let subscriptions = {};
-      try {
-        subscriptions = JSON.parse(
-          localStorage.getItem(subscriptionKey) || "{}",
-        );
-      } catch {}
-      subscriptions[state.user.id] = plan;
-      localStorage.setItem(subscriptionKey, JSON.stringify(subscriptions));
+    } else if (action === "report-subscription-payment") {
+      if (!state.user) throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      const panel = btn.closest(".group-payment-panel"),
+        file = panel?.querySelector("[data-payment-slip-input]")?.files?.[0],
+        transferTime = panel?.querySelector("[data-payment-transfer-time]")?.value,
+        transferredAt = new Date(transferTime || "");
+      if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 8 * 1024 * 1024)
+        throw new Error(t("กรุณาแนบสลิป JPG, PNG หรือ WebP ขนาดไม่เกิน 8 MB"));
+      if (!transferTime || Number.isNaN(transferredAt.valueOf()) || transferredAt > new Date(Date.now() + 10 * 60 * 1000))
+        throw new Error(t("กรุณาระบุวันและเวลาที่โอนให้ถูกต้อง"));
+      btn.disabled = true;
+      btn.textContent = t("กำลังอัปโหลดสลิป…");
+      if (supabaseConfigured) {
+        await reportSupabaseSubscriptionPayment(state.user.id, file, transferredAt.toISOString());
+        state.remoteSubscription = await loadSupabaseSubscription();
+      } else {
+        const current = state.subscriptions?.[state.user.id] || emptySubscription(state.user.id);
+        save({
+          ...state,
+          subscriptions: {
+            ...(state.subscriptions || {}),
+            [state.user.id]: reportSubscriptionPayment(current, { id: crypto.randomUUID(), slipPath: file.name, transferredAt: transferredAt.toISOString() }),
+          },
+        });
+      }
       render();
-      alertMessage(
-        plan === "plus"
-          ? t("Plus เปิดใช้งานใน Mockup แล้ว ไม่มีการเรียกเก็บเงิน")
-          : t("เปลี่ยนเป็น Free แล้ว"),
-      );
+      alertMessage(t("ส่งสลิปแล้ว แอดมินตรวจแล้ว Plus จะเริ่มใช้งาน"));
+    } else if (action === "demo-verify-subscription") {
+      if (supabaseConfigured || !state.user) throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      const current = state.subscriptions?.[state.user.id];
+      const pendingPayment = current?.payments.find((p) => p.status === "reported");
+      if (!pendingPayment) throw new Error(t("ไม่มีสลิปที่รอตรวจ"));
+      save({
+        ...state,
+        subscriptions: { ...state.subscriptions, [state.user.id]: verifySubscriptionPayment(current, pendingPayment.id) },
+      });
+      render();
+      alertMessage(t("ยืนยันสลิปแล้ว Plus ใช้งานได้ 1 เดือน"));
     } else if (action === "retry-group-messages") {
       groupMessageLoadState.delete(id);
       groupMessageErrors.delete(id);
@@ -4892,6 +5047,62 @@ document.addEventListener("click", async (e) => {
       if (!(await refreshSupabaseGroups(actionSession))) return;
       render();
       alertMessage(t("แจ้งโอนแล้ว แอดมินจะตรวจสอบยอดเงินจริง"));
+    } else if (action === "start-cycle") {
+      const current = group(id);
+      if (!current || current.ownerId !== state.user?.id)
+        throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      if (!confirm(t("เริ่มรอบแรกตอนนี้ใช่ไหม? ยอดของสมาชิกที่อยู่ในกลุ่มจะถูกล็อกเป็นเวลา 1 เดือน")))
+        return;
+      if (supabaseConfigured) {
+        await startSupabaseCycle(id);
+        if (!(await refreshSupabaseGroups(actionSession))) return;
+      } else {
+        updateGroup(startFirstCycle(current, state.user.id));
+      }
+      render();
+      alertMessage(t("เริ่มรอบแรกแล้ว ให้สมาชิกยืนยันยอดเดือนนี้"));
+    } else if (action === "confirm-cycle") {
+      const current = group(id),
+        number = Number(btn.dataset.cycle),
+        cycle = current && currentCycle(current);
+      if (!cycle || !cycle.members.includes(state.user?.id))
+        throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      if (!confirm(t("ยืนยันยอดเดือนนี้ {amount} ใช่ไหม? ยืนยันได้ครั้งเดียวต่อรอบ", { amount: money(cycle.amounts[state.user.id]) })))
+        return;
+      if (supabaseConfigured) {
+        await confirmSupabaseCycle(id, number);
+        if (!(await refreshSupabaseGroups(actionSession))) return;
+      } else {
+        updateGroup(confirmCycle(current, state.user.id, number));
+      }
+      render();
+      alertMessage(t("ยืนยันยอดเดือนนี้แล้ว"));
+    } else if (action === "report-cycle-payment") {
+      const current = group(id),
+        number = Number(btn.dataset.cycle),
+        cycle = current && currentCycle(current),
+        panel = btn.closest(".group-payment-panel"),
+        file = panel?.querySelector("[data-payment-slip-input]")?.files?.[0],
+        transferTime = panel?.querySelector("[data-payment-transfer-time]")?.value;
+      if (!cycle || !cycle.confirmations[state.user?.id])
+        throw new Error(t("กรุณายืนยันยอดเดือนนี้ก่อนแจ้งโอน"));
+      const transferredAt = new Date(transferTime || "");
+      if (!transferTime || Number.isNaN(transferredAt.valueOf()) || transferredAt > new Date(Date.now() + 10 * 60 * 1000))
+        throw new Error(t("กรุณาระบุวันและเวลาที่โอนให้ถูกต้อง"));
+      if (supabaseConfigured) {
+        if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 8 * 1024 * 1024)
+          throw new Error(t("กรุณาแนบสลิป JPG, PNG หรือ WebP ขนาดไม่เกิน 8 MB"));
+        btn.disabled = true;
+        btn.textContent = t("กำลังอัปโหลดสลิป…");
+        await reportSupabaseCyclePayment(id, number, state.user.id, file, transferredAt.toISOString());
+        if (!(await refreshSupabaseGroups(actionSession))) return;
+        alertMessage(t("แจ้งโอนแล้ว แอดมินจะตรวจสอบยอดเงินจริง"));
+      } else {
+        // Demo mode has no admin: the transfer counts as verified straight away.
+        updateGroup(recordCyclePayment(current, state.user.id, number, "verified", cycle.amounts[state.user.id]));
+        alertMessage(t("บันทึกการชำระแล้ว (โหมดเดโม)"));
+      }
+      render();
     } else if (action === "approve") {
       const current = group(id);
       if (!current || !current.members.includes(state.user?.id))
@@ -5770,10 +5981,18 @@ document.addEventListener("submit", async (e) => {
         pickupLocation: String(d.get("pickupLocation") || "").trim(),
         digitalHandoff: String(d.get("digitalHandoff") || "").trim(),
       };
+      const billing = d.get("billing") === "monthly" ? "monthly" : "one_time";
+      if (!supabaseConfigured) {
+        const plan = effectivePlan(state.subscriptions?.[state.user.id]);
+        // Seeded demo groups do not count; only groups this person opened with the form.
+        const open = state.groups.filter((g) => g.openedWithForm && g.ownerId === state.user.id && g.status !== "cancelled").length;
+        if (open >= groupLimit(state.subscriptions?.[state.user.id]))
+          throw new Error(plan === "plus" ? t("เปิดกลุ่มได้สูงสุด 5 กลุ่มในแพ็กเกจ Plus") : t("แพ็กเกจ Free เปิดกลุ่มได้ 2 กลุ่ม อัปเกรดเป็น Plus เพื่อเปิดได้ 5 กลุ่ม"));
+      }
       if (supabaseConfigured) {
         const groupId = await createSupabaseGroup({
           product,
-          details: groupDetails,
+          details: { ...groupDetails, billing },
           name: d.get("name"),
           categories,
           images: groupImages,
@@ -5799,6 +6018,7 @@ document.addEventListener("submit", async (e) => {
         visibility,
         capacity: Number(d.get("capacity")),
         costs: formCosts(d),
+        billing,
       });
       const groupCategories = categories.includes("อื่น ๆ (ระบุชื่อเอง)")
         ? [...categories.filter((item) => item !== "อื่น ๆ (ระบุชื่อเอง)"), category]
@@ -5806,6 +6026,7 @@ document.addEventListener("submit", async (e) => {
       g.category = groupCategories[0];
       g.categories = groupCategories;
       g.images = [...groupImages];
+      g.openedWithForm = true;
       Object.assign(g, groupDetails);
       const notification = {
         id: crypto.randomUUID(),
@@ -6192,6 +6413,14 @@ function authErrorMessage(error) {
   if (message.includes("invite_invalid"))
     return t("คำเชิญไม่ถูกต้องหรือหมดอายุ");
   if (message.includes("full_group")) return t("กลุ่มเต็มแล้ว");
+  if (message.includes("group_limit_reached"))
+    return t("เปิดกลุ่มได้สูงสุดตามแพ็กเกจแล้ว (Free 2 กลุ่ม, Plus 5 กลุ่ม)");
+  if (message.includes("already_confirmed")) return t("คุณยืนยันรอบนี้แล้ว");
+  if (message.includes("not_in_cycle")) return t("คุณเริ่มจ่ายในรอบถัดไป");
+  if (message.includes("stale_cycle")) return t("รอบเปลี่ยนแล้ว กรุณาโหลดข้อมูลล่าสุด");
+  if (message.includes("cycle_started")) return t("กลุ่มเริ่มรอบไปแล้ว");
+  if (message.includes("confirm_first")) return t("กรุณายืนยันยอดเดือนนี้ก่อนแจ้งโอน");
+  if (message.includes("payment_pending")) return t("มีสลิปที่รอตรวจอยู่แล้ว");
   if (message.includes("already_member")) return t("คุณเป็นสมาชิกกลุ่มนี้แล้ว");
   if (message.includes("owner_must_transfer"))
     return t("หัวหน้ากลุ่มต้องโอนสิทธิ์ก่อนออก");
@@ -6252,6 +6481,16 @@ async function fetchSupabaseState(authUser) {
   let snapshot;
   try {
     snapshot = await loadSupabaseGroups();
+    // Months roll over lazily: close ended cycles of my monthly groups, then reload once.
+    const nowIso = new Date().toISOString();
+    const due = authUser
+      ? snapshot.groups.filter((g) => g.billing === "monthly" && g.members.includes(authUser.id) && currentCycle(g)?.end <= nowIso)
+      : [];
+    if (due.length) {
+      await Promise.all(due.map((g) => syncSupabaseCycles(g.id)));
+      snapshot = await loadSupabaseGroups();
+    }
+    snapshot.subscription = authUser ? await loadSupabaseSubscription().catch(() => null) : null;
   } catch (error) {
     const loadError = new Error(error?.message || t("โหลดข้อมูลกลุ่มไม่สำเร็จ"), {
       cause: error,
@@ -6325,6 +6564,7 @@ if (supabaseConfigured) {
         profiles: result.snapshot.names,
         remoteListings: result.snapshot.listings,
         remoteSellers: result.snapshot.sellers,
+        remoteSubscription: result.snapshot.subscription || null,
       };
       groupsLoading = false;
       groupsError = null;

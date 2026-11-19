@@ -19,7 +19,7 @@ export async function loadSupabaseGroups(client = supabase) {
       client
         .from("groups")
         .select(
-          "id,listing_id,owner_id,name,category,categories,images,details,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,admin_approved_revision,created_at,members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)",
+          "id,listing_id,owner_id,name,category,categories,images,details,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,admin_approved_revision,pricing_mode,billing_mode,cycle_anchor,created_at,cycles:group_cycles(cycle_number,starts_at,ends_at,status,closed_from,total_satang,shares:group_cycle_members(user_id,seat_index,amount_satang,confirmed_at,payment_status,rejection_note)),members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)",
         )
         .order("created_at", { ascending: false })
         .order("joined_at", { referencedTable: "members" })
@@ -242,6 +242,64 @@ export async function deleteSupabaseGroup(groupId) {
 export async function getSupabaseInvite(groupId) {
   const { data, error } = await supabase.rpc("get_group_invite", {
     p_group: groupId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+// ---------------------------------------------------------------- monthly cycles
+export async function startSupabaseCycle(groupId) {
+  const { data, error } = await supabase.rpc("start_group_cycle", { p_group: groupId });
+  if (error) throw error;
+  return data;
+}
+/** Close ended months and open the next one; safe to call on every visit. */
+export async function syncSupabaseCycles(groupId) {
+  const { error } = await supabase.rpc("sync_group_cycles", { p_group: groupId });
+  if (error) throw error;
+}
+export async function confirmSupabaseCycle(groupId, cycleNumber) {
+  const { data, error } = await supabase.rpc("confirm_group_cycle", {
+    p_group: groupId,
+    p_cycle_number: cycleNumber,
+  });
+  if (error) throw error;
+  return data;
+}
+const slipExtension = (file) =>
+  ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" })[file?.type] || null;
+async function uploadSlip(bucket, path, file) {
+  const { error } = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type, upsert: false });
+  if (error) throw error;
+  return path;
+}
+export async function reportSupabaseCyclePayment(groupId, cycleNumber, userId, file, transferredAt) {
+  const ext = slipExtension(file);
+  if (!ext) throw Object.assign(new Error("invalid slip"), { code: "invalidSlip" });
+  const path = await uploadSlip("cycle-payment-slips", `${userId}/${groupId}/${cycleNumber}/${crypto.randomUUID()}.${ext}`, file);
+  const { data, error } = await supabase.rpc("report_group_cycle_payment", {
+    p_group: groupId,
+    p_cycle_number: cycleNumber,
+    p_slip_path: path,
+    p_transferred_at: transferredAt,
+  });
+  if (error) throw error;
+  return data;
+}
+
+// ---------------------------------------------------------------- Plus subscription
+export async function loadSupabaseSubscription() {
+  const { data, error } = await supabase.rpc("my_subscription");
+  if (error) throw error;
+  return data;
+}
+export async function reportSupabaseSubscriptionPayment(userId, file, transferredAt) {
+  const ext = slipExtension(file);
+  if (!ext) throw Object.assign(new Error("invalid slip"), { code: "invalidSlip" });
+  const path = await uploadSlip("subscription-payment-slips", `${userId}/${crypto.randomUUID()}.${ext}`, file);
+  const { data, error } = await supabase.rpc("report_subscription_payment", {
+    p_slip_path: path,
+    p_transferred_at: transferredAt,
   });
   if (error) throw error;
   return data;

@@ -1,4 +1,4 @@
-import { costBreakdown, totalCost } from "./domain.js";
+import { costBreakdown, totalCost, SEAT_MODE } from "./domain.js";
 
 const eventReason = {
   group_created: "สร้างกลุ่มแล้ว",
@@ -26,11 +26,13 @@ export function mapDatabaseGroup(
 ) {
   const product = asSafeSatang(row.product_satang),
     delivery = asSafeSatang(row.delivery_per_member_satang);
-  const costs = { product, delivery, mode: "per_member_v2" };
+  const seatPriced = row.pricing_mode === SEAT_MODE;
+  const costs = { product, delivery, mode: seatPriced ? SEAT_MODE : "per_member_v2" };
+  // Seat-priced totals cover every seat; legacy totals cover the people present.
+  const units = seatPriced ? Number(row.capacity) : members.length;
   if (
-    asSafeSatang(row.total_satang) !== totalCost(costs, members.length) ||
-    asSafeSatang(row.service_satang) !==
-      costBreakdown(costs, members.length).service
+    asSafeSatang(row.total_satang) !== totalCost(costs, units) ||
+    asSafeSatang(row.service_satang) !== costBreakdown(costs, units).service
   ) {
     throw Object.assign(new Error("Database and app group totals differ"), {
       code: "groupTotalMismatch",
@@ -53,6 +55,10 @@ export function mapDatabaseGroup(
     visibility: row.visibility,
     capacity: Number(row.capacity),
     costs,
+    billing: row.billing_mode === "monthly" ? "monthly" : "one_time",
+    ...(row.billing_mode === "monthly"
+      ? { cycleAnchor: row.cycle_anchor || null, cycles: mapCycles(row.cycles, row.owner_id) }
+      : {}),
     members,
     revision: Number(row.revision),
     adminApprovedRevision: row.admin_approved_revision == null
@@ -67,4 +73,34 @@ export function mapDatabaseGroup(
       at: event.created_at,
     })),
   };
+}
+
+/** Database cycles (group_cycles + group_cycle_members) in the shape src/billing.js uses. */
+export function mapCycles(rows = [], ownerId) {
+  return [...(rows || [])]
+    .sort((a, b) => Number(a.cycle_number) - Number(b.cycle_number))
+    .map((cycle) => {
+      const shares = [...(cycle.shares || [])].sort((a, b) => Number(a.seat_index) - Number(b.seat_index));
+      const amounts = Object.fromEntries(shares.map((share) => [share.user_id, asSafeSatang(share.amount_satang)]));
+      return {
+        number: Number(cycle.cycle_number),
+        start: cycle.starts_at,
+        end: cycle.ends_at,
+        status: cycle.status,
+        closedFrom: cycle.closed_from || undefined,
+        members: shares.map((share) => share.user_id),
+        ownerId,
+        amounts,
+        total: asSafeSatang(cycle.total_satang),
+        confirmations: Object.fromEntries(
+          shares.filter((share) => share.confirmed_at).map((share) => [share.user_id, share.confirmed_at]),
+        ),
+        payments: Object.fromEntries(
+          shares.filter((share) => share.payment_status).map((share) => [share.user_id, share.payment_status]),
+        ),
+        rejections: Object.fromEntries(
+          shares.filter((share) => share.rejection_note).map((share) => [share.user_id, share.rejection_note]),
+        ),
+      };
+    });
 }
