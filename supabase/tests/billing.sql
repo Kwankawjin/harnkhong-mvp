@@ -223,6 +223,34 @@ begin
     raise exception 'verified a rejected slip';
   exception when check_violation then null; end;
 
+  -- ---------------------------------------------------------------- admin RPCs
+  slip := b::text || '/' || gen_random_uuid()::text || '.jpg';
+  insert into storage.objects(bucket_id, name, owner) values ('subscription-payment-slips', slip, b);
+  perform set_config('request.jwt.claim.sub', b::text, true);
+  set local role authenticated;
+  pay := (public.report_subscription_payment(slip, now())->>'id')::uuid;
+  begin
+    perform public.admin_billing_queue();
+    raise exception 'a member read the admin queue';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform public.admin_review_subscription_payment(pay, true);
+    raise exception 'a member approved their own slip';
+  exception when insufficient_privilege then null; end;
+  perform set_config('request.jwt.claim.sub', admin::text, true);
+  perform set_config('request.jwt.claims', '{"app_metadata":{"role":"admin"}}', true);
+  v := public.admin_billing_queue();
+  assert jsonb_array_length(v->'subscriptions') >= 1 and jsonb_array_length(v->'cycles') >= 2,
+    'the admin queue lists Plus and monthly slips';
+  begin
+    perform public.admin_review_subscription_payment(pay, false, 'x');
+    raise exception 'rejected without a reason';
+  exception when invalid_parameter_value then null; end;
+  perform public.admin_review_subscription_payment(pay, true);
+  perform set_config('request.jwt.claims', '', true);
+  reset role;
+  assert (select status = 'active' from public.subscriptions where user_id = b), 'an admin approval through the RPC activates Plus';
+
   -- ---------------------------------------------------------------- plan limit
   perform set_config('request.jwt.claim.sub', owner::text, true);
   set local role authenticated;

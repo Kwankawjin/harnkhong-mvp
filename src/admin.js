@@ -314,6 +314,17 @@ async function invoke(action, payload = {}) {
   return data;
 }
 
+function billingErrorMessage(error) {
+  const message = String(error?.message || "");
+  if (error?.code === "PGRST202" || message.includes("Could not find the function"))
+    return "ฐานข้อมูลยังไม่มีฟังก์ชันของหน้านี้ กรุณารัน migration 20261120100000_admin_billing_rpcs.sql ใน Supabase SQL Editor";
+  if (message.includes("admin_only")) return "บัญชีนี้ไม่มีสิทธิ์ผู้ดูแลระบบ ออกจากระบบแล้วเข้าใหม่อีกครั้ง";
+  if (message.includes("payment_not_pending")) return "รายการนี้ถูกตรวจไปแล้ว";
+  if (message.includes("subscription_payments") || message.includes("group_cycle"))
+    return "ยังไม่มีตาราง Plus หรือรอบรายเดือน กรุณารัน migration 20261119140000_monthly_billing_and_plus.sql";
+  return [error?.code, message].filter(Boolean).join(": ") || "โหลดข้อมูลไม่สำเร็จ";
+}
+
 function slipCell(row) {
   return row.slip_url
     ? `<a class="admin-payment-slip" href="${escapeHtml(row.slip_url)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHtml(row.slip_url)}" alt="สลิปโอนเงินของ ${escapeHtml(row.member_name)}"/><span>เปิดดูสลิป</span></a>`
@@ -342,9 +353,17 @@ function billingContent(subscriptionRows, cycleRows) {
 
 async function getSectionContent(section) {
   if (section === "billing") {
-    const [{ rows: subscriptionRows = [] }, { rows: cycleRows = [] }] = await Promise.all([
-      invoke("subscription-payments"),
-      invoke("cycle-payments"),
+    // Read straight from the database (admin-only RPC), so this page works without redeploying admin-api.
+    const { data, error } = await currentClient.rpc("admin_billing_queue");
+    if (error) throw new Error(billingErrorMessage(error));
+    const sign = async (bucket, rows) => Promise.all((rows || []).map(async (row) => {
+      if (!row.slip_path) return { ...row, slip_url: null };
+      const { data: signed } = await currentClient.storage.from(bucket).createSignedUrl(row.slip_path, 600);
+      return { ...row, slip_url: signed?.signedUrl || null };
+    }));
+    const [subscriptionRows, cycleRows] = await Promise.all([
+      sign("subscription-payment-slips", data?.subscriptions),
+      sign("cycle-payment-slips", data?.cycles),
     ]);
     return billingContent(subscriptionRows, cycleRows);
   }
@@ -563,11 +582,12 @@ document.addEventListener("click", async (event) => {
     busy = true;
     button.disabled = true;
     button.textContent = "กำลังบันทึก…";
-    const payload = action.includes("subscription")
-      ? { paymentId: button.dataset.paymentId }
-      : { groupId: button.dataset.groupId, userId: button.dataset.userId, cycleNumber: Number(button.dataset.cycle) };
     try {
-      await invoke(action, { ...payload, rejectionNote });
+      const approve = !rejecting;
+      const { error } = action.includes("subscription")
+        ? await currentClient.rpc("admin_review_subscription_payment", { p_payment: button.dataset.paymentId, p_approve: approve, p_note: rejectionNote || null })
+        : await currentClient.rpc("admin_review_cycle_payment", { p_group: button.dataset.groupId, p_cycle_number: Number(button.dataset.cycle), p_user: button.dataset.userId, p_approve: approve, p_note: rejectionNote || null });
+      if (error) throw new Error(billingErrorMessage(error));
       feedback = rejecting ? "ปฏิเสธรายการแล้ว แจ้งเหตุผลให้สมาชิกทราบแล้ว" : "ยืนยันรับเงินแล้ว";
     } catch (error) {
       feedback = error.message || "บันทึกผลตรวจไม่สำเร็จ";
