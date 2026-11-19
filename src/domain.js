@@ -34,13 +34,14 @@ export function costBreakdown(costs, memberCount = 1) {
       fail("invalidMembers", "จำนวนที่นั่งไม่ถูกต้อง");
     const deliveryTotal = assertSatang(delivery * memberCount);
     const subtotal = assertSatang(product + deliveryTotal);
+    // Nobody pays a fee on top: the 2% commission comes out of what the owner receives.
     return {
       product,
       delivery: deliveryTotal,
       deliveryPerMember: delivery,
-      service: ownerFee(subtotal),
-      serviceOwnerOnly: true,
-      total: assertSatang(subtotal + ownerFee(subtotal)),
+      service: 0,
+      commissionFromOwner: true,
+      total: subtotal,
     };
   }
   if (costs?.mode === "per_member_v2") {
@@ -70,9 +71,20 @@ export function costBreakdown(costs, memberCount = 1) {
     total: assertSatang(product + delivery + service),
   };
 }
-/** Platform fee: 2% of the group's subtotal, rounded to the nearest satang, paid by the owner only. */
+/**
+ * Platform commission: 2% of each payment a member makes, rounded to the nearest satang.
+ * Members transfer to the platform; the platform keeps the commission and passes the rest to
+ * the group owner. Example: a member pays 50.00, the owner receives 49.00.
+ */
 export const OWNER_FEE_PERCENT = 2;
 export const SEAT_MODE = "seat_v3";
+export const platformCommission = (amount) => ownerFee(amount);
+/** What the owner receives for a set of member payments, each with its own 2% taken off. */
+export function ownerPayout(payments) {
+  const gross = payments.reduce((sum, amount) => sum + assertSatang(amount), 0);
+  const commission = payments.reduce((sum, amount) => sum + platformCommission(amount), 0);
+  return { gross, commission, net: gross - commission };
+}
 export function ownerFee(subtotal) {
   assertSatang(subtotal);
   return assertSatang(Number((BigInt(subtotal) * BigInt(OWNER_FEE_PERCENT) + 50n) / 100n));
@@ -81,7 +93,8 @@ export const BILLING_MODES = Object.freeze(["one_time", "monthly"]);
 /**
  * Fixed seat prices: the product cost is split over every seat (not over the people present),
  * each seat adds its own delivery. Seat order is join order; the owner holds seat 0.
- * Empty seats are covered by the owner, and the owner alone adds the 2% fee.
+ * The owner's figure is their own seat plus any empty seats: the part of the cost they carry
+ * themselves. Only the other members transfer money; see ownerPayout for what the owner gets.
  */
 export function seatShares(costs, capacity, members, ownerId) {
   assertCapacityRange(capacity);
@@ -99,7 +112,6 @@ export function seatShares(costs, capacity, members, ownerId) {
   });
   for (let index = ordered.length; index < capacity; index += 1)
     result[ownerId] += seatProduct[`seat-${index}`] + delivery;
-  result[ownerId] += ownerFee(product + delivery * capacity);
   return result;
 }
 function assertCapacityRange(capacity) {

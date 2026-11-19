@@ -1,4 +1,4 @@
-import { costBreakdown, totalCost, SEAT_MODE } from "./domain.js";
+import { costBreakdown, totalCost, SEAT_MODE, ownerFee } from "./domain.js";
 
 const eventReason = {
   group_created: "สร้างกลุ่มแล้ว",
@@ -30,9 +30,17 @@ export function mapDatabaseGroup(
   const costs = { product, delivery, mode: seatPriced ? SEAT_MODE : "per_member_v2" };
   // Seat-priced totals cover every seat; legacy totals cover the people present.
   const units = seatPriced ? Number(row.capacity) : members.length;
+  // Until 20261120120000 runs, seat-priced rows still carry the old owner fee in their totals;
+  // accept both so the site keeps loading during the switch.
+  const subtotal = product + delivery * units;
+  const legacySeatTotals =
+    seatPriced &&
+    asSafeSatang(row.total_satang) === subtotal + ownerFee(subtotal) &&
+    asSafeSatang(row.service_satang) === ownerFee(subtotal);
   if (
-    asSafeSatang(row.total_satang) !== totalCost(costs, units) ||
-    asSafeSatang(row.service_satang) !== costBreakdown(costs, units).service
+    !legacySeatTotals &&
+    (asSafeSatang(row.total_satang) !== totalCost(costs, units) ||
+      asSafeSatang(row.service_satang) !== costBreakdown(costs, units).service)
   ) {
     throw Object.assign(new Error("Database and app group totals differ"), {
       code: "groupTotalMismatch",

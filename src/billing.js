@@ -101,15 +101,21 @@ export function recordCyclePayment(group, userId, cycleNumber, status, amount) {
   const cycle = currentCycle(group);
   if (!cycle || cycle.number !== cycleNumber) fail("staleCycle", "รอบนี้ไม่ใช่รอบปัจจุบัน");
   if (!cycle.members.includes(userId)) fail("notInCycle", "ไม่ได้อยู่ในรอบนี้");
+  if (userId === cycle.ownerId)
+    fail("ownerReceivesPayout", "เจ้าของกลุ่มไม่ต้องโอน ระบบจะโอนเงินจากสมาชิกให้หลังหักค่าคอม 2%");
   if (!cycle.confirmations[userId]) fail("confirmFirst", "กรุณายืนยันยอดก่อนชำระ");
   if (!["reported", "verified", "rejected"].includes(status)) fail("invalidStatus", "สถานะไม่ถูกต้อง");
   if (assertSatang(amount) !== cycle.amounts[userId])
     fail("amountMismatch", "ยอดชำระไม่ตรงกับยอดของรอบนี้");
   const payments = { ...cycle.payments, [userId]: status };
-  const allPaid = cycle.status === "confirmed" && cycle.members.every((id) => payments[id] === "verified");
+  // The owner does not transfer; the cycle is paid once every other member's payment is verified.
+  const allPaid = cycle.status === "confirmed" && cycle.members.filter((id) => id !== cycle.ownerId).every((id) => payments[id] === "verified");
   const next = { ...cycle, payments, status: allPaid ? "paid" : cycle.status };
   return { ...group, cycles: [...group.cycles.slice(0, -1), next] };
 }
+
+/** Who transfers money this cycle: everyone in it except the owner. */
+export const cyclePayers = (cycle) => (cycle ? cycle.members.filter((id) => id !== cycle.ownerId) : []);
 
 /** True when this person has nothing to do this cycle because they joined after it started. */
 export const waitsForNextCycle = (group, userId) => {

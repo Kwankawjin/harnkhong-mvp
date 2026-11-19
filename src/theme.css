@@ -890,3 +890,32 @@ h3 {
     animation: none;
   }
 }
+
+/* Owner payout lines (group page and monthly cycle) */
+.owner-payout-lines {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+.owner-payout-lines div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--hk-muted);
+  font-size: 0.9rem;
+}
+.owner-payout-lines dt,
+.owner-payout-lines dd {
+  margin: 0;
+}
+.owner-payout-lines dd {
+  color: var(--hk-ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.owner-payout-lines .is-total {
+  padding-top: 6px;
+  border-top: 1px solid var(--hk-line);
+  color: var(--hk-navy);
+  font-weight: 600;
+}

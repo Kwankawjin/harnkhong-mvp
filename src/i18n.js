@@ -2,6 +2,21 @@ import { assertSatang } from "./domain.js";
 
 // Thai source text is the key for UI copy; stored/user-entered content is never translated.
 const labels = {
+  "ยืนยันยอดกลุ่ม": "Confirm group amounts",
+  "คุณจะได้รับเมื่อสมาชิกโอนครบ": "You receive once members have paid",
+  "สมาชิกโอนรวม": "Members pay in total",
+  "ค่าคอมแพลตฟอร์ม 2%": "2% platform commission",
+  "ส่วนของคุณเอง (ไม่ต้องโอน)": "Your own share (no transfer)",
+  "สมาชิกโอนเข้าบัญชีแพลตฟอร์ม แอดมินตรวจแล้วโอนให้คุณหลังหักค่าคอม 2% ของแต่ละยอด": "Members pay the platform; after an admin verifies, you receive each payment minus a 2% commission.",
+  "ราคาต่อที่นั่งคงที่ ผู้ร่วมหารจ่ายเฉพาะราคาที่นั่ง ไม่มีค่าธรรมเนียม แพลตฟอร์มหักค่าคอม 2% จากเงินที่โอนต่อให้เจ้าของกลุ่ม": "Seat prices are fixed. Members pay only their seat with no fee; the platform keeps 2% of what it passes to the owner.",
+  "ยืนยันยอดกลุ่มรอบนี้ใช่ไหม? คุณไม่ต้องโอนเงิน สมาชิกจะโอนเข้าบัญชีแพลตฟอร์ม": "Confirm this round's amounts? You don't transfer anything; members pay the platform.",
+  "คุณไม่ต้องโอน": "You don't need to transfer",
+  "คุณจะได้รับรอบนี้": "You receive this cycle",
+  "ตรวจแล้ว": "Verified so far",
+  "ค่าคอม 2% (หักจากเงินที่คุณได้รับ)": "2% commission (taken from what you receive)",
+  "ผู้ร่วมหารจ่ายเฉพาะราคาที่นั่ง แพลตฟอร์มหักค่าคอม 2% จากเงินที่สมาชิกโอน ก่อนโอนต่อให้คุณ": "Members pay only their seat; the platform keeps 2% of each payment before passing it to you.",
+  "ราคาที่นั่งของคุณ": "Your seat price",
+  "คุณจ่ายเฉพาะราคาที่นั่ง ไม่มีค่าธรรมเนียม ยอดนี้ไม่เปลี่ยนเมื่อมีคนเข้าหรือออก": "You pay only your seat, with no fee. It does not change when people join or leave.",
   "ปิดการแจ้งเตือน": "Dismiss notification",
   "ชำระรายเดือน": "Billed monthly",
   "ไม่มีค่าใช้จ่าย": "Free of charge",

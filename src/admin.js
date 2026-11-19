@@ -4,6 +4,7 @@ const navItems = [
   ["dashboard", "ภาพรวม", "grid"],
   ["payments", "การชำระเงิน", "payments"],
   ["billing", "Plus และรายเดือน", "payments"],
+  ["payouts", "โอนให้เจ้าของกลุ่ม", "payments"],
   ["users", "สมาชิก", "users"],
   ["groups", "กลุ่มหารของ", "groups"],
   ["settings", "ตั้งค่า", "settings"],
@@ -363,7 +364,25 @@ function billingContent(subscriptionRows, cycleRows) {
   <section class="admin-panel"><div class="admin-panel-heading"><div><h2>สลิปกลุ่มรายเดือน</h2><p>ยอดของแต่ละรอบล็อกไว้แล้ว ตรวจให้ตรงกับยอดในตาราง</p></div></div>${table(["กลุ่มและรอบ", "สมาชิก", "ยอด", "สลิป", "สถานะ", "ดำเนินการ"], cycles, "ยังไม่มีสลิปรายเดือน")}</section>`;
 }
 
+/** Money to pass on to group owners: verified member payments minus the 2% commission. */
+function payoutsContent(rows) {
+  const owed = rows.filter((row) => Number(row.owed_satang) > 0);
+  const total = owed.reduce((sum, row) => sum + Number(row.owed_satang), 0);
+  const body = rows.map((row) => `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>${escapeHtml(row.payments)} รายการที่ตรวจแล้ว</small></td><td><strong>${escapeHtml(row.owner_name)}</strong><small>${escapeHtml(row.owner_email)}</small></td><td>${formatMoney(row.gross_satang)}</td><td>−${formatMoney(row.commission_satang)}</td><td>${formatMoney(row.paid_out_satang)}</td><td><strong>${formatMoney(row.owed_satang)}</strong></td><td>${Number(row.owed_satang) > 0 ? `<button type="button" class="admin-primary" data-admin-action="record-payout" data-group-id="${escapeHtml(row.group_id)}" data-group-name="${escapeHtml(row.group_name)}" data-amount="${escapeHtml(formatMoney(row.owed_satang))}">บันทึกว่าโอนแล้ว</button>` : '<span class="admin-status good">โอนครบแล้ว</span>'}</td></tr>`).join("");
+  return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>โอนให้เจ้าของกลุ่ม</h2><p>เงินที่สมาชิกโอนเข้าบัญชีแพลตฟอร์มและแอดมินตรวจแล้ว หักค่าคอม 2% ของแต่ละยอด ค้างโอนรวม ${formatMoney(total)}</p></div></div>${table(["กลุ่ม", "เจ้าของกลุ่ม", "สมาชิกโอนรวม", "ค่าคอม 2%", "โอนให้แล้ว", "ค้างโอน", ""], body, "ยังไม่มียอดที่ต้องโอนให้เจ้าของกลุ่ม")}</section>`;
+}
+
 async function getSectionContent(section) {
+  if (section === "payouts") {
+    const { data, error } = await currentClient.rpc("admin_payouts");
+    if (error) {
+      const message = String(error.message || "");
+      throw new Error(error.code === "PGRST202" || message.includes("Could not find the function")
+        ? "ฐานข้อมูลยังไม่มีฟังก์ชันของหน้านี้ กรุณารัน migration 20261120120000_commission_from_owner_payout.sql"
+        : billingErrorMessage(error));
+    }
+    return payoutsContent(data || []);
+  }
   if (section === "billing") {
     // Read straight from the database (admin-only RPC), so this page works without redeploying admin-api.
     const { data, error } = await currentClient.rpc("admin_billing_queue");
@@ -644,6 +663,24 @@ document.addEventListener("click", async (event) => {
       feedback = "ปฏิเสธรายการแล้ว แจ้งเหตุผลให้สมาชิกทราบแล้ว";
     } catch (error) {
       feedback = error.message || "ปฏิเสธรายการไม่สำเร็จ";
+    } finally {
+      busy = false;
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+    }
+  } else if (action === "record-payout") {
+    if (busy) return;
+    const groupId = button.dataset.groupId;
+    if (!confirm(`โอน ${button.dataset.amount} ให้เจ้าของกลุ่ม “${button.dataset.groupName}” แล้วใช่ไหม? ระบบจะบันทึกว่ายอดนี้โอนแล้ว`)) return;
+    const note = prompt("หมายเหตุการโอน (ไม่บังคับ) เช่น เลขอ้างอิงหรือช่องทางที่โอน", "") ?? "";
+    busy = true;
+    button.disabled = true;
+    button.textContent = "กำลังบันทึก…";
+    try {
+      const { error } = await currentClient.rpc("admin_record_payout", { p_group: groupId, p_note: note.trim() || null });
+      if (error) throw new Error(String(error.message || "").includes("nothing_owed") ? "ไม่มียอดค้างโอนของกลุ่มนี้แล้ว" : billingErrorMessage(error));
+      feedback = `บันทึกการโอนให้เจ้าของกลุ่ม “${button.dataset.groupName}” แล้ว`;
+    } catch (error) {
+      feedback = error.message || "บันทึกการโอนไม่สำเร็จ";
     } finally {
       busy = false;
       mountAdminPage({ supabase: currentClient, supabaseConfigured: true });

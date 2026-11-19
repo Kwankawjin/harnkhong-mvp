@@ -1,4 +1,4 @@
--- Seat pricing, owner-only fee, monthly cycles and Plus subscription.
+-- Seat pricing, 2% commission taken from the owner's payout, monthly cycles and Plus subscription.
 -- Run as postgres (SQL editor or supabase/tests/local/run.sh). Everything is rolled back.
 begin;
 do $$
@@ -25,17 +25,17 @@ begin
   reset role;
   assert (select pricing_mode = 'seat_v3' and billing_mode = 'one_time' from public.groups where id = g),
     'new groups use seat pricing and one-time billing by default';
-  assert (select service_satang = 800 and total_satang = 40800 from public.groups where id = g),
-    'fee is 2% of the whole group, fixed by seats';
-  assert private.group_member_amount(g, owner) = 40800,
-    'alone, the owner covers every empty seat plus the fee';
+  assert (select service_satang = 0 and total_satang = 40000 from public.groups where id = g),
+    'no fee on top: the total is the seats';
+  assert private.group_member_amount(g, owner) = 40000,
+    'alone, the owner carries every empty seat';
   perform set_config('request.jwt.claim.sub', a::text, true);
   set local role authenticated;
   perform public.join_group(g, gen_random_uuid(), null);
   reset role;
   assert private.group_member_amount(g, a) = 10000, 'a participant pays one seat and no fee';
-  assert private.group_member_amount(g, owner) = 30800, 'the owner pays own seat, two empty seats and the fee';
-  assert (select total_satang = 40800 from public.groups where id = g), 'the total does not move when people join';
+  assert private.group_member_amount(g, owner) = 30000, 'the owner carries own seat and two empty seats';
+  assert (select total_satang = 40000 from public.groups where id = g), 'the total does not move when people join';
 
   -- Legacy groups keep the old rule.
   update public.groups set pricing_mode = 'per_member_v2' where id = g;
@@ -86,8 +86,8 @@ begin
   assert (select count(*) = 2 from public.group_cycle_members where cycle_id = c1), 'cycle 1 holds owner and a';
   assert (select amount_satang = 10475 from public.group_cycle_members where cycle_id = c1 and user_id = a),
     'a pays one seat';
-  assert (select sum(amount_satang) = 41900 + 838 from public.group_cycle_members where cycle_id = c1),
-    'the cycle collects product plus the 2% fee';
+  assert (select sum(amount_satang) = 41900 from public.group_cycle_members where cycle_id = c1),
+    'the cycle seats add up to the product, with nothing on top';
   assert (select ends_at = private.add_month(starts_at) from public.group_cycles where id = c1), 'a cycle lasts one month';
 
   -- Mid-cycle join: this cycle does not change.
@@ -99,7 +99,7 @@ begin
     raise exception 'a mid-cycle joiner confirmed this cycle';
   exception when insufficient_privilege then null; end;
   reset role;
-  assert (select count(*) = 2 and sum(amount_satang) = 42738 from public.group_cycle_members where cycle_id = c1),
+  assert (select count(*) = 2 and sum(amount_satang) = 41900 from public.group_cycle_members where cycle_id = c1),
     'joining mid-cycle changes neither the people nor the amounts of this cycle';
 
   -- Confirm once; the cycle is complete.
@@ -122,16 +122,32 @@ begin
   set local role authenticated;
   perform public.report_group_cycle_payment(m, 1, slip, now());
   reset role;
-  perform public.verify_group_cycle_payment(m, 1, a, admin);
-  assert (select status = 'confirmed' from public.group_cycles where id = c1), 'not paid until everyone is verified';
+  -- The owner does not transfer for their own seat.
   slip := owner::text || '/' || m::text || '/1/' || gen_random_uuid()::text || '.png';
   insert into storage.objects(bucket_id, name, owner) values ('cycle-payment-slips', slip, owner);
   perform set_config('request.jwt.claim.sub', owner::text, true);
   set local role authenticated;
-  perform public.report_group_cycle_payment(m, 1, slip, now());
+  begin
+    perform public.report_group_cycle_payment(m, 1, slip, now());
+    raise exception 'the owner reported a transfer';
+  exception when check_violation then
+    if sqlerrm <> 'owner_receives_payout' then raise; end if;
+  end;
   reset role;
-  perform public.verify_group_cycle_payment(m, 1, owner, admin);
-  assert (select status = 'paid' from public.group_cycles where id = c1), 'every share verified: cycle paid';
+  perform public.verify_group_cycle_payment(m, 1, a, admin);
+  assert (select status = 'paid' from public.group_cycles where id = c1), 'every member except the owner verified: cycle paid';
+  -- Payout: a paid 10475, the platform keeps 2% (210), the owner is owed 10265.
+  assert (select gross_satang = 10475 and commission_satang = 210 and net_satang = 10265 and owed_satang = 10265
+          from private.group_payout_summary(m)), 'the owner is owed the member payment minus 2%';
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  assert (public.my_group_payout(m)->>'net')::bigint = 10265, 'the owner sees what they will receive';
+  perform set_config('request.jwt.claim.sub', a::text, true);
+  begin
+    perform public.my_group_payout(m);
+    raise exception 'a member read the owner payout';
+  exception when insufficient_privilege then null; end;
+  reset role;
 
   -- A leaver keeps this cycle; month two opens with today's people and asks again.
   perform set_config('request.jwt.claim.sub', a::text, true);
@@ -240,13 +256,24 @@ begin
   perform set_config('request.jwt.claim.sub', admin::text, true);
   perform set_config('request.jwt.claims', '{"app_metadata":{"role":"admin"}}', true);
   v := public.admin_billing_queue();
-  assert jsonb_array_length(v->'subscriptions') >= 1 and jsonb_array_length(v->'cycles') >= 2,
+  assert jsonb_array_length(v->'subscriptions') >= 1 and jsonb_array_length(v->'cycles') >= 1,
     'the admin queue lists Plus and monthly slips';
   begin
     perform public.admin_review_subscription_payment(pay, false, 'x');
     raise exception 'rejected without a reason';
   exception when invalid_parameter_value then null; end;
   perform public.admin_review_subscription_payment(pay, true);
+  v := public.admin_payouts();
+  assert exists (select 1 from jsonb_array_elements(v) e where (e->>'group_id')::uuid = m and (e->>'owed_satang')::bigint = 10265),
+    'the admin sees the money owed to the owner';
+  perform public.admin_record_payout(m, 'โอนผ่าน PromptPay');
+  assert exists (select 1 from jsonb_array_elements(public.admin_payouts()) e
+                 where (e->>'group_id')::uuid = m and (e->>'owed_satang')::bigint = 0 and (e->>'paid_out_satang')::bigint = 10265),
+    'a recorded payout clears what is owed';
+  begin
+    perform public.admin_record_payout(m);
+    raise exception 'paid the same money twice';
+  exception when check_violation then null; end;
   v := public.admin_list_groups();
   assert jsonb_array_length(v) >= 2 and (v->0) ? 'member_count' and (v->0) ? 'owner_email',
     'the admin sees every group with counts and the owner email';
