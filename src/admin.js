@@ -168,7 +168,7 @@ function startPaymentMonitor() {
 }
 
 async function pollGroupApprovals() {
-  const { rows = [] } = await invoke("groups");
+  const { rows = [] } = await loadAdminGroups();
   const current = new Map(rows.map((row) => [row.id, {
     revision: Number(row.revision),
     count: Number(row.approval_count || 0),
@@ -314,6 +314,18 @@ async function invoke(action, payload = {}) {
   return data;
 }
 
+/** Every group, read with the admin-only RPC from the same database the website uses. */
+async function loadAdminGroups() {
+  const { data, error } = await currentClient.rpc("admin_list_groups", { p_limit: 500 });
+  if (error) {
+    const message = String(error.message || "");
+    if (error.code === "PGRST202" || message.includes("Could not find the function"))
+      throw new Error("ฐานข้อมูลยังไม่มีฟังก์ชันรายชื่อกลุ่ม กรุณารัน migration 20261120110000_admin_group_rpcs.sql ใน Supabase SQL Editor");
+    throw new Error(billingErrorMessage(error));
+  }
+  return { rows: data || [] };
+}
+
 function billingErrorMessage(error) {
   const message = String(error?.message || "");
   if (error?.code === "PGRST202" || message.includes("Could not find the function"))
@@ -374,7 +386,7 @@ async function getSectionContent(section) {
   if (section === "payments") {
     const [{ rows: paymentRows = [] }, { rows: groupRows = [] }] = await Promise.all([
       invoke("payments"),
-      invoke("groups"),
+      loadAdminGroups(),
     ]);
     cachedPaymentReports = paymentRows;
     cachedAdminGroups = groupRows;
@@ -385,7 +397,7 @@ async function getSectionContent(section) {
     return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>สมาชิก</h2><p>ข้อมูลบัญชีจาก Supabase Auth และโปรไฟล์สมาชิก</p></div></div>${table(["ชื่อที่แสดง", "อีเมล", "สถานะบัญชี", "สมัครเมื่อ"], rows.map((user) => `<tr><td><strong>${escapeHtml(user.display_name || "ยังไม่ตั้งชื่อ")}</strong></td><td>${escapeHtml(user.email || "—")}</td><td>${user.email_confirmed_at ? '<span class="admin-status good">ยืนยันอีเมลแล้ว</span>' : '<span class="admin-status pending">ยังไม่ยืนยัน</span>'}</td><td>${formatDate(user.created_at)}</td></tr>`).join(""), "ยังไม่มีสมาชิก")}</section>`;
   }
   if (section === "groups") {
-    const { rows } = await invoke("groups");
+    const { rows } = await loadAdminGroups();
     cachedAdminGroups = rows;
     return groupsContent(rows);
   }
@@ -645,7 +657,15 @@ document.addEventListener("click", async (event) => {
     button.disabled = true;
     button.textContent = "กำลังลบ…";
     try {
-      await invoke("delete-group", { groupId });
+      const { error } = await currentClient.rpc("admin_delete_group", { p_group: groupId });
+      if (error) {
+        const message = String(error.message || "");
+        throw new Error(
+          error.code === "PGRST202" || message.includes("Could not find the function")
+            ? "ฐานข้อมูลยังไม่มีฟังก์ชันลบกลุ่ม กรุณารัน migration 20261120110000_admin_group_rpcs.sql"
+            : message.includes("group_not_found") ? "ไม่พบกลุ่มนี้ อาจถูกลบไปแล้ว" : billingErrorMessage(error),
+        );
+      }
       feedback = `ลบกลุ่ม “${groupName}” แล้ว`;
     } catch (error) {
       feedback = error.message || "ลบกลุ่มไม่สำเร็จ";

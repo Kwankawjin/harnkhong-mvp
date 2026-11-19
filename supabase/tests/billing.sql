@@ -247,7 +247,19 @@ begin
     raise exception 'rejected without a reason';
   exception when invalid_parameter_value then null; end;
   perform public.admin_review_subscription_payment(pay, true);
+  v := public.admin_list_groups();
+  assert jsonb_array_length(v) >= 2 and (v->0) ? 'member_count' and (v->0) ? 'owner_email',
+    'the admin sees every group with counts and the owner email';
   perform set_config('request.jwt.claims', '', true);
+  perform set_config('request.jwt.claim.sub', b::text, true);
+  begin
+    perform public.admin_delete_group(m);
+    raise exception 'a member deleted a group through the admin RPC';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform public.admin_list_groups();
+    raise exception 'a member listed every group';
+  exception when insufficient_privilege then null; end;
   reset role;
   assert (select status = 'active' from public.subscriptions where user_id = b), 'an admin approval through the RPC activates Plus';
 
@@ -267,5 +279,15 @@ begin
     raise exception 'accepted an unknown billing mode';
   exception when invalid_parameter_value then null; end;
   reset role;
+  -- ---------------------------------------------------------------- admin delete (last: it frees the owner's quota)
+  perform set_config('request.jwt.claim.sub', admin::text, true);
+  perform set_config('request.jwt.claims', '{"app_metadata":{"role":"admin"}}', true);
+  set local role authenticated;
+  perform public.admin_delete_group(g);
+  perform set_config('request.jwt.claims', '', true);
+  reset role;
+  -- Checked as postgres, so row-level security cannot hide a row that still exists.
+  assert not exists (select 1 from public.groups where id = g), 'the admin deleted a group that has payment reports';
+  assert not exists (select 1 from public.group_payment_reports where group_id = g), 'its payment reports went with it';
 end $$;
 rollback;
