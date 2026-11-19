@@ -6487,7 +6487,24 @@ function authErrorMessage(error) {
   if (code === "weak_password" || message.includes("password should be"))
     return t("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร");
   if (error?.code === "orderUnauthorized") return t("orderUnauthorized");
-  return t("เกิดข้อผิดพลาด กรุณาลองใหม่");
+  // Payment slips (group checkout, monthly cycles, Plus).
+  if (code === "PGRST202" || message.includes("could not find the function"))
+    return t("ฐานข้อมูลยังไม่มีฟังก์ชันที่ใช้ กรุณารัน migration ล่าสุดของ Supabase");
+  if (message.includes("bucket not found"))
+    return t("ยังไม่มีที่เก็บสลิปใน Supabase กรุณารัน migration ล่าสุด");
+  if (message.includes("row-level security") || message.includes("row level security"))
+    return t("ไม่มีสิทธิ์อัปโหลดสลิปของยอดรอบนี้ กรุณายืนยันยอดล่าสุดก่อนแล้วลองใหม่");
+  if (message.includes("not_approved_group_member"))
+    return t("กรุณายืนยันยอดรอบปัจจุบันก่อนแจ้งโอน");
+  if (message.includes("invalid_transfer_time")) return t("กรุณาระบุวันและเวลาที่โอนให้ถูกต้อง");
+  if (message.includes("payment_slip_missing") || message.includes("invalid_payment_slip_path"))
+    return t("อัปโหลดสลิปไม่สำเร็จ กรุณาเลือกไฟล์ใหม่แล้วลองอีกครั้ง");
+  if (message.includes("group_unavailable")) return t("ไม่พบกลุ่มนี้ หรือกลุ่มถูกยกเลิกแล้ว");
+  if (message.includes("payload too large") || message.includes("maximum allowed size"))
+    return t("ไฟล์ใหญ่เกินไป กรุณาใช้รูปไม่เกิน 8 MB");
+  // Unknown: keep the real reason visible so it can be reported.
+  const detail = [error?.code, error?.message].filter(Boolean).join(": ").slice(0, 160);
+  return detail ? `${t("เกิดข้อผิดพลาด กรุณาลองใหม่")} (${detail})` : t("เกิดข้อผิดพลาด กรุณาลองใหม่");
 }
 
 function secondhandSaveErrorMessage(error) {

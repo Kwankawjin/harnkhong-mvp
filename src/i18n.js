@@ -2,6 +2,12 @@ import { assertSatang } from "./domain.js";
 
 // Thai source text is the key for UI copy; stored/user-entered content is never translated.
 const labels = {
+  "ฐานข้อมูลยังไม่มีฟังก์ชันที่ใช้ กรุณารัน migration ล่าสุดของ Supabase": "The database is missing a function. Please run the latest Supabase migration.",
+  "ยังไม่มีที่เก็บสลิปใน Supabase กรุณารัน migration ล่าสุด": "The slip storage bucket is missing. Please run the latest migration.",
+  "ไม่มีสิทธิ์อัปโหลดสลิปของยอดรอบนี้ กรุณายืนยันยอดล่าสุดก่อนแล้วลองใหม่": "You cannot upload a slip for this amount yet. Confirm the latest amount and try again.",
+  "อัปโหลดสลิปไม่สำเร็จ กรุณาเลือกไฟล์ใหม่แล้วลองอีกครั้ง": "Slip upload failed. Choose the file again and retry.",
+  "ไม่พบกลุ่มนี้ หรือกลุ่มถูกยกเลิกแล้ว": "This group was not found or was cancelled.",
+  "ไฟล์ใหญ่เกินไป กรุณาใช้รูปไม่เกิน 8 MB": "The file is too large. Use an image up to 8 MB.",
   "หลังโอนเงินจริงแล้ว แนบสลิปแล้วกดปุ่มด้านล่างเพื่อแจ้งแอดมินตรวจยอด": "After transferring, attach the slip and press the button below so an admin can verify it.",
   "แนบสลิป (JPG, PNG, WebP ไม่เกิน 8 MB)": "Attach slip (JPG, PNG, WebP up to 8 MB)",
   "แนบสลิป (ไม่บังคับในโหมดเดโม)": "Attach slip (optional in demo mode)",
