@@ -2,6 +2,11 @@ import { assertSatang } from "./domain.js";
 
 // Thai source text is the key for UI copy; stored/user-entered content is never translated.
 const labels = {
+  "หลังโอนเงินจริงแล้ว แนบสลิปแล้วกดปุ่มด้านล่างเพื่อแจ้งแอดมินตรวจยอด": "After transferring, attach the slip and press the button below so an admin can verify it.",
+  "แนบสลิป (JPG, PNG, WebP ไม่เกิน 8 MB)": "Attach slip (JPG, PNG, WebP up to 8 MB)",
+  "แนบสลิป (ไม่บังคับในโหมดเดโม)": "Attach slip (optional in demo mode)",
+  "เวลาที่โอน": "Transfer time",
+  "กำลังส่งสลิป…": "Sending slip…",
   "แจ้งโอนแล้ว (เดโม)": "Mark as paid (demo)",
   "ยอดของคุณเดือนนี้": "Your amount this month",
   "ราคาต่อที่นั่งต่อเดือน": "Price per seat per month",

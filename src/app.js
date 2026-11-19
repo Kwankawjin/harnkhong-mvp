@@ -1038,6 +1038,37 @@ function paymentDialog(order, reference) {
   const expires = Date.now() + 5 * 60 * 60 * 1000;
   return `<dialog id="payment-dialog" class="payment-dialog share-approval-dialog" aria-labelledby="payment-title"><div class="payment-head"><span class="chip">${t("จำลองเท่านั้น")}</span><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิดหน้าต่าง")}">✕</button></div><h2 id="payment-title">${t("สแกน QR เพื่อยืนยันยอด")}</h2><p>${t("สแกนด้วยโทรศัพท์เพื่อตรวจสอบและยอมรับยอด")}</p><div class="demo-qr"><img id="payment-qr" data-reference="${escape(reference)}" data-amount="${amount}" data-expires="${expires}" alt="${t("QR สำหรับยอมรับยอดจำลอง")}"/></div><div class="approval-amount-panel"><small>${t("ยอดชำระจำลอง")}</small><strong class="payment-amount">${money(amount)}</strong></div><div class="demo-expiry-box"><span>${t("กรุณายอมรับภายใน")}<b>5 ${t("ชั่วโมง")}</b></span><strong class="demo-countdown">05 : 00 : 00</strong></div><small class="demo-expired-message" hidden>${t("หมดเวลายอมรับ กรุณาสร้าง QR ใหม่")}</small><div class="demo-reference-row"><span>${t("รหัสอ้างอิง")}</span><b>${escape(reference)}</b></div><div class="demo-pending-status"><span>${t("สถานะการยืนยัน")}</span><b>${t("รอยืนยัน")}</b></div><div class="demo-only-note">${t("การยืนยันนี้เป็นการยอมรับจำนวนเงินจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง")}</div></dialog>`;
 }
+/** Small slip picker for the checkout dialog: the slip goes to the admin payment queue. */
+function checkoutSlipField() {
+  const localNow = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  return `<div class="checkout-slip"><label class="checkout-slip-file">${icon("copy", 16)}<span data-payment-slip-status>${supabaseConfigured ? t("แนบสลิป (JPG, PNG, WebP ไม่เกิน 8 MB)") : t("แนบสลิป (ไม่บังคับในโหมดเดโม)")}</span><input type="file" accept="image/jpeg,image/png,image/webp" data-payment-slip-input/></label><label class="checkout-slip-time"><small>${t("เวลาที่โอน")}</small><input type="datetime-local" data-payment-transfer-time value="${localNow}"/></label></div>`;
+}
+/** Upload a slip for the current group revision and file it for admin review. */
+async function reportGroupSlip(id, revision, file, transferredAt) {
+  const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" })[file.type];
+  const slipPath = `${state.user.id}/${id}/${revision}/${crypto.randomUUID()}.${extension}`;
+  const { error: uploadError } = await supabase.storage.from("group-payment-slips").upload(slipPath, file, {
+    cacheControl: "3600", upsert: false, contentType: file.type,
+  });
+  if (uploadError) throw uploadError;
+  try {
+    await reportSupabaseGroupPayment(id, revision, slipPath, transferredAt.toISOString());
+  } catch (error) {
+    await supabase.storage.from("group-payment-slips").remove([slipPath]);
+    throw error;
+  }
+}
+function slipFromPanel(panel, { required }) {
+  const file = panel?.querySelector("[data-payment-slip-input]")?.files?.[0] || null,
+    transferTime = panel?.querySelector("[data-payment-transfer-time]")?.value,
+    transferredAt = new Date(transferTime || "");
+  if (!file && !required) return null;
+  if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 8 * 1024 * 1024)
+    throw new Error(t("กรุณาแนบสลิป JPG, PNG หรือ WebP ขนาดไม่เกิน 8 MB"));
+  if (!transferTime || Number.isNaN(transferredAt.valueOf()) || transferredAt > new Date(Date.now() + 10 * 60 * 1000))
+    throw new Error(t("กรุณาระบุวันและเวลาที่โอนให้ถูกต้อง"));
+  return { file, transferredAt };
+}
 function shareApprovalDialog(amount, g, p) {
   const addr = state.user?.address || {};
   const addressParts = [
@@ -1057,7 +1088,7 @@ function shareApprovalDialog(amount, g, p) {
   const itemImage = coverImage
     ? `<img src="${escape(coverImage)}" alt="${escape(p?.title || g.name)}"/>`
     : `<div class="checkout-product-art ${isDigitalProduct ? "is-digital" : ""}">${art({ ...p, category: g.category || p?.category })}</div>`;
-  return `<dialog id="share-approval-dialog" class="payment-dialog share-approval-dialog" aria-labelledby="share-approval-title"><div class="checkout-page-head"><div><h2 id="share-approval-title">${t("สั่งซื้อ (หารของ)")}</h2></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิดหน้าต่าง")}">✕</button></div><div class="checkout-steps"><span class="active">1 · ${t("ตรวจสอบข้อมูล")}</span><i></i><span class="active">2 · ${t("ยืนยันยอด")}</span><i></i><span>3 · ${t("เสร็จสิ้น")}</span></div><div class="checkout-layout"><div class="checkout-info-column"><section class="checkout-panel"><h3>${icon("map-pin", 20)} ${t("ที่อยู่ในการจัดส่ง")}</h3><div class="checkout-address"><div class="checkout-address-contact"><strong>${escape(state.user?.name || "—")}</strong><span>${escape(addr.phone || "—")}</span></div>${addressParts.length ? `<div class="checkout-address-details">${addressParts.map(([label, value]) => `<span><small>${escape(label)}</small><b>${escape(value)}</b></span>`).join("")}</div>` : `<p>${t("ยังไม่ได้ระบุที่อยู่")}</p>`}</div></section><section class="checkout-panel"><h3>${icon("package", 20)} ${t("รายละเอียดสินค้า")}</h3><div class="checkout-product">${itemImage}<div><strong>${escape(p?.title || g.name)}</strong><span>${t("กลุ่มหาร")}: ${escape(g.name)}</span><span>${escape(p?.description || t("สินค้าในกลุ่มหารของ"))}</span></div><b>${money(amount)}</b></div></section><section class="checkout-panel checkout-note"><h3>${icon("edit", 20)} ${t("หมายเหตุถึงผู้จัดกลุ่ม")}</h3><textarea maxlength="200" placeholder="${t("เช่น สีที่ต้องการ / รายละเอียดเพิ่มเติม...")}" aria-label="${t("หมายเหตุถึงผู้จัดกลุ่ม")}"></textarea><small>0 / 200</small></section></div><section class="checkout-panel checkout-pay-panel"><h3>${icon("package", 22)} ${t("ชำระเงิน")}</h3><p>${t("สแกน QR เพื่อชำระเงิน")}</p><div class="checkout-qr-row bank-transfer-qr-row share-approval-bank-qr"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div class="checkout-bank"><strong>${t("QR บัญชีรับเงิน")}</strong><span>${t("ชื่อบัญชีรับโอน")}</span><b>${BANK_PAYMENT_RECIPIENT}</b><small>${t("ยอดส่วนของคุณ")}: ${money(amount)}</small></div></div><div class="checkout-amount"><span>${t("ยอดชำระ")} (${t("ส่วนของคุณ")})</span><strong>${money(amount)}</strong></div><p class="checkout-payment-report-note">${t("หลังโอนเงินจริงแล้ว กดปุ่มด้านล่างเพื่อแจ้งแอดมินตรวจยอด")}</p><button class="button primary full" type="button" data-action="confirm-share-amount" data-id="${escape(g.id)}" data-revision="${Number(g.revision)}">${t("โอนแล้ว แจ้งแอดมินตรวจยอด")}</button></section></div></dialog>`;
+  return `<dialog id="share-approval-dialog" class="payment-dialog share-approval-dialog" aria-labelledby="share-approval-title"><div class="checkout-page-head"><div><h2 id="share-approval-title">${t("สั่งซื้อ (หารของ)")}</h2></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิดหน้าต่าง")}">✕</button></div><div class="checkout-steps"><span class="active">1 · ${t("ตรวจสอบข้อมูล")}</span><i></i><span class="active">2 · ${t("ยืนยันยอด")}</span><i></i><span>3 · ${t("เสร็จสิ้น")}</span></div><div class="checkout-layout"><div class="checkout-info-column"><section class="checkout-panel"><h3>${icon("map-pin", 20)} ${t("ที่อยู่ในการจัดส่ง")}</h3><div class="checkout-address"><div class="checkout-address-contact"><strong>${escape(state.user?.name || "—")}</strong><span>${escape(addr.phone || "—")}</span></div>${addressParts.length ? `<div class="checkout-address-details">${addressParts.map(([label, value]) => `<span><small>${escape(label)}</small><b>${escape(value)}</b></span>`).join("")}</div>` : `<p>${t("ยังไม่ได้ระบุที่อยู่")}</p>`}</div></section><section class="checkout-panel"><h3>${icon("package", 20)} ${t("รายละเอียดสินค้า")}</h3><div class="checkout-product">${itemImage}<div><strong>${escape(p?.title || g.name)}</strong><span>${t("กลุ่มหาร")}: ${escape(g.name)}</span><span>${escape(p?.description || t("สินค้าในกลุ่มหารของ"))}</span></div><b>${money(amount)}</b></div></section><section class="checkout-panel checkout-note"><h3>${icon("edit", 20)} ${t("หมายเหตุถึงผู้จัดกลุ่ม")}</h3><textarea maxlength="200" placeholder="${t("เช่น สีที่ต้องการ / รายละเอียดเพิ่มเติม...")}" aria-label="${t("หมายเหตุถึงผู้จัดกลุ่ม")}"></textarea><small>0 / 200</small></section></div><section class="checkout-panel checkout-pay-panel"><h3>${icon("package", 22)} ${t("ชำระเงิน")}</h3><p>${t("สแกน QR เพื่อชำระเงิน")}</p><div class="checkout-qr-row bank-transfer-qr-row share-approval-bank-qr"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div class="checkout-bank"><strong>${t("QR บัญชีรับเงิน")}</strong><span>${t("ชื่อบัญชีรับโอน")}</span><b>${BANK_PAYMENT_RECIPIENT}</b><small>${t("ยอดส่วนของคุณ")}: ${money(amount)}</small></div></div><div class="checkout-amount"><span>${t("ยอดชำระ")} (${t("ส่วนของคุณ")})</span><strong>${money(amount)}</strong></div><p class="checkout-payment-report-note">${t("หลังโอนเงินจริงแล้ว แนบสลิปแล้วกดปุ่มด้านล่างเพื่อแจ้งแอดมินตรวจยอด")}</p>${checkoutSlipField()}<button class="button primary full" type="button" data-action="confirm-share-amount" data-slip-submit data-id="${escape(g.id)}" data-revision="${Number(g.revision)}" ${supabaseConfigured ? "disabled" : ""}>${t("โอนแล้ว แจ้งแอดมินตรวจยอด")}</button></section></div></dialog>`;
 }
 function demoApprovalPage(success = false) {
   const params = new URLSearchParams(location.search),
@@ -4265,7 +4296,7 @@ document.addEventListener("change", async (e) => {
     isAvatar = input.id === "profile-avatar",
     isListing = input.id === "listing-images";
   if (input.matches?.("[data-payment-slip-input]")) {
-    const panel = input.closest(".group-payment-panel"),
+    const panel = input.closest(".group-payment-panel, .checkout-pay-panel"),
       submit = panel?.querySelector("[data-slip-submit]"),
       status = panel?.querySelector("[data-payment-slip-status]"),
       file = input.files?.[0],
@@ -5123,8 +5154,13 @@ document.addEventListener("click", async (e) => {
         throw Object.assign(new Error(), { code: "orderUnauthorized" });
       if (Number(current.revision) !== revision)
         throw new Error(t("ยอดส่วนแบ่งเปลี่ยนแล้ว กรุณาตรวจสอบใหม่"));
+      // Check the slip before approving, so a bad file never leaves a half-done report.
+      const slip = slipFromPanel(btn.closest(".checkout-pay-panel"), { required: supabaseConfigured });
       if (supabaseConfigured) {
-        await approveSupabaseGroup(id, revision);
+        btn.disabled = true;
+        btn.textContent = t("กำลังส่งสลิป…");
+        if (current.approvals[state.user.id] !== revision) await approveSupabaseGroup(id, revision);
+        await reportGroupSlip(id, revision, slip.file, slip.transferredAt);
         if (!(await refreshSupabaseGroups(actionSession))) return;
       } else {
         const next = approve(current, state.user.id, revision);
@@ -5141,7 +5177,7 @@ document.addEventListener("click", async (e) => {
       }
       btn.closest("dialog")?.close();
       render();
-      alertMessage(t("ยืนยันยอดส่วนแบ่งแล้ว"));
+      alertMessage(supabaseConfigured ? t("ส่งสลิปแล้ว แอดมินจะตรวจสอบยอดเงินจริง") : t("ยืนยันยอดส่วนแบ่งแล้ว"));
     } else if (action === "copy-link") {
       const current = group(id);
       if (!current) throw new Error(t("ไม่พบกลุ่ม"));

@@ -541,3 +541,67 @@ h3 {
   flex-wrap: wrap;
   gap: 6px 24px;
 }
+
+/* Checkout dialog: a compact slip picker under the amount. */
+.checkout-slip {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+.checkout-slip-file {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px dashed var(--hk-sky-300);
+  border-radius: var(--hk-radius-control);
+  background: var(--hk-sky-50);
+  color: var(--hk-blue);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--hk-fast) var(--hk-ease), background-color var(--hk-fast) var(--hk-ease);
+}
+.checkout-slip-file:hover,
+.checkout-slip-file:focus-within {
+  border-color: var(--hk-blue);
+  background: var(--hk-sky-100);
+}
+.checkout-slip-file span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.checkout-slip-file input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.checkout-slip-time {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  color: var(--hk-muted);
+  font-size: 0.75rem;
+}
+.checkout-slip-time input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--field-edge, var(--hk-sky-300));
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.8rem;
+}
+@media (max-width: 520px) {
+  .checkout-slip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
