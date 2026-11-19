@@ -1,4 +1,5 @@
 import "./style.css";
+import "./theme.css";
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import DoodleCrewFooter from "../components/ui/doodle-crew-footer.tsx";
