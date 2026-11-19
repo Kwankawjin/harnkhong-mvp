@@ -45,6 +45,25 @@ begin
   update public.groups set pricing_mode = 'seat_v3' where id = g;
   perform private.refresh_group_totals(g);
 
+  -- A member who approved can upload a slip for the current revision and report it (storage RLS).
+  perform set_config('request.jwt.claim.sub', a::text, true);
+  set local role authenticated;
+  perform public.approve_group(g, (select revision from public.groups where id = g), gen_random_uuid());
+  slip := a::text || '/' || g::text || '/' || (select revision from public.groups where id = g)::text || '/' || gen_random_uuid()::text || '.png';
+  insert into storage.objects(bucket_id, name, owner) values ('group-payment-slips', slip, a);
+  v := public.report_group_payment_with_slip(g, (select revision from public.groups where id = g), slip, now());
+  reset role;
+  assert (v->>'amount_satang')::bigint = 10000 or (select amount_satang = 10000 from public.group_payment_reports where group_id = g and user_id = a),
+    'the slip report charges the member one seat';
+  perform set_config('request.jwt.claim.sub', b::text, true);
+  set local role authenticated;
+  begin
+    insert into storage.objects(bucket_id, name, owner)
+      values ('group-payment-slips', b::text || '/' || g::text || '/1/' || gen_random_uuid()::text || '.png', b);
+    raise exception 'a non-member uploaded a group slip';
+  exception when insufficient_privilege then null; end;
+  reset role;
+
   -- ---------------------------------------------------------------- monthly group
   perform set_config('request.jwt.claim.sub', owner::text, true);
   set local role authenticated;
