@@ -427,3 +427,110 @@ h3 {
 :root:not([data-theme="dark"]) body {
   background-image: none;
 }
+
+/* ---------- Billing: Plus status and monthly cycles ---------- */
+.subscription-status,
+.cycle-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 28px;
+  background: var(--hk-paper);
+  border: 1px solid var(--hk-line);
+  border-radius: var(--hk-radius-card);
+  box-shadow: var(--hk-shadow-sm);
+}
+.subscription-status h2,
+.cycle-panel h2 {
+  margin: 0;
+  color: var(--hk-navy);
+  font-size: 1.35rem;
+}
+.subscription-status > p,
+.cycle-panel > p {
+  margin: 0;
+  color: var(--hk-muted);
+  line-height: 1.6;
+}
+.subscription-status .chip,
+.cycle-panel .chip {
+  justify-self: start;
+}
+.cycle-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  color: var(--hk-ink);
+  font-weight: 600;
+}
+.cycle-pay {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px 24px;
+  align-items: start;
+  padding: 20px;
+  background: var(--hk-sky-50);
+  border: 1px solid var(--hk-line);
+  border-radius: 16px;
+}
+.cycle-pay > h3,
+.cycle-pay > p,
+.cycle-pay > .plus-amount {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.cycle-pay > .plus-amount {
+  color: var(--hk-blue);
+  font-size: 1.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.cycle-qr {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--hk-muted);
+  font-size: 0.85rem;
+}
+.cycle-qr img {
+  width: 160px;
+  height: 160px;
+  padding: 8px;
+  background: var(--hk-paper);
+  border: 1px solid var(--hk-line);
+  border-radius: 12px;
+}
+.cycle-history summary {
+  cursor: pointer;
+  color: var(--hk-blue);
+  font-weight: 600;
+}
+.cycle-history ul {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.cycle-history li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--hk-line);
+  color: var(--hk-ink);
+  font-size: 0.92rem;
+}
+.billing-picker small {
+  flex-basis: 100%;
+  color: var(--hk-muted);
+}
+@media (max-width: 640px) {
+  .cycle-pay {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .subscription-status,
+  .cycle-panel {
+    padding: 20px;
+  }
+}

@@ -3,6 +3,7 @@ import "./admin.css";
 const navItems = [
   ["dashboard", "ภาพรวม", "grid"],
   ["payments", "การชำระเงิน", "payments"],
+  ["billing", "Plus และรายเดือน", "payments"],
   ["users", "สมาชิก", "users"],
   ["groups", "กลุ่มหารของ", "groups"],
   ["settings", "ตั้งค่า", "settings"],
@@ -313,7 +314,40 @@ async function invoke(action, payload = {}) {
   return data;
 }
 
+function slipCell(row) {
+  return row.slip_url
+    ? `<a class="admin-payment-slip" href="${escapeHtml(row.slip_url)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHtml(row.slip_url)}" alt="สลิปโอนเงินของ ${escapeHtml(row.member_name)}"/><span>เปิดดูสลิป</span></a>`
+    : '<span class="admin-payment-slip-missing">ยังไม่มีสลิป</span>';
+}
+const billingStatus = { reported: "รอตรวจ", verified: "ยืนยันแล้ว", rejected: "ปฏิเสธแล้ว" };
+
+/** Plus subscription slips and monthly group cycle slips, each with verify and reject. */
+function billingContent(subscriptionRows, cycleRows) {
+  const plus = subscriptionRows.map((row) => {
+    const actions = row.status === "reported"
+      ? `<div class="admin-row-actions"><button type="button" class="admin-primary" data-admin-action="verify-subscription-payment" data-payment-id="${escapeHtml(row.id)}">ยืนยันรับเงิน · เปิด Plus</button><button type="button" class="admin-danger" data-admin-action="reject-subscription-payment" data-payment-id="${escapeHtml(row.id)}">ปฏิเสธ</button></div>`
+      : row.covers_from ? `<small>ใช้งาน ${formatDate(row.covers_from)} – ${formatDate(row.covers_to)}</small>` : escapeHtml(row.rejection_note || "—");
+    return `<tr><td><strong>${escapeHtml(row.member_name)}</strong><small>แจ้งเมื่อ ${formatDate(row.reported_at)}</small></td><td>${formatMoney(row.amount_satang)}</td><td>${slipCell(row)}</td><td>${escapeHtml(billingStatus[row.status] || row.status)}</td><td>${actions}</td></tr>`;
+  }).join("");
+  const cycles = cycleRows.map((row) => {
+    const ids = `data-group-id="${escapeHtml(row.group_id)}" data-user-id="${escapeHtml(row.user_id)}" data-cycle="${escapeHtml(row.cycle_number)}"`;
+    const actions = row.status === "reported"
+      ? `<div class="admin-row-actions"><button type="button" class="admin-primary" data-admin-action="verify-cycle-payment" ${ids}>ยืนยันรับเงิน</button><button type="button" class="admin-danger" data-admin-action="reject-cycle-payment" ${ids}>ปฏิเสธ</button></div>`
+      : row.verified_at ? formatDate(row.verified_at) : escapeHtml(row.rejection_note || "—");
+    return `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>รอบที่ ${escapeHtml(row.cycle_number)} · ${formatDate(row.cycle_starts_at)} – ${formatDate(row.cycle_ends_at)}</small></td><td><strong>${escapeHtml(row.member_name)}</strong></td><td>${formatMoney(row.amount_satang)}</td><td>${slipCell(row)}</td><td>${escapeHtml(billingStatus[row.status] || row.status)}</td><td>${actions}</td></tr>`;
+  }).join("");
+  return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>สลิปค่าแพ็กเกจ Plus</h2><p>ยืนยันแล้ว Plus เริ่ม 1 เดือนทันที ถ้ายังใช้งานอยู่จะต่อจากวันสิ้นสุดเดิม</p></div></div>${table(["สมาชิก", "ยอด", "สลิป", "สถานะ", "ดำเนินการ"], plus, "ยังไม่มีสลิปค่าแพ็กเกจ")}</section>
+  <section class="admin-panel"><div class="admin-panel-heading"><div><h2>สลิปกลุ่มรายเดือน</h2><p>ยอดของแต่ละรอบล็อกไว้แล้ว ตรวจให้ตรงกับยอดในตาราง</p></div></div>${table(["กลุ่มและรอบ", "สมาชิก", "ยอด", "สลิป", "สถานะ", "ดำเนินการ"], cycles, "ยังไม่มีสลิปรายเดือน")}</section>`;
+}
+
 async function getSectionContent(section) {
+  if (section === "billing") {
+    const [{ rows: subscriptionRows = [] }, { rows: cycleRows = [] }] = await Promise.all([
+      invoke("subscription-payments"),
+      invoke("cycle-payments"),
+    ]);
+    return billingContent(subscriptionRows, cycleRows);
+  }
   if (section === "dashboard") {
     const data = await invoke("overview", { rangeDays: dashboardRangeDays });
     return dashboardContent(data);
@@ -508,6 +542,35 @@ document.addEventListener("click", async (event) => {
       feedback = "ยืนยันยอดรอบกลุ่มแล้ว";
     } catch (error) {
       feedback = error.message || "ยืนยันยอดรอบกลุ่มไม่สำเร็จ";
+    } finally {
+      busy = false;
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+    }
+  } else if (["verify-subscription-payment", "reject-subscription-payment", "verify-cycle-payment", "reject-cycle-payment"].includes(action)) {
+    if (busy) return;
+    const rejecting = action.startsWith("reject");
+    let rejectionNote = "";
+    if (rejecting) {
+      const note = prompt("ระบุเหตุผลที่ปฏิเสธ เพื่อให้สมาชิกทราบว่าต้องแก้ไขอะไร", "ไม่พบยอดเงินเข้าบัญชี กรุณาตรวจสอบและแนบสลิปใหม่");
+      if (note === null) return;
+      rejectionNote = note.trim();
+      if (rejectionNote.length < 3 || rejectionNote.length > 500) {
+        feedback = "กรุณาระบุเหตุผลอย่างน้อย 3 ตัวอักษรและไม่เกิน 500 ตัวอักษร";
+        mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+        return;
+      }
+    } else if (!confirm("ตรวจรายการเงินเข้าในบัญชีธนาคารแล้ว และยืนยันว่าได้รับยอดนี้ครบถ้วนใช่หรือไม่?")) return;
+    busy = true;
+    button.disabled = true;
+    button.textContent = "กำลังบันทึก…";
+    const payload = action.includes("subscription")
+      ? { paymentId: button.dataset.paymentId }
+      : { groupId: button.dataset.groupId, userId: button.dataset.userId, cycleNumber: Number(button.dataset.cycle) };
+    try {
+      await invoke(action, { ...payload, rejectionNote });
+      feedback = rejecting ? "ปฏิเสธรายการแล้ว แจ้งเหตุผลให้สมาชิกทราบแล้ว" : "ยืนยันรับเงินแล้ว";
+    } catch (error) {
+      feedback = error.message || "บันทึกผลตรวจไม่สำเร็จ";
     } finally {
       busy = false;
       mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
