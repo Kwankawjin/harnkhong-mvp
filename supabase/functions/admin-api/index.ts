@@ -173,6 +173,71 @@ async function dashboardOverview(client: any, body: Record<string, unknown>, act
   };
 }
 
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function signedSlip(client: any, bucket: string, path: string | null) {
+  if (!path) return null;
+  const { data, error } = await client.storage.from(bucket).createSignedUrl(path, 600);
+  if (error) console.error("Could not sign slip", bucket, error);
+  return data?.signedUrl || null;
+}
+
+async function profileNames(client: any, userIds: string[]) {
+  if (!userIds.length) return new Map();
+  const { data, error } = await client.from("profiles").select("id,display_name").in("id", userIds);
+  if (error) throw error;
+  return new Map((data || []).map((row: any) => [row.id, row.display_name]));
+}
+
+/** Plus subscription slips waiting for review, newest first. */
+async function listSubscriptionPayments(client: any) {
+  const { data, error } = await client.from("subscription_payments")
+    .select("id,user_id,amount_satang,status,slip_path,transferred_at,reported_at,verified_at,covers_from,covers_to,rejection_note")
+    .order("reported_at", { ascending: false }).limit(200);
+  if (error) throw error;
+  const names = await profileNames(client, [...new Set<string>((data || []).map((row: any) => String(row.user_id)))]);
+  return await Promise.all((data || []).map(async (row: any) => ({
+    ...row,
+    member_name: names.get(row.user_id) || "สมาชิก",
+    slip_url: await signedSlip(client, "subscription-payment-slips", row.slip_path),
+  })));
+}
+
+/** Monthly group cycle slips, newest first. */
+async function listCyclePayments(client: any) {
+  const { data, error } = await client.from("group_cycle_members")
+    .select("cycle_id,user_id,amount_satang,payment_status,slip_path,transferred_at,reported_at,verified_at,rejection_note,group_cycles!inner(group_id,cycle_number,starts_at,ends_at,status,groups(name))")
+    .not("payment_status", "is", null)
+    .order("reported_at", { ascending: false }).limit(200);
+  if (error) throw error;
+  const names = await profileNames(client, [...new Set<string>((data || []).map((row: any) => String(row.user_id)))]);
+  return await Promise.all((data || []).map(async (row: any) => ({
+    group_id: row.group_cycles.group_id,
+    group_name: row.group_cycles.groups?.name || "กลุ่ม",
+    cycle_number: row.group_cycles.cycle_number,
+    cycle_starts_at: row.group_cycles.starts_at,
+    cycle_ends_at: row.group_cycles.ends_at,
+    cycle_status: row.group_cycles.status,
+    user_id: row.user_id,
+    member_name: names.get(row.user_id) || "สมาชิก",
+    amount_satang: row.amount_satang,
+    status: row.payment_status,
+    transferred_at: row.transferred_at,
+    reported_at: row.reported_at,
+    verified_at: row.verified_at,
+    rejection_note: row.rejection_note,
+    slip_url: await signedSlip(client, "cycle-payment-slips", row.slip_path),
+  })));
+}
+
+function rpcFailure(req: Request, error: any, fallback: string) {
+  const status = error.code === "23514" || error.code === "40001" ? 409 : error.code === "P0002" ? 404 : 500;
+  return response(req, {
+    error: status === 409 ? "รายการนี้ถูกตรวจไปแล้ว หรือสถานะเปลี่ยนแล้ว" : status === 404 ? "ไม่พบรายการ" : fallback,
+  }, status);
+}
+
 async function handleAction(req: Request, ctx: any) {
   if (req.method === "OPTIONS") return response(req, { ok: true });
   if (req.method !== "POST") return response(req, { error: "Method not allowed" }, 405);
@@ -208,6 +273,40 @@ async function handleAction(req: Request, ctx: any) {
   }
   if (action === "payments") {
     return response(req, { rows: await listPayments(db) });
+  }
+  if (action === "subscription-payments") {
+    return response(req, { rows: await listSubscriptionPayments(db) });
+  }
+  if (action === "verify-subscription-payment" || action === "reject-subscription-payment") {
+    const paymentId = String(body.paymentId || "");
+    const note = String(body.rejectionNote || "").trim();
+    if (!UUID_RE.test(paymentId)) return response(req, { error: "รหัสรายการชำระเงินไม่ถูกต้อง" }, 400);
+    if (action === "reject-subscription-payment" && (note.length < 3 || note.length > 500))
+      return response(req, { error: "กรุณาระบุเหตุผลปฏิเสธ (3–500 ตัวอักษร)" }, 400);
+    const { data, error } = action === "verify-subscription-payment"
+      ? await db.rpc("verify_subscription_payment", { p_payment: paymentId, p_verified_by: admin.user.id })
+      : await db.rpc("reject_subscription_payment", { p_payment: paymentId, p_verified_by: admin.user.id, p_note: note });
+    if (error) return rpcFailure(req, error, "บันทึกผลตรวจสลิปแพ็กเกจไม่สำเร็จ");
+    return response(req, { ok: true, payment: data });
+  }
+  if (action === "cycle-payments") {
+    return response(req, { rows: await listCyclePayments(db) });
+  }
+  if (action === "verify-cycle-payment" || action === "reject-cycle-payment") {
+    const groupId = String(body.groupId || "");
+    const userId = String(body.userId || "");
+    const cycleNumber = Number(body.cycleNumber);
+    const note = String(body.rejectionNote || "").trim();
+    if (!UUID_RE.test(groupId) || !UUID_RE.test(userId) || !Number.isSafeInteger(cycleNumber) || cycleNumber < 1)
+      return response(req, { error: "ข้อมูลรายการไม่ถูกต้อง" }, 400);
+    if (action === "reject-cycle-payment" && (note.length < 3 || note.length > 500))
+      return response(req, { error: "กรุณาระบุเหตุผลปฏิเสธ (3–500 ตัวอักษร)" }, 400);
+    const args = { p_group: groupId, p_cycle_number: cycleNumber, p_user: userId, p_verified_by: admin.user.id };
+    const { data, error } = action === "verify-cycle-payment"
+      ? await db.rpc("verify_group_cycle_payment", args)
+      : await db.rpc("reject_group_cycle_payment", { ...args, p_note: note });
+    if (error) return rpcFailure(req, error, "บันทึกผลตรวจสลิปรายเดือนไม่สำเร็จ");
+    return response(req, { ok: true, payment: data });
   }
   if (action === "verify-group-payment") {
     const paymentId = String(body.paymentId || "");
