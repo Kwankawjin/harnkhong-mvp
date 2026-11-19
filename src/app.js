@@ -855,32 +855,63 @@ const actorName = (id) =>
           : id || t("ระบบนำเข้าข้อมูลเดิม"));
 const orderStatus = (status) => t("orderStatus_" + status);
 const paymentStatus = (status) => t("paymentStatus_" + status);
-function alertMessage(msg) {
-  const dialog = document.querySelector("dialog[open]");
-  if (dialog) {
-    const target =
-      dialog.querySelector(".mockup-screen.active") ||
-      dialog.querySelector("form") ||
-      dialog;
-    let feedback = target.querySelector("[data-dialog-feedback]");
-    if (!feedback) {
-      feedback = document.createElement("p");
-      feedback.dataset.dialogFeedback = "";
-      feedback.className = "dialog-feedback";
-      feedback.setAttribute("role", "alert");
-      target.append(feedback);
-    }
-    feedback.textContent = msg;
-    feedback.scrollIntoView({ block: "nearest" });
-    return;
+/**
+ * Web notifications: a toast that drops in at the top of the screen.
+ * type: "success" (default), "error", "info" or "warning". Errors stay longer and use role="alert".
+ * The stack lives in a manual popover so it shows above open dialogs too.
+ */
+const TOAST_ICONS = { success: "check", error: "alert-circle", warning: "alert-circle", info: "info" };
+function toastStack() {
+  let stack = document.querySelector("#toast-stack");
+  if (!stack) {
+    stack = document.createElement("div");
+    stack.id = "toast-stack";
+    stack.className = "toast-stack";
+    if ("popover" in HTMLElement.prototype) stack.setAttribute("popover", "manual");
+    document.body.append(stack);
   }
-  document.querySelector("#toast").textContent = msg;
-  document.querySelector("#toast").classList.add("show");
-  setTimeout(
-    () => document.querySelector("#toast")?.classList.remove("show"),
-    3500,
-  );
+  // Re-open on top so it sits above any dialog opened after it.
+  if (stack.showPopover) {
+    try { if (stack.matches(":popover-open")) stack.hidePopover(); stack.showPopover(); } catch { /* not supported */ }
+  }
+  return stack;
 }
+function dismissToast(toast) {
+  if (!toast || toast.dataset.leaving) return;
+  toast.dataset.leaving = "1";
+  toast.classList.add("is-leaving");
+  setTimeout(() => {
+    toast.remove();
+    const stack = document.querySelector("#toast-stack");
+    if (stack && !stack.children.length) {
+      try { stack.hidePopover?.(); } catch { /* not supported */ }
+    }
+  }, 220);
+}
+function alertMessage(msg, type = "success") {
+  const text = String(msg ?? "").trim();
+  if (!text) return;
+  const kind = TOAST_ICONS[type] ? type : "success";
+  const stack = toastStack();
+  // The same message again just restarts its timer instead of stacking a copy.
+  const existing = [...stack.children].find((node) => node.dataset.message === text && !node.dataset.leaving);
+  if (existing) existing.remove();
+  const toast = document.createElement("div");
+  toast.className = `app-toast is-${kind}`;
+  toast.dataset.message = text;
+  toast.setAttribute("role", kind === "error" || kind === "warning" ? "alert" : "status");
+  const duration = kind === "error" || kind === "warning" ? 6000 : 3800;
+  toast.style.setProperty("--toast-duration", `${duration}ms`);
+  toast.innerHTML = `<span class="app-toast-icon">${icon(TOAST_ICONS[kind], 18)}</span><p class="app-toast-text">${escape(text)}</p><button type="button" class="app-toast-close" aria-label="${t("ปิดการแจ้งเตือน")}">✕</button><span class="app-toast-bar" aria-hidden="true"></span>`;
+  toast.querySelector(".app-toast-close").addEventListener("click", () => dismissToast(toast));
+  stack.prepend(toast);
+  while (stack.children.length > 4) dismissToast(stack.lastElementChild);
+  let timer = setTimeout(() => dismissToast(toast), duration);
+  toast.addEventListener("mouseenter", () => clearTimeout(timer));
+  toast.addEventListener("mouseleave", () => { clearTimeout(timer); timer = setTimeout(() => dismissToast(toast), 1800); });
+}
+const alertError = (msg) => alertMessage(msg, "error");
+const alertWarning = (msg) => alertMessage(msg, "warning");
 const title = (heading, sub = "") =>
   `<div class="page-heading"><h1>${heading}</h1>${sub ? `<p>${sub}</p>` : ""}</div>`;
 const art = (item) =>
@@ -3708,7 +3739,6 @@ function render() {
       ${bottomNav.map(([href, ic, label]) => a(href, `${icon(ic, 22)}<span>${label}</span>`, location.pathname === href || (href === "/profile" && location.pathname.startsWith("/profile/")) ? "active" : "")).join("")}
     </nav>
 
-    <div id="toast" role="status" aria-live="polite"></div>
 
     <div id="interactive-footer"></div>
 
@@ -3962,7 +3992,7 @@ function validateCreatePanel(step) {
   const panel = form?.querySelector(`[data-create-step-panel="${step}"]`);
   if (!form || !panel) return true;
   if (step === 1 && !groupImages.length) {
-    alertMessage(t("เพิ่มรูปสินค้าอย่างน้อย 1 รูป"));
+    alertWarning(t("เพิ่มรูปสินค้าอย่างน้อย 1 รูป"));
     form.querySelector("#group-images")?.focus();
     return false;
   }
@@ -3973,7 +4003,7 @@ function validateCreatePanel(step) {
     return false;
   }
   if (step === 1 && !selectedCreateCategories.length) {
-    alertMessage(t("เลือกอย่างน้อย 1 หมวดหมู่"));
+    alertWarning(t("เลือกอย่างน้อย 1 หมวดหมู่"));
     return false;
   }
   if (step === 2) {
@@ -4001,7 +4031,7 @@ function validateCreatePanel(step) {
       parseBaht(data.get("product"));
       parseBaht(data.get("shippingTotal") || "0");
     } catch (error) {
-      alertMessage(errorMessage(error));
+      alertError(errorMessage(error));
       return false;
     }
   }
@@ -4033,7 +4063,7 @@ function updatePreview() {
     const image = document.querySelector("#create-summary-image");
     if (image) image.innerHTML = groupImages[0] ? `<img src="${groupImages[0]}" alt=""/>` : icon("package", 32);
     const review = f.querySelector("#create-review-summary");
-    if (review) review.innerHTML = `<strong>${escape(d.get("productTitle") || t("ชื่อสินค้า"))}</strong><p>${escape(d.get("name") || "—")} · ${escape(t(deliveryLabels[d.get("deliveryMethod")] || "จัดส่งรวม"))}</p><b>${moneyOrZero(Math.ceil(costs.total / count))} / ${t("คน")}</b>`;
+    if (review) review.innerHTML = `<strong>${escape(d.get("productTitle") || t("ชื่อสินค้า"))}</strong><p>${escape(d.get("name") || "—")} · ${escape(t(deliveryLabels[d.get("deliveryMethod")] || "จัดส่งรวม"))}</p><b>${moneyOrZero(seat)} / ${t("คน")}</b>`;
   } catch (e) {
     box.innerHTML = `<small>${escape(errorMessage(e))}</small>`;
   }
@@ -4497,7 +4527,7 @@ document.addEventListener("change", (e) => {
   if (e.target.id !== "locale-select") return;
   if (imagesLoading || avatarLoading) {
     e.target.value = locale;
-    alertMessage(t("กำลังเตรียมรูป กรุณารอสักครู่"));
+    alertWarning(t("กำลังเตรียมรูป กรุณารอสักครู่"));
     return;
   }
   // Rerender labels without discarding drafts, password visibility, or the current auth step.
@@ -5339,7 +5369,7 @@ document.addEventListener("click", async (e) => {
         groupId = btn.dataset.group,
         revision = Number(btn.dataset.revision);
       if (expires && acceptedAt >= expires) {
-        alertMessage(t("QR หมดอายุแล้ว"));
+        alertWarning(t("QR หมดอายุแล้ว"));
         render();
         return;
       }
@@ -5460,7 +5490,7 @@ document.addEventListener("click", async (e) => {
         /* Keep the explicit mutation error visible. */
       }
     }
-    alertMessage(
+    alertError(
       supabaseConfigured ? authErrorMessage(err) : errorMessage(err),
     );
   }
@@ -5603,7 +5633,7 @@ document.addEventListener("submit", async (e) => {
       f.dataset.submitting = "false";
       const submitButton = f.querySelector('[type="submit"]');
       if (submitButton) submitButton.disabled = false;
-      alertMessage(errorMessage(error));
+      alertError(errorMessage(error));
     }
     return;
   }
@@ -5637,7 +5667,7 @@ document.addEventListener("submit", async (e) => {
           /* Keep the explicit mutation error visible. */
         }
       }
-      alertMessage(
+      alertError(
         supabaseConfigured ? authErrorMessage(err) : errorMessage(err),
       );
     }
@@ -5910,7 +5940,7 @@ document.addEventListener("submit", async (e) => {
           return;
         }
       }
-      alertMessage(
+      alertError(
         supabaseConfigured ? authErrorMessage(err) : storageError(err),
       );
     }
@@ -5997,7 +6027,7 @@ document.addEventListener("submit", async (e) => {
       render();
       alertMessage(t("บันทึกโปรไฟล์แล้ว"));
     } catch (err) {
-      alertMessage(storageError(err));
+      alertError(storageError(err));
     }
   } else if (f.id === "secondhand-search-form") {
     e.preventDefault();
@@ -6035,7 +6065,7 @@ document.addEventListener("submit", async (e) => {
       if (imagesLoading) throw Error(t("กำลังเตรียมรูป กรุณารอสักครู่"));
       if (!groupImages.length) {
         updateCreateStep(1);
-        alertMessage(t("เพิ่มรูปสินค้าอย่างน้อย 1 รูป"));
+        alertWarning(t("เพิ่มรูปสินค้าอย่างน้อย 1 รูป"));
         f.querySelector("#group-images")?.focus();
         return;
       }
@@ -6160,10 +6190,12 @@ document.addEventListener("submit", async (e) => {
       alertMessage(t("สร้างกลุ่มแล้ว"));
     } catch (err) {
       const errorBox = f.querySelector("#create-error");
+      const message = supabaseConfigured ? authErrorMessage(err) : storageError(err);
       if (errorBox && createGroupStep === 3) {
-        errorBox.textContent = storageError(err);
+        errorBox.textContent = message;
         errorBox.hidden = false;
-      } else alertMessage(storageError(err));
+      }
+      alertError(message);
     }
   } else if (f.id === "group-chat-form") {
     e.preventDefault();
@@ -6180,7 +6212,7 @@ document.addEventListener("submit", async (e) => {
       else rememberGroupMessages(id, next);
       render();
     } catch (error) {
-      alertMessage(
+      alertError(
         supabaseConfigured ? authErrorMessage(error) : errorMessage(error),
       );
     }
@@ -6220,7 +6252,7 @@ document.addEventListener("submit", async (e) => {
         }
         render();
       } catch (error) {
-        alertMessage(
+        alertError(
           supabaseConfigured ? authErrorMessage(error) : errorMessage(error),
         );
       }
@@ -6300,7 +6332,7 @@ document.addEventListener("submit", async (e) => {
       }
       orderChanged(next, feedback);
     } catch (err) {
-      alertMessage(errorMessage(err));
+      alertError(errorMessage(err));
     }
   } else if (f.id === "product-form") {
     e.preventDefault();
@@ -6391,7 +6423,7 @@ document.addEventListener("submit", async (e) => {
       go(`/products/${p.id}`);
       alertMessage(t(editingId ? "บันทึกการแก้ไขแล้ว" : "ลงประกาศขายแล้ว"));
     } catch (err) {
-      alertMessage(
+      alertError(
         supabaseConfigured
           ? secondhandSaveErrorMessage(err)
           : storageError(err),
@@ -6744,7 +6776,7 @@ if (supabaseConfigured) {
       groupsLoading = false;
       groupsError = error;
       render();
-      alertMessage(authErrorMessage(error));
+      alertError(authErrorMessage(error));
     },
   });
   syncSupabaseSession = (session) => {

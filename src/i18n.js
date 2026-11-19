@@ -2,6 +2,7 @@ import { assertSatang } from "./domain.js";
 
 // Thai source text is the key for UI copy; stored/user-entered content is never translated.
 const labels = {
+  "ปิดการแจ้งเตือน": "Dismiss notification",
   "ชำระรายเดือน": "Billed monthly",
   "ไม่มีค่าใช้จ่าย": "Free of charge",
   "แพ็กเกจปัจจุบัน": "Current plan",

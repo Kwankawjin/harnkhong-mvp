@@ -775,3 +775,118 @@ h3 {
 #plus-payment {
   scroll-margin-top: 96px;
 }
+
+/* ---------- Web notifications (toasts at the top of the screen) ---------- */
+.toast-stack {
+  position: fixed;
+  inset: 16px 0 auto;
+  z-index: 2000;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  margin: 0;
+  padding: 0 16px;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  pointer-events: none;
+}
+.toast-stack:popover-open {
+  display: grid;
+}
+.app-toast {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: min(440px, 100%);
+  padding: 12px 12px 14px 14px;
+  overflow: hidden;
+  background: var(--hk-paper);
+  border: 1px solid var(--hk-line);
+  border-left: 4px solid var(--toast-accent, var(--hk-blue));
+  border-radius: 14px;
+  box-shadow: var(--hk-shadow-md);
+  color: var(--hk-ink);
+  pointer-events: auto;
+  animation: hk-toast-in 420ms var(--hk-ease-spring) both;
+}
+.app-toast.is-success { --toast-accent: #15803d; }
+.app-toast.is-error { --toast-accent: #c2410c; }
+.app-toast.is-warning { --toast-accent: #b45309; }
+.app-toast.is-info { --toast-accent: var(--hk-blue); }
+.app-toast.is-leaving {
+  animation: hk-toast-out 220ms var(--hk-ease) both;
+}
+.app-toast-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--toast-accent) 12%, var(--hk-paper));
+  color: var(--toast-accent);
+}
+.app-toast-text {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.app-toast-close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--hk-muted);
+  cursor: pointer;
+}
+.app-toast-close:hover {
+  background: var(--hk-sky-100);
+  color: var(--hk-ink);
+}
+.app-toast-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--toast-accent);
+  opacity: 0.35;
+  transform-origin: left;
+  animation: hk-toast-bar var(--toast-duration, 4s) linear both;
+}
+.app-toast:hover .app-toast-bar {
+  animation-play-state: paused;
+}
+@keyframes hk-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.96);
+  }
+}
+@keyframes hk-toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.97);
+  }
+}
+@keyframes hk-toast-bar {
+  to {
+    transform: scaleX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-toast,
+  .app-toast.is-leaving,
+  .app-toast-bar {
+    animation: none;
+  }
+}
