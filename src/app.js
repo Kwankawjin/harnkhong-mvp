@@ -2577,6 +2577,9 @@ function notifications() {
 }
 function subscriptionStatusSection(sub, { current, pending, active, endsAt, daysLeft }) {
   const payments = sub?.payments || [];
+  const showForm = plusPaymentOpen && !pending;
+  // A Free member who has never paid sees nothing here until they press "สมัคร Plus".
+  if (!showForm && !pending && !active && !payments.length && sub?.status !== "expired") return "";
   const label = { reported: "รอแอดมินตรวจ", verified: "ยืนยันแล้ว", rejected: "ไม่ผ่าน" };
   const rejected = payments.find((p) => p.status === "rejected" && !payments.some((q) => q.status !== "rejected" && q.reportedAt > p.reportedAt));
   return `<section class="subscription-status group-payment-panel" id="plus-payment" aria-labelledby="plus-status-heading">
@@ -2586,7 +2589,9 @@ function subscriptionStatusSection(sub, { current, pending, active, endsAt, days
     ${rejected && !pending ? `<p class="summary-warning">${t("สลิปก่อนหน้าไม่ผ่าน")}${rejected.note ? `: ${escape(rejected.note)}` : ""}</p>` : ""}
     ${pending
       ? !supabaseConfigured ? `<button class="button outline" data-action="demo-verify-subscription">${t("ยืนยันสลิป (แอดมินเดโม)")}</button>` : ""
-      : `<div class="cycle-pay"><strong class="plus-amount">${money(PLUS_PRICE_SATANG)}</strong>${paymentQr()}${subscriptionSlipForm()}</div>`}
+      : showForm
+        ? `<div class="cycle-pay"><strong class="plus-amount">${money(PLUS_PRICE_SATANG)}</strong>${paymentQr()}${subscriptionSlipForm()}</div><button type="button" class="button subtle" data-action="close-plus-payment">${t("ยกเลิก")}</button>`
+        : ""}
     ${payments.length ? `<details class="cycle-history"><summary>${t("ประวัติการชำระ")}</summary><ul>${payments.map((p) => `<li><span>${shortDate(p.reportedAt)}</span><span>${p.coversFrom ? `${shortDate(p.coversFrom)} – ${shortDate(p.coversTo)}` : "–"}</span><b>${t(label[p.status] || p.status)}</b></li>`).join("")}</ul></details>` : ""}
   </section>`;
 }
@@ -2594,6 +2599,8 @@ function subscriptionSlipForm() {
   const localNow = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   return `<div class="group-payment-proof-fields"><label>${t("แนบสลิปโอนเงิน")}<input type="file" accept="image/jpeg,image/png,image/webp" data-payment-slip-input required/><small data-payment-slip-status>${t("ยังไม่ได้เลือกสลิป (ไม่เกิน 8 MB)")}</small></label><label>${t("วันที่และเวลาที่โอนจริง")}<input type="datetime-local" data-payment-transfer-time value="${localNow}" required/></label><button class="button primary full" type="button" data-action="report-subscription-payment" data-slip-submit disabled>${t("แนบสลิปแล้วแจ้งแอดมิน")}</button></div>`;
 }
+// The Plus transfer form stays hidden until the member chooses to subscribe or renew.
+let plusPaymentOpen = false;
 /** One plan card: name, a price that counts up, what is included, the action and a short note. */
 function pricingCard({ index, name, price, popular = false, tagline, features, current, action, note }) {
   return `<article class="hk-plan ${popular ? "is-popular" : "is-side"} ${current ? "is-current" : ""}" style="--plan-index:${index}">
@@ -2682,7 +2689,7 @@ function subscriptionPage() {
           ? a("/login", t("เข้าสู่ระบบเพื่อสมัคร Plus"), "button primary full")
           : pending
             ? `<button class="button primary full" disabled>${t("รอแอดมินตรวจสลิป")}</button>`
-            : `<a class="button primary full" href="#plus-payment">${active ? t("ต่ออายุอีก 1 เดือน") : t("สมัคร Plus")} ${icon("arrow", 18)}</a>`,
+            : `<button type="button" class="button primary full" data-action="open-plus-payment">${active ? t("ต่ออายุอีก 1 เดือน") : t("สมัคร Plus")} ${icon("arrow", 18)}</button>`,
         note: active
           ? t("ใช้งานถึง {date} (เหลือ {days} วัน)", { date: shortDate(endsAt), days: daysLeft })
           : t("ชำระรายเดือนด้วยการโอนและแนบสลิป แอดมินตรวจแล้วเริ่มใช้งานทันที"),
@@ -4957,6 +4964,11 @@ document.addEventListener("click", async (e) => {
       alertMessage(t("เริ่มข้อมูลเดโมใหม่แล้ว"));
     } else if (action === "refresh-groups") {
       await refreshSupabaseGroups();
+    } else if (action === "open-plus-payment" || action === "close-plus-payment") {
+      plusPaymentOpen = action === "open-plus-payment";
+      render();
+      if (plusPaymentOpen)
+        document.querySelector("#plus-payment")?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     } else if (action === "report-subscription-payment") {
       if (!state.user) throw Object.assign(new Error(), { code: "orderUnauthorized" });
       const panel = btn.closest(".group-payment-panel"),
@@ -4982,6 +4994,7 @@ document.addEventListener("click", async (e) => {
           },
         });
       }
+      plusPaymentOpen = false;
       render();
       alertMessage(t("ส่งสลิปแล้ว แอดมินตรวจแล้ว Plus จะเริ่มใช้งาน"));
     } else if (action === "demo-verify-subscription") {

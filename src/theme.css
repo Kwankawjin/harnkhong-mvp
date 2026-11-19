@@ -771,3 +771,7 @@ h3 {
     transition: none;
   }
 }
+
+#plus-payment {
+  scroll-margin-top: 96px;
+}
