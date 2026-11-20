@@ -16,8 +16,6 @@ const sectionAliases = { billing: "payments" };
 // Pending work per section, shown as badges in the menu and as cards on the dashboard.
 let workCounts = {};
 
-const ADMIN_EMAILS = ["harnkhong@gmail.com", "asdwadwaa8@gmail.com"];
-const ADMIN_EMAIL_LABEL = ADMIN_EMAILS.join(" หรือ ");
 let currentClient = null;
 let pageGeneration = 0;
 let feedback = "";
@@ -324,7 +322,7 @@ function shell(content, { user, section, login = false } = {}) {
   document.body.classList.toggle("admin-mode", !login);
   document.title = login ? "เข้าสู่ระบบผู้ดูแล | HarnKhong" : `${sectionTitle(section)} | HarnKhong Admin`;
   root.innerHTML = login
-    ? `<main class="admin-login-wrap"><section class="admin-login"><a class="admin-brand" href="/"><img src="/images/harnkhong-logo.png" alt=""/><strong>HarnKhong</strong></a><h1>เข้าสู่ระบบผู้ดูแล</h1><p>ใช้บัญชี Google ${ADMIN_EMAIL_LABEL} เพื่อเข้าใช้งาน</p><button type="button" class="admin-google-button" data-admin-action="google-login" ${busy ? "disabled" : ""}><span class="admin-google-mark" aria-hidden="true">G</span>เข้าสู่ระบบด้วย Google</button><p class="admin-login-hint">ระบบให้สิทธิ์เฉพาะอีเมลผู้ดูแลที่กำหนดไว้เท่านั้น</p><div class="admin-login-divider"><span>หรือใช้อีเมลและรหัสผ่าน</span></div><form id="admin-login-form"><label>อีเมล<input type="email" name="email" autocomplete="username" required/></label><label>รหัสผ่าน<input type="password" name="password" autocomplete="current-password" required/></label><button class="admin-primary" type="submit" ${busy ? "disabled" : ""}>${busy ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}</button>${feedback ? `<p class="admin-feedback" role="alert">${escapeHtml(feedback)}</p>` : ""}</form><a class="admin-return" href="/">กลับไปหน้าเว็บไซต์</a></section></main>`
+    ? `<main class="admin-login-wrap"><section class="admin-login"><a class="admin-brand" href="/"><img src="/images/harnkhong-logo.png" alt=""/><strong>HarnKhong</strong></a><h1>เข้าสู่ระบบผู้ดูแล</h1><p>สำหรับผู้ดูแลระบบเท่านั้น</p><button type="button" class="admin-google-button" data-admin-action="google-login" ${busy ? "disabled" : ""}><span class="admin-google-mark" aria-hidden="true">G</span>เข้าสู่ระบบด้วย Google</button><p class="admin-login-hint">ระบบให้สิทธิ์เฉพาะอีเมลผู้ดูแลที่กำหนดไว้เท่านั้น</p><div class="admin-login-divider"><span>หรือใช้อีเมลและรหัสผ่าน</span></div><form id="admin-login-form"><label>อีเมล<input type="email" name="email" autocomplete="username" required/></label><label>รหัสผ่าน<input type="password" name="password" autocomplete="current-password" required/></label><button class="admin-primary" type="submit" ${busy ? "disabled" : ""}>${busy ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}</button>${feedback ? `<p class="admin-feedback" role="alert">${escapeHtml(feedback)}</p>` : ""}</form><a class="admin-return" href="/">กลับไปหน้าเว็บไซต์</a></section></main>`
     : `<div class="admin-layout"><aside class="admin-sidebar"><a class="admin-brand" href="/"><img src="/images/harnkhong-logo.png" alt=""/><strong>HarnKhong</strong><small>ADMIN</small></a><nav aria-label="เมนูผู้ดูแล">${navItems.map(([key, label, icon, group], index) => `${group && group !== navItems[index - 1]?.[3] ? `<p class="admin-nav-group">${group}</p>` : ""}<a href="/admin#/${key}" class="admin-nav-link ${section === key ? "active" : ""}" ${section === key ? 'aria-current="page"' : ""}><span>${adminIcon(icon)}</span>${label}${workCounts[key] ? `<b class="admin-nav-badge" aria-label="ค้าง ${workCounts[key]} รายการ">${workCounts[key]}</b>` : ""}</a>`).join("")}</nav><div class="admin-sidebar-bottom"><span class="admin-online-dot"></span>เชื่อมต่อระบบแล้ว</div></aside><main class="admin-main"><header class="admin-topbar"><div><span class="admin-crumb">HarnKhong / Admin</span><h1>${sectionTitle(section)}</h1></div><div class="admin-account"><span class="admin-account-avatar">${escapeHtml((user?.email || "A").slice(0, 1).toUpperCase())}</span><span><strong>${escapeHtml(user?.email || "ผู้ดูแล")}</strong><small>ผู้ดูแลระบบ</small></span><button type="button" data-admin-action="logout" class="admin-logout">ออกจากระบบ</button></div></header><div class="admin-content">${content}</div></main></div><div class="admin-toast" role="status" aria-live="polite">${escapeHtml(feedback)}</div>`;
 }
 
@@ -552,7 +550,7 @@ async function getSectionContent(section) {
     cachedAdminGroups = rows;
     return groupsContent(rows);
   }
-  return `<section class="admin-panel admin-settings"><h2>ผู้ดูแลระบบ</h2><p>เฉพาะอีเมลด้านล่างเท่านั้นที่เข้าหน้านี้ได้</p><dl><div><dt>บัญชีผู้ดูแล</dt><dd>${ADMIN_EMAILS.map(escapeHtml).join("<br>")}</dd></div><div><dt>เพิ่มผู้ดูแลคนใหม่</dt><dd>แจ้งทีมพัฒนาให้เพิ่มอีเมล แล้วให้คนนั้นเข้าสู่ระบบด้วย Google ครั้งแรก</dd></div><div><dt>รหัสผ่าน</dt><dd>เว็บไม่เก็บรหัสผ่าน ใช้การเข้าสู่ระบบด้วย Google หรือรีเซ็ตรหัสผ่านทางอีเมล</dd></div></dl></section>`;
+  return `<section class="admin-panel admin-settings"><h2>ผู้ดูแลระบบ</h2><p>เข้าหน้านี้ได้เฉพาะบัญชีที่ตั้งเป็นผู้ดูแลไว้ในระบบหลังบ้าน</p><dl><div><dt>ดูรายชื่อผู้ดูแล</dt><dd>แจ้งทีมพัฒนา (รายชื่อไม่แสดงในหน้าเว็บ เพื่อความปลอดภัย)</dd></div><div><dt>เพิ่มผู้ดูแลคนใหม่</dt><dd>แจ้งทีมพัฒนาให้เพิ่มอีเมล แล้วให้คนนั้นเข้าสู่ระบบด้วย Google ครั้งแรก</dd></div><div><dt>รหัสผ่าน</dt><dd>เว็บไม่เก็บรหัสผ่าน ใช้การเข้าสู่ระบบด้วย Google หรือรีเซ็ตรหัสผ่านทางอีเมล</dd></div></dl></section>`;
 }
 
 async function renderAuthenticated(generation) {
@@ -573,7 +571,7 @@ async function renderAuthenticated(generation) {
   } catch (err) {
     if (generation !== pageGeneration) return;
     const message = err.message?.includes("ADMIN_NOT_ALLOWED")
-    ? `บัญชีนี้ไม่มีสิทธิ์ Admin กรุณาเลือก Google บัญชี ${ADMIN_EMAIL_LABEL}`
+    ? "บัญชีนี้ไม่มีสิทธิ์ผู้ดูแล กรุณาเลือกบัญชี Google ของผู้ดูแล"
       : err.message?.includes("ADMIN_EMAIL_UNCONFIRMED")
         ? "บัญชีนี้ยังยืนยันอีเมลไม่ครบ กรุณายืนยันอีเมล Google แล้วลองใหม่"
         : err.message || "ตรวจสอบสิทธิ์ Admin ไม่สำเร็จ";
@@ -617,7 +615,7 @@ async function renderLogin(message = "") {
       busy = false;
       await renderAuthenticated(pageGeneration);
     } catch (error) {
-      feedback = error.message?.includes("ADMIN_NOT_ALLOWED") ? `บัญชีนี้ไม่มีสิทธิ์ Admin กรุณาใช้ ${ADMIN_EMAIL_LABEL}` : error.message?.includes("ADMIN_EMAIL_UNCONFIRMED") ? "กรุณายืนยันอีเมลก่อนเข้าใช้งานระบบผู้ดูแล" : error.message?.toLowerCase().includes("provider is not enabled") ? "Google OAuth ยังไม่ได้เปิดใน Supabase Auth กรุณาตั้งค่า Google provider ก่อน" : error.message?.includes("Failed to fetch") ? "ยังเชื่อมต่อระบบ Admin ไม่ได้ กรุณาตรวจว่าได้ติดตั้ง Edge Function แล้ว" : "เข้าสู่ระบบไม่สำเร็จ ตรวจสอบอีเมลและรหัสผ่านอีกครั้ง";
+      feedback = error.message?.includes("ADMIN_NOT_ALLOWED") ? "บัญชีนี้ไม่มีสิทธิ์ผู้ดูแล กรุณาใช้บัญชีของผู้ดูแล" : error.message?.includes("ADMIN_EMAIL_UNCONFIRMED") ? "กรุณายืนยันอีเมลก่อนเข้าใช้งานระบบผู้ดูแล" : error.message?.toLowerCase().includes("provider is not enabled") ? "Google OAuth ยังไม่ได้เปิดใน Supabase Auth กรุณาตั้งค่า Google provider ก่อน" : error.message?.includes("Failed to fetch") ? "ยังเชื่อมต่อระบบ Admin ไม่ได้ กรุณาตรวจว่าได้ติดตั้ง Edge Function แล้ว" : "เข้าสู่ระบบไม่สำเร็จ ตรวจสอบอีเมลและรหัสผ่านอีกครั้ง";
       busy = false;
       renderLogin(feedback);
       return;
