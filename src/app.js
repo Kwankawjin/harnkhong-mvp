@@ -4046,6 +4046,12 @@ function render() {
           "สร้างกลุ่มหารค่าสินค้าหรือแพ็กเกจ ดูส่วนแบ่งและค่าส่งของสมาชิกก่อนยืนยันยอด",
         ),
         tagline: t("สร้างกลุ่มหารของและตรวจสอบยอดก่อนยืนยัน"),
+        contacts: {
+          email: "harnkhong@gmail.com",
+          phone: "061-545-0471",
+          instagram: "https://www.instagram.com/harnkhong",
+          line: "https://lin.ee/NIsLRq9",
+        },
         columns: [
           { title: t("เมนูด่วน"), links: quickLinks },
           { title: t("หมวดหมู่"), links: categoryLinks },
