@@ -1592,15 +1592,35 @@ const WHY_NOTES = {
 function whySteps(kind) {
   const steps = WHY_STEPS[kind];
   return `<ol class="why-steps">${steps
-    .map(([ic, title, text], i) => `<li class="why-step${i === steps.length - 1 ? " is-key" : ""}"><span class="why-step-icon">${icon(ic, 24)}</span><b>${t(title)}</b><span>${t(text)}</span></li>`)
+    .map(([ic, title, text], i) => `<li class="why-step${i === steps.length - 1 ? " is-key" : ""}" style="--i:${i}"><span class="why-step-icon">${icon(ic, 24)}</span><b>${t(title)}</b><span>${t(text)}</span></li>`)
     .join("")}</ol><p class="why-note">${icon("lock", 16)} ${t(WHY_NOTES[kind])}</p>`;
 }
 function whyFees() {
   return `<div class="why-fees">
-    <div class="why-fee"><small>${t("ผู้ร่วมซื้อ")}</small><strong>฿0</strong><span>${t("จ่ายแค่ราคาที่นั่ง ไม่มีค่าธรรมเนียม")}</span></div>
-    <div class="why-fee"><small>${t("หัวกลุ่ม")}</small><strong>2%</strong><span>${t("หักจากเงินที่ได้รับ ไม่ต้องโอนเพิ่ม")}</span></div>
-    <div class="why-fee is-example"><small>${t("ตัวอย่าง")}</small><strong>฿50 → ฿49</strong><span>${t("สมาชิกโอน ฿50 หัวกลุ่มได้รับ ฿49")}</span></div>
+    <div class="why-fee" style="--i:0"><small>${t("ผู้ร่วมซื้อ")}</small><strong>฿0</strong><span>${t("จ่ายแค่ราคาที่นั่ง ไม่มีค่าธรรมเนียม")}</span></div>
+    <div class="why-fee" style="--i:1"><small>${t("หัวกลุ่ม")}</small><strong>2%</strong><span>${t("หักจากเงินที่ได้รับ ไม่ต้องโอนเพิ่ม")}</span></div>
+    <div class="why-fee is-example" style="--i:2"><small>${t("ตัวอย่าง")}</small><strong>฿50 → ฿49</strong><span>${t("สมาชิกโอน ฿50 หัวกลุ่มได้รับ ฿49")}</span></div>
   </div>`;
+}
+/* Reveal the section once, when it first scrolls into view; later renders show it as is. */
+let whyRevealed = false;
+function revealWhySection() {
+  const section = document.querySelector(".why-section");
+  if (!section || section.dataset.reveal) return;
+  if (whyRevealed || !("IntersectionObserver" in window) || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    section.dataset.reveal = "done";
+    return;
+  }
+  section.dataset.reveal = "pending";
+  const observer = new IntersectionObserver((entries) => {
+    if (!entries.some((entry) => entry.isIntersecting)) return;
+    observer.disconnect();
+    whyRevealed = true;
+    section.dataset.reveal = "in";
+    // After the entrance, tab switches replay the short step stagger without the opening delay.
+    setTimeout(() => { section.dataset.reveal = "done"; }, 2200);
+  }, { threshold: 0.18 });
+  observer.observe(section);
 }
 function whySection() {
   const tabs = [["buyer", "ผู้ร่วมซื้อ", "users"], ["owner", "หัวกลุ่ม", "user"], ["fee", "ค่าธรรมเนียม", "calc"]];
@@ -1614,9 +1634,9 @@ function whySection() {
         <p>${t("ทุกบาทพักไว้ที่กองกลางของแพลตฟอร์ม และปล่อยให้หัวกลุ่มเมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ")}</p>
       </div>
       <ul class="why-points">
-        <li>${`<span class="why-point-icon">${icon("lock", 22)}</span>`}<b>${t("เงินพักที่กองกลาง")}</b><span>${t("ไม่โอนตรงให้หัวกลุ่ม ไม่มีใครหอบเงินหนีได้")}</span></li>
-        <li>${`<span class="why-point-icon">${icon("shield", 22)}</span>`}<b>${t("แอดมินตรวจทุกสลิป")}</b><span>${t("ยอดไม่ตรงจะถูกตีกลับให้โอนใหม่")}</span></li>
-        <li>${`<span class="why-point-icon">${icon("calc", 22)}</span>`}<b>${t("ราคาล็อกก่อนเข้า")}</b><span>${t("เห็นราคาต่อที่นั่งก่อนกด ไม่มีบวกเพิ่มทีหลัง")}</span></li>
+        <li style="--i:0">${`<span class="why-point-icon">${icon("lock", 22)}</span>`}<b>${t("เงินพักที่กองกลาง")}</b><span>${t("ไม่โอนตรงให้หัวกลุ่ม ไม่มีใครหอบเงินหนีได้")}</span></li>
+        <li style="--i:1">${`<span class="why-point-icon">${icon("shield", 22)}</span>`}<b>${t("แอดมินตรวจทุกสลิป")}</b><span>${t("ยอดไม่ตรงจะถูกตีกลับให้โอนใหม่")}</span></li>
+        <li style="--i:2">${`<span class="why-point-icon">${icon("calc", 22)}</span>`}<b>${t("ราคาล็อกก่อนเข้า")}</b><span>${t("เห็นราคาต่อที่นั่งก่อนกด ไม่มีบวกเพิ่มทีหลัง")}</span></li>
       </ul>
     </div>
     <div class="why-flow">
@@ -3923,6 +3943,7 @@ function render() {
   initializeSecondhandPendingCountdown();
   void initializeSecondhandPendingQr();
   animatePricing();
+  revealWhySection();
 
   const footerMount = document.querySelector("#interactive-footer");
   if (footerMount) {
