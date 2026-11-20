@@ -51,6 +51,7 @@ const labels = {
   "ยืนยันยอดกลุ่ม": "Confirm group amounts",
   "คุณจะได้รับเมื่อสมาชิกโอนครบ": "You receive once members have paid",
   "สมาชิกโอนรวม": "Members pay in total",
+  "สมาชิกโอนรวม ({count} ที่นั่ง)": "Members pay in total ({count} seats)",
   "ค่าคอมแพลตฟอร์ม 2%": "2% platform commission",
   "ส่วนของคุณเอง (ไม่ต้องโอน)": "Your own share (no transfer)",
   "สมาชิกโอนเข้าบัญชีแพลตฟอร์ม แอดมินตรวจแล้วโอนให้คุณหลังหักค่าคอม 2% ของแต่ละยอด": "Members pay the platform; after an admin verifies, you receive each payment minus a 2% commission.",
