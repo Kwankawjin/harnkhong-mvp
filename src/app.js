@@ -1521,7 +1521,7 @@ function home() {
       )
       .join("")}</nav>`;
   return `
-    <section class="hero home-hero">
+    <section class="hero home-hero" data-reveal-kind="hero">
       <div class="hero-text">
         <h1><span class="sr-only" data-headline-accessible>${t("หาร")} ${currentHeadline}</span><span class="dynamic-headline headline-loop" aria-hidden="true" data-text-loop="${escape(JSON.stringify(headlines))}" data-static-text="${t("หาร")}"><span class="hero-headline-static">${t("หาร")}</span><span class="headline-rotator-slot"><span class="headline-rotator-measure">${widestHeadline}</span><span class="headline-rotator-window"><span class="headline-rotator-highlight"></span><span class="headline-rotator-current">${currentHeadline}</span><span class="headline-rotator-cursor"></span></span></span></span></h1>
         <p>${t("ชวนเพื่อนหารค่าสินค้าหรือแพ็กเกจ ดูส่วนแบ่งและค่าส่งของแต่ละคนก่อนยืนยัน")}</p>
@@ -1554,17 +1554,17 @@ function home() {
       </div>
     </section>
 
-    <section class="home-discovery-section home-group-section">
+    <section class="home-discovery-section home-group-section" data-reveal-kind="deal">
       <div class="home-section-banner"><span class="home-section-icon group">${icon("users", 40)}</span><div><h2>${t("กลุ่มหารของ")} <small>(Group Buying)</small></h2><p>${t("เลือกกลุ่มที่เปิดรับ แล้วดูยอดประมาณต่อคน")}</p></div>${a("/explore", `${t("ดูทั้งหมด")} ${icon("arrow", 18)}`, "home-view-all")}</div>
       ${filterPills(groupFilters, "/explore", "group")}
       ${filteredGroups.length ? `<div class="group-grid home-open-groups-grid">${filteredGroups.slice(0, 3).map(groupCard).join("")}</div>` : `<div class="empty home-section-empty"><h3>${selectedHomeGroupCategory === "ทั้งหมด" ? t("ยังไม่มีกลุ่มที่เปิดรับ") : t("หมวดหมู่นี้ยังไม่มีกลุ่มที่เปิดรับ")}</h3>${selectedHomeGroupCategory !== "ทั้งหมด" ? `<button type="button" class="button outline" data-action="home-group-filter" data-category="ทั้งหมด">${t("ดูกลุ่มทั้งหมด")}</button>` : a("/explore", t("ดูกลุ่มทั้งหมด"), "button outline")}</div>`}
     </section>
 
-    <a class="home-promo-strip group" href="/groups/create"><span class="home-promo-icon">${icon("users", 42)}</span><span class="home-promo-copy"><strong>${t("เริ่มหารของกับเพื่อน")}</strong><small>${t("เปิดกลุ่มและแบ่งค่าใช้จ่ายกัน")}</small></span><span class="home-promo-art" aria-hidden="true">🛍️</span><span class="home-promo-button">${t("สร้างกลุ่มหารของ")} ${icon("arrow", 18)}</span></a>
+    <a class="home-promo-strip group" href="/groups/create" data-reveal-kind="sweep"><span class="home-promo-icon">${icon("users", 42)}</span><span class="home-promo-copy"><strong>${t("เริ่มหารของกับเพื่อน")}</strong><small>${t("เปิดกลุ่มและแบ่งค่าใช้จ่ายกัน")}</small></span><span class="home-promo-art" aria-hidden="true">🛍️</span><span class="home-promo-button">${t("สร้างกลุ่มหารของ")} ${icon("arrow", 18)}</span></a>
 
     ${whySection()}
 
-    <section class="cta-section home-restored-cta"><div class="cta-banner"><div class="cta-copy"><h2>${t("เริ่มกลุ่มหารของ")}</h2><p>${t("สร้างกลุ่มแล้วชวนเพื่อน หรือเลือกกลุ่มที่ยังเปิดรับสมาชิก")}</p></div><div class="cta-actions">${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่มใหม่")}`, "button primary")}${a("/explore", t("ดูกลุ่มที่เปิดรับ"), "button outline")}</div></div></section>
+    <section class="cta-section home-restored-cta" data-reveal-kind="iris"><div class="cta-banner"><div class="cta-copy"><h2>${t("เริ่มกลุ่มหารของ")}</h2><p>${t("สร้างกลุ่มแล้วชวนเพื่อน หรือเลือกกลุ่มที่ยังเปิดรับสมาชิก")}</p></div><div class="cta-actions">${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่มใหม่")}`, "button primary")}${a("/explore", t("ดูกลุ่มที่เปิดรับ"), "button outline")}</div></div></section>
   `;
 }
 /* "Why HarnKhong": the trust story — money waits in the platform pool until members get their item. */
@@ -1601,6 +1601,33 @@ function whyFees() {
     <div class="why-fee" style="--i:1"><small>${t("หัวกลุ่ม")}</small><strong>2%</strong><span>${t("หักจากเงินที่ได้รับ ไม่ต้องโอนเพิ่ม")}</span></div>
     <div class="why-fee is-example" style="--i:2"><small>${t("ตัวอย่าง")}</small><strong>฿50 → ฿49</strong><span>${t("สมาชิกโอน ฿50 หัวกลุ่มได้รับ ฿49")}</span></div>
   </div>`;
+}
+/* Home sections each have their own entrance, played once when they first scroll into view.
+   Later renders (a filter click re-renders the page) show them as they are. */
+const revealedKinds = new Set();
+let revealObserver = null;
+function revealHomeSections() {
+  const pending = [...document.querySelectorAll("[data-reveal-kind]:not([data-reveal])")];
+  if (!pending.length) return;
+  const still = !("IntersectionObserver" in window) || matchMedia("(prefers-reduced-motion: reduce)").matches;
+  revealObserver?.disconnect();
+  revealObserver = still ? null : new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      const el = entry.target;
+      revealObserver.unobserve(el);
+      revealedKinds.add(el.dataset.revealKind);
+      el.dataset.reveal = "in";
+    }
+  }, { threshold: 0.15, rootMargin: "0px 0px -6% 0px" });
+  for (const el of pending) {
+    if (still || revealedKinds.has(el.dataset.revealKind)) {
+      el.dataset.reveal = "done";
+      continue;
+    }
+    el.dataset.reveal = "pending";
+    revealObserver.observe(el);
+  }
 }
 /* Reveal the section once, when it first scrolls into view; later renders show it as is. */
 let whyRevealed = false;
@@ -3944,6 +3971,7 @@ function render() {
   void initializeSecondhandPendingQr();
   animatePricing();
   revealWhySection();
+  revealHomeSections();
 
   const footerMount = document.querySelector("#interactive-footer");
   if (footerMount) {
