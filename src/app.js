@@ -544,9 +544,10 @@ const a = (href, label, cls = "") =>
 function go(path) {
   profileMenuOpen = false;
   listingMenuOpen = false;
+  // Leaving or entering the create form starts it blank.
   if (
-    location.pathname === "/groups/create" &&
-    path.split("?")[0] !== "/groups/create"
+    (location.pathname === "/groups/create") !==
+    (path.split("?")[0] === "/groups/create")
   ) {
     groupImages = [];
     selectedCreateCategories = [];
@@ -2120,11 +2121,9 @@ function createPage() {
     requested = params.get("product"),
     allListings = listings(),
     requestedListing = allListings.find((item) => item.id === requested);
-  const selected = requestedListing?.id || allListings[0]?.id,
-    initialCategory = requestedListing?.category || CREATE_CATEGORY_NAMES[0];
-  if (!selectedCreateCategories.length)
-    selectedCreateCategories = [initialCategory];
-  const selectedCategory = selectedCreateCategories[0],
+  // The owner fills every field themselves: no sample product, price or category is preset.
+  const selected = requestedListing?.id || allListings[0]?.id;
+  const selectedCategory = selectedCreateCategories[0] || "",
     selectedListing =
       allListings.find((item) => item.category === selectedCategory) ||
       listing(selected);
@@ -2142,7 +2141,7 @@ function createPage() {
     <section class="create-step-panel" data-create-step-panel="1" ${createGroupStep===1?"":"hidden"}>
       <div class="create-form-section"><h2>${icon("package",20)} ${t("ข้อมูลสินค้า")}</h2><fieldset class="product-type-picker"><legend>${t("ประเภทสินค้า")} <b>*</b></legend><label><input type="radio" name="productType" value="physical" checked/><span>${icon("package",20)}<strong>${t("สินค้าทั่วไป")}</strong><small>${t("มีการจัดส่ง")}</small></span></label><label><input type="radio" name="productType" value="digital"/><span>${icon("lock",20)}<strong>${t("สินค้าดิจิทัล")}</strong><small>${t("แอป / Subscription")}</small></span></label></fieldset>
       <div class="image-editor"><h3>${t("รูปสินค้า")} <b class="required-mark">*</b><small>${t("ต้องเพิ่มอย่างน้อย 1 รูป · สูงสุด 4 รูป")}</small></h3><label class="image-upload create-group-dropzone"><span class="create-group-upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></span><strong>${t("คลิกเพื่ออัปโหลด หรือลากรูปมาวาง")}</strong><small>${t("JPG, PNG หรือ WebP · ไม่เกิน 5 MB ต่อรูป · ระบบย่อรูปให้อัตโนมัติ")}</small><span class="create-group-browse">${icon("plus",16)} ${t("เลือกไฟล์")}</span><input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="${t("เลือกรูปสินค้า")}"/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></div>
-      <label>${t("ชื่อสินค้า")} <b>*</b><input name="productTitle" maxlength="100" required value="${escape(selectedListing?.title || "")}" placeholder="${t("เช่น คีย์บอร์ดสำหรับทำงาน")}"/></label>
+      <label>${t("ชื่อสินค้า")} <b>*</b><input name="productTitle" maxlength="100" required value="" placeholder="${t("เช่น คีย์บอร์ดสำหรับทำงาน")}"/></label>
       <label>${t("ลิงก์สินค้า")} <small>${t("ไม่บังคับ")}</small><input name="productUrl" type="url" maxlength="500" placeholder="https://"/></label>
       <label>${t("รายละเอียดสินค้า")} <small>${t("ไม่บังคับ")}</small><textarea name="productDescription" maxlength="1000" placeholder="${t("รายละเอียดหรือเงื่อนไขที่สมาชิกควรรู้")}">${escape(selectedListing?.description || "")}</textarea></label>
       <fieldset class="category-picker"><legend>${t("หมวดหมู่สินค้า")} <b>*</b></legend><div class="selected-categories" id="selected-categories">${categoryTags}</div><div class="category-options">${CREATE_CATEGORY_NAMES.map((category) => `<button type="button" class="category-option ${selectedCreateCategories.includes(category) ? "selected" : ""}" data-action="toggle-category" data-category="${escape(category)}" aria-pressed="${selectedCreateCategories.includes(category)}">${t(category)}</button>`).join("")}</div></fieldset>
@@ -2152,13 +2151,13 @@ function createPage() {
     </section>
     <section class="create-step-panel" data-create-step-panel="2" ${createGroupStep===2?"":"hidden"}>
       <div class="create-form-section"><h2>${icon("users",20)} ${t("ตั้งค่ากลุ่ม")}</h2><label>${t("ชื่อกลุ่ม")} <b>*</b><input name="name" maxlength="70" required placeholder="${t("เช่น หารค่าสมัครกับเพื่อน")}"/></label><div class="form-grid"><label>${t("สมาชิกขั้นต่ำ")} <b>*</b><input name="minimumMembers" type="number" min="2" max="6" value="3" required/></label><label>${t("สมาชิกสูงสุด")} <b>*</b><input name="capacity" type="number" min="2" max="6" value="4" required/></label></div><label>${t("วันปิดรับสมาชิก")} <b>*</b><input name="closesAt" type="date" min="${groupDateMin}" required/></label><fieldset class="visibility-picker"><legend>${t("การมองเห็นกลุ่ม")}</legend>${[["public","สาธารณะ"],["link","เฉพาะผู้มีลิงก์"],["private","ส่วนตัว"]].map(([value,label])=>`<label><input type="radio" name="visibilityMode" value="${value}" ${value==="public"?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><fieldset class="visibility-picker billing-picker"><legend>${t("รูปแบบการจ่าย")} <b>*</b></legend><label><input type="radio" name="billing" value="one_time" checked/><span>${t("รอบเดียวจบ")}</span></label><label><input type="radio" name="billing" value="monthly"/><span>${t("จ่ายรายเดือน")}</span></label><small>${t("รายเดือน: ยอดต่อที่นั่งคงที่ทุกเดือน ทุกคนยืนยันเดือนละครั้ง")}</small></fieldset><label>${t("หมายเหตุถึงสมาชิก")} <small>${t("ไม่บังคับ")}</small><textarea name="memberNote" maxlength="500" placeholder="${t("เช่น นัดโอนภายใน 2 วันหลังครบจำนวน")}"></textarea></label></div>
-      <div class="create-form-section"><h2>${icon("calc",20)} ${t("ค่าใช้จ่าย")}</h2><div class="form-grid"><label>${t("ราคาสินค้ารวม (บาท)")} <b>*</b><input name="product" type="number" inputmode="decimal" min="0.01" step="0.01" value="${bahtInput(selectedListing?.price || 0)}" required/></label><label id="shipping-total-wrap">${t("ค่าจัดส่งรวม (บาท)")}<input name="shippingTotal" type="number" inputmode="decimal" min="0" step="0.01" value="0.00"/></label></div><p class="create-fee-note">${t("ผู้ร่วมหารจ่ายเฉพาะราคาที่นั่ง แพลตฟอร์มหักค่าคอม 2% จากเงินที่สมาชิกโอน ก่อนโอนต่อให้คุณ")}</p><div class="preview-cost" id="create-preview"></div></div>
+      <div class="create-form-section"><h2>${icon("calc",20)} ${t("ค่าใช้จ่าย")}</h2><div class="form-grid"><label>${t("ราคาสินค้ารวม (บาท)")} <b>*</b><input name="product" type="number" inputmode="decimal" min="0.01" step="0.01" value="" required/></label><label id="shipping-total-wrap">${t("ค่าจัดส่งรวม (บาท)")}<input name="shippingTotal" type="number" inputmode="decimal" min="0" step="0.01" value="0.00"/></label></div><p class="create-fee-note">${t("ผู้ร่วมหารจ่ายเฉพาะราคาที่นั่ง แพลตฟอร์มหักค่าคอม 2% จากเงินที่สมาชิกโอน ก่อนโอนต่อให้คุณ")}</p><div class="preview-cost" id="create-preview"></div></div>
       <section class="create-form-section" id="physical-delivery-section"><h2>${icon("truck",20)} ${t("การรับสินค้า")}</h2><fieldset class="delivery-picker">${[["ship_to_owner","จัดส่งรวมมาที่ผู้สร้างกลุ่ม แล้วนัดรับ"],["ship_separately","จัดส่งแยกให้สมาชิกแต่ละคน"],["pickup","นัดรับด้วยตนเอง"]].map(([value,label],i)=>`<label><input type="radio" name="deliveryMethod" value="${value}" ${i===0?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><label id="pickup-location-wrap" hidden>${t("สถานที่นัดรับ")} <b>*</b><input name="pickupLocation" maxlength="180" placeholder="${t("ระบุสถานที่นัดรับ")}"/></label></section>
       <section class="create-form-section digital-handoff" id="digital-handoff-section" hidden><h2>${icon("lock",20)} ${t("การส่งมอบสิทธิ์ดิจิทัล")}</h2><p>${t("ระบุวิธีส่งมอบหลังกลุ่มยืนยันยอด")}</p><textarea name="digitalHandoff" maxlength="500" placeholder="${t("เช่น ส่งคำเชิญทางอีเมลหลังชำระเงิน")}"></textarea></section>
       <div class="create-step-actions"><button type="button" class="button outline" data-action="create-step" data-step="1">${t("ย้อนกลับ")}</button><button type="button" class="button primary" data-action="create-step" data-step="3">${t("ตรวจสอบสรุป")} ${icon("arrow",18)}</button></div>
     </section>
     <section class="create-step-panel create-review-panel" data-create-step-panel="3" ${createGroupStep===3?"":"hidden"}><div class="create-form-section"><h2>${icon("check",20)} ${t("ตรวจสอบก่อนสร้างกลุ่ม")}</h2><p>${t("ตรวจดูข้อมูลสินค้า จำนวนสมาชิก และยอดต่อคนให้เรียบร้อย")}</p><div id="create-review-summary"></div><div class="info-box">${t("การสร้างกลุ่มยังไม่มีการเรียกเก็บเงิน ระบบจะแสดงยอดให้สมาชิกยืนยันก่อนดำเนินการ")}</div><p id="create-error" class="create-error" role="alert" hidden></p></div><div class="create-step-actions"><button type="button" class="button outline" data-action="create-step" data-step="2">${t("ย้อนกลับ")}</button><button class="button primary" type="submit">${t("สร้างกลุ่ม")}</button></div></section>
-  </form><aside class="create-group-summary" aria-live="polite"><div class="create-summary-heading"><h2>${t("สรุปกลุ่ม")}</h2>${icon("package",28)}</div><div class="create-summary-product"><div id="create-summary-image">${groupImages[0]?`<img src="${groupImages[0]}" alt=""/>`:icon("package",32)}</div><div><strong id="summary-product-title">${escape(selectedListing?.title || t("ชื่อสินค้า"))}</strong><small id="summary-product-category">${escape(t(selectedCategory))}</small></div></div><dl><div><dt>${t("ราคาสินค้า")}</dt><dd id="summary-product-price">—</dd></div><div id="summary-shipping-row"><dt>${t("ค่าจัดส่ง")}</dt><dd id="summary-shipping">—</dd></div><div><dt>${t("ค่าคอม 2% (หักจากเงินที่คุณได้รับ)")}</dt><dd id="summary-fee">—</dd></div><div class="summary-per-person"><dt>${t("ประมาณต่อคน")}</dt><dd id="summary-per-person">—</dd></div><div><dt>${t("สมาชิก")}</dt><dd id="summary-members">—</dd></div><div><dt>${t("ปิดรับสมาชิก")}</dt><dd id="summary-deadline">—</dd></div><div><dt>${t("วิธีรับ")}</dt><dd id="summary-delivery">—</dd></div><div><dt>${t("การมองเห็น")}</dt><dd id="summary-visibility">—</dd></div></dl><p>${t("ยอดต่อคนเป็นประมาณการเมื่อสมาชิกครบ")}</p></aside></div>`;
+  </form><aside class="create-group-summary" aria-live="polite"><div class="create-summary-heading"><h2>${t("สรุปกลุ่ม")}</h2>${icon("package",28)}</div><div class="create-summary-product"><div id="create-summary-image">${groupImages[0]?`<img src="${groupImages[0]}" alt=""/>`:icon("package",32)}</div><div><strong id="summary-product-title">${t("ชื่อสินค้า")}</strong><small id="summary-product-category">${selectedCategory ? escape(t(selectedCategory)) : "—"}</small></div></div><dl><div><dt>${t("ราคาสินค้า")}</dt><dd id="summary-product-price">—</dd></div><div id="summary-shipping-row"><dt>${t("ค่าจัดส่ง")}</dt><dd id="summary-shipping">—</dd></div><div><dt>${t("ค่าคอม 2% (หักจากเงินที่คุณได้รับ)")}</dt><dd id="summary-fee">—</dd></div><div class="summary-per-person"><dt>${t("ประมาณต่อคน")}</dt><dd id="summary-per-person">—</dd></div><div><dt>${t("สมาชิก")}</dt><dd id="summary-members">—</dd></div><div><dt>${t("ปิดรับสมาชิก")}</dt><dd id="summary-deadline">—</dd></div><div><dt>${t("วิธีรับ")}</dt><dd id="summary-delivery">—</dd></div><div><dt>${t("การมองเห็น")}</dt><dd id="summary-visibility">—</dd></div></dl><p>${t("ยอดต่อคนเป็นประมาณการเมื่อสมาชิกครบ")}</p></aside></div>`;
 }
 function secondhandCheckoutPage(id) {
   if (!requireAuth(`/checkout/secondhand/${encodeURIComponent(id)}`))
@@ -2422,7 +2421,6 @@ function syncCreateCategoryUI() {
     nextListing = listingsForCategory[0] || listings()[0];
   if (nextListing) {
     form.querySelector('[name="listingId"]').value = nextListing.id;
-    form.querySelector('[name="product"]').value = bahtInput(nextListing.price);
   }
   updatePreview();
 }
