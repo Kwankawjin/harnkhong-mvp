@@ -2991,3 +2991,36 @@ body.has-test-banner {
 .payout-copy:hover { background: color-mix(in srgb, var(--hk-ink) 6%, var(--hk-paper)); }
 .payout-actions { display: grid; gap: 10px; }
 .payout-card .payouts-received { margin-top: 0; }
+
+/* History of finished groups (My groups) */
+.group-history-list {
+  margin-top: 24px;
+  padding: 16px 20px;
+  border-radius: 20px;
+  background: var(--hk-paper, #fff);
+}
+.group-history-list summary {
+  color: var(--hk-muted);
+  font-weight: 700;
+  cursor: pointer;
+}
+.group-history-list ul {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.group-history-list a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--hk-ink) 3%, var(--hk-paper));
+  color: inherit;
+  text-decoration: none;
+}
+.group-history-list a span { display: grid; gap: 2px; flex: 1; }
+.group-history-list small { color: var(--hk-muted); }
+.finished-member { margin-top: 16px; }

@@ -61,3 +61,29 @@ test("กลุ่มแนะนำ: หมวดเดียวกันก่
   const picks = recommendGroups([current, nearFull, sameCat, mine, full, privateGroup, linkOnly, sale, lonely], current, "me");
   assert.deepEqual(picks.map((g) => g.id), ["same", "near", "lonely"]);
 });
+
+import { closeGroup, endAfterCycle, monthlyEnded, rollCycles } from "../src/billing.js";
+
+test("ปิดกลุ่มรอบเดียว: เจ้าของปิดได้เมื่อทุกคนยืนยันครบ คนอื่นปิดไม่ได้", () => {
+  let g = createGroup({ id: "x1", listingId: "p1", name: "x", ownerId: "o", visibility: "public", capacity: 2, costs: { product: 100, delivery: 0 } });
+  assert.throws(() => closeGroup(g, "o"), { code: "groupNotFinished" });
+  g = joinGroup(g, "a");
+  g = { ...g, approvals: { o: g.revision, a: g.revision } };
+  assert.throws(() => closeGroup(g, "a"), { code: "ownerOnly" });
+  assert.ok(closeGroup(g, "o").closedAt);
+});
+
+test("จบกลุ่มรายเดือน: เลือกรอบสุดท้าย ไม่เปิดรอบใหม่ ไม่มียอดรอบหน้า แล้วปิดได้เมื่อรอบจบ", () => {
+  let g = monthly();
+  assert.throws(() => endAfterCycle(g, "a", 1), { code: "ownerOnly" });
+  assert.throws(() => endAfterCycle(g, "o", 0), { code: "invalidLastCycle" });
+  g = endAfterCycle(g, "o", 1);
+  assert.equal(nextCycleForecast(g, "a"), null);
+  const later = new Date(new Date(g.cycles[0].end).getTime() + 40 * 86_400_000);
+  const rolled = rollCycles(g, later);
+  assert.equal(rolled.cycles.length, 1);
+  assert.equal(rolled.cycles[0].status, "closed");
+  assert.equal(monthlyEnded(rolled, later), true);
+  assert.ok(closeGroup(rolled, "o", later).closedAt);
+  assert.equal(endAfterCycle(g, "o", null).lastCycle, null);
+});

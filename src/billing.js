@@ -90,7 +90,7 @@ export function rollCycles(group, now = new Date()) {
     if ((guard += 1) > 120) fail("cycleOverflow", "รอบค้างนานเกินไป");
     const last = cycles.at(-1);
     cycles[cycles.length - 1] = { ...last, status: "closed", closedFrom: last.status };
-    if (group.status === "cancelled") break;
+    if (group.status === "cancelled" || group.closedAt || (group.lastCycle && last.number >= group.lastCycle)) break;
     cycles.push(snapshot(group, last.number + 1, group.cycleAnchor ?? cycles[0].start));
   }
   return { ...group, cycles };
@@ -254,6 +254,8 @@ export const groupLimit = (subscription, now = new Date()) => PLAN_GROUP_LIMITS[
 export function nextCycleForecast(group, userId) {
   const cycle = currentCycle(group);
   if (group.billing !== "monthly" || !cycle || !group.members.includes(userId)) return null;
+  // No next cycle after the owner's last one, or once the group is closed.
+  if (group.closedAt || (group.lastCycle && cycle.number >= group.lastCycle)) return null;
   const amounts = shares(group);
   const amount = Number(amounts[userId]) || 0;
   const previous = cycle.members.includes(userId) ? Number(cycle.amounts[userId]) || 0 : null;
@@ -268,4 +270,32 @@ export function nextCycleForecast(group, userId) {
     if (costsChanged) reasons.push({ kind: "costs" });
   }
   return { number: cycle.number + 1, startsAt: cycle.end, amount, previous, changed: previous !== null && previous !== amount, reasons, owner: group.ownerId === userId };
+}
+
+// ---------------------------------------------------------------- finishing a group
+/** Monthly: the owner picks the last cycle (null keeps going); it cannot be before the running one. */
+export function endAfterCycle(group, actorId, cycleNumber) {
+  if (group.billing !== "monthly") fail("notMonthly", "กลุ่มนี้ไม่ใช่แบบรายเดือน");
+  if (group.ownerId !== actorId) fail("ownerOnly", "เฉพาะเจ้าของกลุ่มทำได้");
+  const current = currentCycle(group)?.number ?? null;
+  if (cycleNumber !== null && (current === null || !Number.isInteger(cycleNumber) || cycleNumber < current))
+    fail("invalidLastCycle", "เลือกรอบสุดท้ายไม่ถูกต้อง");
+  return { ...group, lastCycle: cycleNumber };
+}
+/** Monthly: the chosen last cycle has ended, so the group is over. */
+export const monthlyEnded = (group, now = new Date()) => {
+  const cycle = currentCycle(group);
+  return Boolean(group.billing === "monthly" && group.lastCycle && cycle && cycle.number >= group.lastCycle && cycle.end <= iso(now).toISOString());
+};
+/**
+ * Demo/test version of closing: one-time groups once everyone confirmed, monthly groups once their
+ * last cycle ended. The real check (everyone has the goods, the owner was paid) runs in the database.
+ */
+export function closeGroup(group, actorId, now = new Date()) {
+  if (group.ownerId !== actorId) fail("ownerOnly", "เฉพาะเจ้าของกลุ่มปิดกลุ่มได้");
+  const done = group.billing === "monthly"
+    ? monthlyEnded(group, now)
+    : group.members.length === group.capacity && group.members.every((id) => group.approvals?.[id] === group.revision);
+  if (!done) fail("groupNotFinished", "กลุ่มยังไม่เสร็จ ปิดไม่ได้");
+  return { ...group, closedAt: group.closedAt || iso(now).toISOString() };
 }

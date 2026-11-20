@@ -64,6 +64,9 @@ import {
   recordCyclePayment,
   waitsForNextCycle,
   nextCycleForecast,
+  endAfterCycle,
+  monthlyEnded,
+  closeGroup,
   cyclePayers,
   confirmCycleReceipt,
   cycleReleased,
@@ -121,6 +124,9 @@ import {
   loadSupabasePayoutAccount,
   saveSupabasePayoutQr,
   markSupabaseShipped,
+  closeSupabaseGroup,
+  hideSupabaseGroup,
+  endSupabaseGroupAfterCycle,
   reportSupabaseProblem,
   saveSupabasePayoutAccount,
   openPayoutSlip,
@@ -1449,6 +1455,7 @@ function listingCard(p) {
       g.listingId === p.id &&
       g.visibility === "public" &&
       g.status !== "cancelled" &&
+      !g.closedAt &&
       !groupFull(g) &&
       !g.orderId,
   );
@@ -1511,7 +1518,7 @@ function groupCard(g) {
   const category = g.category || p.category;
   const categories = g.categories?.length ? g.categories : [category];
   const remaining = openUnits(g);
-  const open = remaining > 0 && !g.orderId && g.status !== "cancelled";
+  const open = remaining > 0 && !g.orderId && g.status !== "cancelled" && !g.closedAt;
   const isMember = g.members.includes(state.user?.id);
   const nowCount = g.members.length + (open && !isMember ? 1 : 0);
   const seatMode = seatPriced(g.costs);
@@ -1568,6 +1575,7 @@ function home() {
     (g) =>
       g.visibility === "public" &&
       g.status !== "cancelled" &&
+      !g.closedAt &&
       !g.orderId &&
       !groupFull(g),
   );
@@ -1805,6 +1813,7 @@ function explore() {
     (g) =>
       g.visibility === "public" &&
       g.status !== "cancelled" &&
+      !g.closedAt &&
       !g.orderId &&
       !groupFull(g) &&
       matches(g),
@@ -1972,11 +1981,15 @@ function monthlyGroupView(g, id, { isMember, isOwner, full, locked, estimate }) 
   const myAmount = inCycle ? cycle.amounts[me] : null;
   const summary = `<div class="summary-card"><small>${inCycle && me === cycle.ownerId ? t("ส่วนของคุณเอง (ไม่ต้องโอน)") : inCycle ? t("ยอดของคุณเดือนนี้") : isMember ? t("ราคาต่อที่นั่งต่อเดือน") : t("ราคาต่อที่นั่งต่อเดือน")}</small><strong>${money(inCycle ? myAmount : estimate)}</strong><p>${cycle ? t("รอบที่ {number}: {start} ถึง {end}", { number: cycle.number, start: shortDate(cycle.start), end: shortDate(cycle.end) }) + (g.payDay ? ` · ${t("จ่ายทุกวันที่ {day}", { day: g.payDay })}` : "") : (g.payDay ? t("จ่ายทุกวันที่ {day} ของเดือน เริ่มนับเมื่อเจ้าของกลุ่มเริ่มรอบแรก", { day: g.payDay }) : t("จ่ายรายเดือน เริ่มนับเมื่อเจ้าของกลุ่มเริ่มรอบแรก"))}</p>
     <div class="summary-actions">
-      ${!isMember && !full && !locked ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
+      ${!isMember && !full && !locked && !g.closedAt ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
       ${isOwner && !cycle ? `<button class="button primary full summary-action-btn" data-action="start-cycle" data-id="${escape(id)}"><span>${t("เริ่มรอบแรก")}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
       ${inCycle && !confirmed && cycle.status !== "closed" ? `<button class="button primary full summary-action-btn" data-action="confirm-cycle" data-id="${escape(id)}" data-cycle="${cycle.number}"><span>${t("ยืนยันยอดเดือนนี้ {amount}", { amount: money(myAmount) })}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
       ${confirmed ? `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันยอดรอบนี้แล้ว ยืนยันใหม่เมื่อขึ้นเดือนถัดไป")}</div>` : ""}
       ${isMember ? nextCycleBox(g) : ""}
+      ${isMember && !isOwner && g.lastCycle && !g.closedAt ? softBox({ tone: "amber", title: t("รอบที่ {number} เป็นรอบสุดท้าย", { number: g.lastCycle }), note: t("ผู้จัดกลุ่มจะจบกลุ่มหลังรอบนี้ ไม่มีการเก็บเงินรอบถัดไป") }) : ""}
+      ${isOwner ? monthlyEndControls(g) : ""}
+      ${g.closedAt ? softBox({ tone: "green", icon: "check", title: t("กลุ่มนี้ปิดแล้ว"), note: t("ไม่มีการเก็บเงินเพิ่ม ข้อมูลเก็บไว้เป็นประวัติ") }) : ""}
+      ${isMember && !isOwner && (g.closedAt || monthlyEnded(g)) ? hideGroupButton(g) : ""}
       ${waits ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("คุณเข้าร่วมระหว่างรอบ เริ่มจ่ายรอบถัดไปวันที่ {date}", { date: shortDate(cycle.end) })}</span></div>` : ""}
       ${isMember ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
       ${isMember && !isOwner ? `<button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${escape(id)}"><span class="summary-btn-left">${icon("back", 19)} <span>${t("ออกจากกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
@@ -2047,6 +2060,29 @@ function nextCycleBox(g) {
     ? `${t("ยอดเปลี่ยนจาก {from} เป็น {to}", { from: money(f.previous), to: money(f.amount) })}${why ? ` · ${why}` : ""}`
     : f.previous === null ? t("รอบแรกของคุณ") : t("ยอดเท่าเดือนนี้");
   return softBox({ tone: f.changed ? "amber" : "blue", title: heading, rows: [[when, money(f.amount)]], note });
+}
+/** Closed by the owner, or hidden from my own list. */
+const hiddenForMe = (g) => (supabaseConfigured ? Boolean(g.hiddenForMe) : Boolean(state.hiddenGroups?.[state.user?.id]?.includes(g.id)));
+const inHistory = (g) => Boolean(g.closedAt) || hiddenForMe(g);
+/** Owner: close a finished group (records stay; it leaves every list). */
+function closeGroupBox(g) {
+  if (g.closedAt) return softBox({ tone: "green", icon: "check", title: t("ปิดกลุ่มแล้ว"), note: t("กลุ่มย้ายไปที่ประวัติ ข้อมูลเงินและสลิปยังเก็บไว้ครบ") });
+  return `${softBox({ tone: "green", icon: "check", title: t("กลุ่มนี้เสร็จแล้วใช่ไหม?"), note: t("เมื่อทุกคนได้รับของและคุณได้รับเงินครบ ปิดกลุ่มเพื่อย้ายไปเก็บในประวัติ ข้อมูลเงินและสลิปไม่หาย") })}<button class="button outline full summary-action-btn" data-action="close-group" data-id="${escape(g.id)}"><span class="summary-btn-left">${icon("check", 18)} <span>${t("ปิดกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>`;
+}
+/** Member: the group is over for me, offer to hide it from my list. */
+function hideGroupButton(g) {
+  return hiddenForMe(g)
+    ? `<button class="button subtle full summary-action-btn" data-action="unhide-group" data-id="${escape(g.id)}"><span>${t("แสดงในรายการของฉันอีกครั้ง")}</span></button>`
+    : `<button class="button outline full summary-action-btn" data-action="hide-group" data-id="${escape(g.id)}"><span class="summary-btn-left">${icon("eye", 18)} <span>${t("ซ่อนจากรายการของฉัน")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>`;
+}
+/** Monthly owner: choose the last cycle, or close once it has ended. */
+function monthlyEndControls(g) {
+  const cycle = currentCycle(g);
+  if (!cycle || g.closedAt) return "";
+  if (monthlyEnded(g)) return closeGroupBox(g);
+  if (g.lastCycle)
+    return `${softBox({ tone: "amber", title: t("รอบที่ {number} เป็นรอบสุดท้าย", { number: g.lastCycle }), note: t("จะไม่เปิดรอบใหม่ หลังรอบนี้จบและโอนเงินครบ คุณปิดกลุ่มได้") })}<button class="button subtle full summary-action-btn" data-action="end-after-cycle" data-id="${escape(g.id)}" data-cycle=""><span>${t("ยกเลิก · ต่ออายุตามปกติ")}</span></button>`;
+  return `<button class="button outline full summary-action-btn" data-action="end-after-cycle" data-id="${escape(g.id)}" data-cycle="${cycle.number}"><span class="summary-btn-left">${icon("clock", 18)} <span>${t("จบกลุ่มหลังรอบนี้ (รอบที่ {number})", { number: cycle.number })}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>`;
 }
 /** Suggestions after someone finished paying for a one-time group. */
 function recommendSection(g) {
@@ -2179,13 +2215,15 @@ function groupPage(id) {
     : "";
   // Finished paying (demo: the group is confirmed): suggest other groups to join next.
   const paidUp = isMember && !isOwner && (supabaseConfigured ? paymentReport?.status === "verified" : allApproved(g));
+  // My part is over: I have the goods (or the group was closed). Demo: the group is confirmed.
+  const myPartDone = paidUp && (Boolean(g.closedAt) || (supabaseConfigured ? receiptDone(receiptState({ received: g.myReceipt, shippedAt: groupShipment(g), dispute: myDispute(g) })) : true));
   const groupPaymentSection = !ownerSeat && isMember && supabaseConfigured && full && allApproved(g) && Number(alloc[me]) > 0
     ? hasVisiblePaymentReport
       ? ""
       : `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${paymentReport?.status === "rejected" ? t("ยอดโอนไม่ตรง กรุณาโอนใหม่") : t("โอนเงินเข้าบัญชี")}</h2><p>${paymentReport?.status === "rejected" ? t("แอดมินปฏิเสธรายการนี้ กรุณาโอนยอดที่ถูกต้องอีกครั้ง แล้วแนบสลิปใหม่เพื่อให้ตรวจสอบ") : t("สแกน QR บัญชีธนาคาร แล้วกดแจ้งโอนหลังโอนเงินจริง เพื่อให้แอดมินตรวจยอด")}</p></div><div class="group-payment-transfer"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><small>${t("ชื่อบัญชีรับโอน")}</small><strong>${BANK_PAYMENT_RECIPIENT}</strong><small>${t("ยอดที่ต้องโอน")}</small><b>${money(alloc[me])}</b>${dueNotice(g)}${paymentReport?.status === "rejected" && paymentReport.rejection_note ? `<p class="group-payment-rejection">${escape(paymentReport.rejection_note)}</p>` : ""}${paymentSlipForm(id, g.revision)}</div></div></section>`
     : "";
   const actions = `
-    ${!isMember && !full && !locked ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
+    ${!isMember && !full && !locked && !g.closedAt ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
     ${isMember && !approved && !locked ? ownerSeat ? `<button class="button primary full summary-action-btn" data-action="approve-owner" data-id="${id}" data-revision="${g.revision}"><span>${t("ยืนยันยอดกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : `<button class="button primary full summary-action-btn" data-action="approve" data-id="${id}" data-revision="${g.revision}"><span>${t("ยืนยันยอด {amount}", { amount: money(alloc[me]) })}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${isMember && approved && !adminApproved ? `<div class="warning summary-warning"><span class="warning-icon">${icon("clock", 18)}</span><span>${full && allMembersApproved ? t("รอแอดมินอนุมัติยอดกลุ่ม") : t("คุณยืนยันยอดแล้ว รอสมาชิกครบ")}</span></div>` : ""}
     ${isMember && approved && adminApproved ? `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันยอดรอบนี้แล้ว")}</div>` : ""}
@@ -2216,13 +2254,13 @@ function groupPage(id) {
           ...(units && !unitsOf(g, g.ownerId) ? [] : [{ icon: "tag", label: t("ส่วนของคุณเอง (ไม่ต้องโอน)"), value: money(ownSeatShare) }]),
         ],
         step: (g.payoutsReceived || []).length ? 3 : full && allApproved(g) ? 1 : 0,
-        extra: `${supabaseConfigured && full ? ownerShipPanel({ shippedAt: groupShipment(g), openDisputes: openDisputeCount(g), shipAction: "mark-shipped", attrs: `data-id="${id}"` }) : ""}${payoutsReceivedList(g)}`,
+        extra: `${supabaseConfigured && full && !g.closedAt ? ownerShipPanel({ shippedAt: groupShipment(g), openDisputes: openDisputeCount(g), shipAction: "mark-shipped", attrs: `data-id="${id}"` }) : ""}${payoutsReceivedList(g)}${g.closedAt || (full && allApproved(g) && (!supabaseConfigured || (g.payoutsReceived || []).length)) ? closeGroupBox(g) : ""}`,
         actions: `<div class="payout-actions">${actions}</div>`,
       })
     : `<div class="summary-card"><small>${isMember ? t("ยอดที่คุณต้องยืนยัน") : full || locked ? t("ประมาณต่อคนปัจจุบัน") : t("ยอดประมาณเมื่อเข้าร่วม")}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${units ? `<div class="summary-future-price"><span>${isMember ? t("ส่วนของคุณ") : t("ราคาต่อ 1 ส่วน")}</span><b>${isMember ? unitsLabel(g, me) : money(estimate)}</b></div>` : !full ? `<div class="summary-future-price"><span>${t("เมื่อครบ {count} คน", { count: g.capacity })}</span><b>${money(fullEstimate)} <small>${t("/คน")}</small></b></div>` : ""}<p>${isMember ? t("ยอดรอบที่ {revision}", { revision: g.revision }) + (approved ? adminApproved ? t(" · คุณยืนยันแล้ว") : full && allMembersApproved ? t(" · รอแอดมินอนุมัติยอดกลุ่ม") : t(" · คุณยืนยันแล้ว รอสมาชิกครบ") : t(" · กรุณาตรวจสอบก่อนยืนยัน")) : full || locked ? t("กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่") : t("ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง")}</p>${actions}${!full ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน")}</span></p>` : !allApproved(g) && !approved ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${allMembersApproved ? t("รอแอดมินอนุมัติยอดกลุ่ม") : t("รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด")}</span></p>` : ""}</div>`;
   const paymentStatusCard = ownerSeat ? "" : `<section class="group-payment-panel group-payment-status-card is-${paymentStatusState}" aria-labelledby="payment-status-heading"><span class="chip">${t("ชำระเงิน")}</span><h2 id="payment-status-heading">${t(paymentStatusCopy[0])}</h2><p>${escape(t(paymentStatusCopy[1]))}</p><strong>${money(paymentStatusAmount)}</strong><span>${t(paymentStatusCopy[2])}</span></section>`;
   return groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategories, status, full, remaining, isMember, isOwner, locked, costs, sum, seatMode, monthly,
-    summaryCard, paymentSection: (earlyPaymentReportPanel || groupPaymentSection) + (paidUp ? recommendSection(g) : ""), paymentStatusCard, alloc, me, adminApproved });
+    summaryCard, paymentSection: (earlyPaymentReportPanel || groupPaymentSection) + (paidUp ? recommendSection(g) + (myPartDone ? `<div class="finished-member">${softBox({ tone: "green", icon: "check", title: g.closedAt ? t("กลุ่มนี้ปิดแล้ว") : t("ส่วนของคุณเสร็จเรียบร้อย"), note: t("ซ่อนกลุ่มนี้จากรายการของคุณได้ ข้อมูลยังดูได้ในประวัติ") })}${hideGroupButton(g)}</div>` : "") : ""), paymentStatusCard, alloc, me, adminApproved });
 }
 function groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategories, status, full, remaining, isMember, isOwner, locked, costs, sum, seatMode, monthly, summaryCard, paymentSection, paymentStatusCard, alloc, me, adminApproved }) {
   const monthlyCycle = monthly ? currentCycle(g) : null;
@@ -2770,12 +2808,14 @@ function myGroups() {
         "ติดตามสมาชิกและยอดที่ต้องยืนยันในแต่ละกลุ่ม เข้าสู่ระบบหรือลงทะเบียนเพื่อเริ่มต้น",
       ),
     );
-  const gs = state.groups.filter((g) => g.members.includes(state.user.id));
+  const mine = state.groups.filter((g) => g.members.includes(state.user.id));
+  const gs = mine.filter((g) => !inHistory(g));
+  const past = mine.filter(inHistory);
   const upcoming = gs.map((g) => ({ g, f: nextCycleForecast(g, state.user.id) })).filter(({ f }) => f && !f.owner).sort((x, y) => Date.parse(x.f.startsAt) - Date.parse(y.f.startsAt));
   const upcomingBox = upcoming.length
     ? `<section class="next-month-summary"><small>${t("รอบถัดไปของกลุ่มรายเดือน")}</small><strong>${money(upcoming.reduce((sum, { f }) => sum + f.amount, 0))}</strong><span class="next-month-sub">${t("รวม {count} กลุ่ม · ใกล้สุด {date}", { count: upcoming.length, date: shortDate(upcoming[0].f.startsAt) })}</span><dl class="owner-payout-lines">${upcoming.map(({ g, f }) => `<div><dt>${a(`/groups/${g.id}`, escape(g.name))} · ${shortDate(f.startsAt)}${f.changed ? ` <em>${t("ยอดเปลี่ยน")}</em>` : ""}</dt><dd>${money(f.amount)}</dd></div>`).join("")}</dl></section>`
     : "";
-  return `${title(t("กลุ่มของฉัน"), t("ติดตามสมาชิกและยอดที่ต้องยืนยันในแต่ละกลุ่ม"))}${upcomingBox}<div class="section-header"><h2>${t("{count} กลุ่ม", { count: gs.length })}</h2>${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่ม")}`, "button secondary")}</div>${gs.length ? `<div class="group-grid">${gs.map(groupCard).join("")}</div>` : `<div class="empty"><h2>${t("ยังไม่มีกลุ่มที่เข้าร่วม")}</h2><p>${t("ลองสำรวจสินค้าที่อยากหารก่อน")}</p>${a("/explore", t("ไปสำรวจ"), "button primary")}</div>`}`;
+  return `${title(t("กลุ่มของฉัน"), t("ติดตามสมาชิกและยอดที่ต้องยืนยันในแต่ละกลุ่ม"))}${upcomingBox}<div class="section-header"><h2>${t("{count} กลุ่ม", { count: gs.length })}</h2>${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่ม")}`, "button secondary")}</div>${gs.length ? `<div class="group-grid">${gs.map(groupCard).join("")}</div>` : `<div class="empty"><h2>${t("ยังไม่มีกลุ่มที่เข้าร่วม")}</h2><p>${t("ลองสำรวจสินค้าที่อยากหารก่อน")}</p>${a("/explore", t("ไปสำรวจ"), "button primary")}</div>`}${past.length ? `<details class="group-history-list"><summary>${t("ประวัติ · กลุ่มที่จบแล้ว ({count})", { count: past.length })}</summary><ul>${past.map((g) => `<li>${a(`/groups/${g.id}`, `<span><b>${escape(g.name)}</b><small>${g.closedAt ? t("ปิดกลุ่ม {date}", { date: shortDate(g.closedAt) }) : t("ซ่อนจากรายการ")}</small></span>${icon("arrow", 16)}`)}</li>`).join("")}</ul></details>` : ""}`;
 }
 function getGroupMessages(groupId) {
   const defaultGroupMessages = {
@@ -6109,6 +6149,36 @@ document.addEventListener("click", async (e) => {
       const url = await openPayoutSlip(path);
       if (win) win.location.href = url;
       else location.href = url;
+    } else if (["close-group", "hide-group", "unhide-group", "end-after-cycle"].includes(action)) {
+      const current = group(id);
+      if (!current || !state.user) throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      const me = state.user.id;
+      if (action === "close-group" && !confirm(t("ปิดกลุ่มนี้ใช่ไหม? กลุ่มจะหายจากหน้าสำรวจและรายการกลุ่ม ข้อมูลเงินและสลิปยังเก็บไว้ในประวัติ")))
+        return;
+      const cycleNumber = btn.dataset.cycle ? Number(btn.dataset.cycle) : null;
+      if (action === "end-after-cycle" && cycleNumber && !confirm(t("จบกลุ่มหลังรอบที่ {number} ใช่ไหม? จะไม่มีการเปิดรอบใหม่และไม่เก็บเงินรอบถัดไป สมาชิกจะเห็นว่ารอบนี้เป็นรอบสุดท้าย", { number: cycleNumber })))
+        return;
+      try {
+        if (supabaseConfigured) {
+          if (action === "close-group") await closeSupabaseGroup(id);
+          else if (action === "end-after-cycle") await endSupabaseGroupAfterCycle(id, cycleNumber);
+          else await hideSupabaseGroup(id, action === "hide-group");
+          if (!(await refreshSupabaseGroups(actionSession))) return;
+        } else if (action === "close-group") updateGroup(closeGroup(current, me));
+        else if (action === "end-after-cycle") updateGroup(endAfterCycle(current, me, cycleNumber));
+        else {
+          const list = new Set(state.hiddenGroups?.[me] || []);
+          if (action === "hide-group") list.add(id); else list.delete(id);
+          save({ ...state, hiddenGroups: { ...(state.hiddenGroups || {}), [me]: [...list] } });
+        }
+      } catch (err) {
+        const message = String(err?.message || "");
+        if (message.includes("group_not_finished")) throw new Error(t("ยังปิดไม่ได้: ต้องให้ทุกคนได้รับของ และแอดมินโอนเงินให้คุณครบก่อน"));
+        if (message.includes("group_still_active")) throw new Error(t("ยังซ่อนไม่ได้: รอให้คุณได้รับของก่อน"));
+        throw err;
+      }
+      render();
+      alertMessage({ "close-group": t("ปิดกลุ่มแล้ว ย้ายไปที่ประวัติ"), "hide-group": t("ซ่อนจากรายการของคุณแล้ว ดูได้ในประวัติ"), "unhide-group": t("แสดงในรายการของคุณแล้ว"), "end-after-cycle": cycleNumber ? t("ตั้งให้รอบที่ {number} เป็นรอบสุดท้ายแล้ว", { number: cycleNumber }) : t("ยกเลิกแล้ว กลุ่มต่ออายุตามปกติ") }[action]);
     } else if (action === "report-problem") {
       document.querySelector("#problem-dialog")?.remove();
       const attrs = [["id", btn.dataset.id], ["cycle", btn.dataset.cycle]].filter(([, v]) => v).map(([k, v]) => `data-${k}="${escape(v)}"`).join(" ");

@@ -64,3 +64,34 @@ insert into r select 'summary owed', owed_satang::text from private.group_payout
 select * from r;
 
 rollback;
+
+-- 3. Closing finished groups (needs 20261120220000_close_finished_groups.sql)
+begin;
+create temp table out(step text, held bigint, releasable bigint, owed bigint) on commit drop;
+-- owner o, members a and b, both paid 100.00 (10000 satang), verified
+insert into auth.users (id) values ('00000000-0000-0000-0000-00000000000a'),('00000000-0000-0000-0000-00000000000b'),('00000000-0000-0000-0000-00000000000c');
+insert into public.groups (id, owner_id, request_id, listing_id, name, visibility, capacity, product_satang, delivery_per_member_satang, pricing_mode)
+values ('11111111-0000-0000-0000-000000000001','00000000-0000-0000-0000-00000000000c', gen_random_uuid(), 'p1', 'QA group', 'link', 3, 30000, 0, 'seat_v3');
+insert into public.group_payment_reports (group_id, user_id, revision, amount_satang, status, verified_at, verified_by)
+values ('11111111-0000-0000-0000-000000000001','00000000-0000-0000-0000-00000000000a',1,10000,'verified',now(),'00000000-0000-0000-0000-00000000000c'),
+       ('11111111-0000-0000-0000-000000000001','00000000-0000-0000-0000-00000000000b',1,10000,'verified',now(),'00000000-0000-0000-0000-00000000000c');
+create temp table r(step text, result text) on commit drop;
+create or replace function pg_temp.as_user(u text) returns void language sql as $$ select set_config('request.jwt.claims', json_build_object('sub', u, 'role', 'authenticated')::text, true); $$;
+insert into r select 'finished: paid, not shipped', private.group_finished('11111111-0000-0000-0000-000000000001')::text;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c');
+do $$ begin perform public.close_group('11111111-0000-0000-0000-000000000001'); insert into r values ('owner closes too early','ALLOWED (bad)'); exception when others then insert into r values ('owner closes too early', sqlerrm); end $$;
+insert into public.group_shipments (group_id, shipped_at, shipped_by) values ('11111111-0000-0000-0000-000000000001', now() - interval '8 days', '00000000-0000-0000-0000-00000000000c');
+insert into r select 'finished: received, owner not paid', private.group_finished('11111111-0000-0000-0000-000000000001')::text;
+insert into public.group_payouts (group_id, owner_id, net_satang, paid_by) values ('11111111-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000c', 19600, '00000000-0000-0000-0000-00000000000c');
+insert into r select 'finished: owner paid', private.group_finished('11111111-0000-0000-0000-000000000001')::text;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+do $$ begin perform public.close_group('11111111-0000-0000-0000-000000000001'); insert into r values ('member closes','ALLOWED (bad)'); exception when others then insert into r values ('member closes', sqlerrm); end $$;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c');
+insert into r select 'owner closes', (public.close_group('11111111-0000-0000-0000-000000000001'))->>'closed';
+do $$ begin insert into public.group_members (group_id, user_id, display_name) values ('11111111-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000b', 'b'); insert into r values ('join closed group','ALLOWED (bad)'); exception when others then insert into r values ('join closed group', sqlerrm); end $$;
+insert into public.group_members (group_id, user_id, display_name) select '11111111-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', 'a' where false;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+do $$ begin perform public.hide_group_for_me('11111111-0000-0000-0000-000000000001'); insert into r values ('non-member hides','ALLOWED (bad)'); exception when others then insert into r values ('non-member hides', sqlerrm); end $$;
+select * from r;
+
+rollback;

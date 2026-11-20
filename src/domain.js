@@ -475,7 +475,7 @@ export function recommendGroups(groups, current, userId, limit = 3) {
   return groups
     .filter((g) => g.id !== current?.id && !saleMode(g) && g.costs?.mode !== UNIT_MODE)
     .filter((g) => g.visibility === "public" && g.details?.visibilityMode !== "private")
-    .filter((g) => !g.orderId && !["cancelled", "ready", "ordered"].includes(g.status) && !g.members.includes(userId) && open(g) > 0)
+    .filter((g) => !g.orderId && !g.closedAt && !["cancelled", "ready", "ordered"].includes(g.status) && !g.members.includes(userId) && open(g) > 0)
     .filter((g) => !g.details?.closesAt || g.details.closesAt >= new Date().toISOString().slice(0, 10))
     .map((g) => ({ g, same: [g.category, ...(g.categories || [])].some((c) => categories.has(c)) ? 0 : 1, open: open(g) }))
     .sort((x, y) => x.same - y.same || x.open - y.open || String(y.g.createdAt || y.g.id).localeCompare(String(x.g.createdAt || x.g.id)))

@@ -74,6 +74,8 @@ export function mapDatabaseGroup(
       : Number(row.admin_approved_revision),
     approvals,
     status: row.status,
+    closedAt: row.closed_at || null,
+    lastCycle: row.last_cycle_number == null ? null : Number(row.last_cycle_number),
     orderId: null,
     history: history.map((event) => ({
       revision: Number(event.revision),
