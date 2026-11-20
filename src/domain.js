@@ -29,8 +29,8 @@ export function parseBaht(value) {
 export function costBreakdown(costs, memberCount = 1) {
   const product = assertSatang(costs?.product),
     delivery = assertSatang(costs?.delivery);
-  if (costs?.mode === SEAT_MODE) {
-    if (!Number.isSafeInteger(memberCount) || memberCount < 1 || memberCount > 20)
+  if (costs?.mode === SEAT_MODE || costs?.mode === UNIT_MODE) {
+    if (!Number.isSafeInteger(memberCount) || memberCount < 0 || memberCount > 20)
       fail("invalidMembers", "จำนวนที่นั่งไม่ถูกต้อง");
     const deliveryTotal = assertSatang(delivery * memberCount);
     const subtotal = assertSatang(product + deliveryTotal);
@@ -78,6 +78,64 @@ export function costBreakdown(costs, memberCount = 1) {
  */
 export const OWNER_FEE_PERCENT = 2;
 export const SEAT_MODE = "seat_v3";
+/**
+ * Unit pricing: the item is split into `capacity` equal parts and each member takes one or more.
+ * Delivery is charged once per person who takes at least one part. The owner may take no parts
+ * at all (selling only); parts nobody took are carried by the owner, like empty seats.
+ */
+export const UNIT_MODE = "unit_v4";
+export const MAX_UNITS = 20;
+/** Seat or unit pricing: fixed prices, the owner never transfers and receives the payments minus 2%. */
+export const seatPriced = (costs) => costs?.mode === SEAT_MODE || costs?.mode === UNIT_MODE;
+export const unitMode = (group) => group?.costs?.mode === UNIT_MODE;
+/** How many parts this member holds (1 for every seat-priced group). */
+export const unitsOf = (group, id) => {
+  const value = group?.units?.[id];
+  return Number.isSafeInteger(value) && value >= 0 ? value : 1;
+};
+export const takenUnits = (group) => group.members.reduce((sum, id) => sum + unitsOf(group, id), 0);
+export const openUnits = (group) => Math.max(0, group.capacity - takenUnits(group));
+export const groupFull = (group) => takenUnits(group) >= group.capacity;
+/** People who receive a delivery: everyone holding at least one part. */
+export const unitHolders = (group) => group.members.filter((id) => unitsOf(group, id) > 0);
+/**
+ * Unit shares: the product is allocated over every part in order (owner first, then join order),
+ * each person holding parts adds one delivery, and parts nobody took go to the owner.
+ */
+export function unitShares(costs, capacity, members, ownerId, units = {}) {
+  if (!Number.isSafeInteger(capacity) || capacity < 2 || capacity > MAX_UNITS)
+    fail("invalidCapacity", "จำนวนส่วนต้องอยู่ระหว่าง 2–20 ส่วน");
+  if (!Array.isArray(members) || !members.length || new Set(members).size !== members.length)
+    fail("invalidMembers", "ต้องมีสมาชิกอย่างน้อย 1 คนและไม่ซ้ำกัน");
+  if (!members.includes(ownerId)) fail("ownerNotMember", "เจ้าของกลุ่มต้องอยู่ในกลุ่ม");
+  const product = assertSatang(costs?.product), delivery = assertSatang(costs?.delivery);
+  const ordered = [ownerId, ...members.filter((id) => id !== ownerId)];
+  const count = (id) => {
+    const value = units?.[id] ?? 1;
+    if (!Number.isSafeInteger(value) || value < (id === ownerId ? 0 : 1))
+      fail("invalidUnits", "จำนวนส่วนไม่ถูกต้อง");
+    return value;
+  };
+  const taken = ordered.reduce((sum, id) => sum + count(id), 0);
+  if (taken > capacity) fail("fullGroup", "ส่วนเกินจำนวนที่แบ่งไว้");
+  const slots = Array.from({ length: capacity }, (_, i) => `unit-${i}`);
+  const parts = allocate(product, slots);
+  const result = {};
+  let next = 0;
+  for (const id of ordered) {
+    const n = count(id);
+    let amount = n > 0 ? delivery : 0;
+    for (let i = 0; i < n; i += 1) amount += parts[`unit-${next++}`];
+    result[id] = amount;
+  }
+  for (; next < capacity; next += 1) result[ownerId] += parts[`unit-${next}`];
+  return result;
+}
+/** What someone would pay to take `units` parts of this group now. */
+export function unitJoinPrice(group, units = 1) {
+  const members = [...group.members, "__joining__"];
+  return unitShares(group.costs, group.capacity, members, group.ownerId, { ...group.units, __joining__: units }).__joining__;
+}
 export const platformCommission = (amount) => ownerFee(amount);
 /** What the owner receives for a set of member payments, each with its own 2% taken off. */
 export function ownerPayout(payments, { waived = false } = {}) {
@@ -138,6 +196,7 @@ export function createGroup({
   costs,
   billing = "one_time",
   payDay = null,
+  ownerUnits = null,
 }) {
   [id, listingId, ownerId].forEach(assertId);
   if (!BILLING_MODES.includes(billing))
@@ -149,14 +208,22 @@ export function createGroup({
     fail("invalidName", "กรุณาตั้งชื่อกลุ่ม");
   if (!["public", "link"].includes(visibility))
     fail("invalidVisibility", "กรุณาเลือกกลุ่มสาธารณะหรือเฉพาะลิงก์");
-  assertCapacity(capacity);
+  // New groups pass ownerUnits and use unit pricing; older callers keep fixed seats.
+  const units = ownerUnits !== null && ownerUnits !== undefined;
+  if (units) {
+    if (!Number.isSafeInteger(capacity) || capacity < 2 || capacity > MAX_UNITS)
+      fail("invalidCapacity", "จำนวนส่วนต้องอยู่ระหว่าง 2–20 ส่วน");
+    if (!Number.isSafeInteger(ownerUnits) || ownerUnits < 0 || ownerUnits >= capacity)
+      fail("invalidUnits", "ส่วนของเจ้าของกลุ่มต้องน้อยกว่าจำนวนส่วนทั้งหมด");
+  } else assertCapacity(capacity);
   const nextCosts = {
     product: costs?.product,
     delivery: costs?.delivery,
-    mode: SEAT_MODE,
+    mode: units ? UNIT_MODE : SEAT_MODE,
   };
-  totalCost(nextCosts, capacity);
+  totalCost(nextCosts, units ? 1 : capacity);
   return {
+    ...(units ? { units: { [ownerId]: ownerUnits } } : {}),
     billing,
     id,
     listingId,
@@ -191,6 +258,8 @@ export function allocate(total, members) {
   );
 }
 export function shares(group) {
+  if (group.costs?.mode === UNIT_MODE)
+    return unitShares(group.costs, group.capacity, group.members, group.ownerId, group.units);
   if (group.costs?.mode === SEAT_MODE)
     return seatShares(group.costs, group.capacity, group.members, group.ownerId);
   const breakdown = costBreakdown(group.costs, group.members.length);
@@ -205,7 +274,7 @@ export function shares(group) {
       );
 }
 export const allApproved = (group) =>
-  group.members.length === group.capacity &&
+  groupFull(group) &&
   group.members.every((id) => group.approvals[id] === group.revision) &&
   (group.adminApprovedRevision === undefined ||
     group.adminApprovedRevision === group.revision);
@@ -229,7 +298,7 @@ function assertEditable(group) {
       "กลุ่มมีคำสั่งซื้อแล้ว เปลี่ยนสมาชิก ค่าใช้จ่าย หรือหัวหน้าไม่ได้",
     );
 }
-export function joinGroup(group, userId) {
+export function joinGroup(group, userId, units = 1) {
   assertEditable(group);
   assertId(userId);
   if (group.details?.closesAt && group.details.closesAt < new Date().toISOString().slice(0, 10))
@@ -238,16 +307,20 @@ export function joinGroup(group, userId) {
     fail("cancelledGroup", "กลุ่มนี้ยกเลิกแล้ว");
   if (group.members.includes(userId))
     fail("alreadyMember", "คุณเป็นสมาชิกกลุ่มนี้แล้ว");
-  if (group.members.length >= group.capacity)
+  if (groupFull(group))
     fail("fullGroup", "กลุ่มนี้เต็มแล้ว");
+  if (!Number.isSafeInteger(units) || units < 1 || (!unitMode(group) && units !== 1))
+    fail("invalidUnits", "จำนวนส่วนไม่ถูกต้อง");
+  if (units > openUnits(group))
+    fail("notEnoughUnits", "เหลือส่วนไม่พอ");
+  const patch = {
+    members: [...group.members, userId],
+    ...(unitMode(group) ? { units: { ...group.units, [userId]: units } } : {}),
+  };
   if (group.billing === "monthly")
     // Joining never touches the running cycle: the new member starts paying next cycle.
-    return { ...group, members: [...group.members, userId] };
-  return revise(
-    group,
-    { members: [...group.members, userId] },
-    "สมาชิกเข้าร่วม",
-  );
+    return { ...group, ...patch };
+  return revise(group, patch, "สมาชิกเข้าร่วม");
 }
 export function leaveGroup(group, userId) {
   assertEditable(group);
@@ -255,14 +328,12 @@ export function leaveGroup(group, userId) {
     fail("notMember", "คุณไม่ได้อยู่ในกลุ่มนี้");
   if (group.ownerId === userId)
     fail("ownerMustTransfer", "หัวหน้ากลุ่มต้องโอนสิทธิ์ก่อนออก");
+  const units = group.units ? Object.fromEntries(Object.entries(group.units).filter(([id]) => id !== userId)) : undefined;
+  const patch = { members: group.members.filter((id) => id !== userId), ...(units ? { units } : {}) };
   if (group.billing === "monthly")
     // Leaving keeps this cycle's locked amounts; the member is left out from the next cycle.
-    return { ...group, members: group.members.filter((id) => id !== userId) };
-  return revise(
-    group,
-    { members: group.members.filter((id) => id !== userId) },
-    "สมาชิกออก",
-  );
+    return { ...group, ...patch };
+  return revise(group, patch, "สมาชิกออก");
 }
 export function transferOwner(group, actorId, nextOwnerId) {
   assertEditable(group);
@@ -281,9 +352,9 @@ export function changeCosts(group, actorId, costs) {
   const nextCosts = {
     product: group.costs.product,
     delivery: costs?.delivery,
-    mode: group.costs.mode === SEAT_MODE ? SEAT_MODE : "per_member_v2",
+    mode: seatPriced(group.costs) ? group.costs.mode : "per_member_v2",
   };
-  totalCost(nextCosts, group.capacity);
+  totalCost(nextCosts, unitMode(group) ? 1 : group.capacity);
   if (group.billing === "monthly")
     return { ...group, costs: nextCosts }; // applies from the next cycle; the running cycle is locked
   return revise(group, { costs: nextCosts }, "ค่าใช้จ่ายเปลี่ยน");

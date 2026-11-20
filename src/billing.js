@@ -1,6 +1,6 @@
 // Monthly billing cycles for groups and the HarnKhong Plus subscription.
 // Every amount is in satang; every date is an ISO string. Functions are pure.
-import { assertSatang, seatShares } from "./domain.js";
+import { assertSatang, shares } from "./domain.js";
 
 function fail(code, message) {
   throw Object.assign(new Error(message), { code });
@@ -37,13 +37,14 @@ export const currentCycle = (group) => group.cycles?.at(-1) ?? null;
 // does not drift to the 28th after February.
 function snapshot(group, number, anchor) {
   const start = number === 1 ? anchor : addMonths(anchor, number - 1);
-  const amounts = seatShares(group.costs, group.capacity, group.members, group.ownerId);
+  const amounts = shares(group);
   return {
     number,
     start,
     end: addMonths(anchor, number),
     status: "awaiting_confirmation",
     members: [...group.members],
+    ...(group.units ? { units: { ...group.units } } : {}),
     ownerId: group.ownerId,
     costs: { ...group.costs },
     amounts,
