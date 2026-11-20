@@ -410,53 +410,132 @@
   }
 }
 
-/* A card alone on its row (one group, or the odd one out) spans the row and turns sideways:
-   picture on the left, details on the right, so it never looks like a tall half-width strip. */
+/* Group cards as a list: one row per group — picture left, name and members in the middle,
+   price on the right. The whole card opens the group; the full details live on the group page. */
 @media (max-width: 640px) {
-  .group-grid > .opportunity-card:last-child:nth-child(odd),
-  .home-open-groups-grid > .opportunity-card:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: minmax(0, 38%) minmax(0, 1fr);
-    align-items: stretch;
-  }
-  .group-grid > .opportunity-card:last-child:nth-child(odd) .opportunity-media,
-  .home-open-groups-grid > .opportunity-card:last-child:nth-child(odd) .opportunity-media {
-    height: auto;
-    min-height: 100%;
-  }
-  .group-grid > .opportunity-card:last-child:nth-child(odd) .opportunity-media > a,
-  .home-open-groups-grid > .opportunity-card:last-child:nth-child(odd) .opportunity-media > a {
-    display: block;
-    height: 100%;
-  }
-  .group-grid > .opportunity-card:last-child:nth-child(odd) .opportunity-media img,
-  .home-open-groups-grid > .opportunity-card:last-child:nth-child(odd) .opportunity-media img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-}
-
-@media (min-width: 341px) and (max-width: 640px) {
-  .group-grid > .opportunity-card:last-child:nth-child(odd) .opportunity-price,
-  :root .home-open-groups-grid > .opportunity-card:last-child:nth-child(odd) .opportunity-price {
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  }
-  .group-grid > .opportunity-card:last-child:nth-child(odd) .opportunity-price > div + div,
-  :root .home-open-groups-grid > .opportunity-card:last-child:nth-child(odd) .opportunity-price > div + div {
-    padding-top: 0;
-    padding-left: 8px;
-    border-top: 0;
-    border-left: 1px solid var(--hk-line, #dde8f4);
-  }
-}
-
-/* Very narrow phones: one card per row reads better than two squeezed ones. */
-@media (max-width: 340px) {
   .group-grid,
   .home-open-groups-grid,
   .hk-section .home-open-groups-grid {
     grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .group-grid > .opportunity-card,
+  .home-open-groups-grid > .opportunity-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "media top top"
+      "media title price"
+      "media members price";
+    align-items: center;
+    gap: 4px 10px;
+    padding: 10px;
+    border-radius: 16px;
+  }
+  .group-grid > .opportunity-card .opportunity-content,
+  .home-open-groups-grid > .opportunity-card .opportunity-content {
+    display: contents;
+  }
+  .group-grid > .opportunity-card .opportunity-media,
+  .home-open-groups-grid > .opportunity-card .opportunity-media {
+    grid-area: media;
+    align-self: center;
+    width: 76px;
+    height: 76px;
+    border-radius: 12px;
+  }
+  .group-grid > .opportunity-card .opportunity-media > a,
+  .home-open-groups-grid > .opportunity-card .opportunity-media > a {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+  }
+  .group-grid > .opportunity-card .opportunity-media img,
+  .home-open-groups-grid > .opportunity-card .opportunity-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .group-grid > .opportunity-card .opportunity-media .art,
+  .group-grid > .opportunity-card .opportunity-media .product-art,
+  .home-open-groups-grid > .opportunity-card .opportunity-media .art,
+  .home-open-groups-grid > .opportunity-card .opportunity-media .product-art {
+    transform: scale(0.42);
+  }
+  .opportunity-card .opportunity-topline {
+    grid-area: top;
+    position: relative;
+    z-index: 1;
+  }
+  .opportunity-card .opportunity-category {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--hk-sky-100);
+  }
+  .opportunity-card .opportunity-title {
+    grid-area: title;
+    align-self: end;
+  }
+  .opportunity-card .opportunity-title h3,
+  :root .home-open-groups-grid .opportunity-card .opportunity-title h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    -webkit-line-clamp: 1;
+  }
+  /* The title link covers the whole card, so a tap anywhere opens the group. */
+  .opportunity-card .opportunity-title::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  .opportunity-card .opportunity-members,
+  :root .home-open-groups-grid .opportunity-card .opportunity-members {
+    grid-area: members;
+    align-self: start;
+    font-size: 0.72rem;
+  }
+  .opportunity-card .opportunity-price,
+  :root .home-open-groups-grid .opportunity-card .opportunity-price {
+    grid-area: price;
+    display: grid;
+    grid-template-columns: auto;
+    gap: 2px;
+    margin: 0;
+    padding: 0 0 0 10px;
+    border: 0;
+    border-left: 1px solid var(--hk-line, #dde8f4);
+    border-radius: 0;
+    background: none;
+    text-align: left;
+  }
+  .opportunity-card .opportunity-price > div + div,
+  :root .home-open-groups-grid .opportunity-card .opportunity-price > div + div {
+    padding: 0;
+    border: 0;
+  }
+  .opportunity-card .opportunity-price > div:first-child small {
+    display: none;
+  }
+  .opportunity-card .opportunity-price strong,
+  :root .home-open-groups-grid .opportunity-card .opportunity-price strong {
+    font-size: 1rem;
+    white-space: nowrap;
+  }
+  .opportunity-card .opportunity-price b {
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  .opportunity-card .opportunity-price small {
+    font-size: 0.62rem;
+    white-space: nowrap;
+  }
+  .opportunity-card .opportunity-group-name,
+  .opportunity-card .opportunity-leader,
+  .opportunity-card .opportunity-terms,
+  .opportunity-card .opportunity-actions {
+    display: none;
   }
 }
