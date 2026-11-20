@@ -35,6 +35,8 @@ import {
   transferOwner,
   SEAT_MODE,
   UNIT_MODE,
+  saleMode,
+  MAX_STOCK,
   seatPriced,
   unitMode,
   unitsOf,
@@ -1042,7 +1044,9 @@ function alertMessage(msg, type = "success") {
   toast.innerHTML = `<span class="app-toast-icon">${icon(TOAST_ICONS[kind], 18)}</span><p class="app-toast-text">${escape(text)}</p><button type="button" class="app-toast-close" aria-label="${t("ปิดการแจ้งเตือน")}">✕</button><span class="app-toast-bar" aria-hidden="true"></span>`;
   toast.querySelector(".app-toast-close").addEventListener("click", () => dismissToast(toast));
   stack.prepend(toast);
-  while (stack.children.length > 4) dismissToast(stack.lastElementChild);
+  // Keep at most 4 toasts. dismissToast removes a toast only after its exit animation, so drop the
+  // extras right away; looping until the count drops would never end and freeze the page.
+  [...stack.children].filter((node) => !node.dataset.leaving).slice(4).forEach((node) => node.remove());
   let timer = setTimeout(() => dismissToast(toast), duration);
   toast.addEventListener("mouseenter", () => clearTimeout(timer));
   toast.addEventListener("mouseleave", () => { clearTimeout(timer); timer = setTimeout(() => dismissToast(toast), 1800); });
@@ -1504,6 +1508,9 @@ function groupCard(g) {
   const nowCount = g.members.length + (open && !isMember ? 1 : 0);
   const seatMode = seatPriced(g.costs);
   const units = unitMode(g);
+  const sale = saleMode(g);
+  const U = (split, sell, values) => t(sale ? sell : split, values);
+  const buyerView = isMember && !(sale && g.ownerId === state.user?.id);
   const now = isMember
     ? shares(g)[state.user.id]
     : seatMode
@@ -1519,14 +1526,14 @@ function groupCard(g) {
         .map((item) => escape(t(item)))
         .join(
           " · ",
-        )}${categories.length > 2 ? ` +${categories.length - 2}` : ""}</span><span class="opportunity-spots ${open ? "" : "is-closed"}">${open ? units ? t("เหลือ {count} ส่วน", { count: remaining }) : t("ว่าง {count} ที่", { count: remaining }) : t("ปิดรับสมาชิก")}</span></div>
+        )}${categories.length > 2 ? ` +${categories.length - 2}` : ""}</span><span class="opportunity-spots ${open ? "" : "is-closed"}">${open ? units ? U("เหลือ {count} ส่วน", "เหลือ {count} ชิ้น", { count: remaining }) : t("ว่าง {count} ที่", { count: remaining }) : sale ? t("ขายหมดแล้ว") : t("ปิดรับสมาชิก")}</span></div>
       ${a(destination, `<h3>${escape(g.name)}</h3>`, "opportunity-title")}
       <p class="opportunity-group-name">${t("หมวดหมู่")}: ${escape(t(category))}</p>
-      <div class="opportunity-price">${units ? `<div><small>${isMember ? t("ยอดปัจจุบันของคุณ") : t("ราคาต่อ 1 ส่วน")}</small><strong>${money(isMember ? now : joinEstimate(g))} <span>${isMember ? unitsLabel(g, state.user.id) : t("/ส่วน")}</span></strong></div><div><small>${t("แบ่งเป็น")}</small><b>${t("{count} ส่วน", { count: g.capacity })}</b></div>` : `<div><small>${isMember ? t("ยอดปัจจุบันของคุณ") : open ? t("ถ้าคุณเข้าร่วมตอนนี้") : t("ประมาณต่อคนปัจจุบัน")}</small><strong>${money(now)} <span>${t("/คน")}</span></strong></div><div><small>${t("เมื่อครบ {count} คน", { count: g.capacity })}</small><b>${money(full)} ${t("/คน")}</b></div>`}</div>
-      <div class="opportunity-members"><span>${icon("users", 17)} ${units ? t("จองแล้ว {count} / {capacity} ส่วน", { count: takenUnits(g), capacity: g.capacity }) : t("สมาชิก {count} / {capacity} คน", { count: g.members.length, capacity: g.capacity })}</span><div class="opportunity-track" role="progressbar" aria-label="${t("ความคืบหน้า")}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${takenUnits(g)}"><span style="width:${(takenUnits(g) / g.capacity) * 100}%"></span></div></div>
-      <p class="opportunity-leader">${icon("user", 16)} ${t("หัวหน้ากลุ่ม")}: ${escape(name(g.ownerId).replace(/\s*\(หัวหน้ากลุ่ม\)$/, ""))}</p>
-      <p class="opportunity-terms">${icon(g.payDay ? "clock" : "check", 16)} ${g.billing === "monthly" && g.payDay ? t("จ่ายทุกวันที่ {day} ของเดือน", { day: g.payDay }) : t("ยืนยันยอดก่อนสั่งซื้อ")}</p>
-      <div class="opportunity-actions">${a(destination, open && !isMember ? t("ดูรายละเอียดกลุ่ม") : t("ดูกลุ่ม"), `button opportunity-view ${open && !isMember ? "primary" : "outline"}`)}${isMember ? a(`/groups/${g.id}/chat`, `${icon("chat", 17)} ${t("แชทกลุ่ม")}`, "opportunity-chat") : ""}${open || isMember || g.ownerId === state.user?.id ? `<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t("คัดลอกลิงก์เชิญ")}">${icon("link", 17)} ${t("ชวนเพื่อน")}</button>` : ""}</div>
+      <div class="opportunity-price">${units ? `<div><small>${buyerView ? t("ยอดปัจจุบันของคุณ") : U("ราคาต่อ 1 ส่วน", "ราคาต่อชิ้น")}</small><strong>${money(buyerView ? now : sale ? g.costs.product : joinEstimate(g))} <span>${buyerView ? unitsLabel(g, state.user.id) : U("/ส่วน", "/ชิ้น")}</span></strong></div><div><small>${U("แบ่งเป็น", "ค่าส่ง")}</small><b>${sale ? money(g.costs.delivery) : t("{count} ส่วน", { count: g.capacity })}</b></div>` : `<div><small>${isMember ? t("ยอดปัจจุบันของคุณ") : open ? t("ถ้าคุณเข้าร่วมตอนนี้") : t("ประมาณต่อคนปัจจุบัน")}</small><strong>${money(now)} <span>${t("/คน")}</span></strong></div><div><small>${t("เมื่อครบ {count} คน", { count: g.capacity })}</small><b>${money(full)} ${t("/คน")}</b></div>`}</div>
+      <div class="opportunity-members"><span>${icon("users", 17)} ${units ? U("จองแล้ว {count} / {capacity} ส่วน", "ขายแล้ว {count} / {capacity} ชิ้น", { count: takenUnits(g), capacity: g.capacity }) : t("สมาชิก {count} / {capacity} คน", { count: g.members.length, capacity: g.capacity })}</span><div class="opportunity-track" role="progressbar" aria-label="${t("ความคืบหน้า")}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${takenUnits(g)}"><span style="width:${(takenUnits(g) / g.capacity) * 100}%"></span></div></div>
+      <p class="opportunity-leader">${icon("user", 16)} ${sale ? t("ผู้ขาย") : t("หัวหน้ากลุ่ม")}: ${escape(name(g.ownerId).replace(/\s*\(หัวหน้ากลุ่ม\)$/, ""))}</p>
+      <p class="opportunity-terms">${icon(g.payDay ? "clock" : "check", 16)} ${g.billing === "monthly" && g.payDay ? t("จ่ายทุกวันที่ {day} ของเดือน", { day: g.payDay }) : sale ? t("ขายผ่านตัวกลาง จ่ายแล้วได้ของจึงโอนให้ผู้ขาย") : t("ยืนยันยอดก่อนสั่งซื้อ")}</p>
+      <div class="opportunity-actions">${a(destination, sale ? (open && !isMember ? t("ดูสินค้า / ซื้อ") : t("ดูรายการขาย")) : open && !isMember ? t("ดูรายละเอียดกลุ่ม") : t("ดูกลุ่ม"), `button opportunity-view ${open && !isMember ? "primary" : "outline"}`)}${isMember && !sale ? a(`/groups/${g.id}/chat`, `${icon("chat", 17)} ${t("แชทกลุ่ม")}`, "opportunity-chat") : ""}${open || isMember || g.ownerId === state.user?.id ? `<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t("คัดลอกลิงก์เชิญ")}">${icon("link", 17)} ${t("ชวนเพื่อน")}</button>` : ""}</div>
     </div>
   </article>`;
 }
@@ -1910,7 +1917,7 @@ function unitProjection(g) {
   return unitShares(g.costs, g.capacity, [...g.members, "__rest__"], g.ownerId, { ...g.units, __rest__: open });
 }
 /** "2 ส่วน" chip for unit groups. */
-const unitsLabel = (g, id) => (unitMode(g) ? t("{count} ส่วน", { count: unitsOf(g, id) }) : "");
+const unitsLabel = (g, id) => (saleMode(g) ? t("{count} ชิ้น", { count: unitsOf(g, id) }) : unitMode(g) ? t("{count} ส่วน", { count: unitsOf(g, id) }) : "");
 /** What someone pays if they join now: a fixed seat for seat-priced groups, the old average otherwise. */
 function joinEstimate(g, units = 1) {
   if (unitMode(g))
@@ -2034,6 +2041,7 @@ function groupPage(id) {
   }
   const p = listing(g.listingId);
   if (!p) return notFound();
+  if (saleMode(g)) return salePage(g, p, id);
   const groupDetails = g.details || g;
   const groupCategory = g.category || p.category;
   const groupCategories = g.categories?.length ? g.categories : [groupCategory];
@@ -2191,14 +2199,74 @@ function groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategorie
     </div>
   </div>`;
 }
+const SALE_STATUS = {
+  ordered: ["รอโอนเงิน", "is-waiting"],
+  reported: ["แจ้งโอนแล้ว รอตัวกลางตรวจยอด", "is-waiting"],
+  paid: ["ตัวกลางรับเงินแล้ว รอส่งของ", "is-progress"],
+  received: ["ผู้ซื้อได้รับของแล้ว", "is-done"],
+};
+const saleStatus = (g, id) => g.salePayments?.[id] || "ordered";
+/** A sale listing: buyers pick a quantity and pay through the platform; the seller sees each order. */
+function salePage(g, p, id) {
+  const me = state.user?.id;
+  const isSeller = g.ownerId === me;
+  const bought = !isSeller && g.members.includes(me);
+  const amounts = shares(g);
+  const buyers = g.members.filter((memberId) => memberId !== g.ownerId);
+  const sold = takenUnits(g), left = openUnits(g);
+  const soldOut = left === 0;
+  const closed = g.status === "cancelled";
+  const payout = ownerPayout(buyers.map((buyer) => amounts[buyer])); // commission always applies to sales: promo codes are for split groups only
+  const released = ownerPayout(buyers.filter((buyer) => saleStatus(g, buyer) === "received").map((buyer) => amounts[buyer]));
+  const price = g.costs.product, delivery = g.costs.delivery;
+  const image = p.images?.[0] || g.images?.[0];
+  const statusChip = (buyer) => {
+    const [label, cls] = SALE_STATUS[saleStatus(g, buyer)];
+    return `<span class="member-approval sale-status ${cls}">${t(label)}</span>`;
+  };
+  const buyerRows = buyers.length
+    ? buyers.map((buyer) => isSeller || buyer === me
+        ? `<div class="group-member-row"><span class="group-member-person"><span class="avatar small">${profileAvatarMarkup({ name: name(buyer), avatar: state.profiles?.[buyer]?.avatar || "" })}</span><span class="group-member-name"><strong>${escape(name(buyer))}${buyer === me ? ` (${t("คุณ")})` : ""}</strong><small class="member-units">${unitsLabel(g, buyer)}</small></span></span>${statusChip(buyer)}<b>${money(amounts[buyer])}</b></div>`
+        : "").join("") + (!isSeller && buyers.some((buyer) => buyer !== me) ? `<p class="sale-privacy-note">${t("รายชื่อผู้ซื้อคนอื่นเห็นเฉพาะผู้ขาย")}</p>` : "")
+    : `<p class="sale-privacy-note">${t("ยังไม่มีคนซื้อ")}</p>`;
+  const sellerCard = `<div class="summary-card owner-payout-card sale-seller-card"><small>${t("ยอดขายของคุณ")}</small><strong>${money(payout.net)}</strong><dl class="owner-payout-lines"><div><dt>${t("ขายแล้ว {sold} / {stock} ชิ้น", { sold, stock: g.capacity })}</dt><dd>${money(payout.gross)}</dd></div><div><dt>${t("ค่าคอมตัวกลาง 2%")}</dt><dd>−${money(payout.commission)}</dd></div><div class="is-total"><dt>${t("คุณจะได้รับ")}</dt><dd>${money(payout.net)}</dd></div><div><dt>${t("พร้อมโอนให้คุณแล้ว (ผู้ซื้อได้รับของ)")}</dt><dd>${money(released.net)}</dd></div></dl>${payoutAccountReminder()}<p>${t("ผู้ซื้อโอนเงินเข้าตัวกลาง เมื่อผู้ซื้อยืนยันว่าได้รับของ ตัวกลางจะโอนเงินให้คุณหลังหักค่าคอม 2% โค้ดยกเว้นค่าคอมใช้ไม่ได้กับการขาย")}</p>${!closed ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${id}"><span class="summary-btn-left">${icon("link", 18)} <span>${t("คัดลอกลิงก์ร้าน")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}</div>`;
+  const status = saleStatus(g, me);
+  const buyerCard = bought
+    ? `<div class="summary-card sale-buyer-card"><small>${t("คำสั่งซื้อของคุณ")} · ${unitsLabel(g, me)}</small><strong>${money(amounts[me])}</strong><p>${t(SALE_STATUS[status][0])}</p>
+        ${status === "ordered" ? `<div class="group-payment-transfer sale-transfer"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><small>${t("โอนเข้าบัญชีตัวกลาง")}</small><strong>${BANK_PAYMENT_RECIPIENT}</strong><small>${t("ยอดที่ต้องโอน")}</small><b>${money(amounts[me])}</b></div></div><button class="button primary full summary-action-btn" data-action="sale-report-paid" data-id="${id}"><span>${t("โอนแล้ว แจ้งตัวกลาง")}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button><button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${id}"><span class="summary-btn-left">${icon("back", 19)} <span>${t("ยกเลิกการซื้อ")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
+        ${status === "reported" && testMode ? `<button class="button outline full summary-action-btn" data-action="sale-mark-paid" data-id="${id}"><span>${t("(ทดสอบ) ให้ตัวกลางยืนยันรับเงิน")}</span><span class="btn-arrow">${icon("check", 18)}</span></button>` : ""}
+        ${status === "paid" ? `<button class="button primary full summary-action-btn" data-action="sale-confirm-receipt" data-id="${id}"><span>${t("ได้รับของแล้ว")}</span><span class="btn-arrow">${icon("check", 18)}</span></button><p class="summary-receipt-note">${t("กดเมื่อได้รับของแล้ว ตัวกลางจะโอนเงินให้ผู้ขาย")}</p>` : ""}
+        ${status === "received" ? `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันว่าได้รับของแล้ว")}</div>` : ""}
+      </div>`
+    : `<div class="summary-card sale-buy-card"><small>${t("ราคาต่อชิ้น")}</small><strong>${money(price)}</strong><p>${t("ค่าส่ง {amount} ต่อคำสั่งซื้อ", { amount: money(delivery) })}</p>${soldOut || closed ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("สินค้าหมดแล้ว")}</span></p>` : a(`/groups/${id}/join`, `<span>${t("ซื้อเลย")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn")}<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("จ่ายผ่านตัวกลาง เงินถึงผู้ขายเมื่อคุณยืนยันว่าได้รับของ")}</span></div></div>`;
+  return `<div class="group-page sale-page">
+    <nav class="breadcrumb product-breadcrumb" aria-label="${t("เส้นทางนำทาง")}">${a("/explore", t("สำรวจ"))}<span aria-hidden="true">/</span><span aria-current="page">${escape(g.name)}</span></nav>
+    <div class="group-detail">
+      <main class="group-detail-main">
+        <section class="group-identity-card" aria-labelledby="group-title">
+          <div class="group-heading-line"><div><h1 id="group-title">${escape(g.name)}</h1><p>${t("ขายโดย")} ${escape(name(g.ownerId).replace(/\s*\(หัวหน้ากลุ่ม\)$/, ""))}</p></div><span class="group-state ${soldOut ? "is-full" : "is-open"}">${soldOut ? t("ขายหมดแล้ว") : t("เปิดขาย")}</span></div>
+          <div class="group-product-strip">${image ? `<div class="group-product-art"><img src="${escape(image)}" alt=""/></div>` : `<div class="group-product-art">${art(p)}</div>`}<div class="group-product-copy"><span>${t("ขายของ (ไม่หาร)")}</span><strong>${escape(p.title || g.name)}</strong><small>${escape(p.description || "")}</small></div><div class="group-product-price"><span>${t("ราคาต่อชิ้น")}</span><strong>${money(price)}</strong></div></div>
+        </section>
+        <section class="members-card group-members-card" aria-labelledby="buyers-heading">
+          <div class="group-section-head"><div><h2 id="buyers-heading">${t("ขายแล้ว {sold} / {stock} ชิ้น", { sold, stock: g.capacity })}</h2><p>${isSeller ? t("ผู้ซื้อ {count} คน", { count: buyers.length }) : t("ซื้อได้ทีละหลายชิ้น")}</p></div><strong>${soldOut ? t("ขายหมดแล้ว") : t("เหลือ {count} ชิ้น", { count: left })}</strong></div>
+          <div class="progress" role="progressbar" aria-label="${t("ขายแล้ว")}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${sold}"><span style="width:${(sold / g.capacity) * 100}%"></span></div>
+          <div class="group-member-list">${buyerRows}</div>
+        </section>
+        <section class="cost-card group-cost-card"><h2>${t("ราคาและค่าส่ง")}</h2><div><span>${t("ราคาต่อชิ้น")}</span><b>${money(price)}</b></div><div><span>${t("ค่าส่ง (คิดครั้งเดียวต่อคำสั่งซื้อ)")}</span><b>${money(delivery)}</b></div><div><span>${t("มีขายทั้งหมด")}</span><b>${t("{count} ชิ้น", { count: g.capacity })}</b></div><p>${t("ผู้ซื้อไม่มีค่าธรรมเนียมเพิ่ม ตัวกลางหักค่าคอม 2% จากยอดที่ผู้ขายได้รับ")}</p></section>
+      </main>
+      <aside class="group-detail-aside">${isSeller ? sellerCard : buyerCard}</aside>
+    </div>
+  </div>`;
+}
 /** Join a unit group: pick how many parts, the price updates as you go. */
 function unitJoinPage(g, id) {
   const open = openUnits(g);
   const price = unitJoinPrice(g, 1);
-  return `${title(t("ยืนยันการเข้าร่วม"), escape(g.name))}<div class="narrow"><div class="cost-card unit-join-card" data-unit-join data-id="${escape(id)}"><h2>${escape(g.name)}</h2><div><span>${t("ราคาสินค้า")}</span><b>${money(g.costs.product)}</b></div><div><span>${t("แบ่งเป็น")}</span><b>${t("{count} ส่วน", { count: g.capacity })}</b></div><div><span>${t("เหลือให้จอง")}</span><b>${t("{count} ส่วน", { count: open })}</b></div><div><span>${t("ค่าส่ง (คิดครั้งเดียวต่อคน)")}</span><b>${money(g.costs.delivery)}</b></div>
-    <div class="unit-picker"><span>${t("คุณจะเอากี่ส่วน")}</span><div class="unit-stepper"><button type="button" class="button outline" data-unit-step="-1" aria-label="${t("ลดจำนวนส่วน")}" disabled>−</button><output data-unit-count aria-live="polite">1</output><button type="button" class="button outline" data-unit-step="1" aria-label="${t("เพิ่มจำนวนส่วน")}" ${open <= 1 ? "disabled" : ""}>+</button></div></div>
+  const sale = saleMode(g), L = (split, sell) => t(sale ? sell : split);
+  return `${title(L("ยืนยันการเข้าร่วม", "ยืนยันการซื้อ"), escape(g.name))}<div class="narrow"><div class="cost-card unit-join-card" data-unit-join data-id="${escape(id)}"><h2>${escape(g.name)}</h2>${sale ? `<div><span>${t("ราคาต่อชิ้น")}</span><b>${money(g.costs.product)}</b></div><div><span>${t("เหลือ")}</span><b>${t("{count} ชิ้น", { count: open })}</b></div><div><span>${t("ค่าส่ง (คิดครั้งเดียวต่อคำสั่งซื้อ)")}</span><b>${money(g.costs.delivery)}</b></div>` : `<div><span>${t("ราคาสินค้า")}</span><b>${money(g.costs.product)}</b></div><div><span>${t("แบ่งเป็น")}</span><b>${t("{count} ส่วน", { count: g.capacity })}</b></div><div><span>${t("เหลือให้จอง")}</span><b>${t("{count} ส่วน", { count: open })}</b></div><div><span>${t("ค่าส่ง (คิดครั้งเดียวต่อคน)")}</span><b>${money(g.costs.delivery)}</b></div>`}
+    <div class="unit-picker"><span>${L("คุณจะเอากี่ส่วน", "จำนวนที่จะซื้อ")}</span><div class="unit-stepper"><button type="button" class="button outline" data-unit-step="-1" aria-label="${t("ลดจำนวนส่วน")}" disabled>−</button><output data-unit-count aria-live="polite">1</output><button type="button" class="button outline" data-unit-step="1" aria-label="${t("เพิ่มจำนวนส่วน")}" ${open <= 1 ? "disabled" : ""}>+</button></div></div>
     <div class="total"><span>${t("ยอดของคุณ")}</span><b data-unit-price>${money(price)}</b></div></div>
-    <div class="info-box">${t("คุณจ่ายตามจำนวนส่วนที่เลือก ไม่มีค่าธรรมเนียม ยอดนี้ไม่เปลี่ยนเมื่อมีคนเข้าหรือออก")}</div><button class="button primary full" data-action="join" data-id="${id}" data-units="1">${t("ยืนยันเข้าร่วมกลุ่ม")}</button>${a(`/groups/${id}`, t("กลับไปดูกลุ่ม"), "button outline full")}</div>`;
+    <div class="info-box">${L("คุณจ่ายตามจำนวนส่วนที่เลือก ไม่มีค่าธรรมเนียม ยอดนี้ไม่เปลี่ยนเมื่อมีคนเข้าหรือออก", "จ่ายผ่านตัวกลาง ไม่มีค่าธรรมเนียมเพิ่ม เงินถึงผู้ขายเมื่อคุณยืนยันว่าได้รับของ")}</div><button class="button primary full" data-action="join" data-id="${id}" data-units="1">${L("ยืนยันเข้าร่วมกลุ่ม", "ยืนยันสั่งซื้อ")}</button>${a(`/groups/${id}`, L("กลับไปดูกลุ่ม", "กลับไปหน้าสินค้า"), "button outline full")}</div>`;
 }
 function joinPage(id) {
   const g = group(id);
@@ -2265,7 +2333,7 @@ function createPage() {
     <input type="hidden" name="requestId" value="${crypto.randomUUID()}"/><input type="hidden" name="listingId" value="${selectedListing?.id || selected || ""}"/><input type="hidden" name="category" value="${escape(selectedCategory)}"/>
     <nav class="create-stepper" aria-label="${t("ขั้นตอนการสร้างกลุ่ม")}">${[[1,"ข้อมูลสินค้า"],[2,"ตั้งค่ากลุ่ม"],[3,"สรุปกลุ่ม"]].map(([step,label])=>`<button type="button" data-action="create-step" data-step="${step}" aria-current="${createGroupStep===step?"step":"false"}" class="${createGroupStep===step?"active":""}"><span>${step}</span>${t(label)}</button>`).join("")}</nav>
     <section class="create-step-panel" data-create-step-panel="1" ${createGroupStep===1?"":"hidden"}>
-      <div class="create-form-section"><h2>${icon("package",20)} ${t("ข้อมูลสินค้า")}</h2><fieldset class="product-type-picker"><legend>${t("ประเภทสินค้า")} <b>*</b></legend><label><input type="radio" name="productType" value="physical" checked/><span>${icon("package",20)}<strong>${t("สินค้าทั่วไป")}</strong><small>${t("มีการจัดส่ง")}</small></span></label><label><input type="radio" name="productType" value="digital"/><span>${icon("lock",20)}<strong>${t("สินค้าดิจิทัล")}</strong><small>${t("แอป / Subscription")}</small></span></label></fieldset>
+      ${SALE_ENABLED ? `<div class="create-form-section listing-kind-section"><h2>${icon("sparkles",20)} ${t("คุณจะสร้างแบบไหน")}</h2><fieldset class="product-type-picker listing-kind-picker"><legend>${t("รูปแบบ")} <b>*</b></legend><label><input type="radio" name="listingKind" value="split" checked/><span>${icon("users",20)}<strong>${t("หารของ")}</strong><small>${t("ชวนคนมาหารค่าใช้จ่ายกัน")}</small></span></label><label><input type="radio" name="listingKind" value="sale"/><span>${icon("package",20)}<strong>${t("ขายของ (ไม่หาร)")}</strong><small>${t("ตั้งราคา จำนวน ค่าส่งเอง ขายผ่านตัวกลาง")}</small></span></label></fieldset></div>` : ""}<div class="create-form-section"><h2>${icon("package",20)} ${t("ข้อมูลสินค้า")}</h2><fieldset class="product-type-picker"><legend>${t("ประเภทสินค้า")} <b>*</b></legend><label><input type="radio" name="productType" value="physical" checked/><span>${icon("package",20)}<strong>${t("สินค้าทั่วไป")}</strong><small>${t("มีการจัดส่ง")}</small></span></label><label><input type="radio" name="productType" value="digital"/><span>${icon("lock",20)}<strong>${t("สินค้าดิจิทัล")}</strong><small>${t("แอป / Subscription")}</small></span></label></fieldset>
       <div class="image-editor"><h3>${t("รูปสินค้า")} <b class="required-mark">*</b><small>${t("ต้องเพิ่มอย่างน้อย 1 รูป · สูงสุด 4 รูป")}</small></h3><label class="image-upload create-group-dropzone"><span class="create-group-upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></span><strong>${t("คลิกเพื่ออัปโหลด หรือลากรูปมาวาง")}</strong><small>${t("JPG, PNG หรือ WebP · ไม่เกิน 5 MB ต่อรูป · ระบบย่อรูปให้อัตโนมัติ")}</small><span class="create-group-browse">${icon("plus",16)} ${t("เลือกไฟล์")}</span><input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="${t("เลือกรูปสินค้า")}"/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></div>
       <label>${t("ชื่อสินค้า")} <b>*</b><input name="productTitle" maxlength="100" required value="" placeholder="${t("เช่น คีย์บอร์ดสำหรับทำงาน")}"/></label>
       <label>${t("ลิงก์สินค้า")} <small>${t("ไม่บังคับ")}</small><input name="productUrl" type="url" maxlength="500" placeholder="https://"/></label>
@@ -2276,8 +2344,8 @@ function createPage() {
       <div class="create-step-actions"><span></span><button type="button" class="button primary" data-action="create-step" data-step="2">${t("ต่อไป: ตั้งค่ากลุ่ม")} ${icon("arrow",18)}</button></div>
     </section>
     <section class="create-step-panel" data-create-step-panel="2" ${createGroupStep===2?"":"hidden"}>
-      <div class="create-form-section"><h2>${icon("users",20)} ${t("ตั้งค่ากลุ่ม")}</h2><label>${t("ชื่อกลุ่ม")} <b>*</b><input name="name" maxlength="70" required placeholder="${t("เช่น หารค่าสมัครกับเพื่อน")}"/></label>${UNITS_ENABLED ? `<div class="form-grid"><label>${t("แบ่งเป็นกี่ส่วน")} <b>*</b><input name="capacity" type="number" min="2" max="${MAX_UNITS}" placeholder="${t("เช่น 3")}" required/><small>${t("เช่น ซื้อ 3 ชิ้นมาแบ่ง = 3 ส่วน")}</small></label><label>${t("คุณจะเอากี่ส่วน")} <b>*</b><input name="ownerUnits" type="number" min="0" max="${MAX_UNITS - 1}" value="1" required/><small>${t("ใส่ 0 ถ้าขายอย่างเดียว ไม่ได้ร่วมหาร")}</small></label></div><input type="hidden" name="minimumMembers" value="2"/>` : `<div class="form-grid"><label>${t("สมาชิกขั้นต่ำ")} <b>*</b><input name="minimumMembers" type="number" min="2" max="6" placeholder="${t("เช่น 3")}" required/></label><label>${t("สมาชิกสูงสุด")} <b>*</b><input name="capacity" type="number" min="2" max="6" placeholder="${t("เช่น 4")}" required/></label></div>`}<fieldset class="visibility-picker billing-picker"><legend>${t("รูปแบบการจ่าย")} <b>*</b></legend><label><input type="radio" name="billing" value="one_time" checked/><span>${t("รอบเดียวจบ")}</span></label><label><input type="radio" name="billing" value="monthly"/><span>${t("จ่ายรายเดือน")}</span></label><small>${t("รายเดือน: ยอดต่อที่นั่งคงที่ทุกเดือน ทุกคนยืนยันเดือนละครั้ง")}</small></fieldset><label data-billing-field="one_time">${t("วันปิดรับสมาชิก")} <b>*</b><input name="closesAt" type="date" min="${groupDateMin}" required/></label><label data-billing-field="monthly" hidden>${t("จ่ายทุกวันที่")} <b>*</b><select name="payDay" disabled><option value="">${t("เลือกวันที่")}</option>${Array.from({ length: 28 }, (_, i) => `<option value="${i + 1}">${t("วันที่ {day} ของทุกเดือน", { day: i + 1 })}</option>`).join("")}</select><small>${t("สมาชิกต้องจ่ายภายในวันนี้ของทุกเดือน ระบบเตือนล่วงหน้า 1 วัน (เลือกได้ 1–28 เพราะบางเดือนไม่มีวันที่ 29–31)")}</small></label><fieldset class="visibility-picker"><legend>${t("การมองเห็นกลุ่ม")}</legend>${[["public","สาธารณะ"],["link","เฉพาะผู้มีลิงก์"],["private","ส่วนตัว"]].map(([value,label])=>`<label><input type="radio" name="visibilityMode" value="${value}" ${value==="public"?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><label>${t("หมายเหตุถึงสมาชิก")} <small>${t("ไม่บังคับ")}</small><textarea name="memberNote" maxlength="500" placeholder="${t("เช่น นัดโอนภายใน 2 วันหลังครบจำนวน")}"></textarea></label></div>
-      <div class="create-form-section"><h2>${icon("calc",20)} ${t("ค่าใช้จ่าย")}</h2><div class="form-grid"><label>${t("ราคาสินค้ารวม (บาท)")} <b>*</b><input name="product" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="${t("เช่น 1200")}" required/></label><label id="shipping-total-wrap">${UNITS_ENABLED ? t("ค่าส่งต่อผู้ซื้อ 1 คน (บาท)") : t("ค่าจัดส่งรวม (บาท)")}<input name="shippingTotal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"/></label></div><p class="create-fee-note">${UNITS_ENABLED ? t("ผู้ร่วมหารจ่ายตามจำนวนส่วนที่เลือก ค่าส่งคิดครั้งเดียวต่อคน แพลตฟอร์มหักค่าคอม 2% จากเงินที่สมาชิกโอน ก่อนโอนต่อให้คุณ") : t("ผู้ร่วมหารจ่ายเฉพาะราคาที่นั่ง แพลตฟอร์มหักค่าคอม 2% จากเงินที่สมาชิกโอน ก่อนโอนต่อให้คุณ")}</p><div class="preview-cost" id="create-preview"></div></div>
+      <div class="create-form-section"><h2>${icon("users",20)} ${t("ตั้งค่ากลุ่ม")}</h2><label>${t("ชื่อกลุ่ม")} <b>*</b><input name="name" maxlength="70" required placeholder="${t("เช่น หารค่าสมัครกับเพื่อน")}"/></label><div data-kind-field="split"><div class="form-grid"><label>${t("สมาชิกขั้นต่ำ")} <b>*</b><input name="minimumMembers" type="number" min="2" max="6" placeholder="${t("เช่น 3")}" required/></label><label>${t("สมาชิกสูงสุด")} <b>*</b><input name="capacity" type="number" min="2" max="6" placeholder="${t("เช่น 4")}" required/></label></div><fieldset class="visibility-picker billing-picker"><legend>${t("รูปแบบการจ่าย")} <b>*</b></legend><label><input type="radio" name="billing" value="one_time" checked/><span>${t("รอบเดียวจบ")}</span></label><label><input type="radio" name="billing" value="monthly"/><span>${t("จ่ายรายเดือน")}</span></label><small>${t("รายเดือน: ยอดต่อที่นั่งคงที่ทุกเดือน ทุกคนยืนยันเดือนละครั้ง")}</small></fieldset><label data-billing-field="one_time">${t("วันปิดรับสมาชิก")} <b>*</b><input name="closesAt" type="date" min="${groupDateMin}" required/></label><label data-billing-field="monthly" hidden>${t("จ่ายทุกวันที่")} <b>*</b><select name="payDay" disabled><option value="">${t("เลือกวันที่")}</option>${Array.from({ length: 28 }, (_, i) => `<option value="${i + 1}">${t("วันที่ {day} ของทุกเดือน", { day: i + 1 })}</option>`).join("")}</select><small>${t("สมาชิกต้องจ่ายภายในวันนี้ของทุกเดือน ระบบเตือนล่วงหน้า 1 วัน (เลือกได้ 1–28 เพราะบางเดือนไม่มีวันที่ 29–31)")}</small></label></div><fieldset class="visibility-picker"><legend>${t("การมองเห็นกลุ่ม")}</legend>${[["public","สาธารณะ"],["link","เฉพาะผู้มีลิงก์"],["private","ส่วนตัว"]].map(([value,label])=>`<label><input type="radio" name="visibilityMode" value="${value}" ${value==="public"?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><label>${t("หมายเหตุถึงสมาชิก")} <small>${t("ไม่บังคับ")}</small><textarea name="memberNote" maxlength="500" placeholder="${t("เช่น นัดโอนภายใน 2 วันหลังครบจำนวน")}"></textarea></label></div>
+      <div class="create-form-section"><h2>${icon("calc",20)} ${t("ค่าใช้จ่าย")}</h2>${SALE_ENABLED ? `<div class="form-grid" data-kind-field="sale"><label>${t("ราคาขายต่อชิ้น (บาท)")} <b>*</b><input name="salePrice" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="${t("เช่น 250")}" required/></label><label>${t("จำนวนที่มีขาย (ชิ้น)")} <b>*</b><input name="stock" type="number" inputmode="numeric" min="1" max="${MAX_STOCK}" step="1" placeholder="${t("เช่น 10")}" required/></label><label>${t("ค่าส่งต่อผู้ซื้อ 1 คน (บาท)")}<input name="saleDelivery" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"/><small>${t("ใส่ 0 ถ้าส่งฟรีหรือนัดรับ")}</small></label></div><p class="create-fee-note" data-kind-field="sale">${t("ผู้ซื้อจ่ายผ่านตัวกลาง ระบบหักค่าคอม 2% จากยอดขาย แล้วโอนให้คุณเมื่อผู้ซื้อยืนยันรับสินค้า โค้ดยกเว้นค่าคอมใช้ไม่ได้กับการขาย")}</p>` : ""}<div class="form-grid" data-kind-field="split"><label>${t("ราคาสินค้ารวม (บาท)")} <b>*</b><input name="product" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="${t("เช่น 1200")}" required/></label><label id="shipping-total-wrap">${t("ค่าจัดส่งรวม (บาท)")}<input name="shippingTotal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"/></label></div><p class="create-fee-note" data-kind-field="split">${t("ผู้ร่วมหารจ่ายเฉพาะราคาที่นั่ง แพลตฟอร์มหักค่าคอม 2% จากเงินที่สมาชิกโอน ก่อนโอนต่อให้คุณ")}</p><div class="preview-cost" id="create-preview"></div></div>
       <section class="create-form-section" id="physical-delivery-section"><h2>${icon("truck",20)} ${t("การรับสินค้า")}</h2><fieldset class="delivery-picker">${[["ship_to_owner","จัดส่งรวมมาที่ผู้สร้างกลุ่ม แล้วนัดรับ"],["ship_separately","จัดส่งแยกให้สมาชิกแต่ละคน"],["pickup","นัดรับด้วยตนเอง"]].map(([value,label],i)=>`<label><input type="radio" name="deliveryMethod" value="${value}" ${i===0?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><label id="pickup-location-wrap" hidden>${t("สถานที่นัดรับ")} <b>*</b><input name="pickupLocation" maxlength="180" placeholder="${t("ระบุสถานที่นัดรับ")}"/></label></section>
       <section class="create-form-section digital-handoff" id="digital-handoff-section" hidden><h2>${icon("lock",20)} ${t("การส่งมอบสิทธิ์ดิจิทัล")}</h2><p>${t("ระบุวิธีส่งมอบหลังกลุ่มยืนยันยอด")}</p><textarea name="digitalHandoff" maxlength="500" placeholder="${t("เช่น ส่งคำเชิญทางอีเมลหลังชำระเงิน")}"></textarea></section>
       <div class="create-step-actions"><button type="button" class="button outline" data-action="create-step" data-step="1">${t("ย้อนกลับ")}</button><button type="button" class="button primary" data-action="create-step" data-step="3">${t("ตรวจสอบสรุป")} ${icon("arrow",18)}</button></div>
@@ -4454,13 +4522,9 @@ function render() {
     );
   }
 }
-/** Split-by-parts groups: on in demo/test mode until the database supports them. */
-const UNITS_ENABLED = !supabaseConfigured;
-const formCosts = (d) => UNITS_ENABLED ? {
-  product: parseBaht(d.get("product") || "0"),
-  delivery: parseBaht(d.get("shippingTotal") || "0"), // per buyer
-  mode: UNIT_MODE,
-} : ({
+/** Selling (no split): on in demo/test mode until the database supports it. */
+const SALE_ENABLED = !supabaseConfigured;
+const formCosts = (d) => ({
   product: parseBaht(d.get("product") || "0"),
   delivery: Math.ceil(
     parseBaht(d.get("shippingTotal") || "0") /
@@ -4482,6 +4546,19 @@ function updateCreateFormUI() {
       control.required = active;
     });
   });
+  // Split or sale: fields of the other kind are hidden and left out of validation and FormData.
+  const kind = form.querySelector('[name="listingKind"]:checked')?.value === "sale" ? "sale" : "split";
+  form.dataset.kind = kind;
+  form.querySelectorAll("[data-kind-field]").forEach((field) => {
+    const active = field.dataset.kindField === kind;
+    field.hidden = !active;
+    field.querySelectorAll("input, select, textarea").forEach((control) => {
+      if (!active) control.disabled = true;
+      else if (!control.closest("[data-billing-field]")) control.disabled = false;
+    });
+  });
+  const groupNameLabel = form.querySelector('[name="name"]')?.closest("label");
+  if (groupNameLabel?.firstChild) groupNameLabel.firstChild.textContent = kind === "sale" ? t("ชื่อรายการขาย") + " " : t("ชื่อกลุ่ม") + " ";
   const digital = form.querySelector('[name="productType"]:checked')?.value === "digital";
   const digitalFields = form.querySelector("#digital-product-fields");
   const deliverySection = form.querySelector("#physical-delivery-section");
@@ -4543,6 +4620,16 @@ function validateCreatePanel(step) {
   }
   if (step === 2) {
     const data = new FormData(form);
+    if (data.get("listingKind") === "sale") {
+      try {
+        parseBaht(data.get("salePrice"));
+        parseBaht(data.get("saleDelivery") || "0");
+      } catch (error) {
+        alertError(errorMessage(error));
+        return false;
+      }
+      return true;
+    }
     const closesAt = String(data.get("closesAt") || "");
     const today = new Date();
     const todayLocal = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -4552,14 +4639,6 @@ function validateCreatePanel(step) {
       deadline.reportValidity();
       deadline.focus();
       deadline.setCustomValidity("");
-      return false;
-    }
-    if (UNITS_ENABLED && Number(data.get("ownerUnits")) >= Number(data.get("capacity"))) {
-      const own = form.querySelector('[name="ownerUnits"]');
-      own.setCustomValidity(t("ต้องเหลือส่วนให้คนอื่นอย่างน้อย 1 ส่วน"));
-      own.reportValidity();
-      own.focus();
-      own.setCustomValidity("");
       return false;
     }
     if (Number(data.get("minimumMembers")) > Number(data.get("capacity"))) {
@@ -4580,30 +4659,29 @@ function validateCreatePanel(step) {
   }
   return true;
 }
-/** Create-form preview for split-by-parts groups. */
-function updateUnitPreview(f, d, box) {
-  const count = Number(d.get("capacity")),
-    ownerUnits = Number(d.get("ownerUnits") || 0),
-    costs = formCosts(d);
-  if (!Number.isInteger(count) || count < 2 || count > MAX_UNITS) throw new Error(t("จำนวนส่วนต้องอยู่ระหว่าง 2–20 ส่วน"));
-  if (!Number.isInteger(ownerUnits) || ownerUnits < 0 || ownerUnits >= count) throw new Error(t("ต้องเหลือส่วนให้คนอื่นอย่างน้อย 1 ส่วน"));
-  const perUnit = Math.ceil(costs.product / count);
-  // What the owner receives when every other part is sold, one buyer per part (most delivery).
-  const buyers = Array.from({ length: count - ownerUnits }, (_, i) => `b${i}`);
-  const all = unitShares(costs, count, ["owner", ...buyers], "owner", { owner: ownerUnits, ...Object.fromEntries(buyers.map((id) => [id, 1])) });
-  const payout = ownerPayout(buyers.map((id) => all[id]));
-  box.innerHTML = `<small>${t("ราคาต่อ 1 ส่วน")}</small><strong>${money(perUnit)} ${t("/ ส่วน")}</strong><p>${ownerUnits ? t("คุณเอง {count} ส่วน · เปิดให้คนอื่นจอง {open} ส่วน", { count: ownerUnits, open: count - ownerUnits }) : t("ขายอย่างเดียว · เปิดให้คนอื่นจองทั้ง {open} ส่วน", { open: count - ownerUnits })}</p><p>${t("ค่าส่ง {amount} ต่อผู้ซื้อ 1 คน ค่าคอม 2% หักจากเงินที่คุณได้รับ", { amount: money(costs.delivery) })}</p>`;
+/** Create-form preview for a sale: price per item, what a buyer pays and what the seller keeps. */
+function updateSalePreview(f, d, box) {
+  const price = parseBaht(d.get("salePrice") || "0"),
+    delivery = parseBaht(d.get("saleDelivery") || "0"),
+    stock = Number(d.get("stock") || 0);
+  if (!price) {
+    box.innerHTML = `<small>${t("ราคาขายต่อชิ้น")}</small><strong>—</strong><p>${t("กรอกราคาขายและจำนวนที่มีขายเพื่อดูยอด")}</p>`;
+    return;
+  }
+  const one = price + delivery;
+  const all = Number.isInteger(stock) && stock > 0 ? ownerPayout([price * stock]) : null; // sold out to one buyer, delivery aside
+  box.innerHTML = `<small>${t("ผู้ซื้อ 1 ชิ้นจ่าย")}</small><strong>${money(one)}</strong><p>${t("ราคา {price} + ค่าส่ง {delivery} (ค่าส่งคิดครั้งเดียวต่อผู้ซื้อ)", { price: money(price), delivery: money(delivery) })}</p>${all ? `<p>${t("ถ้าขายหมด {count} ชิ้น คุณได้ประมาณ {net} หลังหักค่าคอม 2% ({fee})", { count: stock, net: money(all.net), fee: money(all.commission) })}</p>` : ""}`;
   const put = (selector, value) => { const el = document.querySelector(selector); if (el) el.textContent = value; };
   put("#summary-product-title", d.get("productTitle") || t("ชื่อสินค้า"));
   put("#summary-product-category", selectedCreateCategories.map((x) => t(x)).join(" · ") || t("หมวดหมู่สินค้า"));
-  put("#summary-product-price", money(costs.product));
-  put("#summary-shipping", `${money(costs.delivery)} / ${t("คน")}`);
-  put("#summary-fee", money(payout.commission));
-  put("#summary-per-person", `${money(perUnit)} / ${t("ส่วน")}`);
-  put("#summary-members", t("{count} ส่วน (คุณ {own})", { count, own: ownerUnits }));
-  put("#summary-deadline", d.get("billing") === "monthly" ? (d.get("payDay") ? t("จ่ายทุกวันที่ {day}", { day: d.get("payDay") }) : "—") : d.get("closesAt") || "—");
+  put("#summary-product-price", `${money(price)} / ${t("ชิ้น")}`);
+  put("#summary-shipping", `${money(delivery)} / ${t("คน")}`);
+  put("#summary-fee", all ? money(all.commission) : "—");
+  put("#summary-per-person", `${money(price)} / ${t("ชิ้น")}`);
+  put("#summary-members", stock ? t("มีขาย {count} ชิ้น", { count: stock }) : "—");
+  put("#summary-deadline", t("ขายจนกว่าจะหมด"));
   const review = f.querySelector("#create-review-summary");
-  if (review) review.innerHTML = `<strong>${escape(d.get("productTitle") || t("ชื่อสินค้า"))}</strong><p>${escape(d.get("name") || "—")}</p><b>${money(perUnit)} / ${t("ส่วน")}</b>`;
+  if (review) review.innerHTML = `<strong>${escape(d.get("productTitle") || t("ชื่อสินค้า"))}</strong><p>${escape(d.get("name") || "—")} · ${t("ขายของ (ไม่หาร)")}</p><b>${money(price)} / ${t("ชิ้น")}</b>`;
 }
 function updatePreview() {
   const f = document.querySelector("#create-form"),
@@ -4612,6 +4690,7 @@ function updatePreview() {
   try {
     const d = new FormData(f);
     // Until the owner enters a price and a seat count there is nothing to work out yet.
+    if (d.get("listingKind") === "sale") return updateSalePreview(f, d, box);
     if (!String(d.get("product") || "").trim() || !String(d.get("capacity") || "").trim()) {
       box.innerHTML = `<small>${t("ราคาต่อที่นั่ง")}</small><strong>—</strong><p>${t("กรอกราคาสินค้าและจำนวนสมาชิกเพื่อดูราคาต่อคน")}</p>`;
       for (const id of ["#summary-product-price", "#summary-fee", "#summary-per-person"]) {
@@ -4622,7 +4701,6 @@ function updatePreview() {
       if (title) title.textContent = d.get("productTitle") || t("ชื่อสินค้า");
       return;
     }
-    if (UNITS_ENABLED) return updateUnitPreview(f, d, box);
     const count = assertCapacity(Number(d.get("capacity"))),
       costs = costBreakdown(formCosts(d), count),
       moneyOrZero = (value) => money(Number.isFinite(value) ? value : 0);
@@ -5672,6 +5750,22 @@ document.addEventListener("click", async (e) => {
       groupMessageLoadState.delete(id);
       groupMessageErrors.delete(id);
       void refreshGroupChatMessages(id, { rerender: true });
+    } else if (["sale-report-paid", "sale-mark-paid", "sale-confirm-receipt"].includes(action)) {
+      // Demo/test flow for a purchase: buyer reports the transfer, the platform confirms it, buyer confirms receipt.
+      const current = group(id);
+      const me = state.user?.id;
+      if (!current || !saleMode(current) || !current.members.includes(me) || current.ownerId === me)
+        throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      const next = { "sale-report-paid": "reported", "sale-mark-paid": "paid", "sale-confirm-receipt": "received" }[action];
+      updateGroup({ ...current, salePayments: { ...current.salePayments, [me]: next } });
+      const notes = {
+        reported: [t("ผู้ซื้อแจ้งโอนแล้ว"), t("{name} แจ้งโอนเงินสำหรับ “{title}”", { name: state.user.name, title: current.name })],
+        paid: [t("ตัวกลางรับเงินแล้ว"), t("ส่งของให้ {name} ได้เลย", { name: state.user.name })],
+        received: [t("ผู้ซื้อได้รับของแล้ว"), t("{name} ยืนยันรับของแล้ว ตัวกลางจะโอนเงินให้คุณ", { name: state.user.name })],
+      }[next];
+      notice(notes[0], notes[1], `/groups/${id}`, current.ownerId);
+      render();
+      alertMessage(next === "reported" ? t("แจ้งโอนแล้ว รอตัวกลางตรวจยอด") : next === "paid" ? t("ตัวกลางยืนยันรับเงินแล้ว (ทดสอบ)") : t("ขอบคุณ! เงินจะถูกโอนให้ผู้ขาย"));
     } else if (action === "join") {
       if (supabaseConfigured) {
         const token = new URLSearchParams(location.search).get("invite");
@@ -5682,6 +5776,12 @@ document.addEventListener("click", async (e) => {
       } else {
         const g = joinGroup(group(id), state.user.id, Number(btn.dataset.units) || 1);
         updateGroup(g);
+        if (saleMode(g)) {
+          notice(t("มีคำสั่งซื้อใหม่"), t("{name} ซื้อ {count} ชิ้นจาก “{title}”", { name: state.user.name, count: unitsOf(g, state.user.id), title: g.name }), `/groups/${id}`, g.ownerId);
+          go(`/groups/${id}`);
+          alertMessage(t("สั่งซื้อแล้ว กรุณาโอนเงินเข้าตัวกลาง"));
+          return;
+        }
         g.members.forEach((u) =>
           notice(
             t("ยอดกลุ่มเปลี่ยน"),
@@ -6863,7 +6963,7 @@ document.addEventListener("submit", async (e) => {
         title: String(d.get("productTitle") || "").trim(),
         category,
         kind: productType === "digital" ? "บริการ" : "สินค้า",
-        price: parseBaht(d.get("product")),
+        price: parseBaht(d.get(d.get("listingKind") === "sale" ? "salePrice" : "product")),
         art: "custom",
         mark: productType === "digital" ? "" : "หาร",
         description: String(d.get("productDescription") || "").trim(),
@@ -6930,7 +7030,9 @@ document.addEventListener("submit", async (e) => {
         costs: formCosts(d),
         billing,
         payDay,
-        ...(UNITS_ENABLED ? { ownerUnits: Number(d.get("ownerUnits") || 0) } : {}),
+        ...(d.get("listingKind") === "sale"
+          ? { sale: { price: parseBaht(d.get("salePrice")), stock: Number(d.get("stock")), delivery: parseBaht(d.get("saleDelivery") || "0") } }
+          : {}),
       });
       const groupCategories = categories.includes("อื่น ๆ (ระบุชื่อเอง)")
         ? [...categories.filter((item) => item !== "อื่น ๆ (ระบุชื่อเอง)"), category]

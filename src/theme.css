@@ -2602,3 +2602,19 @@ body.has-test-banner {
   color: var(--hk-blue);
   font-weight: 600;
 }
+
+/* Sale (no split) listings */
+.listing-kind-picker {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.sale-status.is-waiting { color: #b45309; background: #fffbeb; }
+.sale-status.is-progress { color: #1d4ed8; background: #eff6ff; }
+.sale-status.is-done { color: #15803d; background: #f0fdf4; }
+.sale-privacy-note {
+  margin: 8px 0 0;
+  color: var(--hk-muted);
+  font-size: 0.85rem;
+}
+.sale-transfer {
+  margin: 12px 0;
+}

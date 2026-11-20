@@ -85,9 +85,19 @@ export const SEAT_MODE = "seat_v3";
  */
 export const UNIT_MODE = "unit_v4";
 export const MAX_UNITS = 20;
-/** Seat or unit pricing: fixed prices, the owner never transfers and receives the payments minus 2%. */
-export const seatPriced = (costs) => costs?.mode === SEAT_MODE || costs?.mode === UNIT_MODE;
-export const unitMode = (group) => group?.costs?.mode === UNIT_MODE;
+/**
+ * Selling (no split): the seller sets a price per item, how many are for sale and a delivery
+ * charge per buyer. Each buyer takes any quantity and pays quantity × price + delivery through the
+ * platform; the seller gets each payment minus the 2% commission. Promo codes never waive it.
+ * Buyers do not wait for each other: every purchase stands on its own.
+ */
+export const SALE_MODE = "sale_v1";
+export const MAX_STOCK = 999;
+/** Seat, unit or sale pricing: fixed prices, the owner never transfers and receives the payments minus 2%. */
+export const seatPriced = (costs) => [SEAT_MODE, UNIT_MODE, SALE_MODE].includes(costs?.mode);
+export const saleMode = (group) => group?.costs?.mode === SALE_MODE;
+/** Groups where people take a number of parts or items. */
+export const unitMode = (group) => group?.costs?.mode === UNIT_MODE || saleMode(group);
 /** How many parts this member holds (1 for every seat-priced group). */
 export const unitsOf = (group, id) => {
   const value = group?.units?.[id];
@@ -131,8 +141,17 @@ export function unitShares(costs, capacity, members, ownerId, units = {}) {
   for (; next < capacity; next += 1) result[ownerId] += parts[`unit-${next}`];
   return result;
 }
+/** Sale: each buyer pays quantity × price + delivery; the seller pays nothing. */
+export function saleShares(group) {
+  const price = assertSatang(group.costs?.product), delivery = assertSatang(group.costs?.delivery);
+  return Object.fromEntries(group.members.map((id) => {
+    const n = unitsOf(group, id);
+    return [id, id === group.ownerId ? 0 : assertSatang(n * price + delivery)];
+  }));
+}
 /** What someone would pay to take `units` parts of this group now. */
 export function unitJoinPrice(group, units = 1) {
+  if (saleMode(group)) return assertSatang(units * group.costs.product + group.costs.delivery);
   const members = [...group.members, "__joining__"];
   return unitShares(group.costs, group.capacity, members, group.ownerId, { ...group.units, __joining__: units }).__joining__;
 }
@@ -197,7 +216,9 @@ export function createGroup({
   billing = "one_time",
   payDay = null,
   ownerUnits = null,
+  sale = null,
 }) {
+  if (sale) return createSale({ id, listingId, name, ownerId, visibility, sale });
   [id, listingId, ownerId].forEach(assertId);
   if (!BILLING_MODES.includes(billing))
     fail("invalidBilling", "กรุณาเลือกแบบรายเดือนหรือรอบเดียวจบ");
@@ -242,6 +263,31 @@ export function createGroup({
     ],
   };
 }
+/** A sale listing: price per item, stock and delivery per buyer, all in satang. */
+export function createSale({ id, listingId, name, ownerId, visibility, sale }) {
+  [id, listingId, ownerId].forEach(assertId);
+  if (typeof name !== "string" || !name.trim()) fail("invalidName", "กรุณาตั้งชื่อรายการขาย");
+  if (!["public", "link"].includes(visibility)) fail("invalidVisibility", "กรุณาเลือกกลุ่มสาธารณะหรือเฉพาะลิงก์");
+  const price = assertSatang(sale?.price), delivery = assertSatang(sale?.delivery ?? 0), stock = sale?.stock;
+  if (price < 1) fail("invalidPrice", "กรุณาใส่ราคาขายต่อชิ้น");
+  if (!Number.isSafeInteger(stock) || stock < 1 || stock > MAX_STOCK) fail("invalidStock", "จำนวนที่มีขายต้องอยู่ระหว่าง 1–999 ชิ้น");
+  return {
+    billing: "one_time",
+    id,
+    listingId,
+    name: name.trim(),
+    ownerId,
+    visibility,
+    capacity: stock,
+    costs: { product: price, delivery, mode: SALE_MODE },
+    units: { [ownerId]: 0 },
+    members: [ownerId],
+    revision: 1,
+    approvals: {},
+    status: "selling",
+    history: [{ revision: 1, reason: "เปิดขาย", at: new Date().toISOString() }],
+  };
+}
 export function allocate(total, members) {
   assertSatang(total);
   if (
@@ -258,6 +304,7 @@ export function allocate(total, members) {
   );
 }
 export function shares(group) {
+  if (saleMode(group)) return saleShares(group);
   if (group.costs?.mode === UNIT_MODE)
     return unitShares(group.costs, group.capacity, group.members, group.ownerId, group.units);
   if (group.costs?.mode === SEAT_MODE)
@@ -317,6 +364,11 @@ export function joinGroup(group, userId, units = 1) {
     members: [...group.members, userId],
     ...(unitMode(group) ? { units: { ...group.units, [userId]: units } } : {}),
   };
+  if (saleMode(group)) {
+    // A purchase never changes anyone else's amount, so nobody re-confirms.
+    const next = { ...group, ...patch, approvals: { ...group.approvals, [userId]: group.revision } };
+    return { ...next, status: groupFull(next) ? "sold_out" : "selling" };
+  }
   if (group.billing === "monthly")
     // Joining never touches the running cycle: the new member starts paying next cycle.
     return { ...group, ...patch };
@@ -330,6 +382,11 @@ export function leaveGroup(group, userId) {
     fail("ownerMustTransfer", "หัวหน้ากลุ่มต้องโอนสิทธิ์ก่อนออก");
   const units = group.units ? Object.fromEntries(Object.entries(group.units).filter(([id]) => id !== userId)) : undefined;
   const patch = { members: group.members.filter((id) => id !== userId), ...(units ? { units } : {}) };
+  if (saleMode(group)) {
+    const approvals = Object.fromEntries(Object.entries(group.approvals || {}).filter(([id]) => id !== userId));
+    const salePayments = Object.fromEntries(Object.entries(group.salePayments || {}).filter(([id]) => id !== userId));
+    return { ...group, ...patch, approvals, salePayments, status: "selling" };
+  }
   if (group.billing === "monthly")
     // Leaving keeps this cycle's locked amounts; the member is left out from the next cycle.
     return { ...group, ...patch };

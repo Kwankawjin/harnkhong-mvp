@@ -82,3 +82,41 @@ test("กลุ่มแบบที่นั่งเดิมคิดยอ�
   assert.deepEqual(shares(g), seatShares(g.costs, 4, ["owner", "a"], "owner"));
   assert.throws(() => joinGroup(g, "b", 2), { code: "invalidUnits" });
 });
+
+import { createSale, saleShares, SALE_MODE, ownerPayout } from "../src/domain.js";
+
+test("ขายของ: ผู้ซื้อจ่าย จำนวน × ราคา + ค่าส่ง ผู้ขายไม่จ่าย", () => {
+  let g = createGroup({ ...base, ownerId: "seller", sale: { price: 25000, stock: 5, delivery: 4000 } });
+  assert.equal(g.costs.mode, SALE_MODE);
+  assert.equal(openUnits(g), 5);
+  g = joinGroup(g, "a", 2);
+  g = joinGroup(g, "b", 1);
+  assert.deepEqual(shares(g), { seller: 0, a: 54000, b: 29000 });
+  assert.equal(openUnits(g), 2);
+  assert.equal(unitJoinPrice(g, 2), 54000);
+});
+
+test("ขายของ: ผู้ซื้อไม่ต้องรอกันและไม่ต้องยืนยันใหม่เมื่อมีคนซื้อเพิ่ม", () => {
+  let g = createGroup({ ...base, ownerId: "seller", sale: { price: 100, stock: 3, delivery: 0 } });
+  g = joinGroup(g, "a", 1);
+  assert.equal(g.approvals.a, g.revision);
+  g = joinGroup(g, "b", 2);
+  assert.equal(g.approvals.a, g.revision);
+  assert.equal(g.status, "sold_out");
+  assert.throws(() => joinGroup(g, "c", 1), { code: "fullGroup" });
+  g = leaveGroup(g, "b");
+  assert.equal(g.status, "selling");
+  assert.equal(openUnits(g), 2);
+});
+
+test("ขายของ: ค่าคอม 2% ของแต่ละยอด ผู้ขายได้ส่วนที่เหลือ", () => {
+  let g = createGroup({ ...base, ownerId: "seller", sale: { price: 25000, stock: 5, delivery: 4000 } });
+  g = joinGroup(g, "a", 2);
+  const paid = Object.entries(saleShares(g)).filter(([id]) => id !== "seller").map(([, v]) => v);
+  assert.deepEqual(ownerPayout(paid), { gross: 54000, commission: 1080, net: 52920 });
+});
+
+test("ขายของ: ตรวจราคาและจำนวน", () => {
+  assert.throws(() => createSale({ ...base, ownerId: "s", sale: { price: 0, stock: 1 } }), { code: "invalidPrice" });
+  assert.throws(() => createSale({ ...base, ownerId: "s", sale: { price: 100, stock: 0 } }), { code: "invalidStock" });
+});
