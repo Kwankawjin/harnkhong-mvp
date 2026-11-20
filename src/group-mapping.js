@@ -65,7 +65,7 @@ export function mapDatabaseGroup(
     costs,
     billing: row.billing_mode === "monthly" ? "monthly" : "one_time",
     ...(row.billing_mode === "monthly"
-      ? { cycleAnchor: row.cycle_anchor || null, cycles: mapCycles(row.cycles, row.owner_id) }
+      ? { cycleAnchor: row.cycle_anchor || null, payDay: row.pay_day == null ? null : Number(row.pay_day), cycles: mapCycles(row.cycles, row.owner_id) }
       : {}),
     members,
     revision: Number(row.revision),

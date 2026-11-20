@@ -65,7 +65,8 @@ export function paymentReminders(groups, userId, now = new Date()) {
         groupName: group.name,
         cycle: cycle.number,
         amount: Number(cycle.amounts?.[userId]) || 0,
-        dueAt: addDays(cycle.start, PAYMENT_GRACE_DAYS),
+        // With a pay day the cycle starts on it, so the payment is due that day; older groups get 3 days.
+        dueAt: group.payDay ? new Date(cycle.start).toISOString() : addDays(cycle.start, PAYMENT_GRACE_DAYS),
         rejected: status === "rejected",
       });
       continue;

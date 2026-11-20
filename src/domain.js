@@ -137,10 +137,14 @@ export function createGroup({
   capacity,
   costs,
   billing = "one_time",
+  payDay = null,
 }) {
   [id, listingId, ownerId].forEach(assertId);
   if (!BILLING_MODES.includes(billing))
     fail("invalidBilling", "กรุณาเลือกแบบรายเดือนหรือรอบเดียวจบ");
+  // The form always sends a pay day for monthly groups; older groups have none and keep 3-day dues.
+  if (billing === "monthly" && payDay != null && !(Number.isInteger(payDay) && payDay >= 1 && payDay <= 28))
+    fail("invalidPayDay", "กรุณาเลือกวันที่ต้องจ่ายทุกเดือน (1–28)");
   if (typeof name !== "string" || !name.trim())
     fail("invalidName", "กรุณาตั้งชื่อกลุ่ม");
   if (!["public", "link"].includes(visibility))
@@ -165,7 +169,7 @@ export function createGroup({
     revision: 1,
     approvals: {},
     status: billing === "monthly" ? "gathering" : "awaiting_approval",
-    ...(billing === "monthly" ? { cycles: [] } : {}),
+    ...(billing === "monthly" ? { cycles: [], payDay } : {}),
     history: [
       { revision: 1, reason: "สร้างกลุ่ม", at: new Date().toISOString() },
     ],

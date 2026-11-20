@@ -53,13 +53,27 @@ function snapshot(group, number, anchor) {
   };
 }
 
+/**
+ * The first pay date on or after 3 days from now, at local midnight. Starting a cycle too
+ * close to the pay day moves the first payment to next month, so members have time to pay.
+ */
+export function firstPayDate(now, payDay) {
+  const today = new Date(now);
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  let candidate = new Date(today.getFullYear(), today.getMonth(), payDay);
+  if (candidate.getTime() < start.getTime() + 3 * 86_400_000)
+    candidate = new Date(today.getFullYear(), today.getMonth() + 1, payDay);
+  return candidate;
+}
+
 /** The owner starts the first month; people who joined while gathering are all in it. */
 export function startFirstCycle(group, actorId, now = new Date()) {
   if (group.billing !== "monthly") fail("notMonthly", "กลุ่มนี้ไม่ใช่แบบรายเดือน");
   if (group.ownerId !== actorId) fail("ownerOnly", "เฉพาะเจ้าของกลุ่มเริ่มรอบได้");
   if (group.cycles?.length) fail("cycleStarted", "กลุ่มเริ่มรอบไปแล้ว");
   if (group.status === "cancelled") fail("cancelledGroup", "กลุ่มนี้ยกเลิกแล้ว");
-  const anchor = iso(now).toISOString();
+  // With a pay day, cycles run from pay date to pay date and each payment is due on the cycle start.
+  const anchor = (group.payDay ? firstPayDate(iso(now), group.payDay) : iso(now)).toISOString();
   const cycle = snapshot(group, 1, anchor);
   return { ...group, status: "active", cycleAnchor: anchor, cycles: [cycle] };
 }

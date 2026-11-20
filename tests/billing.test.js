@@ -243,3 +243,28 @@ test("Plus: แอดมินปฏิเสธสลิป สถานะก�
   assert.equal(s.payments[0].status, "rejected");
   assert.throws(() => verifySubscriptionPayment(s, "p1"), { code: "paymentNotPending" });
 });
+
+test("pay day: the first cycle starts on the next pay date at least 3 days away", async () => {
+  const { firstPayDate } = await import("../src/billing.js");
+  const day = (d) => [d.getFullYear(), d.getMonth() + 1, d.getDate()].join("-");
+  assert.equal(day(firstPayDate(new Date(2026, 10, 1, 9), 5)), "2026-11-5");
+  assert.equal(day(firstPayDate(new Date(2026, 10, 3, 9), 5)), "2026-12-5");
+  assert.equal(day(firstPayDate(new Date(2026, 10, 20, 9), 5)), "2026-12-5");
+  assert.equal(day(firstPayDate(new Date(2026, 11, 27, 9), 28)), "2027-1-28");
+});
+
+test("pay day: a monthly group with a pay day starts its cycle on it and is due that day", async () => {
+  const { createGroup } = await import("../src/domain.js");
+  const { startFirstCycle } = await import("../src/billing.js");
+  const { paymentReminders } = await import("../src/reminders.js");
+  const g = createGroup({ id: "pd1", listingId: "l1", name: "Spotify", ownerId: "owner", visibility: "public", capacity: 2, costs: { product: 10000, delivery: 0 }, billing: "monthly", payDay: 5 });
+  assert.throws(() => createGroup({ id: "pd2", listingId: "l1", name: "x", ownerId: "owner", visibility: "public", capacity: 2, costs: { product: 10000, delivery: 0 }, billing: "monthly", payDay: 31 }));
+  const started = startFirstCycle({ ...g, members: ["owner", "me"] }, "owner", new Date(2026, 10, 20, 9));
+  const cycle = started.cycles[0];
+  assert.equal(new Date(cycle.start).getDate(), 5);
+  assert.equal(new Date(cycle.start).getMonth(), 11);
+  const confirmed = { ...started, cycles: [{ ...cycle, confirmations: { owner: "x", me: "x" }, status: "confirmed" }] };
+  const [reminder] = paymentReminders([confirmed], "me", new Date(2026, 11, 4, 12));
+  assert.equal(reminder.dueAt, new Date(cycle.start).toISOString());
+  assert.equal(reminder.level, "tomorrow");
+});

@@ -17,7 +17,7 @@ function selectGroups(client, withReceipts) {
   return client
     .from("groups")
     .select(
-      `id,listing_id,owner_id,name,category,categories,images,details,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,admin_approved_revision,pricing_mode,billing_mode,cycle_anchor,created_at,cycles:group_cycles(cycle_number,starts_at,ends_at,status,closed_from,total_satang,shares:group_cycle_members(user_id,seat_index,amount_satang,confirmed_at,payment_status,rejection_note${withReceipts ? ",received_at" : ""})),members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)`,
+      `id,listing_id,owner_id,name,category,categories,images,details,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,admin_approved_revision,pricing_mode,billing_mode,cycle_anchor,pay_day,created_at,cycles:group_cycles(cycle_number,starts_at,ends_at,status,closed_from,total_satang,shares:group_cycle_members(user_id,seat_index,amount_satang,confirmed_at,payment_status,rejection_note${withReceipts ? ",received_at" : ""})),members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)`,
     )
     .order("created_at", { ascending: false })
     .order("joined_at", { referencedTable: "members" })

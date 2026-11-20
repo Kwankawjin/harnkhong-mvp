@@ -68,7 +68,7 @@ begin
   perform set_config('request.jwt.claim.sub', owner::text, true);
   set local role authenticated;
   m := public.create_group_from_form(gen_random_uuid(), 'Monthly', array['แอปพลิเคชันและเว็บไซต์'],
-    '[]'::jsonb, 'public', 4, 0, 41900, product, form_details || '{"billing":"monthly"}');
+    '[]'::jsonb, 'public', 4, 0, 41900, product, form_details || '{"billing":"monthly","payDay":5}');
   reset role;
   assert (select billing_mode = 'monthly' and not details ? 'billing' from public.groups where id = m),
     'billing is stored on the group, not in details';
@@ -165,9 +165,10 @@ begin
   set local role authenticated;
   perform public.leave_group(m, gen_random_uuid());
   reset role;
-  update public.groups set cycle_anchor = cycle_anchor - interval '1 month' - interval '1 minute' where id = m;
-  update public.group_cycles set starts_at = starts_at - interval '1 month' - interval '1 minute',
-    ends_at = ends_at - interval '1 month' - interval '1 minute' where id = c1;
+  -- Move month one back so it ended a minute ago (its pay day may be up to a month ahead).
+  update public.groups set cycle_anchor = cycle_anchor - ((select ends_at from public.group_cycles where id = c1) - now() + interval '1 minute') where id = m;
+  update public.group_cycles set starts_at = starts_at - (ends_at - now() + interval '1 minute'),
+    ends_at = now() - interval '1 minute' where id = c1;
   perform set_config('request.jwt.claim.sub', owner::text, true);
   set local role authenticated;
   perform public.sync_group_cycles(m);
@@ -481,7 +482,7 @@ declare
   c uuid;
   n int;
   product jsonb := '{"type":"digital","title":"Spotify","category":"แอปพลิเคชันและเว็บไซต์"}';
-  form_details jsonb := jsonb_build_object('minimumMembers', 2, 'closesAt', (current_date + 7)::text, 'billing', 'monthly');
+  form_details jsonb := jsonb_build_object('minimumMembers', 2, 'closesAt', (current_date + 7)::text, 'billing', 'monthly', 'payDay', 5);
 begin
   insert into auth.users(id, aud, role, email)
     select id, 'authenticated', 'authenticated', id::text || '@example.invalid' from unnest(array[owner, member, outsider]) id;
@@ -574,5 +575,45 @@ begin
   v := public.admin_review_group_payment(pay, true, null);
   reset role;
   assert (select status = 'verified' from public.group_payment_reports where id = pay), 'admin approval verifies the payment';
+end $$;
+rollback;
+
+-- Pay day: monthly groups need one (1-28), cycles start on it, one-time groups keep closesAt.
+begin;
+do $$
+declare
+  owner uuid := gen_random_uuid();
+  g uuid;
+  d date;
+  product jsonb := '{"type":"digital","title":"Spotify","category":"แอปพลิเคชันและเว็บไซต์"}';
+  base jsonb := jsonb_build_object('minimumMembers', 2);
+begin
+  assert (private.first_pay_date(5, '2026-11-01 05:00+07') at time zone 'Asia/Bangkok')::date = '2026-11-05', 'pay day later this month';
+  assert (private.first_pay_date(5, '2026-11-03 05:00+07') at time zone 'Asia/Bangkok')::date = '2026-12-05', 'under 3 days away moves to next month';
+  assert (private.first_pay_date(5, '2026-11-20 05:00+07') at time zone 'Asia/Bangkok')::date = '2026-12-05', 'past this month moves to next month';
+  assert (private.first_pay_date(28, '2026-12-27 05:00+07') at time zone 'Asia/Bangkok')::date = '2027-01-28', 'year rolls over';
+
+  insert into auth.users(id, aud, role, email) values (owner, 'authenticated', 'authenticated', 'payday@example.invalid');
+  insert into public.profiles(id, display_name) values (owner, 'Owner') on conflict (id) do update set display_name = excluded.display_name;
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  begin
+    perform public.create_group_from_form(gen_random_uuid(), 'No day', array['x'], '[]'::jsonb, 'public', 2, 0, 10000, product, base || '{"billing":"monthly"}');
+    raise exception 'monthly without a pay day was accepted';
+  exception when invalid_parameter_value then null; end;
+  begin
+    perform public.create_group_from_form(gen_random_uuid(), 'Day 31', array['x'], '[]'::jsonb, 'public', 2, 0, 10000, product, base || '{"billing":"monthly","payDay":31}');
+    raise exception 'pay day 31 was accepted';
+  exception when invalid_parameter_value then null; end;
+  begin
+    perform public.create_group_from_form(gen_random_uuid(), 'No close', array['x'], '[]'::jsonb, 'public', 2, 0, 10000, product, base);
+    raise exception 'one-time without a closing date was accepted';
+  exception when invalid_parameter_value then null; end;
+  g := public.create_group_from_form(gen_random_uuid(), 'Day 5', array['x'], '[]'::jsonb, 'public', 2, 0, 10000, product, base || '{"billing":"monthly","payDay":5}');
+  perform public.start_group_cycle(g);
+  reset role;
+  assert (select pay_day = 5 and not details ? 'payDay' from public.groups where id = g), 'pay day stored on the group';
+  select (starts_at at time zone 'Asia/Bangkok')::date into d from public.group_cycles where group_id = g and cycle_number = 1;
+  assert extract(day from d) = 5 and d >= (now() at time zone 'Asia/Bangkok')::date + 3, 'cycle one starts on the pay day, at least 3 days out';
 end $$;
 rollback;

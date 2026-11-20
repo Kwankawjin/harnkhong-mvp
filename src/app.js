@@ -1450,7 +1450,7 @@ function groupCard(g) {
       <div class="opportunity-price"><div><small>${isMember ? t("ยอดปัจจุบันของคุณ") : open ? t("ถ้าคุณเข้าร่วมตอนนี้") : t("ประมาณต่อคนปัจจุบัน")}</small><strong>${money(now)} <span>${t("/คน")}</span></strong></div><div><small>${t("เมื่อครบ {count} คน", { count: g.capacity })}</small><b>${money(full)} ${t("/คน")}</b></div></div>
       <div class="opportunity-members"><span>${icon("users", 17)} ${t("สมาชิก {count} / {capacity} คน", { count: g.members.length, capacity: g.capacity })}</span><div class="opportunity-track" role="progressbar" aria-label="${t("ความคืบหน้า")}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${(g.members.length / g.capacity) * 100}%"></span></div></div>
       <p class="opportunity-leader">${icon("user", 16)} ${t("หัวหน้ากลุ่ม")}: ${escape(name(g.ownerId).replace(/\s*\(หัวหน้ากลุ่ม\)$/, ""))}</p>
-      <p class="opportunity-terms">${icon("check", 16)} ${t("ยืนยันยอดก่อนสั่งซื้อ")}</p>
+      <p class="opportunity-terms">${icon(g.payDay ? "clock" : "check", 16)} ${g.billing === "monthly" && g.payDay ? t("จ่ายทุกวันที่ {day} ของเดือน", { day: g.payDay }) : t("ยืนยันยอดก่อนสั่งซื้อ")}</p>
       <div class="opportunity-actions">${a(destination, open && !isMember ? t("ดูรายละเอียดกลุ่ม") : t("ดูกลุ่ม"), `button opportunity-view ${open && !isMember ? "primary" : "outline"}`)}${isMember ? a(`/groups/${g.id}/chat`, `${icon("chat", 17)} ${t("แชทกลุ่ม")}`, "opportunity-chat") : ""}${open || isMember || g.ownerId === state.user?.id ? `<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t("คัดลอกลิงก์เชิญ")}">${icon("link", 17)} ${t("ชวนเพื่อน")}</button>` : ""}</div>
     </div>
   </article>`;
@@ -1868,7 +1868,7 @@ function monthlyGroupView(g, id, { isMember, isOwner, full, locked, estimate }) 
   const payment = inCycle ? cycle.payments[me] : null;
   const waits = waitsForNextCycle(g, me);
   const myAmount = inCycle ? cycle.amounts[me] : null;
-  const summary = `<div class="summary-card"><small>${inCycle && me === cycle.ownerId ? t("ส่วนของคุณเอง (ไม่ต้องโอน)") : inCycle ? t("ยอดของคุณเดือนนี้") : isMember ? t("ราคาต่อที่นั่งต่อเดือน") : t("ราคาต่อที่นั่งต่อเดือน")}</small><strong>${money(inCycle ? myAmount : estimate)}</strong><p>${cycle ? t("รอบที่ {number}: {start} ถึง {end}", { number: cycle.number, start: shortDate(cycle.start), end: shortDate(cycle.end) }) : t("จ่ายรายเดือน เริ่มนับเมื่อเจ้าของกลุ่มเริ่มรอบแรก")}</p>
+  const summary = `<div class="summary-card"><small>${inCycle && me === cycle.ownerId ? t("ส่วนของคุณเอง (ไม่ต้องโอน)") : inCycle ? t("ยอดของคุณเดือนนี้") : isMember ? t("ราคาต่อที่นั่งต่อเดือน") : t("ราคาต่อที่นั่งต่อเดือน")}</small><strong>${money(inCycle ? myAmount : estimate)}</strong><p>${cycle ? t("รอบที่ {number}: {start} ถึง {end}", { number: cycle.number, start: shortDate(cycle.start), end: shortDate(cycle.end) }) + (g.payDay ? ` · ${t("จ่ายทุกวันที่ {day}", { day: g.payDay })}` : "") : (g.payDay ? t("จ่ายทุกวันที่ {day} ของเดือน เริ่มนับเมื่อเจ้าของกลุ่มเริ่มรอบแรก", { day: g.payDay }) : t("จ่ายรายเดือน เริ่มนับเมื่อเจ้าของกลุ่มเริ่มรอบแรก"))}</p>
     <div class="summary-actions">
       ${!isMember && !full && !locked ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
       ${isOwner && !cycle ? `<button class="button primary full summary-action-btn" data-action="start-cycle" data-id="${escape(id)}"><span>${t("เริ่มรอบแรก")}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
@@ -2071,7 +2071,7 @@ function groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategorie
             <div class="group-product-price"><span>${t("ราคาสินค้า")}</span><strong>${money(p.price ?? g.costs.product)}</strong></div>
           </div>
           <div class="group-identity-footer"><span class="chip">${groupDetails.visibilityMode === "private" ? t("ส่วนตัว") : g.visibility === "link" ? t("เฉพาะผู้มีลิงก์") : t("กลุ่มสาธารณะ")}</span>${g.images?.length ? gallery(g.images) : ""}</div>
-          <div class="group-created-details">${groupDetails.minimumMembers ? `<span>${t("สมาชิกขั้นต่ำ")}: <strong>${groupDetails.minimumMembers} ${t("คน")}</strong></span>` : ""}${groupDetails.closesAt ? `<span>${t("ปิดรับสมาชิก")}: <strong>${escape(groupDetails.closesAt)}</strong></span>` : ""}${groupDetails.deliveryMethod === "pickup" && groupDetails.pickupLocation ? `<span>${t("สถานที่นัดรับ")}: <strong>${escape(groupDetails.pickupLocation)}</strong></span>` : groupDetails.deliveryMethod ? `<span>${t("วิธีรับสินค้า")}: <strong>${t(({ship_to_owner:"จัดส่งรวม",ship_separately:"จัดส่งแยก",digital:"ส่งมอบสิทธิ์ดิจิทัล",pickup:"นัดรับ"})[groupDetails.deliveryMethod] || "จัดส่งรวม")}</strong></span>` : ""}${groupDetails.digitalHandoff ? `<span>${t("การส่งมอบสิทธิ์")}: <strong>${escape(groupDetails.digitalHandoff)}</strong></span>` : ""}${groupDetails.memberNote ? `<p>${t("หมายเหตุถึงสมาชิก")}: ${escape(groupDetails.memberNote)}</p>` : ""}</div>
+          <div class="group-created-details">${groupDetails.minimumMembers ? `<span>${t("สมาชิกขั้นต่ำ")}: <strong>${groupDetails.minimumMembers} ${t("คน")}</strong></span>` : ""}${g.billing === "monthly" && g.payDay ? `<span>${t("จ่ายทุกเดือน")}: <strong>${t("วันที่ {day}", { day: g.payDay })}</strong></span>` : groupDetails.closesAt ? `<span>${t("ปิดรับสมาชิก")}: <strong>${escape(groupDetails.closesAt)}</strong></span>` : ""}${groupDetails.deliveryMethod === "pickup" && groupDetails.pickupLocation ? `<span>${t("สถานที่นัดรับ")}: <strong>${escape(groupDetails.pickupLocation)}</strong></span>` : groupDetails.deliveryMethod ? `<span>${t("วิธีรับสินค้า")}: <strong>${t(({ship_to_owner:"จัดส่งรวม",ship_separately:"จัดส่งแยก",digital:"ส่งมอบสิทธิ์ดิจิทัล",pickup:"นัดรับ"})[groupDetails.deliveryMethod] || "จัดส่งรวม")}</strong></span>` : ""}${groupDetails.digitalHandoff ? `<span>${t("การส่งมอบสิทธิ์")}: <strong>${escape(groupDetails.digitalHandoff)}</strong></span>` : ""}${groupDetails.memberNote ? `<p>${t("หมายเหตุถึงสมาชิก")}: ${escape(groupDetails.memberNote)}</p>` : ""}</div>
         </section>
         <section class="members-card group-members-card" aria-labelledby="members-heading">
           <div class="group-section-head"><div><h2 id="members-heading">${t("สมาชิก {count} / {capacity} คน", { count: g.members.length, capacity: g.capacity })}</h2><p>${status}</p></div><strong>${remaining ? t("ว่าง {count} ที่", { count: remaining }) : t("สมาชิกครบแล้ว")}</strong></div>
@@ -2172,7 +2172,7 @@ function createPage() {
       <div class="create-step-actions"><span></span><button type="button" class="button primary" data-action="create-step" data-step="2">${t("ต่อไป: ตั้งค่ากลุ่ม")} ${icon("arrow",18)}</button></div>
     </section>
     <section class="create-step-panel" data-create-step-panel="2" ${createGroupStep===2?"":"hidden"}>
-      <div class="create-form-section"><h2>${icon("users",20)} ${t("ตั้งค่ากลุ่ม")}</h2><label>${t("ชื่อกลุ่ม")} <b>*</b><input name="name" maxlength="70" required placeholder="${t("เช่น หารค่าสมัครกับเพื่อน")}"/></label><div class="form-grid"><label>${t("สมาชิกขั้นต่ำ")} <b>*</b><input name="minimumMembers" type="number" min="2" max="6" placeholder="${t("เช่น 3")}" required/></label><label>${t("สมาชิกสูงสุด")} <b>*</b><input name="capacity" type="number" min="2" max="6" placeholder="${t("เช่น 4")}" required/></label></div><label>${t("วันปิดรับสมาชิก")} <b>*</b><input name="closesAt" type="date" min="${groupDateMin}" required/></label><fieldset class="visibility-picker"><legend>${t("การมองเห็นกลุ่ม")}</legend>${[["public","สาธารณะ"],["link","เฉพาะผู้มีลิงก์"],["private","ส่วนตัว"]].map(([value,label])=>`<label><input type="radio" name="visibilityMode" value="${value}" ${value==="public"?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><fieldset class="visibility-picker billing-picker"><legend>${t("รูปแบบการจ่าย")} <b>*</b></legend><label><input type="radio" name="billing" value="one_time" checked/><span>${t("รอบเดียวจบ")}</span></label><label><input type="radio" name="billing" value="monthly"/><span>${t("จ่ายรายเดือน")}</span></label><small>${t("รายเดือน: ยอดต่อที่นั่งคงที่ทุกเดือน ทุกคนยืนยันเดือนละครั้ง")}</small></fieldset><label>${t("หมายเหตุถึงสมาชิก")} <small>${t("ไม่บังคับ")}</small><textarea name="memberNote" maxlength="500" placeholder="${t("เช่น นัดโอนภายใน 2 วันหลังครบจำนวน")}"></textarea></label></div>
+      <div class="create-form-section"><h2>${icon("users",20)} ${t("ตั้งค่ากลุ่ม")}</h2><label>${t("ชื่อกลุ่ม")} <b>*</b><input name="name" maxlength="70" required placeholder="${t("เช่น หารค่าสมัครกับเพื่อน")}"/></label><div class="form-grid"><label>${t("สมาชิกขั้นต่ำ")} <b>*</b><input name="minimumMembers" type="number" min="2" max="6" placeholder="${t("เช่น 3")}" required/></label><label>${t("สมาชิกสูงสุด")} <b>*</b><input name="capacity" type="number" min="2" max="6" placeholder="${t("เช่น 4")}" required/></label></div><fieldset class="visibility-picker billing-picker"><legend>${t("รูปแบบการจ่าย")} <b>*</b></legend><label><input type="radio" name="billing" value="one_time" checked/><span>${t("รอบเดียวจบ")}</span></label><label><input type="radio" name="billing" value="monthly"/><span>${t("จ่ายรายเดือน")}</span></label><small>${t("รายเดือน: ยอดต่อที่นั่งคงที่ทุกเดือน ทุกคนยืนยันเดือนละครั้ง")}</small></fieldset><label data-billing-field="one_time">${t("วันปิดรับสมาชิก")} <b>*</b><input name="closesAt" type="date" min="${groupDateMin}" required/></label><label data-billing-field="monthly" hidden>${t("จ่ายทุกวันที่")} <b>*</b><select name="payDay" disabled><option value="">${t("เลือกวันที่")}</option>${Array.from({ length: 28 }, (_, i) => `<option value="${i + 1}">${t("วันที่ {day} ของทุกเดือน", { day: i + 1 })}</option>`).join("")}</select><small>${t("สมาชิกต้องจ่ายภายในวันนี้ของทุกเดือน ระบบเตือนล่วงหน้า 1 วัน (เลือกได้ 1–28 เพราะบางเดือนไม่มีวันที่ 29–31)")}</small></label><fieldset class="visibility-picker"><legend>${t("การมองเห็นกลุ่ม")}</legend>${[["public","สาธารณะ"],["link","เฉพาะผู้มีลิงก์"],["private","ส่วนตัว"]].map(([value,label])=>`<label><input type="radio" name="visibilityMode" value="${value}" ${value==="public"?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><label>${t("หมายเหตุถึงสมาชิก")} <small>${t("ไม่บังคับ")}</small><textarea name="memberNote" maxlength="500" placeholder="${t("เช่น นัดโอนภายใน 2 วันหลังครบจำนวน")}"></textarea></label></div>
       <div class="create-form-section"><h2>${icon("calc",20)} ${t("ค่าใช้จ่าย")}</h2><div class="form-grid"><label>${t("ราคาสินค้ารวม (บาท)")} <b>*</b><input name="product" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="${t("เช่น 1200")}" required/></label><label id="shipping-total-wrap">${t("ค่าจัดส่งรวม (บาท)")}<input name="shippingTotal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"/></label></div><p class="create-fee-note">${t("ผู้ร่วมหารจ่ายเฉพาะราคาที่นั่ง แพลตฟอร์มหักค่าคอม 2% จากเงินที่สมาชิกโอน ก่อนโอนต่อให้คุณ")}</p><div class="preview-cost" id="create-preview"></div></div>
       <section class="create-form-section" id="physical-delivery-section"><h2>${icon("truck",20)} ${t("การรับสินค้า")}</h2><fieldset class="delivery-picker">${[["ship_to_owner","จัดส่งรวมมาที่ผู้สร้างกลุ่ม แล้วนัดรับ"],["ship_separately","จัดส่งแยกให้สมาชิกแต่ละคน"],["pickup","นัดรับด้วยตนเอง"]].map(([value,label],i)=>`<label><input type="radio" name="deliveryMethod" value="${value}" ${i===0?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><label id="pickup-location-wrap" hidden>${t("สถานที่นัดรับ")} <b>*</b><input name="pickupLocation" maxlength="180" placeholder="${t("ระบุสถานที่นัดรับ")}"/></label></section>
       <section class="create-form-section digital-handoff" id="digital-handoff-section" hidden><h2>${icon("lock",20)} ${t("การส่งมอบสิทธิ์ดิจิทัล")}</h2><p>${t("ระบุวิธีส่งมอบหลังกลุ่มยืนยันยอด")}</p><textarea name="digitalHandoff" maxlength="500" placeholder="${t("เช่น ส่งคำเชิญทางอีเมลหลังชำระเงิน")}"></textarea></section>
@@ -4362,6 +4362,16 @@ window.addEventListener("resize", updateFilterCarousel, { passive: true });
 function updateCreateFormUI() {
   const form = document.querySelector("#create-form");
   if (!form) return;
+  // Monthly groups pick a pay day; one-time groups pick a closing date.
+  const billingMode = form.querySelector('[name="billing"]:checked')?.value === "monthly" ? "monthly" : "one_time";
+  form.querySelectorAll("[data-billing-field]").forEach((field) => {
+    const active = field.dataset.billingField === billingMode;
+    field.hidden = !active;
+    field.querySelectorAll("input, select").forEach((control) => {
+      control.disabled = !active;
+      control.required = active;
+    });
+  });
   const digital = form.querySelector('[name="productType"]:checked')?.value === "digital";
   const digitalFields = form.querySelector("#digital-product-fields");
   const deliverySection = form.querySelector("#physical-delivery-section");
@@ -4426,7 +4436,7 @@ function validateCreatePanel(step) {
     const closesAt = String(data.get("closesAt") || "");
     const today = new Date();
     const todayLocal = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-    if (closesAt < todayLocal) {
+    if (data.get("billing") !== "monthly" && closesAt < todayLocal) {
       const deadline = form.querySelector('[name="closesAt"]');
       deadline.setCustomValidity(t("วันปิดรับสมาชิกต้องไม่ย้อนหลัง"));
       deadline.reportValidity();
@@ -4484,7 +4494,7 @@ function updatePreview() {
     put("#summary-fee", moneyOrZero(commission));
     put("#summary-per-person", `${moneyOrZero(seat)} / ${t("คน")}`);
     put("#summary-members", `${d.get("minimumMembers") || "2"}–${count} ${t("คน")}`);
-    put("#summary-deadline", d.get("closesAt") || "—");
+    put("#summary-deadline", d.get("billing") === "monthly" ? (d.get("payDay") ? t("จ่ายทุกวันที่ {day}", { day: d.get("payDay") }) : "—") : d.get("closesAt") || "—");
     const deliveryLabels = { ship_to_owner: "จัดส่งรวม", ship_separately: "จัดส่งแยก", pickup: "นัดรับ" };
     put("#summary-delivery", f.dataset.productType === "digital" ? t("ส่งมอบสิทธิ์ดิจิทัล") : t(deliveryLabels[d.get("deliveryMethod")] || "จัดส่งรวม"));
     put("#summary-visibility", t(({ public: "สาธารณะ", link: "เฉพาะผู้มีลิงก์", private: "ส่วนตัว" })[d.get("visibilityMode")] || "สาธารณะ"));
@@ -5985,7 +5995,7 @@ document.addEventListener("click", async (e) => {
       if (!g || g.ownerId !== state.user?.id) throw Error(t("เฉพาะหัวหน้ากลุ่มแก้ไขได้"));
       const dialog = document.createElement("dialog");
       dialog.className = "form-dialog edit-group-dialog";
-      dialog.innerHTML = `<form id="edit-group-form" data-id="${escape(id)}"><div class="dialog-heading"><div><h2>${t("แก้ไขกลุ่ม")}</h2><p>${t("แก้ไขข้อมูลที่สมาชิกเห็นในกลุ่ม")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><label>${t("ชื่อกลุ่ม")}<input name="name" required maxlength="70" value="${escape(g.name)}"/></label><label>${t("สมาชิกขั้นต่ำ")}<input name="minimumMembers" type="number" min="2" max="${g.capacity}" required value="${Number(details.minimumMembers || 2)}"/></label><label>${t("วันปิดรับสมาชิก")}<input name="closesAt" type="date" required value="${escape(details.closesAt || "")}"/></label><label>${t("ค่าส่งต่อคน (บาท)")}<input name="delivery" inputmode="decimal" required value="${bahtInput(g.costs.delivery)}"/></label><label>${t("การมองเห็นกลุ่ม")}<select name="visibilityMode"><option value="public" ${details.visibilityMode === "public" || (!details.visibilityMode && g.visibility === "public") ? "selected" : ""}>${t("สาธารณะ")}</option><option value="link" ${details.visibilityMode === "link" || (!details.visibilityMode && g.visibility === "link") ? "selected" : ""}>${t("เฉพาะผู้มีลิงก์")}</option><option value="private" ${details.visibilityMode === "private" ? "selected" : ""}>${t("ส่วนตัว")}</option></select></label><label>${t("หมายเหตุถึงสมาชิก")}<textarea name="memberNote" maxlength="500">${escape(details.memberNote || "")}</textarea></label><div data-dialog-feedback class="dialog-feedback" role="alert" hidden></div><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("บันทึกการแก้ไข")}</button></div></form>`;
+      dialog.innerHTML = `<form id="edit-group-form" data-id="${escape(id)}"><div class="dialog-heading"><div><h2>${t("แก้ไขกลุ่ม")}</h2><p>${t("แก้ไขข้อมูลที่สมาชิกเห็นในกลุ่ม")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><label>${t("ชื่อกลุ่ม")}<input name="name" required maxlength="70" value="${escape(g.name)}"/></label><label>${t("สมาชิกขั้นต่ำ")}<input name="minimumMembers" type="number" min="2" max="${g.capacity}" required value="${Number(details.minimumMembers || 2)}"/></label>${g.billing === "monthly" ? `<p class="field-help">${t("จ่ายทุกวันที่ {day} ของเดือน", { day: g.payDay || "—" })}</p>` : `<label>${t("วันปิดรับสมาชิก")}<input name="closesAt" type="date" required value="${escape(details.closesAt || "")}"/></label>`}<label>${t("ค่าส่งต่อคน (บาท)")}<input name="delivery" inputmode="decimal" required value="${bahtInput(g.costs.delivery)}"/></label><label>${t("การมองเห็นกลุ่ม")}<select name="visibilityMode"><option value="public" ${details.visibilityMode === "public" || (!details.visibilityMode && g.visibility === "public") ? "selected" : ""}>${t("สาธารณะ")}</option><option value="link" ${details.visibilityMode === "link" || (!details.visibilityMode && g.visibility === "link") ? "selected" : ""}>${t("เฉพาะผู้มีลิงก์")}</option><option value="private" ${details.visibilityMode === "private" ? "selected" : ""}>${t("ส่วนตัว")}</option></select></label><label>${t("หมายเหตุถึงสมาชิก")}<textarea name="memberNote" maxlength="500">${escape(details.memberNote || "")}</textarea></label><div data-dialog-feedback class="dialog-feedback" role="alert" hidden></div><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("บันทึกการแก้ไข")}</button></div></form>`;
       document.body.append(dialog);
       dialog.addEventListener("close", () => dialog.remove(), { once: true });
       dialog.showModal();
@@ -6034,7 +6044,7 @@ document.addEventListener("submit", async (e) => {
   try {
     if (!g || g.ownerId !== state.user?.id) throw Error(t("เฉพาะหัวหน้ากลุ่มแก้ไขได้"));
     if (!f.reportValidity()) return;
-    if (!name || name.length > 70 || minimumMembers < 2 || minimumMembers > g.capacity || closesAt < todayLocal)
+    if (!name || name.length > 70 || minimumMembers < 2 || minimumMembers > g.capacity || (g.billing !== "monthly" && closesAt < todayLocal))
       throw Error(t("กรุณาตรวจสอบชื่อกลุ่ม จำนวนสมาชิก และวันปิดรับ"));
     if (! ["public", "link", "private"].includes(visibilityMode)) throw Error(t("การมองเห็นกลุ่มไม่ถูกต้อง"));
     const delivery = parseBaht(data.get("delivery"));
@@ -6042,7 +6052,7 @@ document.addEventListener("submit", async (e) => {
     const details = {
       ...(g.details || {}),
       minimumMembers,
-      closesAt,
+      ...(g.billing === "monthly" ? {} : { closesAt }),
       visibilityMode,
       memberNote: String(data.get("memberNote") || "").trim(),
     };
@@ -6679,6 +6689,11 @@ document.addEventListener("submit", async (e) => {
         digitalHandoff: String(d.get("digitalHandoff") || "").trim(),
       };
       const billing = d.get("billing") === "monthly" ? "monthly" : "one_time";
+      const payDay = billing === "monthly" ? Number(d.get("payDay")) : null;
+      if (billing === "monthly") {
+        if (!(Number.isInteger(payDay) && payDay >= 1 && payDay <= 28)) throw new Error(t("กรุณาเลือกวันที่ต้องจ่ายทุกเดือน (1–28)"));
+        delete groupDetails.closesAt;
+      }
       if (!supabaseConfigured) {
         const plan = effectivePlan(state.subscriptions?.[state.user.id]);
         // Seeded demo groups do not count; only groups this person opened with the form.
@@ -6689,7 +6704,7 @@ document.addEventListener("submit", async (e) => {
       if (supabaseConfigured) {
         const groupId = await createSupabaseGroup({
           product,
-          details: { ...groupDetails, billing },
+          details: { ...groupDetails, billing, ...(payDay ? { payDay } : {}) },
           name: d.get("name"),
           categories,
           images: groupImages,
@@ -6716,6 +6731,7 @@ document.addEventListener("submit", async (e) => {
         capacity: Number(d.get("capacity")),
         costs: formCosts(d),
         billing,
+        payDay,
       });
       const groupCategories = categories.includes("อื่น ๆ (ระบุชื่อเอง)")
         ? [...categories.filter((item) => item !== "อื่น ๆ (ระบุชื่อเอง)"), category]
