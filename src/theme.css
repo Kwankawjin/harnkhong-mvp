@@ -985,3 +985,89 @@ h3 {
     animation: none;
   }
 }
+
+/* Owner payout account (/profile) */
+.payout-account-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+}
+.payout-account-form[data-method="promptpay"] [data-payout-field="bank"],
+.payout-account-form[data-method="bank"] [data-payout-field="promptpay"] {
+  display: none;
+}
+.payout-account-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--hk-ink);
+  font-weight: 500;
+}
+.payout-account-form input,
+.payout-account-form select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--field-edge, var(--hk-sky-300));
+  border-radius: var(--hk-radius-control);
+  background: var(--hk-paper);
+  font: inherit;
+}
+.payout-account-form .button {
+  justify-self: start;
+}
+.payout-account-current {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 8px;
+  color: #15803d;
+  font-weight: 600;
+}
+.payout-account-card {
+  grid-column: 1 / -1;
+}
+.payout-account-card .chip {
+  flex: none;
+  white-space: nowrap;
+}
+.payout-account-form fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.payout-account-form fieldset legend {
+  width: 100%;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.payout-account-form fieldset label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--hk-line);
+  border-radius: var(--hk-radius-control);
+  cursor: pointer;
+}
+.payout-account-form fieldset label:has(input:checked) {
+  border-color: var(--hk-blue);
+  background: var(--hk-sky-50);
+  color: var(--hk-blue);
+}
+.payout-account-form fieldset input {
+  min-height: 0;
+  margin: 0;
+}
+@media (min-width: 768px) {
+  .payout-account-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+  }
+  .payout-account-form fieldset,
+  .payout-account-form .button {
+    grid-column: 1 / -1;
+  }
+}

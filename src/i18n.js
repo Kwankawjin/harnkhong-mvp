@@ -2,6 +2,23 @@ import { assertSatang } from "./domain.js";
 
 // Thai source text is the key for UI copy; stored/user-entered content is never translated.
 const labels = {
+  "ยังไม่มีบัญชีรับเงิน": "No payout account yet",
+  "เพิ่มบัญชีรับเงิน": "Add a payout account",
+  "บัญชีรับเงิน": "Payout account",
+  "สำหรับเจ้าของกลุ่ม แอดมินจะโอนเงินจากกองกลางเข้าบัญชีนี้หลังหักค่าคอม 2% เห็นได้เฉพาะคุณกับแอดมิน": "For group owners: the admin pays escrow into this account after the 2% commission. Only you and admins can see it.",
+  "บันทึกแล้ว": "Saved",
+  "รับเงินผ่าน": "Receive via",
+  "บัญชีธนาคาร": "Bank account",
+  "เบอร์โทรหรือเลขบัตรประชาชนที่ผูก PromptPay": "PromptPay phone or national ID",
+  "ธนาคาร": "Bank",
+  "เลขบัญชี": "Account number",
+  "ชื่อบัญชี": "Account name",
+  "บันทึกบัญชีรับเงิน": "Save payout account",
+  "กรุณากรอกชื่อบัญชี": "Please enter the account name",
+  "PromptPay ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตรประชาชน 13 หลัก": "PromptPay must be a 10-digit mobile number or a 13-digit national ID",
+  "เลขบัญชีต้องเป็นตัวเลข 10–15 หลัก": "The account number must be 10–15 digits",
+  "บันทึกบัญชีรับเงินแล้ว": "Payout account saved",
+  "ฐานข้อมูลยังไม่รองรับบัญชีรับเงิน กรุณารัน migration 20261120140000_owner_payout_accounts.sql": "The database does not support payout accounts yet. Run migration 20261120140000_owner_payout_accounts.sql.",
   "ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)": "2% commission (waived by your code)",
   "สมาชิกโอนเข้ากองกลางของแพลตฟอร์ม คุณออกเงินซื้อสินค้าไปก่อน เมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ เงินจะโอนให้คุณหลังหักค่าคอม 2%": "Members pay into the platform's escrow. You buy the product first; once every member confirms receipt, you are paid minus a 2% commission.",
   "คุณยืนยันว่าได้รับสินค้าแล้ว": "You confirmed you received it",

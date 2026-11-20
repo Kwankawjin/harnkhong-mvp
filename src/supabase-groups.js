@@ -342,3 +342,23 @@ export async function redeemSupabasePromo(code) {
   if (error) throw error;
   return data;
 }
+
+// ---------------------------------------------------------------- owner payout account
+export async function loadSupabasePayoutAccount(userId) {
+  const { data, error } = await supabase.from("payout_accounts")
+    .select("method,promptpay_id,bank_name,account_number,account_name,updated_at")
+    .eq("user_id", userId).maybeSingle();
+  if (error) return null; // table arrives with migration 20261120140000
+  return data;
+}
+export async function saveSupabasePayoutAccount({ method, accountName, promptpayId, bankName, accountNumber }) {
+  const { data, error } = await supabase.rpc("set_my_payout_account", {
+    p_method: method,
+    p_account_name: accountName,
+    p_promptpay_id: promptpayId || null,
+    p_bank_name: bankName || null,
+    p_account_number: accountNumber || null,
+  });
+  if (error) throw error;
+  return data;
+}

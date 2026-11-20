@@ -97,6 +97,8 @@ import {
   confirmSupabaseReceipt,
   confirmSupabaseCycleReceipt,
   redeemSupabasePromo,
+  loadSupabasePayoutAccount,
+  saveSupabasePayoutAccount,
 } from "./supabase-groups.js";
 import {
   createOrder,
@@ -481,6 +483,36 @@ function myFeeWaiverUntil(userId = state.user?.id) {
   if (!userId) return null;
   const until = supabaseConfigured ? state.remoteSubscription?.feeWaiverUntil : state.promos?.[userId]?.waiverUntil;
   return until && new Date(until) > new Date() ? until : null;
+}
+/** Where the admin sends this person's payouts as a group owner, or null. */
+function myPayoutAccount(userId = state.user?.id) {
+  if (!userId) return null;
+  return supabaseConfigured ? state.remotePayoutAccount || null : state.payoutAccounts?.[userId] || null;
+}
+const THAI_BANKS = ["กสิกรไทย", "กรุงเทพ", "กรุงไทย", "ไทยพาณิชย์", "กรุงศรีอยุธยา", "ทหารไทยธนชาต (ttb)", "ออมสิน", "ธ.ก.ส.", "อาคารสงเคราะห์", "ยูโอบี", "ซีไอเอ็มบี ไทย", "เกียรตินาคินภัทร", "แลนด์ แอนด์ เฮ้าส์", "ไอซีบีซี (ไทย)", "ทิสโก้"];
+const maskNumber = (value = "") => (value.length > 4 ? `${"•".repeat(Math.max(0, value.length - 4))}${value.slice(-4)}` : value);
+function payoutAccountSummary(account) {
+  if (!account) return "";
+  return account.method === "promptpay"
+    ? `PromptPay ${maskNumber(account.promptpay_id)} · ${escape(account.account_name)}`
+    : `${escape(account.bank_name)} ${maskNumber(account.account_number)} · ${escape(account.account_name)}`;
+}
+/** Reminder shown to group owners who have money coming but no account to receive it. */
+const payoutAccountReminder = () =>
+  myPayoutAccount() ? "" : `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("ยังไม่มีบัญชีรับเงิน")} ${a("/profile#payout-account", t("เพิ่มบัญชีรับเงิน"))}</span></p>`;
+function payoutAccountCard() {
+  const account = myPayoutAccount() || {};
+  const method = account.method || "promptpay";
+  return `<section class="account-card payout-account-card" id="payout-account" aria-labelledby="payout-account-title"><div class="account-card-heading"><div><h2 id="payout-account-title">${t("บัญชีรับเงิน")}</h2><p>${t("สำหรับเจ้าของกลุ่ม แอดมินจะโอนเงินจากกองกลางเข้าบัญชีนี้หลังหักค่าคอม 2% เห็นได้เฉพาะคุณกับแอดมิน")}</p></div>${account.method ? `<span class="chip">${t("บันทึกแล้ว")}</span>` : ""}</div>
+    ${account.method ? `<p class="payout-account-current">${icon("check", 16)} ${payoutAccountSummary(account)}</p>` : ""}
+    <form id="payout-account-form" class="payout-account-form" data-method="${method}">
+      <fieldset class="visibility-picker"><legend>${t("รับเงินผ่าน")}</legend><label><input type="radio" name="method" value="promptpay" ${method === "promptpay" ? "checked" : ""}/><span>PromptPay</span></label><label><input type="radio" name="method" value="bank" ${method === "bank" ? "checked" : ""}/><span>${t("บัญชีธนาคาร")}</span></label></fieldset>
+      <label data-payout-field="promptpay">${t("เบอร์โทรหรือเลขบัตรประชาชนที่ผูก PromptPay")}<input name="promptpayId" inputmode="numeric" autocomplete="off" maxlength="17" value="${escape(account.promptpay_id || "")}" placeholder="08x-xxx-xxxx"/></label>
+      <label data-payout-field="bank">${t("ธนาคาร")}<select name="bankName">${THAI_BANKS.map((bank) => `<option value="${escape(bank)}" ${account.bank_name === bank ? "selected" : ""}>${escape(bank)}</option>`).join("")}</select></label>
+      <label data-payout-field="bank">${t("เลขบัญชี")}<input name="accountNumber" inputmode="numeric" autocomplete="off" maxlength="20" value="${escape(account.account_number || "")}" placeholder="xxx-x-xxxxx-x"/></label>
+      <label>${t("ชื่อบัญชี")}<input name="accountName" maxlength="100" autocomplete="name" value="${escape(account.account_name || state.user?.name || "")}" required/></label>
+      <button type="submit" class="button primary">${account.method ? t("บันทึกการเปลี่ยนแปลง") : t("บันทึกบัญชีรับเงิน")}</button>
+    </form></section>`;
 }
 /** "plus" while a paid month is running, otherwise "free". */
 function subscriptionFor(userId = state.user?.id) {
@@ -1748,7 +1780,7 @@ function ownerCyclePayout(cycle) {
   const expected = ownerPayout(payers.map((id) => cycle.amounts[id]), { waived });
   const received = ownerPayout(payers.filter((id) => cycle.payments[id] === "verified").map((id) => cycle.amounts[id]), { waived });
   const receiptsDone = payers.filter((id) => cycle.receipts?.[id]).length;
-  return `<div class="cycle-pay owner-cycle-payout"><h3>${t("คุณไม่ต้องโอน")}</h3><p>${t("สมาชิกโอนเข้ากองกลางของแพลตฟอร์ม คุณออกเงินซื้อสินค้าไปก่อน เมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ เงินจะโอนให้คุณหลังหักค่าคอม 2%")}</p><dl class="owner-payout-lines"><div><dt>${t("สมาชิกโอนรวม")}</dt><dd>${money(expected.gross)}</dd></div><div><dt>${waived ? t("ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)") : t("ค่าคอมแพลตฟอร์ม 2%")}</dt><dd>−${money(expected.commission)}</dd></div><div class="is-total"><dt>${t("คุณจะได้รับรอบนี้")}</dt><dd>${money(expected.net)}</dd></div><div><dt>${t("ตรวจแล้ว")}</dt><dd>${money(received.net)}</dd></div><div><dt>${t("ยืนยันรับสินค้า")}</dt><dd>${receiptsDone} / ${payers.length}</dd></div></dl><p>${cycleReleased(cycle) ? t("สมาชิกยืนยันรับครบแล้ว แอดมินจะโอนเงินรอบนี้ให้คุณ") : t("เงินอยู่ในกองกลางจนกว่าสมาชิกที่จ่ายยืนยันว่าได้รับสินค้าครบ")}</p></div>`;
+  return `<div class="cycle-pay owner-cycle-payout"><h3>${t("คุณไม่ต้องโอน")}</h3><p>${t("สมาชิกโอนเข้ากองกลางของแพลตฟอร์ม คุณออกเงินซื้อสินค้าไปก่อน เมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ เงินจะโอนให้คุณหลังหักค่าคอม 2%")}</p><dl class="owner-payout-lines"><div><dt>${t("สมาชิกโอนรวม")}</dt><dd>${money(expected.gross)}</dd></div><div><dt>${waived ? t("ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)") : t("ค่าคอมแพลตฟอร์ม 2%")}</dt><dd>−${money(expected.commission)}</dd></div><div class="is-total"><dt>${t("คุณจะได้รับรอบนี้")}</dt><dd>${money(expected.net)}</dd></div><div><dt>${t("ตรวจแล้ว")}</dt><dd>${money(received.net)}</dd></div><div><dt>${t("ยืนยันรับสินค้า")}</dt><dd>${receiptsDone} / ${payers.length}</dd></div></dl>${payoutAccountReminder()}<p>${cycleReleased(cycle) ? t("สมาชิกยืนยันรับครบแล้ว แอดมินจะโอนเงินรอบนี้ให้คุณ") : t("เงินอยู่ในกองกลางจนกว่าสมาชิกที่จ่ายยืนยันว่าได้รับสินค้าครบ")}</p></div>`;
 }
 function paymentQr() {
   return `<figure class="cycle-qr"><img src="/images/bank-payment-qr.webp" alt="${t("QR บัญชีรับชำระเงิน")}" width="180" height="180" loading="lazy"/><figcaption>${t("สแกนเพื่อโอน แล้วแนบสลิป")}</figcaption></figure>`;
@@ -1878,7 +1910,7 @@ function groupPage(id) {
       summaryCard: view.summary, paymentSection: view.panel, paymentStatusCard: "", alloc, me, adminApproved });
   }
   const summaryCard = ownerSeat
-    ? `<div class="summary-card owner-payout-card"><small>${t("คุณจะได้รับเมื่อสมาชิกโอนครบ")}</small><strong>${money(payout.net)}</strong><dl class="owner-payout-lines"><div><dt>${t("สมาชิกโอนรวม")}</dt><dd>${money(payout.gross)}</dd></div><div><dt>${myFeeWaiverUntil() ? t("ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)") : t("ค่าคอมแพลตฟอร์ม 2%")}</dt><dd>−${money(payout.commission)}</dd></div><div><dt>${t("ส่วนของคุณเอง (ไม่ต้องโอน)")}</dt><dd>${money(alloc[me])}</dd></div></dl><p>${t("สมาชิกโอนเข้ากองกลางของแพลตฟอร์ม คุณออกเงินซื้อสินค้าไปก่อน เมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ เงินจะโอนให้คุณหลังหักค่าคอม 2%")}</p>${actions}</div>`
+    ? `<div class="summary-card owner-payout-card"><small>${t("คุณจะได้รับเมื่อสมาชิกโอนครบ")}</small><strong>${money(payout.net)}</strong><dl class="owner-payout-lines"><div><dt>${t("สมาชิกโอนรวม")}</dt><dd>${money(payout.gross)}</dd></div><div><dt>${myFeeWaiverUntil() ? t("ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)") : t("ค่าคอมแพลตฟอร์ม 2%")}</dt><dd>−${money(payout.commission)}</dd></div><div><dt>${t("ส่วนของคุณเอง (ไม่ต้องโอน)")}</dt><dd>${money(alloc[me])}</dd></div></dl>${payoutAccountReminder()}<p>${t("สมาชิกโอนเข้ากองกลางของแพลตฟอร์ม คุณออกเงินซื้อสินค้าไปก่อน เมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ เงินจะโอนให้คุณหลังหักค่าคอม 2%")}</p>${actions}</div>`
     : `<div class="summary-card"><small>${isMember ? t("ยอดที่คุณต้องยืนยัน") : full || locked ? t("ประมาณต่อคนปัจจุบัน") : t("ยอดประมาณเมื่อเข้าร่วม")}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full ? `<div class="summary-future-price"><span>${t("เมื่อครบ {count} คน", { count: g.capacity })}</span><b>${money(fullEstimate)} <small>${t("/คน")}</small></b></div>` : ""}<p>${isMember ? t("ยอดรอบที่ {revision}", { revision: g.revision }) + (approved ? adminApproved ? t(" · คุณยืนยันแล้ว") : full && allMembersApproved ? t(" · รอแอดมินอนุมัติยอดกลุ่ม") : t(" · คุณยืนยันแล้ว รอสมาชิกครบ") : t(" · กรุณาตรวจสอบก่อนยืนยัน")) : full || locked ? t("กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่") : t("ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง")}</p>${actions}${!full ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน")}</span></p>` : !allApproved(g) && !approved ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${allMembersApproved ? t("รอแอดมินอนุมัติยอดกลุ่ม") : t("รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด")}</span></p>` : ""}</div>`;
   const paymentStatusCard = ownerSeat ? "" : `<section class="group-payment-panel group-payment-status-card is-${paymentStatusState}" aria-labelledby="payment-status-heading"><span class="chip">${t("ชำระเงิน")}</span><h2 id="payment-status-heading">${t(paymentStatusCopy[0])}</h2><p>${escape(t(paymentStatusCopy[1]))}</p><strong>${money(paymentStatusAmount)}</strong><span>${t(paymentStatusCopy[2])}</span></section>`;
   return groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategories, status, full, remaining, isMember, isOwner, locked, costs, sum, seatMode, monthly,
@@ -2945,6 +2977,7 @@ function profile() {
         }
       </div>
       <aside class="account-aside">
+        ${payoutAccountCard()}
         <section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("อัปเดตคำสั่งซื้อ")}</h2>${a("/my-orders", `${t("ดูทั้งหมด")} ${icon("arrow", 17)}`, "account-all-link")}</div>${orders.length ? `<div class="order-updates-grid">${orders.slice(0, 3).map(accountOrderRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีคำสั่งซื้อเดโม")}</strong><p>${t("เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่")}</p>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button outline")}</div>`}</section>
         <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t("ทางลัด")}</h2><div class="account-shortcut-grid">${shortcut("/my-groups", "users", t("กลุ่มของฉัน"), t("ดูและจัดการกลุ่มที่เข้าร่วม"), "blue")}${shortcut("/notifications", "bell", t("การแจ้งเตือน"), t("อัปเดตยอดและกิจกรรม"), "amber")}${shortcut("/explore", "search", t("สำรวจสินค้า"), t("ค้นหาสินค้าและเข้าร่วมกลุ่ม"), "violet")}${shortcut("/my-orders", "check", t("รายการชำระเดโม"), t("ดูสถานะคำสั่งซื้อของฉัน"), "mint")}</div></section>
       </aside>
@@ -4454,6 +4487,10 @@ document.addEventListener("change", async (e) => {
       status.textContent = file ? file.name : t("ยังไม่ได้เลือกสลิป (ไม่เกิน 8 MB)");
     }
     if (submit) submit.disabled = !file;
+    return;
+  }
+  if (input.name === "method" && input.closest("#payout-account-form")) {
+    input.closest("#payout-account-form").dataset.method = input.value;
     return;
   }
   if (input.closest("#create-form")) {
@@ -6052,6 +6089,42 @@ document.addEventListener("submit", async (e) => {
         supabaseConfigured ? authErrorMessage(err) : storageError(err),
       );
     }
+  } else if (f.id === "payout-account-form") {
+    e.preventDefault();
+    if (!state.user) throw Object.assign(new Error(), { code: "orderUnauthorized" });
+    const d = new FormData(f),
+      method = d.get("method") === "bank" ? "bank" : "promptpay",
+      digits = (value) => String(value || "").replace(/[^0-9]/g, ""),
+      account = {
+        method,
+        accountName: String(d.get("accountName") || "").trim(),
+        promptpayId: method === "promptpay" ? digits(d.get("promptpayId")) : "",
+        bankName: method === "bank" ? String(d.get("bankName") || "") : "",
+        accountNumber: method === "bank" ? digits(d.get("accountNumber")) : "",
+      };
+    try {
+      if (account.accountName.length < 2) throw new Error(t("กรุณากรอกชื่อบัญชี"));
+      if (method === "promptpay" && !/^(0\d{9}|\d{13})$/.test(account.promptpayId))
+        throw new Error(t("PromptPay ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตรประชาชน 13 หลัก"));
+      if (method === "bank" && !/^\d{10,15}$/.test(account.accountNumber))
+        throw new Error(t("เลขบัญชีต้องเป็นตัวเลข 10–15 หลัก"));
+      if (supabaseConfigured) {
+        await saveSupabasePayoutAccount(account);
+        state.remotePayoutAccount = await loadSupabasePayoutAccount(state.user.id);
+      } else {
+        save({
+          ...state,
+          payoutAccounts: {
+            ...(state.payoutAccounts || {}),
+            [state.user.id]: { method, promptpay_id: account.promptpayId || null, bank_name: account.bankName || null, account_number: account.accountNumber || null, account_name: account.accountName, updated_at: new Date().toISOString() },
+          },
+        });
+      }
+      render();
+      alertMessage(t("บันทึกบัญชีรับเงินแล้ว"));
+    } catch (err) {
+      alertError(supabaseConfigured ? authErrorMessage(err) : errorMessage(err));
+    }
   } else if (f.id === "profile-form") {
     e.preventDefault();
     try {
@@ -6662,6 +6735,11 @@ function authErrorMessage(error) {
   if (message.includes("invite_invalid"))
     return t("คำเชิญไม่ถูกต้องหรือหมดอายุ");
   if (message.includes("full_group")) return t("กลุ่มเต็มแล้ว");
+  if (message.includes("invalid_promptpay")) return t("PromptPay ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตรประชาชน 13 หลัก");
+  if (message.includes("invalid_account_number")) return t("เลขบัญชีต้องเป็นตัวเลข 10–15 หลัก");
+  if (message.includes("invalid_account_name")) return t("กรุณากรอกชื่อบัญชี");
+  if (message.includes("set_my_payout_account") || message.includes("payout_accounts"))
+    return t("ฐานข้อมูลยังไม่รองรับบัญชีรับเงิน กรุณารัน migration 20261120140000_owner_payout_accounts.sql");
   if (message.includes("promo_invalid")) return t("โค้ดไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง");
   if (message.includes("promo_already_used")) return t("คุณใช้โค้ดนี้ไปแล้ว");
   if (message.includes("promo_sold_out")) return t("โค้ดนี้ครบ 50 สิทธิ์แล้ว");
@@ -6762,6 +6840,7 @@ async function fetchSupabaseState(authUser) {
       snapshot = await loadSupabaseGroups();
     }
     snapshot.subscription = authUser ? await loadSupabaseSubscription().catch(() => null) : null;
+    snapshot.payoutAccount = authUser ? await loadSupabasePayoutAccount(authUser.id).catch(() => null) : null;
   } catch (error) {
     const loadError = new Error(error?.message || t("โหลดข้อมูลกลุ่มไม่สำเร็จ"), {
       cause: error,
@@ -6836,6 +6915,7 @@ if (supabaseConfigured) {
         remoteListings: result.snapshot.listings,
         remoteSellers: result.snapshot.sellers,
         remoteSubscription: result.snapshot.subscription || null,
+        remotePayoutAccount: result.snapshot.payoutAccount || null,
       };
       groupsLoading = false;
       groupsError = null;

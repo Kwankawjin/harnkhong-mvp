@@ -364,6 +364,13 @@ function billingContent(subscriptionRows, cycleRows) {
   <section class="admin-panel"><div class="admin-panel-heading"><div><h2>สลิปกลุ่มรายเดือน</h2><p>ยอดของแต่ละรอบล็อกไว้แล้ว ตรวจให้ตรงกับยอดในตาราง</p></div></div>${table(["กลุ่มและรอบ", "สมาชิก", "ยอด", "สลิป", "สถานะ", "ดำเนินการ"], cycles, "ยังไม่มีสลิปรายเดือน")}</section>`;
 }
 
+/** Where to send the owner's money, or a warning when they have not added an account. */
+function payoutAccountCell(row) {
+  if (!row.payout_method) return '<span class="admin-payout-account missing">ยังไม่มีบัญชีรับเงิน</span>';
+  const number = row.payout_method === "promptpay" ? row.promptpay_id : row.account_number;
+  const where = row.payout_method === "promptpay" ? "PromptPay" : row.bank_name;
+  return `<span class="admin-payout-account"><b>${escapeHtml(where)}</b> <code>${escapeHtml(number)}</code><br/>${escapeHtml(row.account_name)}</span>`;
+}
 /** Money to pass on to group owners: verified member payments minus the 2% commission. */
 function payoutsContent(rows) {
   const owed = rows.filter((row) => Number(row.owed_satang) > 0);
@@ -375,7 +382,7 @@ function payoutsContent(rows) {
       owed ? `<button type="button" class="admin-primary" data-admin-action="record-payout" data-group-id="${escapeHtml(row.group_id)}" data-group-name="${escapeHtml(row.group_name)}" data-amount="${escapeHtml(formatMoney(row.owed_satang))}">บันทึกว่าโอนแล้ว</button>` : "",
       held ? `<button type="button" class="admin-danger" data-admin-action="release-payout" data-group-id="${escapeHtml(row.group_id)}" data-group-name="${escapeHtml(row.group_name)}" data-monthly="${row.billing_mode === "monthly" ? "1" : ""}">ปล่อยเงินก่อนยืนยันครบ</button>` : "",
     ].filter(Boolean).join("") || '<span class="admin-status good">โอนครบแล้ว</span>';
-    return `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>${escapeHtml(row.payments)} รายการที่ตรวจแล้ว${row.billing_mode === "monthly" ? " · รายเดือน" : ""}</small></td><td><strong>${escapeHtml(row.owner_name)}</strong><small>${escapeHtml(row.owner_email)}${row.commission_waived_now ? " · โค้ดยกเว้นค่าคอม" : ""}</small></td><td>${formatMoney(row.gross_satang)}</td><td>−${formatMoney(row.commission_satang)}</td><td>${formatMoney(row.held_satang)}</td><td>${formatMoney(row.paid_out_satang)}</td><td><strong>${formatMoney(row.owed_satang)}</strong></td><td><div class="admin-row-actions">${actions}</div></td></tr>`;
+    return `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>${escapeHtml(row.payments)} รายการที่ตรวจแล้ว${row.billing_mode === "monthly" ? " · รายเดือน" : ""}</small></td><td><strong>${escapeHtml(row.owner_name)}</strong><small>${escapeHtml(row.owner_email)}${row.commission_waived_now ? " · โค้ดยกเว้นค่าคอม" : ""}</small>${payoutAccountCell(row)}</td><td>${formatMoney(row.gross_satang)}</td><td>−${formatMoney(row.commission_satang)}</td><td>${formatMoney(row.held_satang)}</td><td>${formatMoney(row.paid_out_satang)}</td><td><strong>${formatMoney(row.owed_satang)}</strong></td><td><div class="admin-row-actions">${actions}</div></td></tr>`;
   }).join("");
   return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>โอนให้เจ้าของกลุ่ม</h2><p>เงินในกองกลางโอนให้เจ้าของได้เมื่อสมาชิกที่จ่ายยืนยันรับสินค้าครบ หักค่าคอม 2% ของแต่ละยอด (ยกเว้นผู้ใช้โค้ดพิเศษ) ค้างโอนรวม ${formatMoney(total)}</p></div></div>${table(["กลุ่ม", "เจ้าของกลุ่ม", "สมาชิกโอนรวม", "ค่าคอม 2%", "รอยืนยันรับสินค้า", "โอนให้แล้ว", "พร้อมโอน", ""], body, "ยังไม่มียอดที่ต้องโอนให้เจ้าของกลุ่ม")}</section>`;
 }

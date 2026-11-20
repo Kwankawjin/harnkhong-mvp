@@ -415,3 +415,33 @@ begin
   reset role;
 end $$;
 rollback;
+
+-- Owner payout accounts: only the owner and admins can see them.
+begin;
+do $$
+declare owner uuid := gen_random_uuid(); other uuid := gen_random_uuid(); n integer;
+begin
+  insert into auth.users(id, aud, role, email)
+    select id, 'authenticated', 'authenticated', id::text || '@example.invalid' from unnest(array[owner, other]) id;
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  perform public.set_my_payout_account('promptpay', 'ต้น ใจดี', '081-234-5678');
+  assert (select promptpay_id = '0812345678' and bank_name is null from public.payout_accounts where user_id = owner),
+    'PromptPay saved without dashes';
+  perform public.set_my_payout_account('bank', 'ต้น ใจดี', null, 'กสิกรไทย', '123-4-56789-0');
+  assert (select method = 'bank' and account_number = '1234567890' and promptpay_id is null from public.payout_accounts where user_id = owner),
+    'switching to a bank account replaces PromptPay';
+  begin
+    perform public.set_my_payout_account('promptpay', 'ต้น', '12345');
+    raise exception 'accepted a short PromptPay number';
+  exception when invalid_parameter_value then null; end;
+  begin
+    perform public.set_my_payout_account('bank', 'ต้น', null, 'กสิกรไทย', '123');
+    raise exception 'accepted a short account number';
+  exception when invalid_parameter_value then null; end;
+  perform set_config('request.jwt.claim.sub', other::text, true);
+  select count(*) into n from public.payout_accounts where user_id = owner;
+  assert n = 0, 'another member cannot read the owner''s account';
+  reset role;
+end $$;
+rollback;
