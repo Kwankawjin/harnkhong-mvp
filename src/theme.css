@@ -1105,3 +1105,387 @@ h3 {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* ---------- Why HarnKhong: the money-safety story ---------- */
+.why-section {
+  margin-top: 56px;
+  padding: 40px;
+  border: 1px solid var(--hk-line);
+  border-radius: var(--hk-radius-panel);
+  background: var(--hk-paper);
+  box-shadow: 0 18px 40px -28px rgb(var(--hk-shadow-color) / 0.35);
+}
+.why-top {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+  gap: 40px;
+  align-items: center;
+}
+.why-kicker {
+  display: inline-block;
+  padding: 4px 14px;
+  border: 1.5px solid var(--hk-sky-300);
+  border-radius: 999px;
+  color: var(--hk-navy);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.why-intro h2 {
+  margin: 10px 0 14px;
+  color: var(--hk-navy);
+  font-size: clamp(2.2rem, 4.5vw, 3.2rem);
+  font-style: italic;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+.why-lead {
+  margin: 0 0 8px;
+  color: var(--hk-blue);
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+.why-intro p:not(.why-lead) {
+  margin: 0;
+  color: var(--hk-muted);
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+.why-points {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.why-points li {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 22px 20px;
+  border: 1px solid var(--hk-line);
+  border-radius: var(--hk-radius-card);
+  background: var(--hk-sky-50);
+  transition: transform var(--hk-base) var(--hk-ease), border-color var(--hk-base) var(--hk-ease);
+}
+.why-points li:hover {
+  transform: translateY(-3px);
+  border-color: var(--hk-sky-300);
+}
+.why-point-icon,
+.why-step-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 8px;
+  border-radius: 14px;
+  background: var(--hk-sky-100);
+  color: var(--hk-blue);
+}
+.why-points b {
+  color: var(--hk-navy);
+  font-size: 1.05rem;
+}
+.why-points span:not(.why-point-icon) {
+  color: var(--hk-muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.why-flow {
+  margin-top: 32px;
+  padding: 28px;
+  border-radius: var(--hk-radius-card);
+  background: var(--hk-sky-50);
+}
+.why-flow-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 26px;
+}
+.why-flow-head h3 {
+  margin: 0;
+  color: var(--hk-navy);
+  font-size: 1.35rem;
+}
+.why-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--hk-line);
+  border-radius: 999px;
+  background: var(--hk-paper);
+}
+.why-tabs button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--hk-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color var(--hk-fast) var(--hk-ease), color var(--hk-fast) var(--hk-ease);
+}
+.why-tabs button[aria-selected="true"] {
+  background: var(--hk-blue);
+  color: #fff;
+}
+:root[data-theme="dark"] .why-tabs button[aria-selected="true"] {
+  color: #0b1420;
+}
+.why-tabs button:focus-visible {
+  outline: 2px solid var(--hk-blue);
+  outline-offset: 2px;
+}
+.why-panel:not([hidden]) {
+  animation: why-in var(--hk-base) var(--hk-ease);
+}
+@keyframes why-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+/* Steps: icons on a line that runs left to right; the last (key) step stands out. */
+.why-steps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: why;
+}
+.why-steps::before {
+  content: "";
+  position: absolute;
+  top: 23px;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: var(--hk-sky-200);
+}
+.why-step {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.why-step .why-step-icon {
+  position: relative;
+  margin-bottom: 6px;
+  border: 2px solid var(--hk-sky-50);
+  background: var(--hk-paper);
+  box-shadow: 0 0 0 1px var(--hk-line);
+}
+.why-step b {
+  color: var(--hk-navy);
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+.why-step span:not(.why-step-icon) {
+  color: var(--hk-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.why-step.is-key .why-step-icon {
+  background: var(--hk-blue);
+  color: #fff;
+  box-shadow: 0 0 0 5px var(--hk-sky-200);
+}
+:root[data-theme="dark"] .why-step.is-key .why-step-icon {
+  color: #0b1420;
+}
+.why-step.is-key b {
+  color: var(--hk-blue);
+}
+.why-note {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin: 24px 0 0;
+  color: var(--hk-navy);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+}
+.why-note svg {
+  flex: none;
+  color: var(--hk-blue);
+}
+
+.why-fees {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.why-fee {
+  display: grid;
+  gap: 4px;
+  padding: 20px;
+  border: 1px solid var(--hk-line);
+  border-radius: var(--hk-radius-card);
+  background: var(--hk-paper);
+}
+.why-fee small {
+  color: var(--hk-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.why-fee strong {
+  color: var(--hk-navy);
+  font-size: 2rem;
+  line-height: 1.15;
+}
+.why-fee span {
+  color: var(--hk-muted);
+  font-size: 0.85rem;
+}
+.why-fee.is-example strong {
+  color: var(--hk-blue);
+}
+
+@media (max-width: 900px) {
+  .why-top {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+}
+@media (max-width: 640px) {
+  .why-section {
+    margin-top: 32px;
+    padding: 20px 14px;
+    border-radius: 18px;
+  }
+  .why-intro h2 {
+    font-size: 2.1rem;
+  }
+  .why-lead {
+    font-size: 1.05rem;
+  }
+  .why-intro p:not(.why-lead) {
+    font-size: 0.85rem;
+  }
+  .why-points {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .why-points li {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 2px 12px;
+    padding: 12px;
+    border-radius: 14px;
+  }
+  .why-point-icon {
+    grid-row: span 2;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    border-radius: 12px;
+  }
+  .why-points b {
+    font-size: 0.95rem;
+  }
+  .why-points span:not(.why-point-icon) {
+    font-size: 0.8rem;
+  }
+  .why-flow {
+    margin-top: 18px;
+    padding: 16px 12px;
+  }
+  .why-flow-head {
+    margin-bottom: 16px;
+  }
+  .why-flow-head h3 {
+    font-size: 1.05rem;
+  }
+  .why-tabs {
+    width: 100%;
+  }
+  .why-tabs button {
+    flex: 1;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 6px;
+    font-size: 0.78rem;
+  }
+  .why-tabs button svg {
+    display: none;
+  }
+  /* Steps run top to bottom on a phone, the line down the left. */
+  .why-steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .why-steps::before {
+    top: 20px;
+    bottom: 20px;
+    left: 19px;
+    right: auto;
+    width: 2px;
+    height: auto;
+  }
+  .why-step {
+    grid-template-columns: 40px minmax(0, 1fr);
+    justify-items: start;
+    gap: 0 12px;
+    text-align: left;
+  }
+  .why-step .why-step-icon {
+    grid-row: span 2;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    border-radius: 12px;
+  }
+  .why-step .why-step-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+  .why-step b {
+    align-self: end;
+    font-size: 0.9rem;
+  }
+  .why-step span:not(.why-step-icon) {
+    font-size: 0.76rem;
+  }
+  .why-note {
+    justify-content: flex-start;
+    margin-top: 16px;
+    font-size: 0.8rem;
+    text-align: left;
+  }
+  .why-fees {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .why-fee {
+    padding: 14px;
+  }
+  .why-fee strong {
+    font-size: 1.5rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .why-points li,
+  .why-tabs button {
+    transition: none;
+  }
+  .why-panel:not([hidden]) {
+    animation: none;
+  }
+}

@@ -1562,17 +1562,73 @@ function home() {
 
     <a class="home-promo-strip group" href="/groups/create"><span class="home-promo-icon">${icon("users", 42)}</span><span class="home-promo-copy"><strong>${t("เริ่มหารของกับเพื่อน")}</strong><small>${t("เปิดกลุ่มและแบ่งค่าใช้จ่ายกัน")}</small></span><span class="home-promo-art" aria-hidden="true">🛍️</span><span class="home-promo-button">${t("สร้างกลุ่มหารของ")} ${icon("arrow", 18)}</span></a>
 
-    <section class="features-section home-restored-features">
-      <div class="features-header"><h2>${t("ทำไมต้องหารของ")}</h2><p>${t("ดูส่วนแบ่งและค่าส่งของแต่ละคนก่อนตัดสินใจ")}</p></div>
-      <div class="features-grid">
-        <div class="feature-card"><div class="feature-icon-box">${icon("calc", 26)}</div><h3>${t("แยกยอดเป็นรายคน")}</h3><p>${t("ระบบแสดงส่วนแบ่งสินค้าและค่าส่ง พร้อมจัดการเศษสตางค์ให้ยอดรวมตรงกัน")}</p></div>
-        <div class="feature-card"><div class="feature-icon-box">${icon("shield", 26)}</div><h3>${t("ยืนยันยอดก่อนสั่ง")}</h3><p>${t("เมื่อจำนวนสมาชิกหรือค่าส่งเปลี่ยน ทุกคนต้องยืนยันยอดล่าสุด คำสั่งซื้อในตอนนี้เป็นเดโม")}</p></div>
-        <div class="feature-card"><div class="feature-icon-box">${icon("trending", 26)}</div><h3>${t("หารซื้อเป็นกลุ่ม")}</h3><p>${t("ร่วมซื้อสินค้าราคาส่งหรือแพ็กใหญ่ แบ่งจำนวนและค่าใช้จ่ายกันในกลุ่ม")}</p></div>
-      </div>
-    </section>
+    ${whySection()}
 
     <section class="cta-section home-restored-cta"><div class="cta-banner"><div class="cta-copy"><h2>${t("เริ่มกลุ่มหารของ")}</h2><p>${t("สร้างกลุ่มแล้วชวนเพื่อน หรือเลือกกลุ่มที่ยังเปิดรับสมาชิก")}</p></div><div class="cta-actions">${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่มใหม่")}`, "button primary")}${a("/explore", t("ดูกลุ่มที่เปิดรับ"), "button outline")}</div></div></section>
   `;
+}
+/* "Why HarnKhong": the trust story — money waits in the platform pool until members get their item. */
+let whyTab = "buyer";
+const WHY_STEPS = {
+  buyer: [
+    ["search", "เลือกกลุ่ม", "เห็นราคาต่อที่นั่งก่อนเข้า"],
+    ["check", "ยืนยันยอด", "ตรวจยอดแล้วกดยืนยัน"],
+    ["calc", "โอนเข้ากองกลาง", "สแกน QR แล้วแนบสลิป"],
+    ["shield", "แอดมินตรวจสลิป", "ยอดไม่ตรงจะถูกตีกลับ"],
+    ["package", "ได้ของแล้วกดยืนยัน", "เงินถึงหัวกลุ่มหลังจากนี้"],
+  ],
+  owner: [
+    ["plus", "สร้างกลุ่ม", "ตั้งราคาและจำนวนที่นั่ง"],
+    ["link", "แชร์ลิงก์", "ชวนเพื่อนเข้ากลุ่ม"],
+    ["users", "สมาชิกโอนครบ", "เงินพักไว้ที่กองกลาง"],
+    ["package", "ส่งของให้สมาชิก", "คุณออกเงินซื้อไปก่อน"],
+    ["check", "รับเงิน", "เมื่อทุกคนยืนยันว่าได้ของ"],
+  ],
+};
+const WHY_NOTES = {
+  buyer: "ถ้ายังไม่ได้ของ เงินของคุณยังอยู่ที่กองกลาง ไม่ถึงมือหัวกลุ่ม",
+  owner: "แพลตฟอร์มโอนให้คุณหลังหักค่าคอม 2% คุณไม่ต้องโอนอะไรเข้าระบบ",
+};
+function whySteps(kind) {
+  const steps = WHY_STEPS[kind];
+  return `<ol class="why-steps">${steps
+    .map(([ic, title, text], i) => `<li class="why-step${i === steps.length - 1 ? " is-key" : ""}"><span class="why-step-icon">${icon(ic, 24)}</span><b>${t(title)}</b><span>${t(text)}</span></li>`)
+    .join("")}</ol><p class="why-note">${icon("lock", 16)} ${t(WHY_NOTES[kind])}</p>`;
+}
+function whyFees() {
+  return `<div class="why-fees">
+    <div class="why-fee"><small>${t("ผู้ร่วมซื้อ")}</small><strong>฿0</strong><span>${t("จ่ายแค่ราคาที่นั่ง ไม่มีค่าธรรมเนียม")}</span></div>
+    <div class="why-fee"><small>${t("หัวกลุ่ม")}</small><strong>2%</strong><span>${t("หักจากเงินที่ได้รับ ไม่ต้องโอนเพิ่ม")}</span></div>
+    <div class="why-fee is-example"><small>${t("ตัวอย่าง")}</small><strong>฿50 → ฿49</strong><span>${t("สมาชิกโอน ฿50 หัวกลุ่มได้รับ ฿49")}</span></div>
+  </div>`;
+}
+function whySection() {
+  const tabs = [["buyer", "ผู้ร่วมซื้อ", "users"], ["owner", "หัวกลุ่ม", "user"], ["fee", "ค่าธรรมเนียม", "calc"]];
+  const panel = (kind) => (kind === "fee" ? whyFees() : whySteps(kind));
+  return `<section class="why-section" aria-labelledby="why-heading">
+    <div class="why-top">
+      <div class="why-intro">
+        <span class="why-kicker">${t("ทำไมต้อง")}</span>
+        <h2 id="why-heading">HarnKhong?</h2>
+        <p class="why-lead">${t("เงินของคุณไม่ถึงมือหัวกลุ่ม จนกว่าคุณจะได้ของ")}</p>
+        <p>${t("ทุกบาทพักไว้ที่กองกลางของแพลตฟอร์ม และปล่อยให้หัวกลุ่มเมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ")}</p>
+      </div>
+      <ul class="why-points">
+        <li>${`<span class="why-point-icon">${icon("lock", 22)}</span>`}<b>${t("เงินพักที่กองกลาง")}</b><span>${t("ไม่โอนตรงให้หัวกลุ่ม ไม่มีใครหอบเงินหนีได้")}</span></li>
+        <li>${`<span class="why-point-icon">${icon("shield", 22)}</span>`}<b>${t("แอดมินตรวจทุกสลิป")}</b><span>${t("ยอดไม่ตรงจะถูกตีกลับให้โอนใหม่")}</span></li>
+        <li>${`<span class="why-point-icon">${icon("calc", 22)}</span>`}<b>${t("ราคาล็อกก่อนเข้า")}</b><span>${t("เห็นราคาต่อที่นั่งก่อนกด ไม่มีบวกเพิ่มทีหลัง")}</span></li>
+      </ul>
+    </div>
+    <div class="why-flow">
+      <div class="why-flow-head">
+        <h3>${t("ขั้นตอนการทำรายการ")}</h3>
+        <div class="why-tabs" role="tablist" aria-label="${t("ขั้นตอนการทำรายการ")}">${tabs
+          .map(([kind, label, ic]) => `<button type="button" role="tab" id="why-tab-${kind}" aria-controls="why-panel-${kind}" aria-selected="${whyTab === kind}" data-action="why-tab" data-tab="${kind}">${icon(ic, 18)} ${t(label)}</button>`)
+          .join("")}</div>
+      </div>
+      ${tabs.map(([kind]) => `<div class="why-panel" role="tabpanel" id="why-panel-${kind}" aria-labelledby="why-tab-${kind}"${whyTab === kind ? "" : " hidden"}>${panel(kind)}</div>`).join("")}
+    </div>
+  </section>`;
 }
 function explore() {
   const params = new URLSearchParams(location.search),
@@ -4741,6 +4797,13 @@ document.addEventListener("click", async (e) => {
     if (action === "listing-menu-toggle") {
       listingMenuOpen = !listingMenuOpen;
       render();
+      return;
+    }
+    if (action === "why-tab") {
+      whyTab = btn.dataset.tab || "buyer";
+      const section = btn.closest(".why-section");
+      section?.querySelectorAll('[role="tab"]').forEach((tab) => tab.setAttribute("aria-selected", String(tab === btn)));
+      section?.querySelectorAll(".why-panel").forEach((panel) => { panel.hidden = panel.id !== `why-panel-${whyTab}`; });
       return;
     }
     if (action === "home-group-filter") {
