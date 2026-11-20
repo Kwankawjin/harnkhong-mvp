@@ -243,3 +243,29 @@ export function rejectSubscriptionPayment(subscription, paymentId, note = "", no
 
 /** How many open groups a person may own at once on their current plan. */
 export const groupLimit = (subscription, now = new Date()) => PLAN_GROUP_LIMITS[effectivePlan(subscription, now)];
+
+// ---------------------------------------------------------------- next cycle forecast
+/**
+ * What a member will owe next month, worked out from the group as it is now (the next cycle
+ * is locked from these same members and costs when it opens). Null when the group has no running
+ * cycle or the person will not be in the next one. `reasons` explains a change from this month:
+ * "joined" / "left" (members) and "costs" (price or delivery changed).
+ */
+export function nextCycleForecast(group, userId) {
+  const cycle = currentCycle(group);
+  if (group.billing !== "monthly" || !cycle || !group.members.includes(userId)) return null;
+  const amounts = shares(group);
+  const amount = Number(amounts[userId]) || 0;
+  const previous = cycle.members.includes(userId) ? Number(cycle.amounts[userId]) || 0 : null;
+  const before = new Set(cycle.members), after = new Set(group.members);
+  const joined = group.members.filter((id) => !before.has(id)).length;
+  const left = cycle.members.filter((id) => !after.has(id)).length;
+  const costsChanged = cycle.costs && (cycle.costs.product !== group.costs.product || cycle.costs.delivery !== group.costs.delivery);
+  const reasons = [];
+  if (previous !== null && previous !== amount) {
+    if (joined) reasons.push({ kind: "joined", count: joined });
+    if (left) reasons.push({ kind: "left", count: left });
+    if (costsChanged) reasons.push({ kind: "costs" });
+  }
+  return { number: cycle.number + 1, startsAt: cycle.end, amount, previous, changed: previous !== null && previous !== amount, reasons, owner: group.ownerId === userId };
+}
