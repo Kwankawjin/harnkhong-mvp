@@ -1548,7 +1548,7 @@ function groupCard(g) {
       <div class="opportunity-members"><span>${icon("users", 17)} ${units ? U("จองแล้ว {count} / {capacity} ส่วน", "ขายแล้ว {count} / {capacity} ชิ้น", { count: takenUnits(g), capacity: g.capacity }) : t("สมาชิก {count} / {capacity} คน", { count: g.members.length, capacity: g.capacity })}</span><div class="opportunity-track" role="progressbar" aria-label="${t("ความคืบหน้า")}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${takenUnits(g)}"><span style="width:${(takenUnits(g) / g.capacity) * 100}%"></span></div></div>
       <p class="opportunity-leader">${icon("user", 16)} ${sale ? t("ผู้ขาย") : t("หัวหน้ากลุ่ม")}: ${escape(name(g.ownerId).replace(/\s*\(หัวหน้ากลุ่ม\)$/, ""))}</p>
       <p class="opportunity-terms">${icon(g.payDay ? "clock" : "check", 16)} ${g.billing === "monthly" && g.payDay ? t("จ่ายทุกวันที่ {day} ของเดือน", { day: g.payDay }) : sale ? t("ขายผ่านตัวกลาง จ่ายแล้วได้ของจึงโอนให้ผู้ขาย") : t("ยืนยันยอดก่อนสั่งซื้อ")}</p>
-      <div class="opportunity-actions">${a(destination, sale ? (open && !isMember ? t("ดูสินค้า / ซื้อ") : t("ดูรายการขาย")) : open && !isMember ? t("ดูรายละเอียดกลุ่ม") : t("ดูกลุ่ม"), `button opportunity-view ${open && !isMember ? "primary" : "outline"}`)}${isMember && !sale ? a(`/groups/${g.id}/chat`, `${icon("chat", 17)} ${t("แชทกลุ่ม")}`, "opportunity-chat") : ""}${open || isMember || g.ownerId === state.user?.id ? `<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t("คัดลอกลิงก์เชิญ")}">${icon("link", 17)} ${t("ชวนเพื่อน")}</button>` : ""}</div>
+      <div class="opportunity-actions">${a(destination, sale ? (open && !isMember ? t("ดูสินค้า / ซื้อ") : t("ดูรายการขาย")) : open && !isMember ? t("ดูรายละเอียดกลุ่ม") : t("ดูกลุ่ม"), `button opportunity-view ${open && !isMember ? "primary" : "outline"}`)}${isMember && !sale && !inHistory(g) ? a(`/groups/${g.id}/chat`, `${icon("chat", 17)} ${t("แชทกลุ่ม")}`, "opportunity-chat") : ""}${open || isMember || g.ownerId === state.user?.id ? `<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t("คัดลอกลิงก์เชิญ")}">${icon("link", 17)} ${t("ชวนเพื่อน")}</button>` : ""}</div>
     </div>
   </article>`;
 }
@@ -1990,7 +1990,7 @@ function monthlyGroupView(g, id, { isMember, isOwner, full, locked, estimate }) 
       ${isOwner ? monthlyEndControls(g) : ""}
       ${g.closedAt || (isMember && !isOwner && monthlyEnded(g)) ? softBox({ tone: "green", icon: "check", title: g.closedAt ? t("กลุ่มนี้ปิดแล้ว") : t("กลุ่มนี้จบแล้ว"), note: t("ไม่มีการเก็บเงินเพิ่ม ข้อมูลเก็บไว้เป็นประวัติ"), action: isMember && !isOwner ? hideGroupButton(g) : "" }) : ""}
       ${waits ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("คุณเข้าร่วมระหว่างรอบ เริ่มจ่ายรอบถัดไปวันที่ {date}", { date: shortDate(cycle.end) })}</span></div>` : ""}
-      ${isMember ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
+      ${isMember && !inHistory(g) ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
       ${isMember && !isOwner ? `<button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${escape(id)}"><span class="summary-btn-left">${icon("back", 19)} <span>${t("ออกจากกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
       ${isOwner ? `<button class="button outline full summary-action-btn" data-action="edit-group" data-id="${escape(id)}"><span class="summary-btn-left">${icon("edit", 19)} <span>${t("แก้ไขกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
       ${isOwner ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${escape(id)}"><span class="summary-btn-left">${icon("link", 18)} <span>${t("คัดลอกลิงก์เชิญ")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
@@ -2230,7 +2230,7 @@ function groupPage(id) {
     ${isMember && approved && !adminApproved ? `<div class="warning summary-warning"><span class="warning-icon">${icon("clock", 18)}</span><span>${full && allMembersApproved ? t("รอแอดมินอนุมัติยอดกลุ่ม") : t("คุณยืนยันยอดแล้ว รอสมาชิกครบ")}</span></div>` : ""}
     ${isMember && approved && adminApproved ? `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันยอดรอบนี้แล้ว")}</div>` : ""}
     ${seatMode && !isOwner && paymentReport?.status === "verified" ? receiptPanel({ state: receiptState({ received: g.myReceipt, shippedAt: groupShipment(g), dispute: myDispute(g) }), shippedAt: groupShipment(g), dispute: myDispute(g), confirmAction: "confirm-receipt", attrs: `data-id="${id}"`, shipLabel: "ผู้จัดกลุ่มแจ้งส่งของแล้ว" }) : ""}
-    ${isMember ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
+    ${isMember && !inHistory(g) ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
     ${isMember && !isOwner && !locked ? `<button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${id}"><span class="summary-btn-left">${icon("back", 19)} <span>${t("ออกจากกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="edit-group" data-id="${id}"><span class="summary-btn-left">${icon("edit", 19)} <span>${t("แก้ไขกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${id}"><span class="summary-btn-left">${icon("link", 18)} <span>${t("คัดลอกลิงก์เชิญ")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
@@ -2975,7 +2975,8 @@ function chatWorkspaceSidebar(selectedHref = "") {
           render();
       });
   }
-  const myGroups = state.groups.filter((g) => g.members.includes(userId));
+  // Finished groups (closed, or hidden by me) leave the chat list too.
+  const myGroups = state.groups.filter((g) => g.members.includes(userId) && !inHistory(g));
   const isSelected = (href) =>
     selectedHref === href ||
     (!href.includes("?") && selectedHref.split("?")[0] === href);
@@ -3057,6 +3058,8 @@ function groupChatPage(id) {
   const g = group(id);
   if (!g) return notFound();
   if (!state.user || !g.members.includes(state.user.id)) return notFound();
+  if (inHistory(g))
+    return `<div class="empty"><h1>${t("แชทของกลุ่มนี้ปิดแล้ว")}</h1><p>${t("กลุ่มนี้จบแล้วหรือถูกซ่อนจากรายการของคุณ")}</p>${a(`/groups/${id}`, t("ดูกลุ่ม"), "button outline")}${a("/chat", t("กลับไปหน้าแชท"), "button primary")}</div>`;
   startGroupChatSync(id);
   const p = listing(g.listingId);
   const me = state.user?.id;
