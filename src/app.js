@@ -154,8 +154,11 @@ let heroHeadlineTimeout = null;
 let heroHeadlineIndex = 0;
 let heroHeadlineAnimation = null;
 let heroHeadlineResizeHandler = null;
+let heroHeadlineObserver = null;
 function startHeroHeadlineLoop() {
   clearTimeout(heroHeadlineTimeout);
+  heroHeadlineObserver?.disconnect();
+  heroHeadlineObserver = null;
   heroHeadlineAnimation?.cancel();
   heroHeadlineAnimation = null;
   if (heroHeadlineResizeHandler)
@@ -180,8 +183,18 @@ function startHeroHeadlineLoop() {
   const heading = visible.closest("h1");
   heroHeadlineResizeHandler = () => {
     if (!heading || !staticElement || !windowElement || !measure) return;
+    // Phone: the h1 shrinks to fit its own text, so measuring it fed back into
+    // itself on every resize (iOS fires one when the toolbar collapses) until
+    // the blue box was clamped to 80px. Measure the hero column instead.
+    const mobileColumn =
+      window.innerWidth < 960 ? heading.parentElement?.clientWidth || 0 : 0;
+    if (window.innerWidth < 960 && !mobileColumn) {
+      windowElement.style.maxWidth = "";
+      measure.style.maxWidth = "";
+      return;
+    }
     const headingWidth =
-      window.innerWidth >= 960 ? window.innerWidth - 32 : heading.clientWidth;
+      window.innerWidth >= 960 ? window.innerWidth - 32 : mobileColumn;
     const available = Math.max(
       80,
       headingWidth -
@@ -196,6 +209,16 @@ function startHeroHeadlineLoop() {
   window.addEventListener("resize", heroHeadlineResizeHandler, {
     passive: true,
   });
+  if (window.innerWidth < 960 && heading) {
+    const refit = heroHeadlineResizeHandler;
+    if (typeof ResizeObserver !== "undefined") {
+      heroHeadlineObserver = new ResizeObserver(() => refit());
+      if (heading.parentElement) heroHeadlineObserver.observe(heading.parentElement);
+    }
+    document.fonts?.ready.then(() => {
+      if (visible.isConnected) refit();
+    });
+  }
   const cycle = async () => {
     heroHeadlineIndex = (heroHeadlineIndex + 1) % phrases.length;
     const phrase = phrases[heroHeadlineIndex];
@@ -206,6 +229,7 @@ function startHeroHeadlineLoop() {
       heroHeadlineTimeout = setTimeout(cycle, 3000);
       return;
     }
+    if (window.innerWidth < 960) heroHeadlineResizeHandler();
     const previousWidth = windowElement.getBoundingClientRect().width;
     heroHeadlineAnimation = windowElement.animate(
       [
