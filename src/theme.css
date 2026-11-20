@@ -3024,3 +3024,30 @@ body.has-test-banner {
 .group-history-list a span { display: grid; gap: 2px; flex: 1; }
 .group-history-list small { color: var(--hk-muted); }
 .finished-member { margin-top: 16px; }
+.soft-box-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--hk-paper, #fff);
+  color: var(--hk-ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+}
+.soft-box-action:hover { background: color-mix(in srgb, var(--hk-ink) 4%, var(--hk-paper)); }
+.soft-box-action.is-subtle {
+  justify-content: center;
+  background: transparent;
+  box-shadow: none;
+  color: var(--hk-muted);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
