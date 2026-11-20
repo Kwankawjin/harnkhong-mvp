@@ -60,6 +60,7 @@ export async function loadSupabaseGroups(client = supabase) {
   const paymentReportsByGroup = new Map();
   const myReceipts = new Set();
   const myPayouts = new Map();
+  const cycleHistory = new Map();
   if (memberIds.length && client.auth?.getSession) {
     const { data: sessionData, error: sessionError } =
       await client.auth.getSession();
@@ -90,6 +91,21 @@ export async function loadSupabaseGroups(client = supabase) {
       } catch {
         /* no payouts table yet */
       }
+      // Cycle history (migration 20261120170000): the last 3 days, members only via RLS.
+      try {
+        const since = new Date(Date.now() - 3 * 86_400_000).toISOString();
+        const historyResult = await client
+          .from("group_cycle_history")
+          .select("group_id,cycle_number,event,created_at")
+          .gte("created_at", since)
+          .order("created_at", { ascending: false });
+        for (const row of historyResult?.data || []) {
+          if (!cycleHistory.has(row.group_id)) cycleHistory.set(row.group_id, []);
+          cycleHistory.get(row.group_id).push({ cycle: Number(row.cycle_number), event: row.event, at: row.created_at });
+        }
+      } catch {
+        /* no history table yet */
+      }
       if (profileResult.error) throw profileResult.error;
       if (paymentResult.error) throw paymentResult.error;
       const currentRevisions = new Map(
@@ -117,6 +133,7 @@ export async function loadSupabaseGroups(client = supabase) {
       paymentReport: paymentReportsByGroup.get(bundle.group.id) || null,
       myReceipt: myReceipts.has(bundle.group.id),
       payoutsReceived: myPayouts.get(bundle.group.id) || [],
+      cycleHistory: cycleHistory.get(bundle.group.id) || [],
     })),
     names,
     listings: [

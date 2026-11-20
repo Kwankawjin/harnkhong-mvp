@@ -469,3 +469,56 @@ begin
   end if;
 end $$;
 rollback;
+
+-- Cycle history: a trigger records cycle changes, keeps 3 days, members read it.
+begin;
+do $$
+declare
+  owner uuid := gen_random_uuid();
+  member uuid := gen_random_uuid();
+  outsider uuid := gen_random_uuid();
+  g uuid;
+  c uuid;
+  n int;
+  product jsonb := '{"type":"digital","title":"Spotify","category":"แอปพลิเคชันและเว็บไซต์"}';
+  form_details jsonb := jsonb_build_object('minimumMembers', 2, 'closesAt', (current_date + 7)::text, 'billing', 'monthly');
+begin
+  insert into auth.users(id, aud, role, email)
+    select id, 'authenticated', 'authenticated', id::text || '@example.invalid' from unnest(array[owner, member, outsider]) id;
+  insert into public.profiles(id, display_name) values (owner, 'Owner'), (member, 'Member'), (outsider, 'Outsider')
+    on conflict (id) do update set display_name = excluded.display_name;
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  g := public.create_group_from_form(gen_random_uuid(), 'History', array['แอปพลิเคชันและเว็บไซต์'], '[]'::jsonb, 'public', 2, 0, 10000, product, form_details);
+  reset role;
+  perform set_config('request.jwt.claim.sub', member::text, true);
+  set local role authenticated;
+  perform public.join_group(g, gen_random_uuid(), null);
+  reset role;
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  perform public.start_group_cycle(g);
+  reset role;
+  select id into c from public.group_cycles where group_id = g and cycle_number = 1;
+  update public.group_cycles set status = 'confirmed' where id = c;
+  update public.group_cycles set status = 'confirmed' where id = c; -- no change, no entry
+  select count(*) into n from public.group_cycle_history where group_id = g;
+  assert n = 2, 'started and confirmed are recorded once each, got ' || n;
+
+  -- An entry older than 3 days is hidden from readers and removed by the next change.
+  insert into public.group_cycle_history (group_id, cycle_number, event, created_at) values (g, 0, 'closed', now() - interval '4 days');
+  perform set_config('request.jwt.claim.sub', member::text, true);
+  set local role authenticated;
+  select count(*) into n from public.group_cycle_history where group_id = g;
+  assert n = 2, 'members see only the last 3 days, got ' || n;
+  reset role;
+  perform set_config('request.jwt.claim.sub', outsider::text, true);
+  set local role authenticated;
+  select count(*) into n from public.group_cycle_history where group_id = g;
+  assert n = 0, 'outsiders see nothing';
+  reset role;
+  update public.group_cycles set status = 'paid' where id = c;
+  select count(*) into n from public.group_cycle_history where group_id = g and created_at < now() - interval '3 days';
+  assert n = 0, 'old history is deleted on the next change';
+end $$;
+rollback;

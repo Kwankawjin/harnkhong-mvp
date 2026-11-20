@@ -5,6 +5,7 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import DoodleCrewFooter from "../components/ui/doodle-crew-footer.tsx";
 import LanyardBadge from "../components/ui/lanyard-badge.tsx";
+import { paymentReminders, recentCycleHistory, cycleChanges, HISTORY_KEEP_DAYS } from "./reminders.js";
 import QRCode from "qrcode";
 import {
   demoAccount,
@@ -856,6 +857,11 @@ function notice(
   save();
 }
 function updateGroup(next) {
+  const previous = state.groups.find((g) => g.id === next.id);
+  const changes = cycleChanges(previous, next);
+  // Demo keeps cycle history the way the database trigger does: 3 days, then gone.
+  if (changes.length || next.cycleHistory?.length)
+    next = { ...next, cycleHistory: recentCycleHistory([...(next.cycleHistory || []), ...changes]) };
   state.groups = state.groups.map((g) => (g.id === next.id ? next : g));
   save();
 }
@@ -1879,8 +1885,9 @@ function monthlyGroupView(g, id, { isMember, isOwner, full, locked, estimate }) 
   const panel = !cycle
     ? `<section class="group-payment-panel cycle-panel" aria-labelledby="cycle-heading"><span class="chip">${t("รอบรายเดือน")}</span><h2 id="cycle-heading">${t("ยังไม่เริ่มรอบแรก")}</h2><p>${isOwner ? t("กดเริ่มรอบแรกเมื่อพร้อม สมาชิกที่อยู่ในกลุ่มตอนนั้นจะอยู่ในรอบแรก ที่นั่งว่างเจ้าของกลุ่มจ่ายแทน") : t("เจ้าของกลุ่มจะเริ่มรอบแรกเมื่อพร้อม แล้วทุกคนยืนยันยอดเดือนละครั้ง")}</p></section>`
     : `<section class="group-payment-panel cycle-panel" aria-labelledby="cycle-heading"><span class="chip">${t("รอบที่ {number}", { number: cycle.number })}</span><h2 id="cycle-heading">${t(cycleStatusLabel[cycle.status])}</h2><p>${t("{start} ถึง {end} ยอดของรอบนี้ล็อกแล้ว คนเข้าหรือออกระหว่างรอบไม่ทำให้ยอดเปลี่ยน", { start: shortDate(cycle.start), end: shortDate(cycle.end) })}</p>
-      <div class="cycle-progress"><span>${t("ยืนยันแล้ว {done} / {count} คน", { done: Object.keys(cycle.confirmations).length, count: cycle.members.length })}</span><span>${t("ชำระแล้ว {done} / {count} คน", { done: cyclePayers(cycle).filter((id) => cycle.payments[id] === "verified").length, count: cyclePayers(cycle).length })}</span></div>
+      <div class="cycle-progress"><span>${t("ยืนยันแล้ว {done} / {count} คน", { done: Object.keys(cycle.confirmations).length, count: cycle.members.length })}</span><span>${t("ชำระแล้ว {done} / {count} คน", { done: cyclePayers(cycle).filter((id) => cycle.payments[id] === "verified").length, count: cyclePayers(cycle).length })}</span></div>${dueNotice(g)}
       ${confirmed && me === cycle.ownerId ? ownerCyclePayout(cycle, g) : confirmed ? payment === "verified" ? `<p class="success-line">${icon("check", 18)} ${t("ชำระแล้ว")} ${money(myAmount)}</p>${cycle.receipts?.[me] ? `<p class="success-line">${icon("check", 18)} ${t("คุณยืนยันว่าได้รับสินค้าแล้ว")}</p>` : `<button class="button primary" data-action="confirm-cycle-receipt" data-id="${escape(id)}" data-cycle="${cycle.number}">${icon("check", 18)} ${t("ได้รับสินค้าหรือใช้งานได้แล้ว")}</button>`}` : payment === "reported" ? `<p class="summary-warning">${t(cyclePaymentLabel.reported)} ${money(myAmount)}</p>` : `<div class="cycle-pay"><h3>${payment === "rejected" ? t(cyclePaymentLabel.rejected) : t("โอนค่าเดือนนี้ {amount}", { amount: money(myAmount) })}</h3>${payment === "rejected" && cycle.rejections?.[me] ? `<p>${escape(cycle.rejections[me])}</p>` : ""}${paymentQr()}${cycleSlipForm(id, cycle.number)}</div>` : ""}
+      ${cycleHistoryList(g)}
       ${history ? `<details class="cycle-history"><summary>${t("รอบที่ผ่านมา")}</summary><ul>${history}</ul></details>` : ""}
     </section>`;
   return { summary, panel };
@@ -1898,6 +1905,21 @@ function paymentQr() {
   return `<figure class="cycle-qr"><img src="/images/bank-payment-qr.webp" alt="${t("QR บัญชีรับชำระเงิน")}" width="180" height="180" loading="lazy"/><figcaption>${t("สแกนเพื่อโอน แล้วแนบสลิป")}</figcaption></figure>`;
 }
 
+/** "Pay by ..." line for this group, red on the due day; nothing once paid. */
+function dueNotice(g) {
+  const reminder = paymentReminders([g], state.user?.id)[0];
+  if (!reminder) return "";
+  const copy = reminderCopy(reminder);
+  return `<p class="due-notice tone-${copy.tone}" role="${copy.tone === "urgent" ? "alert" : "status"}">${icon(copy.tone === "urgent" ? "alert-circle" : "clock", 18)}<span><b>${copy.title}</b> ${t("ครบกำหนด {date}", { date: shortDate(reminder.dueAt) })}</span></p>`;
+}
+/** Cycle changes in the last few days (older ones are deleted). */
+function cycleHistoryList(g) {
+  const entries = recentCycleHistory(g.cycleHistory);
+  if (!entries.length) return "";
+  return `<div class="cycle-feed"><h3>${t("ความเคลื่อนไหวของรอบ ({days} วันล่าสุด)", { days: HISTORY_KEEP_DAYS })}</h3><ol>${entries
+    .map((entry) => `<li><span>${t(CYCLE_EVENT_TEXT[entry.event] || "รอบชำระมีการเปลี่ยนแปลง", { number: entry.cycle })}</span><time>${escape(dateTime(entry.at))}</time></li>`)
+    .join("")}</ol></div>`;
+}
 function groupPage(id) {
   let g = group(id);
   if (g && !supabaseConfigured && g.billing === "monthly") {
@@ -2004,7 +2026,7 @@ function groupPage(id) {
   const groupPaymentSection = !ownerSeat && isMember && supabaseConfigured && full && allApproved(g) && Number(alloc[me]) > 0
     ? hasVisiblePaymentReport
       ? ""
-      : `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${paymentReport?.status === "rejected" ? t("ยอดโอนไม่ตรง กรุณาโอนใหม่") : t("โอนเงินเข้าบัญชี")}</h2><p>${paymentReport?.status === "rejected" ? t("แอดมินปฏิเสธรายการนี้ กรุณาโอนยอดที่ถูกต้องอีกครั้ง แล้วแนบสลิปใหม่เพื่อให้ตรวจสอบ") : t("สแกน QR บัญชีธนาคาร แล้วกดแจ้งโอนหลังโอนเงินจริง เพื่อให้แอดมินตรวจยอด")}</p></div><div class="group-payment-transfer"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><small>${t("ชื่อบัญชีรับโอน")}</small><strong>${BANK_PAYMENT_RECIPIENT}</strong><small>${t("ยอดที่ต้องโอน")}</small><b>${money(alloc[me])}</b>${paymentReport?.status === "rejected" && paymentReport.rejection_note ? `<p class="group-payment-rejection">${escape(paymentReport.rejection_note)}</p>` : ""}${paymentSlipForm(id, g.revision)}</div></div></section>`
+      : `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${paymentReport?.status === "rejected" ? t("ยอดโอนไม่ตรง กรุณาโอนใหม่") : t("โอนเงินเข้าบัญชี")}</h2><p>${paymentReport?.status === "rejected" ? t("แอดมินปฏิเสธรายการนี้ กรุณาโอนยอดที่ถูกต้องอีกครั้ง แล้วแนบสลิปใหม่เพื่อให้ตรวจสอบ") : t("สแกน QR บัญชีธนาคาร แล้วกดแจ้งโอนหลังโอนเงินจริง เพื่อให้แอดมินตรวจยอด")}</p></div><div class="group-payment-transfer"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><small>${t("ชื่อบัญชีรับโอน")}</small><strong>${BANK_PAYMENT_RECIPIENT}</strong><small>${t("ยอดที่ต้องโอน")}</small><b>${money(alloc[me])}</b>${dueNotice(g)}${paymentReport?.status === "rejected" && paymentReport.rejection_note ? `<p class="group-payment-rejection">${escape(paymentReport.rejection_note)}</p>` : ""}${paymentSlipForm(id, g.revision)}</div></div></section>`
     : "";
   const actions = `
     ${!isMember && !full && !locked ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
@@ -2780,16 +2802,150 @@ function chatPage(id) {
     </div>
   </section>`;
 }
+/* ---------- Notification feed: payment reminders, group updates, system updates ---------- */
+const NOTE_KINDS = [
+  ["payment", "การชำระเงิน", "calc"],
+  ["group", "อัปเดตกลุ่ม", "users"],
+  ["system", "อัปเดตระบบ", "sparkles"],
+];
+const CYCLE_EVENT_TEXT = {
+  started: "เริ่มรอบที่ {number} แล้ว ยืนยันยอดและชำระภายใน 3 วัน",
+  confirmed: "รอบที่ {number}: ทุกคนยืนยันยอดแล้ว",
+  paid: "รอบที่ {number}: ชำระครบทุกคนแล้ว",
+  closed: "รอบที่ {number} ปิดแล้ว",
+};
+const readNotesKey = () => `harnkhong-read-notes:${state.user?.id || ""}`;
+function readNoteIds() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(readNotesKey()) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+function markNotesRead(ids) {
+  const read = readNoteIds();
+  ids.forEach((id) => read.add(id));
+  try {
+    localStorage.setItem(readNotesKey(), JSON.stringify([...read].slice(-600)));
+  } catch {
+    /* private mode: read marks just do not stick */
+  }
+}
+/** The text and colour of a payment reminder, by how close its due date is. */
+function reminderCopy(reminder) {
+  if (reminder.rejected) return { title: t("สลิปไม่ผ่าน กรุณาโอนใหม่"), tone: "urgent" };
+  if (reminder.level === "overdue") return { title: t("เลยกำหนดชำระแล้ว กรุณาชำระโดยเร็ว"), tone: "urgent" };
+  if (reminder.level === "today") return { title: t("คุณต้องชำระเงินภายในวันนี้"), tone: "urgent" };
+  if (reminder.level === "tomorrow") return { title: t("ครบกำหนดชำระพรุ่งนี้"), tone: "soon" };
+  return { title: t("รอชำระเงิน"), tone: "normal" };
+}
+function notificationFeed() {
+  const me = state.user?.id;
+  if (!me) return [];
+  const read = readNoteIds();
+  const items = [];
+  const now = Date.now();
+  const recent = (at, days) => at && now - Date.parse(at) <= days * 86_400_000;
+  // Payment reminders: only while the money is still owed, so none after paying.
+  for (const reminder of paymentReminders(state.groups, me)) {
+    const copy = reminderCopy(reminder);
+    items.push({
+      id: `${reminder.id}:${reminder.rejected ? "rejected" : reminder.level}`,
+      kind: "payment",
+      tone: copy.tone,
+      title: copy.title,
+      body: `${reminder.groupName}${reminder.cycle ? ` · ${t("รอบที่ {number}", { number: reminder.cycle })}` : ""} · ${money(reminder.amount)} · ${t("ครบกำหนด {date}", { date: shortDate(reminder.dueAt) })}`,
+      href: `/groups/${reminder.groupId}`,
+      at: new Date(now).toISOString(),
+    });
+  }
+  // Group updates: changes in groups I am in, cycle history and payouts to me.
+  for (const g of state.groups.filter((x) => x.members.includes(me))) {
+    for (const event of g.history || []) {
+      if (!recent(event.at, 7)) continue;
+      items.push({ id: `grp:${g.id}:${event.at}:${event.reason}`, kind: "group", title: g.name, body: t(event.reason), href: `/groups/${g.id}`, at: event.at });
+    }
+    for (const entry of recentCycleHistory(g.cycleHistory)) {
+      items.push({ id: `cyc:${g.id}:${entry.cycle}:${entry.event}`, kind: "group", title: g.name, body: t(CYCLE_EVENT_TEXT[entry.event] || "รอบชำระมีการเปลี่ยนแปลง", { number: entry.cycle }), href: `/groups/${g.id}`, at: entry.at });
+    }
+    for (const payout of g.payoutsReceived || []) {
+      items.push({ id: `out:${g.id}:${payout.paid_at}`, kind: "group", title: t("ได้รับเงินจากกลุ่มแล้ว"), body: `${g.name} · ${money(Number(payout.net_satang) || 0)}`, href: `/groups/${g.id}`, at: payout.paid_at });
+    }
+    const report = g.paymentReport;
+    if (report?.status === "verified" && Number(report.revision) === Number(g.revision))
+      items.push({ id: `slip:${g.id}:r${g.revision}:verified`, kind: "system", title: t("แอดมินยืนยันสลิปแล้ว"), body: `${g.name} · ${money(Number(report.amount_satang) || 0)}`, href: `/groups/${g.id}`, at: report.reported_at });
+  }
+  // System updates: plan, promo and older stored notices.
+  const sub = mySubscription(me);
+  if (sub) {
+    const endsAt = sub.periodEnd;
+    const daysLeft = endsAt ? Math.ceil((Date.parse(endsAt) - now) / 86_400_000) : null;
+    if (sub.status === "pending_payment" || (sub.payments || []).some((p) => p.status === "reported"))
+      items.push({ id: `plus:pending:${sub.payments?.at(-1)?.reportedAt || ""}`, kind: "system", title: t("ได้รับสลิป Plus แล้ว"), body: t("แอดมินกำลังตรวจ เมื่อยืนยันแล้ว Plus จะเริ่มใช้งานทันที"), href: "/subscription", at: sub.payments?.at(-1)?.reportedAt });
+    if (subscriptionFor(me) === "plus" && sub.periodStart)
+      items.push({ id: `plus:active:${sub.periodStart}`, kind: "system", title: t("Plus ใช้งานได้แล้ว"), body: t("ใช้งานถึง {date}", { date: shortDate(endsAt) }), href: "/subscription", at: sub.periodStart });
+    if (subscriptionFor(me) === "plus" && daysLeft !== null && daysLeft <= 3)
+      items.push({ id: `plus:ending:${endsAt}`, kind: "system", tone: "soon", title: t("Plus ใกล้หมดอายุ"), body: t("เหลืออีก {days} วัน ต่ออายุได้ที่หน้าแพ็กเกจ", { days: Math.max(0, daysLeft) }), href: "/subscription", at: new Date(now).toISOString() });
+    if (sub.status === "expired")
+      items.push({ id: `plus:expired:${endsAt}`, kind: "system", title: t("Plus หมดอายุแล้ว"), body: t("บัญชีกลับเป็น Free สมัครใหม่ได้ทุกเมื่อ"), href: "/subscription", at: endsAt });
+  }
+  const waiver = myFeeWaiverUntil(me);
+  if (waiver)
+    items.push({ id: `promo:${waiver}`, kind: "system", title: t("ยกเว้นค่าคอม 2% ด้วยโค้ดพิเศษ"), body: t("ใช้ได้ถึง {date}", { date: shortDate(waiver) }), href: "/subscription", at: new Date(Date.parse(waiver) - 60 * 86_400_000).toISOString() });
+  for (const n of state.notifications.filter((x) => x.recipient === me)) {
+    items.push({ id: `local:${n.id}`, localId: n.id, kind: n.href?.startsWith("/groups") || n.href?.startsWith("/orders") ? "group" : "system", title: n.title, body: n.body, href: n.href, at: n.at, read: n.read });
+  }
+  return items
+    .map((item) => ({ ...item, read: item.read || read.has(item.id) }))
+    .sort((a, b) => (a.kind === "payment") !== (b.kind === "payment") ? (a.kind === "payment" ? -1 : 1) : Date.parse(b.at || 0) - Date.parse(a.at || 0));
+}
+const unreadNoteCount = () => notificationFeed().filter((n) => !n.read).length;
+/** Red or amber toast once a day for payments due today, tomorrow or overdue. */
+function remindDuePayments() {
+  const me = state.user?.id;
+  if (!me) return;
+  const today = new Date().toDateString();
+  const key = `harnkhong-reminded:${me}:${today}`;
+  let shown;
+  try {
+    shown = new Set(JSON.parse(localStorage.getItem(key) || "[]"));
+  } catch {
+    return;
+  }
+  const fresh = paymentReminders(state.groups, me).filter((r) => (r.rejected || r.level !== "upcoming") && !shown.has(r.id));
+  if (!fresh.length) return;
+  const urgent = fresh.filter((r) => r.rejected || r.level === "today" || r.level === "overdue");
+  const first = (urgent[0] || fresh[0]);
+  const more = fresh.length > 1 ? ` ${t("และอีก {count} รายการ", { count: fresh.length - 1 })}` : "";
+  const message = `${reminderCopy(first).title}: ${first.groupName} ${money(first.amount)}${more}`;
+  if (urgent.length) alertError(message);
+  else alertWarning(message);
+  fresh.forEach((r) => shown.add(r.id));
+  try {
+    localStorage.setItem(key, JSON.stringify([...shown]));
+  } catch {
+    /* ignore */
+  }
+}
+function noteItem(n) {
+  const kind = NOTE_KINDS.find(([k]) => k === n.kind);
+  return `<button type="button" class="note-item ${n.read ? "" : "unread"} ${n.tone ? `tone-${n.tone}` : ""}" data-action="open-note" data-id="${escape(n.id)}" data-href="${escape(n.href || "/notifications")}"${n.localId ? ` data-local="${escape(n.localId)}"` : ""}><span class="note-icon kind-${n.kind}">${icon(n.tone === "urgent" ? "alert-circle" : kind?.[2] || "bell", 20)}</span><span class="note-text"><b>${escape(n.title)}</b><small>${escape(n.body || "")}</small>${n.at && n.kind !== "payment" ? `<time>${escape(dateTime(n.at))}</time>` : ""}</span>${n.read ? "" : '<i class="note-dot" aria-hidden="true"></i>'}</button>`;
+}
 function notifications() {
   if (!requireAuth("/notifications"))
     return authRequiredView(
       t("การแจ้งเตือน"),
       t("เข้าสู่ระบบเพื่อดูการแจ้งเตือนกิจกรรมและยอดสมาชิก"),
     );
-  const notes = state.notifications.filter(
-    (n) => n.recipient === state.user.id,
-  );
-  return `${title(t("การแจ้งเตือน"), t("เหตุการณ์ในกลุ่มและข้อความจำลองของคุณ"))}<div class="narrow">${notes.length ? notes.map((n) => `<button class="notification ${n.read ? "" : "unread"}" data-action="open-notice" data-id="${n.id}"><span class="notice-dot"></span><span><b>${escape(n.title)}</b><small>${escape(n.body)}</small></span>${icon("arrow", 18)}</button>`).join("") : `<div class="empty"><h2>${t("ยังไม่มีการแจ้งเตือน")}</h2><p>${t("เมื่อมีสมาชิกหรือยอดเปลี่ยน รายการจะปรากฏที่นี่")}</p>${a("/explore", t("สำรวจสินค้า"), "button secondary")}</div>`}</div>`;
+  const feed = notificationFeed();
+  const tab = new URLSearchParams(location.search).get("tab") || "all";
+  const shown = tab === "all" ? feed : feed.filter((n) => n.kind === tab);
+  const count = (kind) => feed.filter((n) => (kind === "all" || n.kind === kind) && !n.read).length;
+  const tabs = [["all", "ทั้งหมด", "bell"], ...NOTE_KINDS]
+    .map(([kind, label]) => `<a href="/notifications${kind === "all" ? "" : `?tab=${kind}`}" data-link class="note-tab${tab === kind ? " active" : ""}"${tab === kind ? ' aria-current="page"' : ""}>${t(label)}${count(kind) ? `<i>${count(kind)}</i>` : ""}</a>`)
+    .join("");
+  const unread = feed.filter((n) => !n.read).length;
+  return `${title(t("การแจ้งเตือน"), t("การชำระเงิน การเปลี่ยนแปลงของกลุ่ม และข่าวจากระบบ"))}<div class="narrow notes-page"><div class="note-toolbar"><nav class="note-tabs" aria-label="${t("หมวดการแจ้งเตือน")}">${tabs}</nav>${unread ? `<button type="button" class="button subtle note-read-all" data-action="read-all-notes">${t("อ่านทั้งหมด")}</button>` : ""}</div>${shown.length ? `<div class="note-list">${shown.map(noteItem).join("")}</div>` : `<div class="empty"><h2>${t("ยังไม่มีการแจ้งเตือน")}</h2><p>${t(tab === "payment" ? "ไม่มียอดค้างชำระ เมื่อกลุ่มพร้อมจ่ายจะแจ้งที่นี่" : "เมื่อมีความเคลื่อนไหว รายการจะปรากฏที่นี่")}</p>${a("/explore", t("สำรวจกลุ่ม"), "button secondary")}</div>`}<p class="note-footnote">${t("แจ้งเตือนการชำระล่วงหน้า 1 วันและในวันครบกำหนด ประวัติรอบเก็บไว้ {days} วัน", { days: HISTORY_KEEP_DAYS })}</p></div>`;
 }
 function subscriptionStatusSection(sub, { current, pending, active, endsAt, daysLeft }) {
   const payments = sub?.payments || [];
@@ -3940,11 +4096,7 @@ function render() {
   document.documentElement.dataset.theme = theme;
   document.body.classList.toggle("mobile-menu-open", mobileMenuOpen);
   const headerScrolled = window.scrollY > 10;
-  const unread = state.user
-    ? state.notifications.filter(
-        (n) => n.recipient === state.user.id && !n.read,
-      ).length
-    : 0;
+  const unread = state.user ? unreadNoteCount() : 0;
   const nav = [
     ["/", "home", t("หน้าแรก")],
     ["/explore", "search", t("หารของ")],
@@ -4031,6 +4183,7 @@ function render() {
   animatePricing();
   revealWhySection();
   revealHomeSections();
+  remindDuePayments();
 
   const footerMount = document.querySelector("#interactive-footer");
   if (footerMount) {
@@ -5673,6 +5826,22 @@ document.addEventListener("click", async (e) => {
       }
       if (!copied) throw new Error(t("คัดลอกลิงก์ไม่สำเร็จ"));
       alertMessage(t("คัดลอกลิงก์เชิญแล้ว"));
+    } else if (action === "open-note") {
+      markNotesRead([btn.dataset.id]);
+      const local = btn.dataset.local && state.notifications.find((x) => x.id === btn.dataset.local);
+      if (local) {
+        local.read = true;
+        save();
+      }
+      go(btn.dataset.href || "/notifications");
+    } else if (action === "read-all-notes") {
+      const feed = notificationFeed();
+      markNotesRead(feed.map((n) => n.id));
+      state.notifications.forEach((n) => {
+        if (n.recipient === state.user?.id) n.read = true;
+      });
+      save();
+      render();
     } else if (action === "open-notice") {
       const n = state.notifications.find((x) => x.id === id);
       n.read = true;

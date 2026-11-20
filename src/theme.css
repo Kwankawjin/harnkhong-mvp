@@ -2250,3 +2250,217 @@ body:has(.chat-workspace) .site-footer {
 .account-pay-chip.bad { background: #fde4e1; color: #a5281b; }
 :root[data-theme="dark"] .account-pay-chip.ok { background: #12392a; color: #7ee2a8; }
 :root[data-theme="dark"] .account-pay-chip.bad { background: #3d1712; color: #ff9d90; }
+
+/* ---------- Notifications: three kinds, payment reminders first ---------- */
+.notes-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+.note-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.note-tabs {
+  display: flex;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px;
+  overflow-x: auto;
+  border: 1px solid var(--hk-line);
+  border-radius: 999px;
+  background: var(--hk-paper);
+  scrollbar-width: none;
+}
+.note-tab {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  color: var(--hk-muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.note-tab.active {
+  background: var(--hk-deep);
+  color: #fff;
+}
+.note-tab i {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #d93025;
+  color: #fff;
+  font-size: 0.7rem;
+  font-style: normal;
+  line-height: 20px;
+  text-align: center;
+}
+.note-list {
+  display: grid;
+  gap: 8px;
+}
+.note-item {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--hk-line);
+  border-radius: 16px;
+  background: var(--hk-paper);
+  color: var(--hk-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--hk-fast) var(--hk-ease), transform var(--hk-fast) var(--hk-ease);
+}
+.note-item:hover {
+  border-color: var(--hk-sky-300);
+  transform: translateY(-1px);
+}
+.note-item.unread {
+  background: var(--hk-sky-50);
+}
+.note-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--hk-sky-100);
+  color: var(--hk-deep);
+}
+.note-icon.kind-payment {
+  background: var(--hk-sun-soft);
+  color: var(--hk-sun-ink);
+}
+.note-icon.kind-system {
+  background: #ece8ff;
+  color: #5b3fc4;
+}
+.note-text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.note-text b {
+  color: var(--hk-navy);
+  font-size: 0.95rem;
+}
+.note-text small {
+  color: var(--hk-muted);
+  font-size: 0.82rem;
+}
+.note-text time {
+  color: var(--hk-muted);
+  font-size: 0.72rem;
+}
+.note-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--hk-blue);
+}
+/* Due today, overdue or a rejected slip: red. Due tomorrow: amber. */
+.note-item.tone-urgent {
+  border-color: #f3b4ad;
+  background: #fff1ef;
+}
+.note-item.tone-urgent .note-icon {
+  background: #d93025;
+  color: #fff;
+}
+.note-item.tone-urgent .note-text b {
+  color: #b3261e;
+}
+.note-item.tone-soon {
+  border-color: #f2d48a;
+  background: var(--hk-sun-soft);
+}
+:root[data-theme="dark"] .note-item.tone-urgent {
+  border-color: #6d2a24;
+  background: #2c1412;
+}
+:root[data-theme="dark"] .note-item.tone-urgent .note-text b {
+  color: #ff9d90;
+}
+.note-footnote {
+  margin: 0;
+  color: var(--hk-muted);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+/* Due line on a group's payment panel */
+.due-notice {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--hk-sky-100);
+  color: var(--hk-ink);
+  font-size: 0.86rem;
+}
+.due-notice svg {
+  flex: none;
+}
+.due-notice.tone-urgent {
+  background: #fde4e1;
+  color: #b3261e;
+}
+.due-notice.tone-soon {
+  background: var(--hk-sun-soft);
+  color: var(--hk-sun-ink);
+}
+:root[data-theme="dark"] .due-notice.tone-urgent {
+  background: #3d1712;
+  color: #ff9d90;
+}
+
+/* Cycle history, last 3 days */
+.cycle-feed {
+  margin-top: 14px;
+}
+.cycle-feed h3 {
+  margin: 0 0 8px;
+  color: var(--hk-navy);
+  font-size: 0.92rem;
+}
+.cycle-feed ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cycle-feed li {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-left: 3px solid var(--hk-blue);
+  border-radius: 0 10px 10px 0;
+  background: var(--hk-sky-50);
+  font-size: 0.84rem;
+}
+.cycle-feed time {
+  flex: none;
+  color: var(--hk-muted);
+  font-size: 0.75rem;
+}
