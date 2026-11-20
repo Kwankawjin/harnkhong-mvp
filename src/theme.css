@@ -2618,3 +2618,121 @@ body.has-test-banner {
 .sale-transfer {
   margin: 12px 0;
 }
+
+/* Receipt protection: shipping, automatic receipt, problem reports */
+.receipt-shipped,
+.receipt-countdown {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+  font-size: 0.9rem;
+}
+.receipt-countdown {
+  color: var(--hk-muted);
+}
+.receipt-note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.receipt-note.is-disputed {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+.receipt-note.is-refunded {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1e40af;
+}
+.receipt-owner {
+  margin: 12px 0;
+}
+.sale-status.is-problem { color: #b91c1c; background: #fef2f2; }
+.sale-ship-btn {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 0.85rem;
+}
+.sale-auto-note {
+  flex-basis: 100%;
+  color: var(--hk-muted);
+  font-size: 0.8rem;
+}
+.sale-auto-note.is-problem {
+  color: #b91c1c;
+}
+.test-only-btn {
+  border-style: dashed !important;
+  color: #b45309 !important;
+}
+.test-only-row {
+  display: grid;
+  gap: 8px;
+}
+.problem-dialog form {
+  display: grid;
+  gap: 12px;
+}
+.problem-reasons {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.problem-reasons label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.problem-dialog textarea {
+  min-height: 90px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--hk-sky-300);
+  border-radius: var(--hk-radius-control);
+  font: inherit;
+}
+.sale-page .group-member-row { flex-wrap: wrap; }
+.problem-dialog {
+  width: min(520px, calc(100vw - 32px));
+  padding: 0;
+  border: 0;
+  border-radius: 20px;
+  background: var(--hk-paper, #fff);
+  color: var(--hk-ink);
+}
+.problem-dialog form {
+  padding: 24px;
+}
+.problem-dialog .dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.problem-dialog .dialog-heading h2 {
+  margin: 0 0 4px;
+}
+.problem-dialog .dialog-heading p {
+  margin: 0;
+  color: var(--hk-muted);
+  font-size: 0.9rem;
+}
+.problem-dialog > form > label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+}
+.problem-dialog .dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

@@ -35,6 +35,11 @@ import {
   transferOwner,
   SEAT_MODE,
   UNIT_MODE,
+  AUTO_RECEIPT_DAYS,
+  receiptState,
+  receiptDone,
+  autoReceiptAt,
+  autoReceiptDaysLeft,
   saleMode,
   MAX_STOCK,
   seatPriced,
@@ -114,6 +119,8 @@ import {
   redeemSupabasePromo,
   loadSupabasePayoutAccount,
   saveSupabasePayoutQr,
+  markSupabaseShipped,
+  reportSupabaseProblem,
   saveSupabasePayoutAccount,
   openPayoutSlip,
 } from "./supabase-groups.js";
@@ -1980,7 +1987,7 @@ function monthlyGroupView(g, id, { isMember, isOwner, full, locked, estimate }) 
     ? `<section class="group-payment-panel cycle-panel" aria-labelledby="cycle-heading"><span class="chip">${t("รอบรายเดือน")}</span><h2 id="cycle-heading">${t("ยังไม่เริ่มรอบแรก")}</h2><p>${isOwner ? t("กดเริ่มรอบแรกเมื่อพร้อม สมาชิกที่อยู่ในกลุ่มตอนนั้นจะอยู่ในรอบแรก ที่นั่งว่างเจ้าของกลุ่มจ่ายแทน") : t("เจ้าของกลุ่มจะเริ่มรอบแรกเมื่อพร้อม แล้วทุกคนยืนยันยอดเดือนละครั้ง")}</p></section>`
     : `<section class="group-payment-panel cycle-panel" aria-labelledby="cycle-heading"><span class="chip">${t("รอบที่ {number}", { number: cycle.number })}</span><h2 id="cycle-heading">${t(cycleStatusLabel[cycle.status])}</h2><p>${t("{start} ถึง {end} ยอดของรอบนี้ล็อกแล้ว คนเข้าหรือออกระหว่างรอบไม่ทำให้ยอดเปลี่ยน", { start: shortDate(cycle.start), end: shortDate(cycle.end) })}</p>
       <div class="cycle-progress"><span>${t("ยืนยันแล้ว {done} / {count} คน", { done: Object.keys(cycle.confirmations).length, count: cycle.members.length })}</span><span>${t("ชำระแล้ว {done} / {count} คน", { done: cyclePayers(cycle).filter((id) => cycle.payments[id] === "verified").length, count: cyclePayers(cycle).length })}</span></div>${dueNotice(g)}
-      ${confirmed && me === cycle.ownerId ? ownerCyclePayout(cycle, g) : confirmed ? payment === "verified" ? `<p class="success-line">${icon("check", 18)} ${t("ชำระแล้ว")} ${money(myAmount)}</p>${cycle.receipts?.[me] ? `<p class="success-line">${icon("check", 18)} ${t("คุณยืนยันว่าได้รับสินค้าแล้ว")}</p>` : `<button class="button primary" data-action="confirm-cycle-receipt" data-id="${escape(id)}" data-cycle="${cycle.number}">${icon("check", 18)} ${t("ได้รับสินค้าหรือใช้งานได้แล้ว")}</button>`}` : payment === "reported" ? `<p class="summary-warning">${t(cyclePaymentLabel.reported)} ${money(myAmount)}</p>` : `<div class="cycle-pay"><h3>${payment === "rejected" ? t(cyclePaymentLabel.rejected) : t("โอนค่าเดือนนี้ {amount}", { amount: money(myAmount) })}</h3>${payment === "rejected" && cycle.rejections?.[me] ? `<p>${escape(cycle.rejections[me])}</p>` : ""}${paymentQr()}${cycleSlipForm(id, cycle.number)}</div>` : ""}
+      ${confirmed && me === cycle.ownerId ? ownerCyclePayout(cycle, g) + (supabaseConfigured ? ownerShipPanel({ shippedAt: groupShipment(g, cycle.number), openDisputes: openDisputeCount(g, cycle.number), shipAction: "mark-shipped", attrs: `data-id="${escape(id)}" data-cycle="${cycle.number}"` }) : "") : confirmed ? payment === "verified" ? `<p class="success-line">${icon("check", 18)} ${t("ชำระแล้ว")} ${money(myAmount)}</p>${receiptPanel({ state: receiptState({ received: Boolean(cycle.receipts?.[me]), shippedAt: groupShipment(g, cycle.number), dispute: myDispute(g, cycle.number) }), shippedAt: groupShipment(g, cycle.number), dispute: myDispute(g, cycle.number), confirmAction: "confirm-cycle-receipt", attrs: `data-id="${escape(id)}" data-cycle="${cycle.number}"`, shipLabel: "ผู้จัดกลุ่มแจ้งส่งมอบรอบนี้แล้ว" })}` : payment === "reported" ? `<p class="summary-warning">${t(cyclePaymentLabel.reported)} ${money(myAmount)}</p>` : `<div class="cycle-pay"><h3>${payment === "rejected" ? t(cyclePaymentLabel.rejected) : t("โอนค่าเดือนนี้ {amount}", { amount: money(myAmount) })}</h3>${payment === "rejected" && cycle.rejections?.[me] ? `<p>${escape(cycle.rejections[me])}</p>` : ""}${paymentQr()}${cycleSlipForm(id, cycle.number)}</div>` : ""}
       ${cycleHistoryList(g)}
       ${history ? `<details class="cycle-history"><summary>${t("รอบที่ผ่านมา")}</summary><ul>${history}</ul></details>` : ""}
     </section>`;
@@ -2135,7 +2142,7 @@ function groupPage(id) {
     ${isMember && !approved && !locked ? ownerSeat ? `<button class="button primary full summary-action-btn" data-action="approve-owner" data-id="${id}" data-revision="${g.revision}"><span>${t("ยืนยันยอดกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : `<button class="button primary full summary-action-btn" data-action="approve" data-id="${id}" data-revision="${g.revision}"><span>${t("ยืนยันยอด {amount}", { amount: money(alloc[me]) })}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${isMember && approved && !adminApproved ? `<div class="warning summary-warning"><span class="warning-icon">${icon("clock", 18)}</span><span>${full && allMembersApproved ? t("รอแอดมินอนุมัติยอดกลุ่ม") : t("คุณยืนยันยอดแล้ว รอสมาชิกครบ")}</span></div>` : ""}
     ${isMember && approved && adminApproved ? `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันยอดรอบนี้แล้ว")}</div>` : ""}
-    ${seatMode && !isOwner && paymentReport?.status === "verified" ? g.myReceipt ? `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันว่าได้รับสินค้าแล้ว")}</div>` : `<button class="button primary full summary-action-btn" data-action="confirm-receipt" data-id="${id}"><span>${t("ได้รับสินค้าแล้ว")}</span><span class="btn-arrow">${icon("check", 18)}</span></button><p class="summary-receipt-note">${t("กดเมื่อได้รับสินค้าหรือใช้งานแอปได้แล้ว เงินในกองกลางจะโอนให้เจ้าของกลุ่มเมื่อทุกคนยืนยันครบ")}</p>` : ""}
+    ${seatMode && !isOwner && paymentReport?.status === "verified" ? receiptPanel({ state: receiptState({ received: g.myReceipt, shippedAt: groupShipment(g), dispute: myDispute(g) }), shippedAt: groupShipment(g), dispute: myDispute(g), confirmAction: "confirm-receipt", attrs: `data-id="${id}"`, shipLabel: "ผู้จัดกลุ่มแจ้งส่งของแล้ว" }) : ""}
     ${isMember ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
     ${isMember && !isOwner && !locked ? `<button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${id}"><span class="summary-btn-left">${icon("back", 19)} <span>${t("ออกจากกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="edit-group" data-id="${id}"><span class="summary-btn-left">${icon("edit", 19)} <span>${t("แก้ไขกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
@@ -2150,7 +2157,7 @@ function groupPage(id) {
       summaryCard: view.summary, paymentSection: view.panel, paymentStatusCard: "", alloc, me, adminApproved });
   }
   const summaryCard = ownerSeat
-    ? `<div class="summary-card owner-payout-card"><small>${t("คุณจะได้รับเมื่อสมาชิกโอนครบ")}</small><strong>${money(payout.net)}</strong><dl class="owner-payout-lines"><div><dt>${units ? t("สมาชิกโอนรวม ({count} ส่วน)", { count: g.capacity - unitsOf(g, g.ownerId) }) : t("สมาชิกโอนรวม ({count} ที่นั่ง)", { count: g.capacity - 1 })}</dt><dd>${money(payout.gross)}</dd></div><div><dt>${myFeeWaiverUntil() ? t("ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)") : t("ค่าคอมแพลตฟอร์ม 2%")}</dt><dd>−${money(payout.commission)}</dd></div>${units && !unitsOf(g, g.ownerId) ? `<div><dt>${t("คุณไม่ได้ร่วมหาร (ขายอย่างเดียว)")}</dt><dd>${money(0)}</dd></div>` : `<div><dt>${units ? t("ส่วนของคุณเอง {count} ส่วน (ไม่ต้องโอน)", { count: unitsOf(g, g.ownerId) }) : t("ส่วนของคุณเอง (ไม่ต้องโอน)")}</dt><dd>${money(ownSeatShare)}</dd></div>`}</dl>${payoutAccountReminder()}${payoutsReceivedList(g)}<p>${t("สมาชิกโอนเข้ากองกลางของแพลตฟอร์ม คุณออกเงินซื้อสินค้าไปก่อน เมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ เงินจะโอนให้คุณหลังหักค่าคอม 2%")}</p>${actions}</div>`
+    ? `<div class="summary-card owner-payout-card"><small>${t("คุณจะได้รับเมื่อสมาชิกโอนครบ")}</small><strong>${money(payout.net)}</strong><dl class="owner-payout-lines"><div><dt>${units ? t("สมาชิกโอนรวม ({count} ส่วน)", { count: g.capacity - unitsOf(g, g.ownerId) }) : t("สมาชิกโอนรวม ({count} ที่นั่ง)", { count: g.capacity - 1 })}</dt><dd>${money(payout.gross)}</dd></div><div><dt>${myFeeWaiverUntil() ? t("ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)") : t("ค่าคอมแพลตฟอร์ม 2%")}</dt><dd>−${money(payout.commission)}</dd></div>${units && !unitsOf(g, g.ownerId) ? `<div><dt>${t("คุณไม่ได้ร่วมหาร (ขายอย่างเดียว)")}</dt><dd>${money(0)}</dd></div>` : `<div><dt>${units ? t("ส่วนของคุณเอง {count} ส่วน (ไม่ต้องโอน)", { count: unitsOf(g, g.ownerId) }) : t("ส่วนของคุณเอง (ไม่ต้องโอน)")}</dt><dd>${money(ownSeatShare)}</dd></div>`}</dl>${supabaseConfigured && full ? ownerShipPanel({ shippedAt: groupShipment(g), openDisputes: openDisputeCount(g), shipAction: "mark-shipped", attrs: `data-id="${id}"` }) : ""}${payoutAccountReminder()}${payoutsReceivedList(g)}<p>${t("สมาชิกโอนเข้ากองกลางของแพลตฟอร์ม คุณออกเงินซื้อสินค้าไปก่อน เมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ เงินจะโอนให้คุณหลังหักค่าคอม 2%")}</p>${actions}</div>`
     : `<div class="summary-card"><small>${isMember ? t("ยอดที่คุณต้องยืนยัน") : full || locked ? t("ประมาณต่อคนปัจจุบัน") : t("ยอดประมาณเมื่อเข้าร่วม")}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${units ? `<div class="summary-future-price"><span>${isMember ? t("ส่วนของคุณ") : t("ราคาต่อ 1 ส่วน")}</span><b>${isMember ? unitsLabel(g, me) : money(estimate)}</b></div>` : !full ? `<div class="summary-future-price"><span>${t("เมื่อครบ {count} คน", { count: g.capacity })}</span><b>${money(fullEstimate)} <small>${t("/คน")}</small></b></div>` : ""}<p>${isMember ? t("ยอดรอบที่ {revision}", { revision: g.revision }) + (approved ? adminApproved ? t(" · คุณยืนยันแล้ว") : full && allMembersApproved ? t(" · รอแอดมินอนุมัติยอดกลุ่ม") : t(" · คุณยืนยันแล้ว รอสมาชิกครบ") : t(" · กรุณาตรวจสอบก่อนยืนยัน")) : full || locked ? t("กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่") : t("ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง")}</p>${actions}${!full ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน")}</span></p>` : !allApproved(g) && !approved ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${allMembersApproved ? t("รอแอดมินอนุมัติยอดกลุ่ม") : t("รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด")}</span></p>` : ""}</div>`;
   const paymentStatusCard = ownerSeat ? "" : `<section class="group-payment-panel group-payment-status-card is-${paymentStatusState}" aria-labelledby="payment-status-heading"><span class="chip">${t("ชำระเงิน")}</span><h2 id="payment-status-heading">${t(paymentStatusCopy[0])}</h2><p>${escape(t(paymentStatusCopy[1]))}</p><strong>${money(paymentStatusAmount)}</strong><span>${t(paymentStatusCopy[2])}</span></section>`;
   return groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategories, status, full, remaining, isMember, isOwner, locked, costs, sum, seatMode, monthly,
@@ -2199,13 +2206,59 @@ function groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategorie
     </div>
   </div>`;
 }
+// ---------------------------------------------------------------- receipt protection UI
+/** Split groups: shipping record and my problem report for the group ("one") or a cycle number. */
+const groupShipment = (g, key = "one") => g.shipments?.[key]?.at || null;
+const myDispute = (g, key = "one") => (g.disputes || []).find((d) => d.user_id === state.user?.id && String(d.cycle) === String(key)) || null;
+const openDisputeCount = (g, key = "one") => (g.disputes || []).filter((d) => d.status === "open" && String(d.cycle) === String(key)).length;
+const longDate = (iso) => new Date(iso).toLocaleDateString(locale === "en" ? "en-GB" : "th-TH", { day: "numeric", month: "short", year: "numeric" });
+/**
+ * What a paying member/buyer sees after paying: shipping status, the automatic confirmation date,
+ * "received" and "report a problem". `attrs` go on both buttons (data-id, data-cycle, ...).
+ */
+function receiptPanel({ state: rs, shippedAt, dispute, confirmAction, attrs, shipLabel = "ผู้ขายแจ้งส่งของแล้ว" }) {
+  const shipped = shippedAt ? `<p class="receipt-shipped">${icon("truck", 16)} ${t(shipLabel)} ${longDate(shippedAt)}</p>` : "";
+  const confirmBtn = `<button class="button primary full summary-action-btn" data-action="${confirmAction}" ${attrs}><span>${t("ได้รับของแล้ว")}</span><span class="btn-arrow">${icon("check", 18)}</span></button>`;
+  const reportBtn = `<button class="button danger-soft full summary-action-btn" data-action="report-problem" ${attrs}><span class="summary-btn-left">${icon("alert-circle", 18)} <span>${t("แจ้งปัญหา")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>`;
+  if (rs === "received") return `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันว่าได้รับของแล้ว")}</div>`;
+  if (rs === "auto_received") return `${shipped}<div class="success-line">${icon("check", 18)} ${t("ยืนยันรับของอัตโนมัติแล้ว (ครบ {days} วันหลังส่งของ ไม่มีการแจ้งปัญหา)", { days: AUTO_RECEIPT_DAYS })}</div>`;
+  if (rs === "refunded") return `<div class="receipt-note is-refunded">${icon("info", 18)} <span>${t("ตัวกลางตัดสินคืนเงินให้คุณแล้ว")}${dispute?.resolution_note ? ` · ${escape(dispute.resolution_note)}` : ""}</span></div>`;
+  if (rs === "disputed") return `${shipped}<div class="receipt-note is-disputed">${icon("alert-circle", 18)} <span><strong>${t("แจ้งปัญหาแล้ว ตัวกลางพักเงินไว้")}</strong><br/>${t("ทีมงานกำลังตรวจสอบ เงินจะยังไม่ถึงผู้ขายจนกว่าจะตัดสิน")}${dispute?.reason ? `<br/><small>${t("ปัญหาที่แจ้ง")}: ${escape(dispute.reason)}</small>` : ""}</span></div>${confirmBtn}<p class="summary-receipt-note">${t("ถ้าปัญหาจบแล้วและได้รับของครบ กด “ได้รับของแล้ว” ได้เลย")}</p>`;
+  const countdown = rs === "shipped"
+    ? `<p class="receipt-countdown">${t("ถ้าไม่กดอะไร ระบบจะยืนยันรับของให้อัตโนมัติวันที่ {date} (อีก {days} วัน)", { date: longDate(autoReceiptAt(shippedAt)), days: autoReceiptDaysLeft(shippedAt) })}</p>`
+    : `<p class="receipt-countdown">${t("ยังไม่ได้ส่งของ · เงินของคุณอยู่กับตัวกลางจนกว่าคุณจะได้ของ")}</p>`;
+  return `${shipped}${countdown}${confirmBtn}${reportBtn}<p class="summary-receipt-note">${t("ของไม่มา ไม่ตรงปก หรือเสียหาย? กด “แจ้งปัญหา” ภายใน {days} วันหลังส่งของ ตัวกลางจะพักเงินไว้ก่อน", { days: AUTO_RECEIPT_DAYS })}</p>`;
+}
+/** What the seller/owner sees: a "shipped" button, then the auto-confirm date and any problem reports. */
+function ownerShipPanel({ shippedAt, openDisputes = 0, shipAction, attrs, canShip = true }) {
+  const problems = openDisputes
+    ? `<div class="receipt-note is-disputed">${icon("alert-circle", 18)} <span><strong>${t("มีผู้ซื้อแจ้งปัญหา {count} คน", { count: openDisputes })}</strong><br/>${t("ตัวกลางพักเงินไว้จนกว่าทีมงานจะตรวจสอบเสร็จ ลองคุยกับผู้ซื้อเพื่อแก้ปัญหา")}</span></div>`
+    : "";
+  if (shippedAt)
+    return `<div class="receipt-owner"><p class="receipt-shipped">${icon("truck", 16)} ${t("คุณแจ้งส่งของแล้ว")} ${longDate(shippedAt)}</p><p class="receipt-countdown">${t("ผู้ซื้อที่ไม่ได้แจ้งปัญหา จะถูกยืนยันรับของอัตโนมัติวันที่ {date}", { date: longDate(autoReceiptAt(shippedAt)) })}</p>${problems}</div>`;
+  return `<div class="receipt-owner">${canShip ? `<button class="button primary full summary-action-btn" data-action="${shipAction}" ${attrs}><span class="summary-btn-left">${icon("truck", 18)} <span>${t("แจ้งว่าส่งของแล้ว")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button><p class="summary-receipt-note">${t("กดเมื่อส่งของหรือส่งมอบสิทธิ์แล้ว ถ้าผู้ซื้อไม่แจ้งปัญหาภายใน {days} วัน ระบบจะยืนยันรับของให้อัตโนมัติและปล่อยเงินให้คุณ", { days: AUTO_RECEIPT_DAYS })}</p>` : ""}${problems}</div>`;
+}
+/** Dialog for reporting a problem; the submit button carries the same data attributes. */
+function problemDialog(attrs) {
+  return `<dialog id="problem-dialog" class="form-dialog problem-dialog" aria-labelledby="problem-title"><form method="dialog" id="problem-form" ${attrs}><div class="dialog-heading"><div><h2 id="problem-title">${t("แจ้งปัญหา")}</h2><p>${t("ตัวกลางจะพักเงินไว้ก่อน แล้วทีมงานจะติดต่อทั้งสองฝ่ายเพื่อตรวจสอบ")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><fieldset class="problem-reasons">${["ยังไม่ได้รับของ", "ของไม่ตรงตามที่ตกลง", "ของเสียหาย / ใช้งานไม่ได้", "ได้ไม่ครบจำนวน"].map((reason, i) => `<label><input type="radio" name="reasonType" value="${escape(reason)}" ${i === 0 ? "checked" : ""}/><span>${t(reason)}</span></label>`).join("")}</fieldset><label>${t("รายละเอียด")}<textarea name="reasonDetail" maxlength="800" placeholder="${t("เช่น สั่งไป 2 ชิ้น ได้มา 1 ชิ้น / รูปที่ได้รับ")}"></textarea></label><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("ส่งเรื่องให้ตัวกลาง")}</button></div></form></dialog>`;
+}
 const SALE_STATUS = {
   ordered: ["รอโอนเงิน", "is-waiting"],
   reported: ["แจ้งโอนแล้ว รอตัวกลางตรวจยอด", "is-waiting"],
-  paid: ["ตัวกลางรับเงินแล้ว รอส่งของ", "is-progress"],
+  waiting_shipment: ["ตัวกลางรับเงินแล้ว รอส่งของ", "is-progress"],
+  shipped: ["ส่งของแล้ว รอผู้ซื้อยืนยัน", "is-progress"],
   received: ["ผู้ซื้อได้รับของแล้ว", "is-done"],
+  auto_received: ["ยืนยันรับของอัตโนมัติแล้ว", "is-done"],
+  disputed: ["แจ้งปัญหา · เงินถูกพักไว้", "is-problem"],
+  refunded: ["ตัวกลางคืนเงินผู้ซื้อแล้ว", "is-problem"],
 };
-const saleStatus = (g, id) => g.salePayments?.[id] || "ordered";
+/** One sale order's state: payment first, then shipping and receipt (see receiptState). */
+function saleStatus(g, id) {
+  const paid = g.salePayments?.[id] || "ordered";
+  if (paid === "ordered" || paid === "reported") return paid;
+  const order = g.saleOrders?.[id] || {};
+  return receiptState({ received: paid === "received", shippedAt: order.shippedAt, dispute: order.dispute });
+}
 /** A sale listing: buyers pick a quantity and pay through the platform; the seller sees each order. */
 function salePage(g, p, id) {
   const me = state.user?.id;
@@ -2216,8 +2269,10 @@ function salePage(g, p, id) {
   const sold = takenUnits(g), left = openUnits(g);
   const soldOut = left === 0;
   const closed = g.status === "cancelled";
-  const payout = ownerPayout(buyers.map((buyer) => amounts[buyer])); // commission always applies to sales: promo codes are for split groups only
-  const released = ownerPayout(buyers.filter((buyer) => saleStatus(g, buyer) === "received").map((buyer) => amounts[buyer]));
+  const counted = buyers.filter((buyer) => saleStatus(g, buyer) !== "refunded");
+  const payout = ownerPayout(counted.map((buyer) => amounts[buyer])); // commission always applies to sales: promo codes are for split groups only
+  const released = ownerPayout(counted.filter((buyer) => receiptDone(saleStatus(g, buyer))).map((buyer) => amounts[buyer]));
+  const openProblems = buyers.filter((buyer) => saleStatus(g, buyer) === "disputed").length;
   const price = g.costs.product, delivery = g.costs.delivery;
   const image = p.images?.[0] || g.images?.[0];
   const statusChip = (buyer) => {
@@ -2226,17 +2281,18 @@ function salePage(g, p, id) {
   };
   const buyerRows = buyers.length
     ? buyers.map((buyer) => isSeller || buyer === me
-        ? `<div class="group-member-row"><span class="group-member-person"><span class="avatar small">${profileAvatarMarkup({ name: name(buyer), avatar: state.profiles?.[buyer]?.avatar || "" })}</span><span class="group-member-name"><strong>${escape(name(buyer))}${buyer === me ? ` (${t("คุณ")})` : ""}</strong><small class="member-units">${unitsLabel(g, buyer)}</small></span></span>${statusChip(buyer)}<b>${money(amounts[buyer])}</b></div>`
+        ? `<div class="group-member-row"><span class="group-member-person"><span class="avatar small">${profileAvatarMarkup({ name: name(buyer), avatar: state.profiles?.[buyer]?.avatar || "" })}</span><span class="group-member-name"><strong>${escape(name(buyer))}${buyer === me ? ` (${t("คุณ")})` : ""}</strong><small class="member-units">${unitsLabel(g, buyer)}</small></span></span>${statusChip(buyer)}<b>${money(amounts[buyer])}</b>${isSeller && saleStatus(g, buyer) === "waiting_shipment" ? `<button type="button" class="button primary sale-ship-btn" data-action="sale-mark-shipped" data-id="${id}" data-buyer="${escape(buyer)}">${icon("truck", 16)} ${t("ส่งของแล้ว")}</button>` : ""}${isSeller && saleStatus(g, buyer) === "shipped" ? `<small class="sale-auto-note">${t("ยืนยันอัตโนมัติ {date}", { date: longDate(autoReceiptAt(g.saleOrders[buyer].shippedAt)) })}</small>` : ""}${isSeller && saleStatus(g, buyer) === "disputed" ? `<small class="sale-auto-note is-problem">${t("ปัญหาที่แจ้ง")}: ${escape(g.saleOrders[buyer].dispute.reason)}</small>` : ""}</div>`
         : "").join("") + (!isSeller && buyers.some((buyer) => buyer !== me) ? `<p class="sale-privacy-note">${t("รายชื่อผู้ซื้อคนอื่นเห็นเฉพาะผู้ขาย")}</p>` : "")
     : `<p class="sale-privacy-note">${t("ยังไม่มีคนซื้อ")}</p>`;
-  const sellerCard = `<div class="summary-card owner-payout-card sale-seller-card"><small>${t("ยอดขายของคุณ")}</small><strong>${money(payout.net)}</strong><dl class="owner-payout-lines"><div><dt>${t("ขายแล้ว {sold} / {stock} ชิ้น", { sold, stock: g.capacity })}</dt><dd>${money(payout.gross)}</dd></div><div><dt>${t("ค่าคอมตัวกลาง 2%")}</dt><dd>−${money(payout.commission)}</dd></div><div class="is-total"><dt>${t("คุณจะได้รับ")}</dt><dd>${money(payout.net)}</dd></div><div><dt>${t("พร้อมโอนให้คุณแล้ว (ผู้ซื้อได้รับของ)")}</dt><dd>${money(released.net)}</dd></div></dl>${payoutAccountReminder()}<p>${t("ผู้ซื้อโอนเงินเข้าตัวกลาง เมื่อผู้ซื้อยืนยันว่าได้รับของ ตัวกลางจะโอนเงินให้คุณหลังหักค่าคอม 2% โค้ดยกเว้นค่าคอมใช้ไม่ได้กับการขาย")}</p>${!closed ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${id}"><span class="summary-btn-left">${icon("link", 18)} <span>${t("คัดลอกลิงก์ร้าน")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}</div>`;
+  const sellerCard = `<div class="summary-card owner-payout-card sale-seller-card"><small>${t("ยอดขายของคุณ")}</small><strong>${money(payout.net)}</strong><dl class="owner-payout-lines"><div><dt>${t("ขายแล้ว {sold} / {stock} ชิ้น", { sold, stock: g.capacity })}</dt><dd>${money(payout.gross)}</dd></div><div><dt>${t("ค่าคอมตัวกลาง 2%")}</dt><dd>−${money(payout.commission)}</dd></div><div class="is-total"><dt>${t("คุณจะได้รับ")}</dt><dd>${money(payout.net)}</dd></div><div><dt>${t("พร้อมโอนให้คุณแล้ว (ผู้ซื้อได้รับของ)")}</dt><dd>${money(released.net)}</dd></div></dl>${openProblems ? `<div class="receipt-note is-disputed">${icon("alert-circle", 18)} <span><strong>${t("มีผู้ซื้อแจ้งปัญหา {count} คน", { count: openProblems })}</strong><br/>${t("ตัวกลางพักเงินของคำสั่งซื้อนั้นไว้จนกว่าทีมงานจะตรวจสอบเสร็จ")}</span></div>` : ""}<p class="summary-receipt-note">${t("กด “ส่งของแล้ว” ที่ผู้ซื้อแต่ละคนเมื่อส่งของ ถ้าผู้ซื้อไม่แจ้งปัญหาภายใน {days} วัน ระบบจะยืนยันรับของให้อัตโนมัติ", { days: AUTO_RECEIPT_DAYS })}</p>${payoutAccountReminder()}<p>${t("ผู้ซื้อโอนเงินเข้าตัวกลาง เมื่อผู้ซื้อยืนยันว่าได้รับของ ตัวกลางจะโอนเงินให้คุณหลังหักค่าคอม 2% โค้ดยกเว้นค่าคอมใช้ไม่ได้กับการขาย")}</p>${!closed ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${id}"><span class="summary-btn-left">${icon("link", 18)} <span>${t("คัดลอกลิงก์ร้าน")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}</div>`;
   const status = saleStatus(g, me);
   const buyerCard = bought
-    ? `<div class="summary-card sale-buyer-card"><small>${t("คำสั่งซื้อของคุณ")} · ${unitsLabel(g, me)}</small><strong>${money(amounts[me])}</strong><p>${t(SALE_STATUS[status][0])}</p>
+    ? `<div class="summary-card sale-buyer-card is-${status}"><small>${t("คำสั่งซื้อของคุณ")} · ${unitsLabel(g, me)}</small><strong>${money(amounts[me])}</strong><p class="sale-status-line">${t(SALE_STATUS[status][0])}</p>
         ${status === "ordered" ? `<div class="group-payment-transfer sale-transfer"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><small>${t("โอนเข้าบัญชีตัวกลาง")}</small><strong>${BANK_PAYMENT_RECIPIENT}</strong><small>${t("ยอดที่ต้องโอน")}</small><b>${money(amounts[me])}</b></div></div><button class="button primary full summary-action-btn" data-action="sale-report-paid" data-id="${id}"><span>${t("โอนแล้ว แจ้งตัวกลาง")}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button><button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${id}"><span class="summary-btn-left">${icon("back", 19)} <span>${t("ยกเลิกการซื้อ")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
         ${status === "reported" && testMode ? `<button class="button outline full summary-action-btn" data-action="sale-mark-paid" data-id="${id}"><span>${t("(ทดสอบ) ให้ตัวกลางยืนยันรับเงิน")}</span><span class="btn-arrow">${icon("check", 18)}</span></button>` : ""}
-        ${status === "paid" ? `<button class="button primary full summary-action-btn" data-action="sale-confirm-receipt" data-id="${id}"><span>${t("ได้รับของแล้ว")}</span><span class="btn-arrow">${icon("check", 18)}</span></button><p class="summary-receipt-note">${t("กดเมื่อได้รับของแล้ว ตัวกลางจะโอนเงินให้ผู้ขาย")}</p>` : ""}
-        ${status === "received" ? `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันว่าได้รับของแล้ว")}</div>` : ""}
+        ${!["ordered", "reported"].includes(status) ? receiptPanel({ state: status, shippedAt: g.saleOrders?.[me]?.shippedAt, dispute: g.saleOrders?.[me]?.dispute, confirmAction: "sale-confirm-receipt", attrs: `data-id="${id}"` }) : ""}
+        ${testMode && status === "shipped" ? `<button class="button outline full summary-action-btn test-only-btn" data-action="sale-skip-days" data-id="${id}"><span>${t("(ทดสอบ) ข้ามเวลาไป {days} วัน", { days: AUTO_RECEIPT_DAYS })}</span><span class="btn-arrow">${icon("clock", 18)}</span></button>` : ""}
+        ${testMode && status === "disputed" ? `<div class="test-only-row"><button class="button outline summary-action-btn test-only-btn" data-action="sale-admin-resolve" data-outcome="released" data-id="${id}">${t("(ทดสอบ) แอดมินปล่อยเงินให้ผู้ขาย")}</button><button class="button outline summary-action-btn test-only-btn" data-action="sale-admin-resolve" data-outcome="refunded" data-id="${id}">${t("(ทดสอบ) แอดมินคืนเงินผู้ซื้อ")}</button></div>` : ""}
       </div>`
     : `<div class="summary-card sale-buy-card"><small>${t("ราคาต่อชิ้น")}</small><strong>${money(price)}</strong><p>${t("ค่าส่ง {amount} ต่อคำสั่งซื้อ", { amount: money(delivery) })}</p>${soldOut || closed ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("สินค้าหมดแล้ว")}</span></p>` : a(`/groups/${id}/join`, `<span>${t("ซื้อเลย")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn")}<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("จ่ายผ่านตัวกลาง เงินถึงผู้ขายเมื่อคุณยืนยันว่าได้รับของ")}</span></div></div>`;
   return `<div class="group-page sale-page">
@@ -5975,6 +6031,46 @@ document.addEventListener("click", async (e) => {
       const url = await openPayoutSlip(path);
       if (win) win.location.href = url;
       else location.href = url;
+    } else if (action === "report-problem") {
+      document.querySelector("#problem-dialog")?.remove();
+      const attrs = [["id", btn.dataset.id], ["cycle", btn.dataset.cycle]].filter(([, v]) => v).map(([k, v]) => `data-${k}="${escape(v)}"`).join(" ");
+      document.body.insertAdjacentHTML("beforeend", problemDialog(attrs));
+      const dialog = document.querySelector("#problem-dialog");
+      dialog.addEventListener("close", () => dialog.remove(), { once: true });
+      dialog.showModal();
+      return;
+    } else if (action === "mark-shipped") {
+      const current = group(id);
+      if (!current || current.ownerId !== state.user?.id) throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      if (!confirm(t("ยืนยันว่าส่งของหรือส่งมอบสิทธิ์ให้สมาชิกที่จ่ายแล้วทุกคนแล้วใช่ไหม? ถ้าไม่มีใครแจ้งปัญหาภายใน {days} วัน ระบบจะยืนยันรับของให้อัตโนมัติ", { days: AUTO_RECEIPT_DAYS })))
+        return;
+      if (!supabaseConfigured) throw new Error(t("ใช้ได้เมื่อเชื่อมต่อระบบชำระเงินจริง"));
+      const cycleNumber = btn.dataset.cycle ? Number(btn.dataset.cycle) : null;
+      await markSupabaseShipped(id, cycleNumber);
+      if (!(await refreshSupabaseGroups(actionSession))) return;
+      render();
+      alertMessage(t("แจ้งส่งของแล้ว ระบบจะยืนยันรับของอัตโนมัติใน {days} วันถ้าไม่มีปัญหา", { days: AUTO_RECEIPT_DAYS }));
+    } else if (action === "sale-mark-shipped" || action === "sale-skip-days" || action === "sale-admin-resolve") {
+      // Demo/test only: seller ships one order; test helpers jump the clock or play the admin.
+      const current = group(id);
+      if (!current || !saleMode(current)) throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      const buyer = btn.dataset.buyer || state.user?.id;
+      const order = { ...(current.saleOrders?.[buyer] || {}) };
+      if (action === "sale-mark-shipped") {
+        if (current.ownerId !== state.user?.id) throw Object.assign(new Error(), { code: "orderUnauthorized" });
+        if (!confirm(t("ยืนยันว่าส่งของให้ {name} แล้วใช่ไหม? ถ้าไม่มีการแจ้งปัญหาภายใน {days} วัน ระบบจะยืนยันรับของให้อัตโนมัติ", { name: name(buyer), days: AUTO_RECEIPT_DAYS }))) return;
+        order.shippedAt ||= new Date().toISOString();
+        notice(t("ผู้ขายส่งของแล้ว"), t("“{title}” ถูกส่งแล้ว ถ้ามีปัญหากดแจ้งปัญหาได้ภายใน {days} วัน", { title: current.name, days: AUTO_RECEIPT_DAYS }), `/groups/${id}`, buyer);
+      } else if (action === "sale-skip-days") {
+        if (!testMode || !order.shippedAt) return;
+        order.shippedAt = new Date(new Date(order.shippedAt).getTime() - AUTO_RECEIPT_DAYS * 86_400_000).toISOString();
+      } else {
+        if (!testMode || !order.dispute) return;
+        order.dispute = { ...order.dispute, status: btn.dataset.outcome === "refunded" ? "refunded" : "released", resolution_note: btn.dataset.outcome === "refunded" ? t("ทดสอบ: คืนเงินผู้ซื้อ") : t("ทดสอบ: ปล่อยเงินให้ผู้ขาย") };
+      }
+      updateGroup({ ...current, saleOrders: { ...current.saleOrders, [buyer]: order } });
+      render();
+      if (action === "sale-mark-shipped") alertMessage(t("แจ้งส่งของแล้ว"));
     } else if (action === "confirm-receipt") {
       const current = group(id);
       if (!current || !current.members.includes(state.user?.id) || current.ownerId === state.user.id)
@@ -6512,6 +6608,35 @@ document.addEventListener("input", (e) => {
 document.addEventListener("submit", async (e) => {
   const f = e.target,
     actionSession = activeSupabaseSession;
+  if (f.id === "problem-form") {
+    e.preventDefault();
+    const d = new FormData(f);
+    const reason = [d.get("reasonType"), String(d.get("reasonDetail") || "").trim()].filter(Boolean).join(" · ");
+    const id = f.dataset.id, cycleNumber = f.dataset.cycle ? Number(f.dataset.cycle) : null;
+    try {
+      const current = group(id);
+      if (!current || !current.members.includes(state.user?.id) || current.ownerId === state.user.id)
+        throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      if (saleMode(current)) {
+        const order = current.saleOrders?.[state.user.id] || {};
+        updateGroup({ ...current, saleOrders: { ...current.saleOrders, [state.user.id]: { ...order, dispute: { status: "open", reason, created_at: new Date().toISOString() } } } });
+        notice(t("ผู้ซื้อแจ้งปัญหา"), t("{name} แจ้งปัญหาคำสั่งซื้อ “{title}”: {reason}", { name: state.user.name, title: current.name, reason }), `/groups/${id}`, current.ownerId);
+      } else {
+        if (!supabaseConfigured) throw new Error(t("ใช้ได้เมื่อเชื่อมต่อระบบชำระเงินจริง"));
+        await reportSupabaseProblem(id, cycleNumber, reason);
+        if (!(await refreshSupabaseGroups(actionSession))) return;
+      }
+      f.closest("dialog")?.close();
+      render();
+      alertMessage(t("ส่งเรื่องแล้ว ตัวกลางพักเงินไว้และทีมงานจะติดต่อกลับ"));
+    } catch (err) {
+      const message = String(err?.message || "");
+      alertError(message.includes("already_received") ? t("ยืนยันรับของไปแล้ว แจ้งปัญหาไม่ได้ ติดต่อทีมงานผ่านแชทแทน")
+        : message.includes("problem_already_reported") ? t("คุณแจ้งปัญหานี้ไปแล้ว ทีมงานกำลังตรวจสอบ")
+        : supabaseConfigured ? authErrorMessage(err) : errorMessage(err));
+    }
+    return;
+  }
   if (
     ["mockup-login-form", "mockup-signup-form", "mockup-address-form", "mockup-reset-password-form"].includes(
       f.id,

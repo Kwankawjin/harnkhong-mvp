@@ -385,7 +385,8 @@ export function leaveGroup(group, userId) {
   if (saleMode(group)) {
     const approvals = Object.fromEntries(Object.entries(group.approvals || {}).filter(([id]) => id !== userId));
     const salePayments = Object.fromEntries(Object.entries(group.salePayments || {}).filter(([id]) => id !== userId));
-    return { ...group, ...patch, approvals, salePayments, status: "selling" };
+    const saleOrders = Object.fromEntries(Object.entries(group.saleOrders || {}).filter(([id]) => id !== userId));
+    return { ...group, ...patch, approvals, salePayments, saleOrders, status: "selling" };
   }
   if (group.billing === "monthly")
     // Leaving keeps this cycle's locked amounts; the member is left out from the next cycle.
@@ -427,4 +428,37 @@ export function approve(group, userId, revision) {
     approvals: { ...group.approvals, [userId]: revision },
   };
   return { ...next, status: allApproved(next) ? "ready" : "awaiting_approval" };
+}
+
+// ---------------------------------------------------------------- receipt protection
+/**
+ * Buyers and members are protected by the platform holding the money until they have the goods.
+ * The clock starts when the seller (group owner) marks the order as shipped: if the buyer neither
+ * confirms nor reports a problem within AUTO_RECEIPT_DAYS, receipt is confirmed automatically and
+ * the money can go to the seller. An open problem report freezes the money until an admin decides.
+ */
+export const AUTO_RECEIPT_DAYS = 7;
+const DAY_MS = 86_400_000;
+export const autoReceiptAt = (shippedAt) =>
+  shippedAt ? new Date(new Date(shippedAt).getTime() + AUTO_RECEIPT_DAYS * DAY_MS).toISOString() : null;
+/**
+ * Where one buyer's receipt stands:
+ * "waiting_shipment" (paid, seller has not shipped), "shipped" (clock running),
+ * "received" (buyer confirmed), "auto_received" (7 days passed without a problem),
+ * "disputed" (problem reported, money frozen), "refunded" (admin refunded the buyer).
+ */
+export function receiptState({ received = false, shippedAt = null, dispute = null, now = new Date() } = {}) {
+  if (received) return "received";
+  // An admin settles a problem report by releasing the money to the seller or refunding the buyer.
+  if (dispute?.status === "released") return "received";
+  if (dispute?.status === "refunded") return "refunded";
+  if (dispute) return "disputed";
+  if (!shippedAt) return "waiting_shipment";
+  return new Date(now).getTime() >= new Date(autoReceiptAt(shippedAt)).getTime() ? "auto_received" : "shipped";
+}
+export const receiptDone = (state) => state === "received" || state === "auto_received";
+/** Whole days left before the automatic confirmation (0 when due). */
+export function autoReceiptDaysLeft(shippedAt, now = new Date()) {
+  if (!shippedAt) return null;
+  return Math.max(0, Math.ceil((new Date(autoReceiptAt(shippedAt)).getTime() - new Date(now).getTime()) / DAY_MS));
 }

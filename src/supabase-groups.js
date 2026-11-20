@@ -61,6 +61,9 @@ export async function loadSupabaseGroups(client = supabase) {
   const myReceipts = new Set();
   const myPayouts = new Map();
   const cycleHistory = new Map();
+  // Shipping and problem reports (migration 20261120210000). Keys: "one" or the cycle number.
+  const shipments = new Map();
+  const disputes = new Map();
   if (memberIds.length && client.auth?.getSession) {
     const { data: sessionData, error: sessionError } =
       await client.auth.getSession();
@@ -90,6 +93,22 @@ export async function loadSupabaseGroups(client = supabase) {
         }
       } catch {
         /* no payouts table yet */
+      }
+      try {
+        const [shipResult, disputeResult] = await Promise.all([
+          client.from("group_shipments").select("group_id,cycle_number,shipped_at,note"),
+          client.from("group_disputes").select("id,group_id,cycle_number,user_id,reason,status,created_at,resolution_note"),
+        ]);
+        for (const row of shipResult?.error ? [] : shipResult?.data || []) {
+          if (!shipments.has(row.group_id)) shipments.set(row.group_id, {});
+          shipments.get(row.group_id)[row.cycle_number ?? "one"] = { at: row.shipped_at, note: row.note || "" };
+        }
+        for (const row of disputeResult?.error ? [] : disputeResult?.data || []) {
+          if (!disputes.has(row.group_id)) disputes.set(row.group_id, []);
+          disputes.get(row.group_id).push({ ...row, cycle: row.cycle_number ?? "one" });
+        }
+      } catch {
+        /* tables arrive with migration 20261120210000 */
       }
       // Cycle history (migration 20261120170000): the last 3 days, members only via RLS.
       try {
@@ -134,6 +153,8 @@ export async function loadSupabaseGroups(client = supabase) {
       myReceipt: myReceipts.has(bundle.group.id),
       payoutsReceived: myPayouts.get(bundle.group.id) || [],
       cycleHistory: cycleHistory.get(bundle.group.id) || [],
+      shipments: shipments.get(bundle.group.id) || {},
+      disputes: disputes.get(bundle.group.id) || [],
     })),
     names,
     listings: [
@@ -358,6 +379,18 @@ export async function reportSupabaseSubscriptionPayment(userId, file, transferre
 // ---------------------------------------------------------------- escrow and promo
 export async function confirmSupabaseReceipt(groupId) {
   const { data, error } = await supabase.rpc("confirm_group_receipt", { p_group: groupId });
+  if (error) throw error;
+  return data;
+}
+/** Owner: the goods were shipped / handed over. Starts the 7-day automatic receipt. */
+export async function markSupabaseShipped(groupId, cycleNumber = null, note = "") {
+  const { data, error } = await supabase.rpc("mark_group_shipped", { p_group: groupId, p_cycle_number: cycleNumber, p_note: note || null });
+  if (error) throw error;
+  return data;
+}
+/** Member: something is wrong with the order. Freezes the payout until an admin settles it. */
+export async function reportSupabaseProblem(groupId, cycleNumber, reason) {
+  const { data, error } = await supabase.rpc("report_group_problem", { p_group: groupId, p_cycle_number: cycleNumber, p_reason: reason });
   if (error) throw error;
   return data;
 }

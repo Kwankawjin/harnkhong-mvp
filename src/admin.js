@@ -400,9 +400,23 @@ function payoutsContent(rows) {
       owed ? `<button type="button" class="admin-primary" data-admin-action="record-payout" data-group-id="${escapeHtml(row.group_id)}" data-owner-id="${escapeHtml(row.owner_id)}" data-group-name="${escapeHtml(row.group_name)}" data-amount="${escapeHtml(formatMoney(row.owed_satang))}">แนบสลิป · บันทึกว่าโอนแล้ว</button>` : "",
       held ? `<button type="button" class="admin-danger" data-admin-action="release-payout" data-group-id="${escapeHtml(row.group_id)}" data-group-name="${escapeHtml(row.group_name)}" data-monthly="${row.billing_mode === "monthly" ? "1" : ""}">ปล่อยเงินก่อนยืนยันครบ</button>` : "",
     ].filter(Boolean).join("") || '<span class="admin-status good">โอนครบแล้ว</span>';
-    return `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>${escapeHtml(row.payments)} รายการที่ตรวจแล้ว${row.billing_mode === "monthly" ? " · รายเดือน" : ""}</small></td><td><strong>${escapeHtml(row.owner_name)}</strong><small>${escapeHtml(row.owner_email)}${row.commission_waived_now ? " · โค้ดยกเว้นค่าคอม" : ""}</small>${payoutAccountCell(row)}</td><td>${formatMoney(row.gross_satang)}</td><td>−${formatMoney(row.commission_satang)}</td><td>${formatMoney(row.held_satang)}</td><td>${formatMoney(row.paid_out_satang)}</td><td><strong>${formatMoney(row.owed_satang)}</strong></td><td><div class="admin-row-actions">${actions}</div></td></tr>`;
+    return `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>${escapeHtml(row.payments)} รายการที่ตรวจแล้ว${row.billing_mode === "monthly" ? " · รายเดือน" : ""}</small>${Number(row.open_disputes) ? `<span class="admin-status bad">แจ้งปัญหา ${escapeHtml(row.open_disputes)} เรื่อง · เงินถูกพัก</span>` : ""}${row.last_shipped_at ? `<small>ส่งของแล้ว ${formatDate(row.last_shipped_at)}</small>` : '<small>ยังไม่แจ้งส่งของ</small>'}</td><td><strong>${escapeHtml(row.owner_name)}</strong><small>${escapeHtml(row.owner_email)}${row.commission_waived_now ? " · โค้ดยกเว้นค่าคอม" : ""}</small>${payoutAccountCell(row)}</td><td>${formatMoney(row.gross_satang)}</td><td>−${formatMoney(row.commission_satang)}</td><td>${formatMoney(row.held_satang)}</td><td>${formatMoney(row.paid_out_satang)}</td><td><strong>${formatMoney(row.owed_satang)}</strong></td><td><div class="admin-row-actions">${actions}</div></td></tr>`;
   }).join("");
   return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>โอนให้เจ้าของกลุ่ม</h2><p>เงินในกองกลางโอนให้เจ้าของได้เมื่อสมาชิกที่จ่ายยืนยันรับสินค้าครบ หักค่าคอม 2% ของแต่ละยอด (ยกเว้นผู้ใช้โค้ดพิเศษ) ค้างโอนรวม ${formatMoney(total)}</p></div></div>${table(["กลุ่ม", "เจ้าของกลุ่ม", "สมาชิกโอนรวม", "ค่าคอม 2%", "รอยืนยันรับสินค้า", "โอนให้แล้ว", "พร้อมโอน", ""], body, "ยังไม่มียอดที่ต้องโอนให้เจ้าของกลุ่ม")}</section>`;
+}
+
+const disputeStatus = { open: "รอตัดสิน · เงินถูกพัก", released: "ปล่อยเงินให้เจ้าของแล้ว", refunded: "คืนเงินสมาชิกแล้ว" };
+/** Problem reports from members/buyers: release the payment to the owner or record a refund. */
+function disputesContent(rows) {
+  const body = rows.map((row) => {
+    const open = row.status === "open";
+    const actions = open
+      ? `<div class="admin-row-actions"><button type="button" class="admin-primary" data-admin-action="resolve-dispute" data-outcome="released" data-dispute-id="${escapeHtml(row.id)}" data-label="${escapeHtml(row.member_name)} · ${escapeHtml(row.group_name)}">ปล่อยเงินให้เจ้าของ</button><button type="button" class="admin-danger" data-admin-action="resolve-dispute" data-outcome="refunded" data-dispute-id="${escapeHtml(row.id)}" data-label="${escapeHtml(row.member_name)} · ${escapeHtml(row.group_name)}">คืนเงินสมาชิก</button></div>`
+      : `<small>${escapeHtml(row.resolution_note || "")}</small>`;
+    return `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>${row.cycle_number ? `รอบที่ ${escapeHtml(row.cycle_number)} · ` : ""}เจ้าของ ${escapeHtml(row.owner_name)}</small><small>${row.shipped_at ? `แจ้งส่งของ ${formatDate(row.shipped_at)}` : "ยังไม่แจ้งส่งของ"}</small></td><td><strong>${escapeHtml(row.member_name)}</strong><small>${escapeHtml(row.member_email)}</small></td><td>${escapeHtml(row.reason)}<small>${formatDate(row.created_at)}</small></td><td><span class="admin-status ${open ? "bad" : "good"}">${escapeHtml(disputeStatus[row.status] || row.status)}</span></td><td>${actions}</td></tr>`;
+  }).join("");
+  const openCount = rows.filter((row) => row.status === "open").length;
+  return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>แจ้งปัญหาจากผู้ซื้อ ${openCount ? `(${openCount} เรื่องรอตัดสิน)` : ""}</h2><p>เงินของกลุ่มหรือรอบที่มีเรื่องเปิดอยู่จะถูกพักไว้ ระบบไม่ยืนยันรับของอัตโนมัติจนกว่าจะตัดสิน คุยกับทั้งสองฝ่ายก่อน แล้วเลือกปล่อยเงินให้เจ้าของ หรือคืนเงินสมาชิก (โอนคืนนอกแอป)</p></div></div>${table(["กลุ่ม", "ผู้แจ้ง", "ปัญหา", "สถานะ", "ตัดสิน"], body, "ยังไม่มีการแจ้งปัญหา")}</section>`;
 }
 
 async function getSectionContent(section) {
@@ -419,7 +433,9 @@ async function getSectionContent(section) {
       const { data: signed } = await currentClient.storage.from("payout-qr").createSignedUrl(row.payout_qr_path, 600);
       return { ...row, payout_qr_url: signed?.signedUrl || null };
     }));
-    return payoutsContent(rows);
+    // Problem reports arrive with migration 20261120210000; the payout list works without them.
+    const { data: disputes, error: disputeError } = await currentClient.rpc("admin_disputes");
+    return (disputeError ? "" : disputesContent(disputes || [])) + payoutsContent(rows);
   }
   if (section === "billing") {
     // Read straight from the database (admin-only RPC), so this page works without redeploying admin-api.
@@ -703,6 +719,30 @@ document.addEventListener("click", async (event) => {
       feedback = "ปฏิเสธรายการแล้ว แจ้งเหตุผลให้สมาชิกทราบแล้ว";
     } catch (error) {
       feedback = error.message || "ปฏิเสธรายการไม่สำเร็จ";
+    } finally {
+      busy = false;
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+    }
+  } else if (action === "resolve-dispute") {
+    if (busy) return;
+    const outcome = button.dataset.outcome === "refunded" ? "refunded" : "released";
+    const note = prompt(outcome === "refunded"
+      ? `คืนเงินให้ ${button.dataset.label} — โอนคืนนอกแอปแล้วใช่ไหม? ระบุรายละเอียด (เช่น เลขอ้างอิงการโอนคืน)`
+      : `ปล่อยเงินของ ${button.dataset.label} ให้เจ้าของกลุ่ม — ระบุเหตุผล`, "");
+    if (note === null) return;
+    if (note.trim().length < 3) {
+      feedback = "กรุณาระบุรายละเอียดอย่างน้อย 3 ตัวอักษร";
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+      return;
+    }
+    busy = true;
+    button.disabled = true;
+    try {
+      const { error } = await currentClient.rpc("admin_resolve_dispute", { p_dispute: button.dataset.disputeId, p_outcome: outcome, p_note: note.trim() });
+      if (error) throw new Error(error.message || "ตัดสินไม่สำเร็จ");
+      feedback = outcome === "refunded" ? "บันทึกการคืนเงินแล้ว ยอดนี้ไม่นับเป็นเงินของเจ้าของ" : "ปล่อยเงินแล้ว";
+    } catch (error) {
+      feedback = error.message || "ตัดสินไม่สำเร็จ";
     } finally {
       busy = false;
       mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
