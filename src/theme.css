@@ -1071,8 +1071,12 @@ h3 {
     align-items: end;
   }
   .payout-account-form fieldset,
+  .payout-account-form .payout-qr-field,
   .payout-account-form .button {
     grid-column: 1 / -1;
+  }
+  .payout-account-form .payout-qr-controls {
+    flex: 0 1 360px;
   }
 }
 
