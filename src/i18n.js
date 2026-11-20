@@ -2,6 +2,8 @@ import { assertSatang } from "./domain.js";
 
 // Thai source text is the key for UI copy; stored/user-entered content is never translated.
 const labels = {
+  "โอนให้คุณแล้ว": "Paid to you",
+  "ดูสลิป": "View slip",
   "ยังไม่มีบัญชีรับเงิน": "No payout account yet",
   "เพิ่มบัญชีรับเงิน": "Add a payout account",
   "บัญชีรับเงิน": "Payout account",

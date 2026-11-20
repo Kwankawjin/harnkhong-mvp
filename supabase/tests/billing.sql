@@ -277,14 +277,27 @@ begin
   v := public.admin_payouts();
   assert exists (select 1 from jsonb_array_elements(v) e where (e->>'group_id')::uuid = m and (e->>'owed_satang')::bigint = 10265),
     'the admin sees the money owed to the owner';
-  perform public.admin_record_payout(m, 'โอนผ่าน PromptPay');
+  begin
+    perform public.admin_record_payout(m, 'no-slip', 'โอนผ่าน PromptPay');
+    raise exception 'recorded a payout without a slip';
+  exception when check_violation then null; end;
+  slip := owner::text || '/' || m::text || '/' || gen_random_uuid()::text || '.jpg';
+  insert into storage.objects(bucket_id, name, owner) values ('payout-slips', slip, admin);
+  perform public.admin_record_payout(m, slip, 'โอนผ่าน PromptPay');
+  reset role;
+  assert (select slip_path = slip from public.group_payouts where group_id = m), 'the payout keeps its slip';
+  set local role authenticated;
   assert exists (select 1 from jsonb_array_elements(public.admin_payouts()) e
                  where (e->>'group_id')::uuid = m and (e->>'owed_satang')::bigint = 0 and (e->>'paid_out_satang')::bigint = 10265),
     'a recorded payout clears what is owed';
+  slip := owner::text || '/' || m::text || '/' || gen_random_uuid()::text || '.jpg';
+  insert into storage.objects(bucket_id, name, owner) values ('payout-slips', slip, admin);
   begin
-    perform public.admin_record_payout(m);
+    perform public.admin_record_payout(m, slip);
     raise exception 'paid the same money twice';
-  exception when check_violation then null; end;
+  exception when check_violation then
+    if sqlerrm <> 'nothing_owed' then raise; end if;
+  end;
   v := public.admin_list_groups();
   assert jsonb_array_length(v) >= 2 and (v->0) ? 'member_count' and (v->0) ? 'owner_email',
     'the admin sees every group with counts and the owner email';

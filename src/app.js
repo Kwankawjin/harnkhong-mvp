@@ -99,6 +99,7 @@ import {
   redeemSupabasePromo,
   loadSupabasePayoutAccount,
   saveSupabasePayoutAccount,
+  openPayoutSlip,
 } from "./supabase-groups.js";
 import {
   createOrder,
@@ -496,6 +497,12 @@ function payoutAccountSummary(account) {
   return account.method === "promptpay"
     ? `PromptPay ${maskNumber(account.promptpay_id)} · ${escape(account.account_name)}`
     : `${escape(account.bank_name)} ${maskNumber(account.account_number)} · ${escape(account.account_name)}`;
+}
+/** Transfers the admin already made to this owner, each with its slip. */
+function payoutsReceivedList(g) {
+  const rows = g.payoutsReceived || [];
+  if (!rows.length) return "";
+  return `<div class="payouts-received"><strong>${t("โอนให้คุณแล้ว")}</strong><ul>${rows.map((row) => `<li><span>${shortDate(row.paid_at)}</span><b>${money(Number(row.net_satang))}</b>${row.slip_path ? `<button type="button" class="link-button" data-action="open-payout-slip" data-path="${escape(row.slip_path)}">${t("ดูสลิป")}</button>` : ""}</li>`).join("")}</ul></div>`;
 }
 /** Reminder shown to group owners who have money coming but no account to receive it. */
 const payoutAccountReminder = () =>
@@ -1768,19 +1775,19 @@ function monthlyGroupView(g, id, { isMember, isOwner, full, locked, estimate }) 
     ? `<section class="group-payment-panel cycle-panel" aria-labelledby="cycle-heading"><span class="chip">${t("รอบรายเดือน")}</span><h2 id="cycle-heading">${t("ยังไม่เริ่มรอบแรก")}</h2><p>${isOwner ? t("กดเริ่มรอบแรกเมื่อพร้อม สมาชิกที่อยู่ในกลุ่มตอนนั้นจะอยู่ในรอบแรก ที่นั่งว่างเจ้าของกลุ่มจ่ายแทน") : t("เจ้าของกลุ่มจะเริ่มรอบแรกเมื่อพร้อม แล้วทุกคนยืนยันยอดเดือนละครั้ง")}</p></section>`
     : `<section class="group-payment-panel cycle-panel" aria-labelledby="cycle-heading"><span class="chip">${t("รอบที่ {number}", { number: cycle.number })}</span><h2 id="cycle-heading">${t(cycleStatusLabel[cycle.status])}</h2><p>${t("{start} ถึง {end} ยอดของรอบนี้ล็อกแล้ว คนเข้าหรือออกระหว่างรอบไม่ทำให้ยอดเปลี่ยน", { start: shortDate(cycle.start), end: shortDate(cycle.end) })}</p>
       <div class="cycle-progress"><span>${t("ยืนยันแล้ว {done} / {count} คน", { done: Object.keys(cycle.confirmations).length, count: cycle.members.length })}</span><span>${t("ชำระแล้ว {done} / {count} คน", { done: cyclePayers(cycle).filter((id) => cycle.payments[id] === "verified").length, count: cyclePayers(cycle).length })}</span></div>
-      ${confirmed && me === cycle.ownerId ? ownerCyclePayout(cycle) : confirmed ? payment === "verified" ? `<p class="success-line">${icon("check", 18)} ${t("ชำระแล้ว")} ${money(myAmount)}</p>${cycle.receipts?.[me] ? `<p class="success-line">${icon("check", 18)} ${t("คุณยืนยันว่าได้รับสินค้าแล้ว")}</p>` : `<button class="button primary" data-action="confirm-cycle-receipt" data-id="${escape(id)}" data-cycle="${cycle.number}">${icon("check", 18)} ${t("ได้รับสินค้าหรือใช้งานได้แล้ว")}</button>`}` : payment === "reported" ? `<p class="summary-warning">${t(cyclePaymentLabel.reported)} ${money(myAmount)}</p>` : `<div class="cycle-pay"><h3>${payment === "rejected" ? t(cyclePaymentLabel.rejected) : t("โอนค่าเดือนนี้ {amount}", { amount: money(myAmount) })}</h3>${payment === "rejected" && cycle.rejections?.[me] ? `<p>${escape(cycle.rejections[me])}</p>` : ""}${paymentQr()}${cycleSlipForm(id, cycle.number)}</div>` : ""}
+      ${confirmed && me === cycle.ownerId ? ownerCyclePayout(cycle, g) : confirmed ? payment === "verified" ? `<p class="success-line">${icon("check", 18)} ${t("ชำระแล้ว")} ${money(myAmount)}</p>${cycle.receipts?.[me] ? `<p class="success-line">${icon("check", 18)} ${t("คุณยืนยันว่าได้รับสินค้าแล้ว")}</p>` : `<button class="button primary" data-action="confirm-cycle-receipt" data-id="${escape(id)}" data-cycle="${cycle.number}">${icon("check", 18)} ${t("ได้รับสินค้าหรือใช้งานได้แล้ว")}</button>`}` : payment === "reported" ? `<p class="summary-warning">${t(cyclePaymentLabel.reported)} ${money(myAmount)}</p>` : `<div class="cycle-pay"><h3>${payment === "rejected" ? t(cyclePaymentLabel.rejected) : t("โอนค่าเดือนนี้ {amount}", { amount: money(myAmount) })}</h3>${payment === "rejected" && cycle.rejections?.[me] ? `<p>${escape(cycle.rejections[me])}</p>` : ""}${paymentQr()}${cycleSlipForm(id, cycle.number)}</div>` : ""}
       ${history ? `<details class="cycle-history"><summary>${t("รอบที่ผ่านมา")}</summary><ul>${history}</ul></details>` : ""}
     </section>`;
   return { summary, panel };
 }
 /** The owner's side of a monthly cycle: what members transfer and what reaches the owner after 2%. */
-function ownerCyclePayout(cycle) {
+function ownerCyclePayout(cycle, g = null) {
   const payers = cyclePayers(cycle);
   const waived = Boolean(myFeeWaiverUntil());
   const expected = ownerPayout(payers.map((id) => cycle.amounts[id]), { waived });
   const received = ownerPayout(payers.filter((id) => cycle.payments[id] === "verified").map((id) => cycle.amounts[id]), { waived });
   const receiptsDone = payers.filter((id) => cycle.receipts?.[id]).length;
-  return `<div class="cycle-pay owner-cycle-payout"><h3>${t("คุณไม่ต้องโอน")}</h3><p>${t("สมาชิกโอนเข้ากองกลางของแพลตฟอร์ม คุณออกเงินซื้อสินค้าไปก่อน เมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ เงินจะโอนให้คุณหลังหักค่าคอม 2%")}</p><dl class="owner-payout-lines"><div><dt>${t("สมาชิกโอนรวม")}</dt><dd>${money(expected.gross)}</dd></div><div><dt>${waived ? t("ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)") : t("ค่าคอมแพลตฟอร์ม 2%")}</dt><dd>−${money(expected.commission)}</dd></div><div class="is-total"><dt>${t("คุณจะได้รับรอบนี้")}</dt><dd>${money(expected.net)}</dd></div><div><dt>${t("ตรวจแล้ว")}</dt><dd>${money(received.net)}</dd></div><div><dt>${t("ยืนยันรับสินค้า")}</dt><dd>${receiptsDone} / ${payers.length}</dd></div></dl>${payoutAccountReminder()}<p>${cycleReleased(cycle) ? t("สมาชิกยืนยันรับครบแล้ว แอดมินจะโอนเงินรอบนี้ให้คุณ") : t("เงินอยู่ในกองกลางจนกว่าสมาชิกที่จ่ายยืนยันว่าได้รับสินค้าครบ")}</p></div>`;
+  return `<div class="cycle-pay owner-cycle-payout"><h3>${t("คุณไม่ต้องโอน")}</h3><p>${t("สมาชิกโอนเข้ากองกลางของแพลตฟอร์ม คุณออกเงินซื้อสินค้าไปก่อน เมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ เงินจะโอนให้คุณหลังหักค่าคอม 2%")}</p><dl class="owner-payout-lines"><div><dt>${t("สมาชิกโอนรวม")}</dt><dd>${money(expected.gross)}</dd></div><div><dt>${waived ? t("ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)") : t("ค่าคอมแพลตฟอร์ม 2%")}</dt><dd>−${money(expected.commission)}</dd></div><div class="is-total"><dt>${t("คุณจะได้รับรอบนี้")}</dt><dd>${money(expected.net)}</dd></div><div><dt>${t("ตรวจแล้ว")}</dt><dd>${money(received.net)}</dd></div><div><dt>${t("ยืนยันรับสินค้า")}</dt><dd>${receiptsDone} / ${payers.length}</dd></div></dl>${payoutAccountReminder()}${g ? payoutsReceivedList(g) : ""}<p>${cycleReleased(cycle) ? t("สมาชิกยืนยันรับครบแล้ว แอดมินจะโอนเงินรอบนี้ให้คุณ") : t("เงินอยู่ในกองกลางจนกว่าสมาชิกที่จ่ายยืนยันว่าได้รับสินค้าครบ")}</p></div>`;
 }
 function paymentQr() {
   return `<figure class="cycle-qr"><img src="/images/bank-payment-qr.webp" alt="${t("QR บัญชีรับชำระเงิน")}" width="180" height="180" loading="lazy"/><figcaption>${t("สแกนเพื่อโอน แล้วแนบสลิป")}</figcaption></figure>`;
@@ -1910,7 +1917,7 @@ function groupPage(id) {
       summaryCard: view.summary, paymentSection: view.panel, paymentStatusCard: "", alloc, me, adminApproved });
   }
   const summaryCard = ownerSeat
-    ? `<div class="summary-card owner-payout-card"><small>${t("คุณจะได้รับเมื่อสมาชิกโอนครบ")}</small><strong>${money(payout.net)}</strong><dl class="owner-payout-lines"><div><dt>${t("สมาชิกโอนรวม")}</dt><dd>${money(payout.gross)}</dd></div><div><dt>${myFeeWaiverUntil() ? t("ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)") : t("ค่าคอมแพลตฟอร์ม 2%")}</dt><dd>−${money(payout.commission)}</dd></div><div><dt>${t("ส่วนของคุณเอง (ไม่ต้องโอน)")}</dt><dd>${money(alloc[me])}</dd></div></dl>${payoutAccountReminder()}<p>${t("สมาชิกโอนเข้ากองกลางของแพลตฟอร์ม คุณออกเงินซื้อสินค้าไปก่อน เมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ เงินจะโอนให้คุณหลังหักค่าคอม 2%")}</p>${actions}</div>`
+    ? `<div class="summary-card owner-payout-card"><small>${t("คุณจะได้รับเมื่อสมาชิกโอนครบ")}</small><strong>${money(payout.net)}</strong><dl class="owner-payout-lines"><div><dt>${t("สมาชิกโอนรวม")}</dt><dd>${money(payout.gross)}</dd></div><div><dt>${myFeeWaiverUntil() ? t("ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)") : t("ค่าคอมแพลตฟอร์ม 2%")}</dt><dd>−${money(payout.commission)}</dd></div><div><dt>${t("ส่วนของคุณเอง (ไม่ต้องโอน)")}</dt><dd>${money(alloc[me])}</dd></div></dl>${payoutAccountReminder()}${payoutsReceivedList(g)}<p>${t("สมาชิกโอนเข้ากองกลางของแพลตฟอร์ม คุณออกเงินซื้อสินค้าไปก่อน เมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ เงินจะโอนให้คุณหลังหักค่าคอม 2%")}</p>${actions}</div>`
     : `<div class="summary-card"><small>${isMember ? t("ยอดที่คุณต้องยืนยัน") : full || locked ? t("ประมาณต่อคนปัจจุบัน") : t("ยอดประมาณเมื่อเข้าร่วม")}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full ? `<div class="summary-future-price"><span>${t("เมื่อครบ {count} คน", { count: g.capacity })}</span><b>${money(fullEstimate)} <small>${t("/คน")}</small></b></div>` : ""}<p>${isMember ? t("ยอดรอบที่ {revision}", { revision: g.revision }) + (approved ? adminApproved ? t(" · คุณยืนยันแล้ว") : full && allMembersApproved ? t(" · รอแอดมินอนุมัติยอดกลุ่ม") : t(" · คุณยืนยันแล้ว รอสมาชิกครบ") : t(" · กรุณาตรวจสอบก่อนยืนยัน")) : full || locked ? t("กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่") : t("ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง")}</p>${actions}${!full ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน")}</span></p>` : !allApproved(g) && !approved ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${allMembersApproved ? t("รอแอดมินอนุมัติยอดกลุ่ม") : t("รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด")}</span></p>` : ""}</div>`;
   const paymentStatusCard = ownerSeat ? "" : `<section class="group-payment-panel group-payment-status-card is-${paymentStatusState}" aria-labelledby="payment-status-heading"><span class="chip">${t("ชำระเงิน")}</span><h2 id="payment-status-heading">${t(paymentStatusCopy[0])}</h2><p>${escape(t(paymentStatusCopy[1]))}</p><strong>${money(paymentStatusAmount)}</strong><span>${t(paymentStatusCopy[2])}</span></section>`;
   return groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategories, status, full, remaining, isMember, isOwner, locked, costs, sum, seatMode, monthly,
@@ -5323,6 +5330,14 @@ document.addEventListener("click", async (e) => {
         alertMessage(t("บันทึกการชำระแล้ว (โหมดเดโม)"));
       }
       render();
+    } else if (action === "open-payout-slip") {
+      const path = btn.dataset.path || "";
+      if (!supabaseConfigured || !path.startsWith(`${state.user?.id}/`))
+        throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      const win = window.open("about:blank", "_blank");
+      const url = await openPayoutSlip(path);
+      if (win) win.location.href = url;
+      else location.href = url;
     } else if (action === "confirm-receipt") {
       const current = group(id);
       if (!current || !current.members.includes(state.user?.id) || current.ownerId === state.user.id)

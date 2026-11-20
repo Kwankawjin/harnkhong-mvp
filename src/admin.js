@@ -379,7 +379,7 @@ function payoutsContent(rows) {
     const owed = Number(row.owed_satang) > 0;
     const held = Number(row.held_satang) > 0;
     const actions = [
-      owed ? `<button type="button" class="admin-primary" data-admin-action="record-payout" data-group-id="${escapeHtml(row.group_id)}" data-group-name="${escapeHtml(row.group_name)}" data-amount="${escapeHtml(formatMoney(row.owed_satang))}">บันทึกว่าโอนแล้ว</button>` : "",
+      owed ? `<button type="button" class="admin-primary" data-admin-action="record-payout" data-group-id="${escapeHtml(row.group_id)}" data-owner-id="${escapeHtml(row.owner_id)}" data-group-name="${escapeHtml(row.group_name)}" data-amount="${escapeHtml(formatMoney(row.owed_satang))}">แนบสลิป · บันทึกว่าโอนแล้ว</button>` : "",
       held ? `<button type="button" class="admin-danger" data-admin-action="release-payout" data-group-id="${escapeHtml(row.group_id)}" data-group-name="${escapeHtml(row.group_name)}" data-monthly="${row.billing_mode === "monthly" ? "1" : ""}">ปล่อยเงินก่อนยืนยันครบ</button>` : "",
     ].filter(Boolean).join("") || '<span class="admin-status good">โอนครบแล้ว</span>';
     return `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>${escapeHtml(row.payments)} รายการที่ตรวจแล้ว${row.billing_mode === "monthly" ? " · รายเดือน" : ""}</small></td><td><strong>${escapeHtml(row.owner_name)}</strong><small>${escapeHtml(row.owner_email)}${row.commission_waived_now ? " · โค้ดยกเว้นค่าคอม" : ""}</small>${payoutAccountCell(row)}</td><td>${formatMoney(row.gross_satang)}</td><td>−${formatMoney(row.commission_satang)}</td><td>${formatMoney(row.held_satang)}</td><td>${formatMoney(row.paid_out_satang)}</td><td><strong>${formatMoney(row.owed_satang)}</strong></td><td><div class="admin-row-actions">${actions}</div></td></tr>`;
@@ -717,15 +717,40 @@ document.addEventListener("click", async (event) => {
   } else if (action === "record-payout") {
     if (busy) return;
     const groupId = button.dataset.groupId;
-    if (!confirm(`โอน ${button.dataset.amount} ให้เจ้าของกลุ่ม “${button.dataset.groupName}” แล้วใช่ไหม? ระบบจะบันทึกว่ายอดนี้โอนแล้ว`)) return;
+    const ownerId = button.dataset.ownerId;
+    if (!confirm(`โอน ${button.dataset.amount} ให้เจ้าของกลุ่ม “${button.dataset.groupName}” แล้วใช่ไหม? ขั้นต่อไปให้เลือกรูปสลิปการโอน`)) return;
+    // The slip is required: pick it right away, still inside the click.
+    const file = await new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/jpeg,image/png,image/webp";
+      input.addEventListener("change", () => resolve(input.files?.[0] || null), { once: true });
+      input.addEventListener("cancel", () => resolve(null), { once: true });
+      input.click();
+    });
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 8 * 1024 * 1024) {
+      feedback = "สลิปต้องเป็นรูป JPG, PNG หรือ WebP ไม่เกิน 8 MB";
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+      return;
+    }
     const note = prompt("หมายเหตุการโอน (ไม่บังคับ) เช่น เลขอ้างอิงหรือช่องทางที่โอน", "") ?? "";
     busy = true;
     button.disabled = true;
-    button.textContent = "กำลังบันทึก…";
+    button.textContent = "กำลังอัปโหลดสลิป…";
+    const extension = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" }[file.type];
+    const slipPath = `${ownerId}/${groupId}/${crypto.randomUUID()}.${extension}`;
     try {
-      const { error } = await currentClient.rpc("admin_record_payout", { p_group: groupId, p_note: note.trim() || null });
-      if (error) throw new Error(String(error.message || "").includes("nothing_owed") ? "ไม่มียอดค้างโอนของกลุ่มนี้แล้ว" : billingErrorMessage(error));
-      feedback = `บันทึกการโอนให้เจ้าของกลุ่ม “${button.dataset.groupName}” แล้ว`;
+      const { error: uploadError } = await currentClient.storage.from("payout-slips").upload(slipPath, file, { contentType: file.type, upsert: false });
+      if (uploadError) throw new Error(String(uploadError.message || "").toLowerCase().includes("bucket not found")
+        ? "ยังไม่มีที่เก็บสลิปโอนให้เจ้าของ กรุณารัน migration 20261120150000_payout_slips.sql"
+        : `อัปโหลดสลิปไม่สำเร็จ: ${uploadError.message}`);
+      const { error } = await currentClient.rpc("admin_record_payout", { p_group: groupId, p_slip_path: slipPath, p_note: note.trim() || null });
+      if (error) {
+        await currentClient.storage.from("payout-slips").remove([slipPath]);
+        throw new Error(String(error.message || "").includes("nothing_owed") ? "ไม่มียอดค้างโอนของกลุ่มนี้แล้ว" : billingErrorMessage(error));
+      }
+      feedback = `บันทึกการโอนให้เจ้าของกลุ่ม “${button.dataset.groupName}” พร้อมสลิปแล้ว`;
     } catch (error) {
       feedback = error.message || "บันทึกการโอนไม่สำเร็จ";
     } finally {

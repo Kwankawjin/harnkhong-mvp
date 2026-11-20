@@ -1071,3 +1071,37 @@ h3 {
     grid-column: 1 / -1;
   }
 }
+
+.payouts-received {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #15803d 8%, var(--hk-paper));
+}
+.payouts-received ul {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.payouts-received li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+.payouts-received li b {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--hk-blue);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}

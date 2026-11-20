@@ -59,6 +59,7 @@ export async function loadSupabaseGroups(client = supabase) {
   const memberIds = [...new Set(Object.keys(names))];
   const paymentReportsByGroup = new Map();
   const myReceipts = new Set();
+  const myPayouts = new Map();
   if (memberIds.length && client.auth?.getSession) {
     const { data: sessionData, error: sessionError } =
       await client.auth.getSession();
@@ -79,6 +80,16 @@ export async function loadSupabaseGroups(client = supabase) {
         })(),
       ]);
       for (const row of receiptResult.data || []) myReceipts.add(row.group_id);
+      // Payouts to me as an owner (RLS returns only mine); none before migration 20261120120000.
+      try {
+        const payoutResult = await client.from("group_payouts").select("group_id,net_satang,paid_at,note,slip_path").eq("owner_id", userId).order("paid_at", { ascending: false });
+        for (const row of payoutResult?.data || []) {
+          if (!myPayouts.has(row.group_id)) myPayouts.set(row.group_id, []);
+          myPayouts.get(row.group_id).push(row);
+        }
+      } catch {
+        /* no payouts table yet */
+      }
       if (profileResult.error) throw profileResult.error;
       if (paymentResult.error) throw paymentResult.error;
       const currentRevisions = new Map(
@@ -105,6 +116,7 @@ export async function loadSupabaseGroups(client = supabase) {
       ...bundle.group,
       paymentReport: paymentReportsByGroup.get(bundle.group.id) || null,
       myReceipt: myReceipts.has(bundle.group.id),
+      payoutsReceived: myPayouts.get(bundle.group.id) || [],
     })),
     names,
     listings: [
@@ -361,4 +373,10 @@ export async function saveSupabasePayoutAccount({ method, accountName, promptpay
   });
   if (error) throw error;
   return data;
+}
+
+export async function openPayoutSlip(path) {
+  const { data, error } = await supabase.storage.from("payout-slips").createSignedUrl(path, 300);
+  if (error) throw error;
+  return data.signedUrl;
 }
