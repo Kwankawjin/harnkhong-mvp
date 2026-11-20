@@ -3032,7 +3032,7 @@ function myOrdersPage() {
  */
 function myMoneySummary(userId = state.user?.id) {
   const mine = state.groups.filter((g) => g.members.includes(userId));
-  const summary = { groups: mine.length, owned: 0, due: 0, pending: 0, paid: 0, received: 0, entries: [] };
+  const summary = { groups: mine.length, owned: 0, due: 0, waiting: 0, pending: 0, pendingCount: 0, paid: 0, received: 0, entries: [] };
   for (const g of mine) {
     if (g.ownerId === userId) {
       summary.owned += 1;
@@ -3048,7 +3048,7 @@ function myMoneySummary(userId = state.user?.id) {
       const amount = Number(cycle.amounts[userId]) || 0;
       const status = cycle.payments[userId];
       if (status === "verified") summary.paid += amount;
-      else if (status === "reported") summary.pending += amount;
+      else if (status === "reported") { summary.pending += amount; summary.pendingCount += 1; }
       else if (cycle.status !== "closed") summary.due += amount;
       summary.entries.push({ group: g, amount, status: status || "due", at: cycle.start, cycle: cycle.number });
       continue;
@@ -3057,9 +3057,13 @@ function myMoneySummary(userId = state.user?.id) {
     const amount = Number(report?.amount_satang ?? shares(g)[userId]) || 0;
     const full = g.members.length === g.capacity;
     if (report?.status === "verified") summary.paid += amount;
-    else if (report?.status === "reported") summary.pending += amount;
+    else if (report?.status === "reported") { summary.pending += amount; summary.pendingCount += 1; }
     else if (full && allApproved(g)) summary.due += amount;
-    else continue;
+    else {
+      // Not full or not everyone confirmed yet: my seat price, due once the group is ready.
+      summary.waiting += amount;
+      continue;
+    }
     summary.entries.push({ group: g, amount, status: report?.status || "due", at: report?.reported_at });
   }
   summary.entries.sort((x, y) => Date.parse(y.at || 0) - Date.parse(x.at || 0));
@@ -3129,7 +3133,7 @@ function profile() {
           <div class="account-profile-line"><span class="avatar large">${avatar}</span><div class="account-profile-identity"><h2 id="account-name">${escape(state.user.name)}</h2><p>${sellerRole ? t("บัญชีผู้ขายเดโม") : t(supabaseConfigured ? "สมาชิก" : "สมาชิกเดโม")}</p><div class="account-profile-actions"><button class="button outline" data-action="edit-profile">${icon("settings", 17)} ${t("ตั้งค่าบัญชี")}</button>${supabaseConfigured && ADMIN_ACCOUNT_EMAILS.includes(state.user.email?.trim().toLowerCase()) ? a("/admin", "Admin", "button outline") : ""}${supabaseConfigured ? `<button class="button subtle" data-action="logout">${t("ออกจากระบบ")}</button>` : ""}</div></div></div>
           <div class="account-demo-note">${icon("shield", 21)}<div><strong>${t("ความปลอดภัยของเว็บไซต์")}</strong><p>${t(supabaseConfigured ? "ข้อมูลส่วนตัวและการทำรายการของคุณได้รับการปกป้อง เพื่อให้ใช้งานได้อย่างปลอดภัยและมั่นใจ" : "บัญชีตัวอย่างเก็บข้อมูลไว้ในเบราว์เซอร์นี้เท่านั้น")}</p></div></div>
         </section>
-        <section class="account-card account-summary" aria-labelledby="account-summary-title"><div class="account-card-heading"><div><h2 id="account-summary-title">${t("สรุปข้อมูลของฉัน")}</h2><p>${t("ยอดเงินจากทุกกลุ่มที่คุณอยู่")}</p></div>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button subtle")}</div><div class="account-summary-grid"><div class="account-summary-tile blue"><span class="account-summary-icon">${icon("users", 22)}</span><div><span>${t("กลุ่มที่เข้าร่วม")}</span><strong>${mySums.groups}</strong><small>${mySums.owned ? t("เป็นหัวกลุ่ม {count} กลุ่ม", { count: mySums.owned }) : t("กลุ่ม")}</small></div></div><div class="account-summary-tile violet"><span class="account-summary-icon">${icon("calc", 22)}</span><div><span>${t("ต้องโอน")}</span><strong>${money(mySums.due)}</strong><small>${t("กลุ่มที่ครบและยืนยันยอดแล้ว")}</small></div></div><div class="account-summary-tile amber"><span class="account-summary-icon">${icon("clock", 22)}</span><div><span>${t("รอตรวจสลิป")}</span><strong>${money(mySums.pending)}</strong><small>${t("แอดมินกำลังตรวจ")}</small></div></div><div class="account-summary-tile mint"><span class="account-summary-icon">${icon("check", 22)}</span><div><span>${t("ชำระแล้ว")}</span><strong>${money(mySums.paid)}</strong><small>${mySums.owned ? t("ได้รับจากกลุ่ม {amount}", { amount: money(mySums.received) }) : t("ยืนยันโดยแอดมินแล้ว")}</small></div></div></div></section>
+        <section class="account-card account-summary" aria-labelledby="account-summary-title"><div class="account-card-heading"><div><h2 id="account-summary-title">${t("สรุปข้อมูลของฉัน")}</h2><p>${t("ยอดเงินจากทุกกลุ่มที่คุณอยู่")}</p></div>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button subtle")}</div><div class="account-summary-grid"><div class="account-summary-tile blue"><span class="account-summary-icon">${icon("users", 22)}</span><div><span>${t("กลุ่มที่เข้าร่วม")}</span><strong>${mySums.groups}</strong><small>${mySums.owned ? t("เป็นหัวกลุ่ม {count} กลุ่ม", { count: mySums.owned }) : t("กลุ่ม")}</small></div></div><div class="account-summary-tile violet"><span class="account-summary-icon">${icon("calc", 22)}</span><div><span>${t("ต้องโอน")}</span><strong>${money(mySums.due)}</strong><small>${mySums.waiting ? t("อีก {amount} เมื่อกลุ่มครบ", { amount: money(mySums.waiting) }) : t("กลุ่มที่ครบและยืนยันยอดแล้ว")}</small></div></div><div class="account-summary-tile amber"><span class="account-summary-icon">${icon("clock", 22)}</span><div><span>${t("รอตรวจสลิป")}</span><strong>${mySums.pendingCount}</strong><small>${t("สลิป · แอดมินกำลังตรวจ")}</small></div></div><div class="account-summary-tile mint"><span class="account-summary-icon">${icon("check", 22)}</span><div><span>${t("ชำระแล้ว")}</span><strong>${money(mySums.paid)}</strong><small>${mySums.owned ? t("ได้รับจากกลุ่ม {amount}", { amount: money(mySums.received) }) : t("ยืนยันโดยแอดมินแล้ว")}</small></div></div></div></section>
         ${
           supabaseConfigured
             ? ""
