@@ -141,8 +141,19 @@ function groupsContent(rows) {
   return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>กลุ่มหารของ</h2><p>ค้นหากลุ่มและดูรายการแยกตามหมวดหมู่</p></div><div class="admin-panel-actions"><button type="button" class="admin-secondary" data-admin-action="enable-group-alerts">${alerts}</button><button type="button" class="admin-secondary" data-admin-action="reload">รีเฟรช</button></div></div><div class="admin-group-filters"><label class="admin-group-filter admin-group-search">ค้นหาชื่อกลุ่ม<input type="search" data-admin-group-search value="${escapeHtml(groupSearchQuery)}" placeholder="พิมพ์ชื่อกลุ่มหรือสินค้า"/></label><label class="admin-group-filter admin-group-category-filter">หมวดหมู่<select data-admin-group-category><option value="all" ${groupCategoryFilter === "all" ? "selected" : ""}>ทุกหมวดหมู่</option>${categories.map((category) => `<option value="${escapeHtml(category)}" ${groupCategoryFilter === category ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}</select></label></div><div class="admin-group-results">${groupResultsContent(rows)}</div></section>`;
 }
 
+/** Group payment reports straight from the database, with signed slip links. */
+async function loadGroupPayments() {
+  const { data, error } = await currentClient.rpc("admin_group_payment_reports", { p_limit: 200 });
+  if (error) throw new Error(billingErrorMessage(error));
+  const rows = await Promise.all((data || []).map(async (row) => {
+    if (!row.slip_path) return { ...row, slip_url: null };
+    const { data: signed } = await currentClient.storage.from("group-payment-slips").createSignedUrl(row.slip_path, 600);
+    return { ...row, slip_url: signed?.signedUrl || null };
+  }));
+  return { rows };
+}
 async function pollPaymentReports() {
-  const { rows = [] } = await invoke("payments");
+  const { rows = [] } = await loadGroupPayments();
   const incoming = seenPaymentReportIds === null ? [] : rows.filter((row) => row.status === "reported" && !seenPaymentReportIds.has(row.id));
   seenPaymentReportIds = new Set(rows.map((row) => row.id));
   for (const row of incoming) {
@@ -333,6 +344,10 @@ function billingErrorMessage(error) {
     return "ฐานข้อมูลยังไม่มีฟังก์ชันของหน้านี้ กรุณารัน migration 20261120100000_admin_billing_rpcs.sql ใน Supabase SQL Editor";
   if (message.includes("admin_only")) return "บัญชีนี้ไม่มีสิทธิ์ผู้ดูแลระบบ ออกจากระบบแล้วเข้าใหม่อีกครั้ง";
   if (message.includes("payment_not_pending")) return "รายการนี้ถูกตรวจไปแล้ว";
+  if (message.includes("payment_report_not_pending")) return "รายการนี้ถูกตรวจไปแล้ว";
+  if (message.includes("stale_revision")) return "ยอดกลุ่มเปลี่ยนหลังสมาชิกแจ้งโอน ให้สมาชิกแจ้งโอนใหม่";
+  if (message.includes("payment_slip_missing")) return "ยังไม่มีสลิปแนบ จึงยืนยันรับเงินไม่ได้";
+  if (message.includes("invalid_rejection_note") || message.includes("rejection_note")) return "กรุณาระบุเหตุผล 3–500 ตัวอักษร";
   if (message.includes("subscription_payments") || message.includes("group_cycle"))
     return "ยังไม่มีตาราง Plus หรือรอบรายเดือน กรุณารัน migration 20261119140000_monthly_billing_and_plus.sql";
   return [error?.code, message].filter(Boolean).join(": ") || "โหลดข้อมูลไม่สำเร็จ";
@@ -419,7 +434,7 @@ async function getSectionContent(section) {
   }
   if (section === "payments") {
     const [{ rows: paymentRows = [] }, { rows: groupRows = [] }] = await Promise.all([
-      invoke("payments"),
+      loadGroupPayments(),
       loadAdminGroups(),
     ]);
     cachedPaymentReports = paymentRows;
@@ -649,7 +664,8 @@ document.addEventListener("click", async (event) => {
     button.disabled = true;
     button.textContent = "กำลังบันทึก…";
     try {
-      await invoke("verify-group-payment", { paymentId });
+      const { error } = await currentClient.rpc("admin_review_group_payment", { p_payment: paymentId, p_approve: true, p_note: null });
+      if (error) throw new Error(billingErrorMessage(error));
       feedback = "ยืนยันยอดรับเงินแล้ว";
       seenPaymentReportIds?.add(paymentId);
     } catch (error) {
@@ -674,7 +690,8 @@ document.addEventListener("click", async (event) => {
     button.disabled = true;
     button.textContent = "กำลังบันทึก…";
     try {
-      await invoke("reject-group-payment", { paymentId, rejectionNote });
+      const { error } = await currentClient.rpc("admin_review_group_payment", { p_payment: paymentId, p_approve: false, p_note: rejectionNote });
+      if (error) throw new Error(billingErrorMessage(error));
       feedback = "ปฏิเสธรายการแล้ว แจ้งเหตุผลให้สมาชิกทราบแล้ว";
     } catch (error) {
       feedback = error.message || "ปฏิเสธรายการไม่สำเร็จ";

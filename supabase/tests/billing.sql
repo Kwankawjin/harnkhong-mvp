@@ -522,3 +522,57 @@ begin
   assert n = 0, 'old history is deleted on the next change';
 end $$;
 rollback;
+
+-- Admin reviews group payment slips through RPCs (no Edge Function needed).
+begin;
+do $$
+declare
+  admin uuid := gen_random_uuid();
+  owner uuid := gen_random_uuid();
+  member uuid := gen_random_uuid();
+  g uuid;
+  slip text;
+  v jsonb;
+  pay uuid;
+  product jsonb := '{"type":"digital","title":"Netflix","category":"แอปพลิเคชันและเว็บไซต์"}';
+  form_details jsonb := jsonb_build_object('minimumMembers', 2, 'closesAt', (current_date + 7)::text);
+begin
+  insert into auth.users(id, aud, role, email, raw_app_meta_data)
+    select id, 'authenticated', 'authenticated', id::text || '@example.invalid', '{}'::jsonb from unnest(array[owner, member]) id;
+  insert into auth.users(id, aud, role, email, raw_app_meta_data) values (admin, 'authenticated', 'authenticated', 'admin@example.invalid', '{"role":"admin"}');
+  insert into public.profiles(id, display_name) values (owner, 'Owner'), (member, 'Member'), (admin, 'Admin')
+    on conflict (id) do update set display_name = excluded.display_name;
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  g := public.create_group_from_form(gen_random_uuid(), 'Slips', array['แอปพลิเคชันและเว็บไซต์'], '[]'::jsonb, 'public', 2, 0, 20000, product, form_details);
+  reset role;
+  perform set_config('request.jwt.claim.sub', member::text, true);
+  set local role authenticated;
+  perform public.join_group(g, gen_random_uuid(), null);
+  reset role;
+  slip := member::text || '/' || g::text || '/' || (select revision from public.groups where id = g)::text || '/' || gen_random_uuid()::text || '.png';
+  insert into storage.objects(bucket_id, name, owner) values ('group-payment-slips', slip, member);
+  insert into public.group_payment_reports(group_id, user_id, revision, amount_satang, status, slip_path, transferred_at)
+    values (g, member, (select revision from public.groups where id = g), 10000, 'reported', slip, now()) returning id into pay;
+
+  -- A member cannot list or review.
+  perform set_config('request.jwt.claims', json_build_object('sub', member, 'role', 'authenticated', 'app_metadata', '{}'::json)::text, true);
+  set local role authenticated;
+  begin
+    perform public.admin_group_payment_reports();
+    raise exception 'members must not list payments';
+  exception when insufficient_privilege then null;
+  end;
+  reset role;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', admin, 'role', 'authenticated', 'app_metadata', json_build_object('role', 'admin'))::text, true);
+  perform set_config('request.jwt.claim.sub', admin::text, true);
+  set local role authenticated;
+  v := public.admin_group_payment_reports();
+  assert exists (select 1 from jsonb_array_elements(v) e where (e->>'id')::uuid = pay and e->>'slip_path' = slip and e->>'member_name' = 'Member'),
+    'admin sees the report with its slip path';
+  v := public.admin_review_group_payment(pay, true, null);
+  reset role;
+  assert (select status = 'verified' from public.group_payment_reports where id = pay), 'admin approval verifies the payment';
+end $$;
+rollback;
