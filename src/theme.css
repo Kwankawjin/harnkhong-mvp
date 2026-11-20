@@ -2187,3 +2187,66 @@ body:has(.chat-workspace) .site-footer {
   width: 46px;
   height: 46px;
 }
+
+/* Account: real money summary */
+.account-summary-tile.amber .account-summary-icon {
+  background: var(--hk-sun-soft);
+  color: var(--hk-sun-ink);
+}
+.account-pay-list {
+  display: grid;
+  gap: 8px;
+}
+.account-pay-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border: 1px solid var(--hk-line);
+  border-radius: 14px;
+  color: var(--hk-ink);
+  text-decoration: none;
+  transition: border-color var(--hk-fast) var(--hk-ease), background-color var(--hk-fast) var(--hk-ease);
+}
+.account-pay-row:hover {
+  border-color: var(--hk-sky-300);
+  background: var(--hk-sky-50);
+}
+.account-pay-name,
+.account-pay-amount {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.account-pay-amount {
+  flex: none;
+  justify-items: end;
+}
+.account-pay-name b {
+  overflow: hidden;
+  color: var(--hk-navy);
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-pay-name small {
+  color: var(--hk-muted);
+  font-size: 0.75rem;
+}
+.account-pay-amount b {
+  color: var(--hk-navy);
+  font-size: 0.95rem;
+}
+.account-pay-chip {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.account-pay-chip.warn { background: var(--hk-sun-soft); color: var(--hk-sun-ink); }
+.account-pay-chip.info { background: var(--hk-sky-100); color: var(--hk-deep); }
+.account-pay-chip.ok { background: #dcf5e7; color: #116b3a; }
+.account-pay-chip.bad { background: #fde4e1; color: #a5281b; }
+:root[data-theme="dark"] .account-pay-chip.ok { background: #12392a; color: #7ee2a8; }
+:root[data-theme="dark"] .account-pay-chip.bad { background: #3d1712; color: #ff9d90; }

@@ -3026,6 +3026,54 @@ function myOrdersPage() {
     );
   return `<div class="account-page account-orders-page">${title(t("อัปเดตคำสั่งซื้อ"), t("รายการและสถานะการชำระเงินในโหมดเดโม"))}<section class="account-card"><div class="account-card-heading"><h2>${t("รายการทั้งหมด")}</h2>${a("/profile", t("กลับไปบัญชีของฉัน"), "button subtle")}</div>${orders.length ? `<div class="order-updates-grid">${orders.map(accountOrderRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีคำสั่งซื้อเดโม")}</strong><p>${t("เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่")}</p>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button outline")}</div>`}</section></div>`;
 }
+/**
+ * My money across every group I belong to, from the real records: payment reports for
+ * one-time groups, the current cycle for monthly groups, and payouts I received as an owner.
+ */
+function myMoneySummary(userId = state.user?.id) {
+  const mine = state.groups.filter((g) => g.members.includes(userId));
+  const summary = { groups: mine.length, owned: 0, due: 0, pending: 0, paid: 0, received: 0, entries: [] };
+  for (const g of mine) {
+    if (g.ownerId === userId) {
+      summary.owned += 1;
+      for (const payout of g.payoutsReceived || []) {
+        summary.received += Number(payout.net_satang) || 0;
+        summary.entries.push({ group: g, amount: Number(payout.net_satang) || 0, status: "received", at: payout.paid_at });
+      }
+      continue;
+    }
+    if (g.billing === "monthly") {
+      const cycle = currentCycle(g);
+      if (!cycle || !cycle.members.includes(userId)) continue;
+      const amount = Number(cycle.amounts[userId]) || 0;
+      const status = cycle.payments[userId];
+      if (status === "verified") summary.paid += amount;
+      else if (status === "reported") summary.pending += amount;
+      else if (cycle.status !== "closed") summary.due += amount;
+      summary.entries.push({ group: g, amount, status: status || "due", at: cycle.start, cycle: cycle.number });
+      continue;
+    }
+    const report = g.paymentReport;
+    const amount = Number(report?.amount_satang ?? shares(g)[userId]) || 0;
+    const full = g.members.length === g.capacity;
+    if (report?.status === "verified") summary.paid += amount;
+    else if (report?.status === "reported") summary.pending += amount;
+    else if (full && allApproved(g)) summary.due += amount;
+    else continue;
+    summary.entries.push({ group: g, amount, status: report?.status || "due", at: report?.reported_at });
+  }
+  summary.entries.sort((x, y) => Date.parse(y.at || 0) - Date.parse(x.at || 0));
+  return summary;
+}
+function moneyEntryRow(entry) {
+  const labels = { due: "ต้องโอน", reported: "รอตรวจสลิป", verified: "ชำระแล้ว", rejected: "สลิปไม่ผ่าน", received: "ได้รับเงินแล้ว" };
+  const tone = { due: "warn", reported: "info", verified: "ok", rejected: "bad", received: "ok" }[entry.status] || "info";
+  return a(
+    `/groups/${entry.group.id}`,
+    `<span class="account-pay-name"><b>${escape(entry.group.name)}</b><small>${entry.cycle ? t("รอบที่ {number}", { number: entry.cycle }) : entry.at ? shortDate(entry.at) : t("รอชำระ")}</small></span><span class="account-pay-amount"><b>${entry.status === "received" ? "+" : ""}${money(entry.amount)}</b><span class="account-pay-chip ${tone}">${t(labels[entry.status] || entry.status)}</span></span>`,
+    "account-pay-row",
+  );
+}
 function profile() {
   if (!requireAuth("/profile"))
     return authRequiredView(
@@ -3060,6 +3108,7 @@ function profile() {
     );
   const unpaidAmount = sumPayments(unpaid);
   const verifiedAmount = sumPayments(verified);
+  const mySums = myMoneySummary();
   const avatar = profileAvatarMarkup(state.user);
   const stat = (iconName, label, value, sub, tone) =>
     `<div class="account-stat"><span class="account-stat-icon ${tone}">${icon(iconName, 22)}</span><div><small>${label}</small><strong>${value}</strong><span>${sub}</span></div></div>`;
@@ -3080,7 +3129,7 @@ function profile() {
           <div class="account-profile-line"><span class="avatar large">${avatar}</span><div class="account-profile-identity"><h2 id="account-name">${escape(state.user.name)}</h2><p>${sellerRole ? t("บัญชีผู้ขายเดโม") : t(supabaseConfigured ? "สมาชิก" : "สมาชิกเดโม")}</p><div class="account-profile-actions"><button class="button outline" data-action="edit-profile">${icon("settings", 17)} ${t("ตั้งค่าบัญชี")}</button>${supabaseConfigured && ADMIN_ACCOUNT_EMAILS.includes(state.user.email?.trim().toLowerCase()) ? a("/admin", "Admin", "button outline") : ""}${supabaseConfigured ? `<button class="button subtle" data-action="logout">${t("ออกจากระบบ")}</button>` : ""}</div></div></div>
           <div class="account-demo-note">${icon("shield", 21)}<div><strong>${t("ความปลอดภัยของเว็บไซต์")}</strong><p>${t(supabaseConfigured ? "ข้อมูลส่วนตัวและการทำรายการของคุณได้รับการปกป้อง เพื่อให้ใช้งานได้อย่างปลอดภัยและมั่นใจ" : "บัญชีตัวอย่างเก็บข้อมูลไว้ในเบราว์เซอร์นี้เท่านั้น")}</p></div></div>
         </section>
-        <section class="account-card account-summary" aria-labelledby="account-summary-title"><div class="account-card-heading"><div><h2 id="account-summary-title">${t("สรุปข้อมูลของฉัน")}</h2><p>${t("ยอดยืนยันกลุ่มและคำสั่งซื้อโดยรวม")}</p></div>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button subtle")}</div><div class="account-summary-grid"><div class="account-summary-tile blue"><span class="account-summary-icon">${icon("users", 22)}</span><div><span>${t("กลุ่มที่เข้าร่วม")}</span><strong>${mine.length}</strong><small>${t("กลุ่ม")}</small></div></div><div class="account-summary-tile mint"><span class="account-summary-icon">${icon("calc", 22)}</span><div><span>${t("คำสั่งซื้อเดิม")}</span><strong>${orders.length}</strong><small>${t("รายการ")}</small></div></div><div class="account-summary-tile violet"><span class="account-summary-icon">${icon("calc", 22)}</span><div><span>${t("ยอดค้างชำระ")}</span><strong>${money(unpaidAmount)}</strong><small>${t("เดโมเท่านั้น")}</small></div></div><div class="account-summary-tile mint"><span class="account-summary-icon">${icon("check", 22)}</span><div><span>${t("ยอดชำระเสร็จแล้ว")}</span><strong>${money(verifiedAmount)}</strong><small>${t("เดโมเท่านั้น")}</small></div></div></div></section>
+        <section class="account-card account-summary" aria-labelledby="account-summary-title"><div class="account-card-heading"><div><h2 id="account-summary-title">${t("สรุปข้อมูลของฉัน")}</h2><p>${t("ยอดเงินจากทุกกลุ่มที่คุณอยู่")}</p></div>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button subtle")}</div><div class="account-summary-grid"><div class="account-summary-tile blue"><span class="account-summary-icon">${icon("users", 22)}</span><div><span>${t("กลุ่มที่เข้าร่วม")}</span><strong>${mySums.groups}</strong><small>${mySums.owned ? t("เป็นหัวกลุ่ม {count} กลุ่ม", { count: mySums.owned }) : t("กลุ่ม")}</small></div></div><div class="account-summary-tile violet"><span class="account-summary-icon">${icon("calc", 22)}</span><div><span>${t("ต้องโอน")}</span><strong>${money(mySums.due)}</strong><small>${t("กลุ่มที่ครบและยืนยันยอดแล้ว")}</small></div></div><div class="account-summary-tile amber"><span class="account-summary-icon">${icon("clock", 22)}</span><div><span>${t("รอตรวจสลิป")}</span><strong>${money(mySums.pending)}</strong><small>${t("แอดมินกำลังตรวจ")}</small></div></div><div class="account-summary-tile mint"><span class="account-summary-icon">${icon("check", 22)}</span><div><span>${t("ชำระแล้ว")}</span><strong>${money(mySums.paid)}</strong><small>${mySums.owned ? t("ได้รับจากกลุ่ม {amount}", { amount: money(mySums.received) }) : t("ยืนยันโดยแอดมินแล้ว")}</small></div></div></div></section>
         ${
           supabaseConfigured
             ? ""
@@ -3099,8 +3148,8 @@ function profile() {
       </div>
       <aside class="account-aside">
         ${payoutAccountCard()}
-        <section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("อัปเดตคำสั่งซื้อ")}</h2>${a("/my-orders", `${t("ดูทั้งหมด")} ${icon("arrow", 17)}`, "account-all-link")}</div>${orders.length ? `<div class="order-updates-grid">${orders.slice(0, 3).map(accountOrderRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีคำสั่งซื้อเดโม")}</strong><p>${t("เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่")}</p>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button outline")}</div>`}</section>
-        <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t("ทางลัด")}</h2><div class="account-shortcut-grid">${shortcut("/my-groups", "users", t("กลุ่มของฉัน"), t("ดูและจัดการกลุ่มที่เข้าร่วม"), "blue")}${shortcut("/notifications", "bell", t("แจ้งเตือน"), t("อัปเดตยอดและกิจกรรม"), "amber")}${shortcut("/explore", "search", t("สำรวจ"), t("ค้นหาสินค้าและเข้าร่วมกลุ่ม"), "violet")}${shortcut("/my-orders", "check", t("คำสั่งซื้อ"), t("ดูสถานะคำสั่งซื้อของฉัน"), "mint")}</div></section>
+        ${supabaseConfigured ? `<section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("การชำระเงินล่าสุด")}</h2>${a("/my-groups", `${t("ดูกลุ่ม")} ${icon("arrow", 17)}`, "account-all-link")}</div>${mySums.entries.length ? `<div class="account-pay-list">${mySums.entries.slice(0, 5).map(moneyEntryRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีรายการชำระเงิน")}</strong><p>${t("เมื่อกลุ่มครบและทุกคนยืนยันยอด ยอดที่ต้องโอนจะขึ้นที่นี่")}</p>${a("/explore", t("หากลุ่มเข้าร่วม"), "button outline")}</div>`}</section>` : `<section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("อัปเดตคำสั่งซื้อ")}</h2>${a("/my-orders", `${t("ดูทั้งหมด")} ${icon("arrow", 17)}`, "account-all-link")}</div>${orders.length ? `<div class="order-updates-grid">${orders.slice(0, 3).map(accountOrderRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีคำสั่งซื้อเดโม")}</strong><p>${t("เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่")}</p>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button outline")}</div>`}</section>`}
+        <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t("ทางลัด")}</h2><div class="account-shortcut-grid">${shortcut("/my-groups", "users", t("กลุ่มของฉัน"), t("ดูและจัดการกลุ่มที่เข้าร่วม"), "blue")}${shortcut("/notifications", "bell", t("แจ้งเตือน"), t("อัปเดตยอดและกิจกรรม"), "amber")}${shortcut("/explore", "search", t("สำรวจ"), t("ค้นหาสินค้าและเข้าร่วมกลุ่ม"), "violet")}${shortcut(supabaseConfigured ? "/subscription" : "/my-orders", supabaseConfigured ? "sparkles" : "check", t(supabaseConfigured ? "แพ็กเกจ" : "คำสั่งซื้อ"), t(supabaseConfigured ? "Free หรือ Plus" : "ดูสถานะคำสั่งซื้อของฉัน"), "mint")}</div></section>
       </aside>
       </div>
     </main>
