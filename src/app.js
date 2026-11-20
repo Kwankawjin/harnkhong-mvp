@@ -2571,6 +2571,15 @@ function startSecondhandChatSync(conversationId) {
     4000,
   );
 }
+/** A steady colour per name, so each conversation keeps its own avatar tint. */
+function avatarHue(text = "") {
+  let hash = 0;
+  for (const ch of String(text)) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
+  return 190 + (hash % 70); // blues through teals and indigos
+}
+function chatAvatar(name, label = name) {
+  return `<span class="avatar chat-avatar" style="--hue:${avatarHue(name)}">${escape(String(label).slice(0, 1).toUpperCase())}</span>`;
+}
 function chatWorkspaceSidebar(selectedHref = "") {
   const userId = state.user.id;
   if (
@@ -2620,7 +2629,7 @@ function chatWorkspaceSidebar(selectedHref = "") {
       const href = `/chat/${encodeURIComponent(peerId)}?product=${encodeURIComponent(conversation.listing_id)}&conversation=${encodeURIComponent(conversation.id)}`;
       return a(
         href,
-        `<span class="avatar">${escape(peerName.slice(0, 1))}</span><span><b>${escape(product?.title || t("ประกาศขาย"))}</b><small>${escape(peerName)} · ${t("แชทสินค้า")}</small></span>`,
+        `${chatAvatar(peerName)}<span><b>${escape(product?.title || t("ประกาศขาย"))}</b><small>${escape(peerName)} · ${t("แชทสินค้า")}</small></span>`,
         `chat-entry${isSelected(href) ? " active" : ""}`,
       );
     })
@@ -2634,7 +2643,7 @@ function chatWorkspaceSidebar(selectedHref = "") {
       const href = `/groups/${g.id}/chat`;
       return a(
         href,
-        `<span class="avatar">${escape(g.name.slice(0, 1))}</span><span><b>${escape(g.name)}</b><small>${escape(lastMsg?.text || lastMsg?.body || t("เริ่มคุยกับสมาชิกในกลุ่มได้ที่นี่"))}</small></span>`,
+        `${chatAvatar(g.name)}<span><b>${escape(g.name)}</b><small>${escape(lastMsg?.text || lastMsg?.body || t("เริ่มคุยกับสมาชิกในกลุ่มได้ที่นี่"))}</small></span>`,
         `chat-entry${isSelected(href) ? " active" : ""}`,
       );
     })
@@ -2646,14 +2655,14 @@ function chatWorkspaceSidebar(selectedHref = "") {
       const href = `/chat/${id}`;
       return a(
         href,
-        `<span class="avatar">${escape(contact.initials)}</span><span><b>${escape(contact.name)}</b><small>${escape(messages.at(-1)?.body || t("เริ่มต้นสนทนา"))}</small></span>`,
+        `${chatAvatar(contact.name, contact.initials)}<span><b>${escape(contact.name)}</b><small>${escape(messages.at(-1)?.body || t("เริ่มต้นสนทนา"))}</small></span>`,
         `chat-entry${isSelected(href) ? " active" : ""}`,
       );
     })
     .join("");
 
   return `<aside class="chat-sidebar" aria-label="${t("รายการแชต")}">
-    <div class="chat-sidebar-head"><h1>${t("แชต")}</h1><span>${icon("chat", 21)}</span></div>
+    <div class="chat-sidebar-head"><h1>${t("แชต")}</h1><a href="/my-groups" data-link class="chat-sidebar-action" aria-label="${t("กลุ่มของฉัน")}">${icon("users", 20)}</a></div>
     <label class="chat-search">${icon("search", 18)}<input type="search" data-chat-search placeholder="${t("ค้นหาแชต")}" aria-label="${t("ค้นหาแชต")}" autocomplete="off"/></label>
     <div class="chat-list-scroll">
       ${groupThreads ? `<h2 class="chat-list-label">${t("แชทกลุ่มของฉัน")}</h2>${groupThreads}` : ""}
@@ -2673,7 +2682,7 @@ function chatList() {
     );
   return `<section class="chat-workspace" aria-label="${t("แชต")}">
     ${chatWorkspaceSidebar()}
-    <div class="chat-workspace-pane chat-workspace-empty"><span>${icon("chat", 34)}</span><h2>${t("เลือกแชตที่ต้องการ")}</h2><p>${t("เลือกกลุ่มหรือผู้ติดต่อจากรายการด้านซ้ายเพื่อดูข้อความ")}</p></div>
+    <div class="chat-workspace-pane chat-workspace-empty"><span class="chat-empty-ring">${icon("chat", 44)}</span><h2>${t("ข้อความของคุณ")}</h2><p>${t("เลือกกลุ่มหรือผู้ติดต่อจากรายการด้านซ้ายเพื่อเริ่มคุย")}</p>${a("/my-groups", t("ไปที่กลุ่มของฉัน"), "button primary")}</div>
   </section>`;
 }
 function groupChatPage(id) {
@@ -2691,10 +2700,10 @@ function groupChatPage(id) {
   return `<section class="chat-workspace" data-active="true" aria-label="${t("แชต")}">
   ${chatWorkspaceSidebar(`/groups/${id}/chat`)}
   <div class="chat-workspace-pane chat-workspace-active">
-  <a href="/chat" class="chat-mobile-back">${icon("back", 17)} ${t("รายการแชต")}</a>
   <div class="chat-shell group-chat-shell">
     <div class="chat-head group-chat-head">
-      ${a(destination, icon("back", 20), "back-link")}
+      <a href="/chat" class="chat-mobile-back" aria-label="${t("รายการแชต")}">${icon("back", 22)}</a>
+      ${chatAvatar(g.name)}
       <div class="group-chat-meta">
         <div class="group-chat-title-row">
           <h1>${escape(g.name)}</h1>
@@ -2734,7 +2743,7 @@ function groupChatPage(id) {
       isMember
         ? `<form id="group-chat-form" data-id="${id}" class="chat-input group-chat-input">
       <input name="body" maxlength="500" required placeholder="${t("พิมพ์ข้อความถึงสมาชิกในกลุ่ม...")}" aria-label="${t("ข้อความ")}" autocomplete="off"/>
-      <button class="button primary" type="submit">${t("ส่ง")}</button>
+      <button class="chat-send" type="submit" aria-label="${t("ส่ง")}">${icon("arrow", 20)}</button>
     </form>`
         : ""
     }
@@ -2769,8 +2778,7 @@ function chatPage(id) {
   return `<section class="chat-workspace" data-active="true" aria-label="${t("แชต")}">
     ${chatWorkspaceSidebar(selectedHref)}
     <div class="chat-workspace-pane chat-workspace-active">
-      <a href="/chat" class="chat-mobile-back">${icon("back", 17)} ${t("รายการแชต")}</a>
-      <div class="chat-shell"><div class="chat-head"><span class="avatar">${escape(peerInitial)}</span><div><h1>${escape(peerName)}</h1><small>${marketplaceChat ? t("แชทสินค้า") : t("แชตจำลอง · ไม่ส่งถึงผู้ขายจริง")}</small></div></div>${product ? `<div class="chat-product">${t(marketplaceChat ? "กำลังคุยเรื่องสินค้า" : "กำลังสอบถามเรื่อง")} ${a(`/products/${productId}`, escape(product.title || t("สินค้า")))}</div>` : ""}<div class="messages">${msgs.length ? msgs.map((m) => `<div class="bubble ${m.from === "me" ? "mine" : "theirs"}">${escape(m.body)}</div>`).join("") : `<div class="chat-empty">${t("เริ่มคุยเรื่องสินค้า เงื่อนไขรับของ หรือค่าส่งได้ที่นี่")}</div>`}</div><form id="chat-form" data-id="${marketplaceChat ? threadKey : id}" ${marketplaceChat ? `data-marketplace="true" data-conversation="${escape(conversationId || "")}" data-product="${escape(productId)}" data-peer="${escape(id)}"` : ""} class="chat-input"><input name="body" maxlength="500" required placeholder="${t(marketplaceChat ? "พิมพ์ข้อความ" : "พิมพ์ข้อความเดโม...")}" aria-label="${t("ข้อความ")}"/><button class="button primary" type="submit">${t("ส่ง")}</button></form></div>
+      <div class="chat-shell"><div class="chat-head"><a href="/chat" class="chat-mobile-back" aria-label="${t("รายการแชต")}">${icon("back", 22)}</a>${chatAvatar(peerName, peerInitial)}<div><h1>${escape(peerName)}</h1><small>${marketplaceChat ? t("แชทสินค้า") : t("แชตจำลอง · ไม่ส่งถึงผู้ขายจริง")}</small></div></div>${product ? `<div class="chat-product">${t(marketplaceChat ? "กำลังคุยเรื่องสินค้า" : "กำลังสอบถามเรื่อง")} ${a(`/products/${productId}`, escape(product.title || t("สินค้า")))}</div>` : ""}<div class="messages">${msgs.length ? msgs.map((m) => `<div class="bubble ${m.from === "me" ? "mine" : "theirs"}">${escape(m.body)}</div>`).join("") : `<div class="chat-empty">${t("เริ่มคุยเรื่องสินค้า เงื่อนไขรับของ หรือค่าส่งได้ที่นี่")}</div>`}</div><form id="chat-form" data-id="${marketplaceChat ? threadKey : id}" ${marketplaceChat ? `data-marketplace="true" data-conversation="${escape(conversationId || "")}" data-product="${escape(productId)}" data-peer="${escape(id)}"` : ""} class="chat-input"><input name="body" maxlength="500" required placeholder="${t(marketplaceChat ? "พิมพ์ข้อความ" : "พิมพ์ข้อความเดโม...")}" aria-label="${t("ข้อความ")}"/><button class="chat-send" type="submit" aria-label="${t("ส่ง")}">${icon("arrow", 20)}</button></form></div>
     </div>
   </section>`;
 }
