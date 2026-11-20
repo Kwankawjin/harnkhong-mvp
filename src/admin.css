@@ -224,3 +224,6 @@ body.admin-mode #app { min-height: 100vh; }
   .admin-spinner { animation-duration: 2s; }
   .admin-nav-link { transition: none; }
 }
+.admin-payout-qr { width: 104px; display: grid; justify-items: start; gap: 4px; margin-top: 6px; color: #0968e3; font-size: 11px; font-weight: 700; }
+.admin-payout-qr img { width: 88px; height: 88px; object-fit: contain; padding: 4px; border: 1px solid #dce6f2; border-radius: 8px; background: #fff; }
+.admin-payout-qr:hover img { border-color: #0968e3; }

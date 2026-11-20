@@ -374,10 +374,36 @@ export async function redeemSupabasePromo(code) {
 
 // ---------------------------------------------------------------- owner payout account
 export async function loadSupabasePayoutAccount(userId) {
-  const { data, error } = await supabase.from("payout_accounts")
-    .select("method,promptpay_id,bank_name,account_number,account_name,updated_at")
-    .eq("user_id", userId).maybeSingle();
-  if (error) return null; // table arrives with migration 20261120140000
+  const columns = "method,promptpay_id,bank_name,account_number,account_name,updated_at";
+  let { data, error } = await supabase.from("payout_accounts")
+    .select(`${columns},qr_path`).eq("user_id", userId).maybeSingle();
+  // qr_path arrives with migration 20261120200000; still show the account without it.
+  if (error) ({ data, error } = await supabase.from("payout_accounts").select(columns).eq("user_id", userId).maybeSingle());
+  if (error || !data) return null; // table arrives with migration 20261120140000
+  if (data.qr_path) {
+    const { data: signed } = await supabase.storage.from("payout-qr").createSignedUrl(data.qr_path, 3600);
+    data.qr_url = signed?.signedUrl || null;
+  }
+  return data;
+}
+/** Upload a new QR image for my payout account (or remove it with file = null) and drop the old one. */
+export async function saveSupabasePayoutQr(userId, file) {
+  let path = null;
+  if (file) {
+    const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" })[file.type];
+    if (!extension) throw new Error("invalid_payout_qr_type");
+    path = `${userId}/${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from("payout-qr").upload(path, file, {
+      cacheControl: "3600", upsert: false, contentType: file.type,
+    });
+    if (uploadError) throw uploadError;
+  }
+  const { data, error } = await supabase.rpc("set_my_payout_qr", { p_qr_path: path });
+  if (error) {
+    if (path) await supabase.storage.from("payout-qr").remove([path]);
+    throw error;
+  }
+  if (data?.previous && data.previous !== path) await supabase.storage.from("payout-qr").remove([data.previous]);
   return data;
 }
 export async function saveSupabasePayoutAccount({ method, accountName, promptpayId, bankName, accountNumber }) {

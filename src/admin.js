@@ -384,7 +384,10 @@ function payoutAccountCell(row) {
   if (!row.payout_method) return '<span class="admin-payout-account missing">ยังไม่มีบัญชีรับเงิน</span>';
   const number = row.payout_method === "promptpay" ? row.promptpay_id : row.account_number;
   const where = row.payout_method === "promptpay" ? "PromptPay" : row.bank_name;
-  return `<span class="admin-payout-account"><b>${escapeHtml(where)}</b> <code>${escapeHtml(number)}</code><br/>${escapeHtml(row.account_name)}</span>`;
+  const qr = row.payout_qr_url
+    ? `<a class="admin-payout-qr" href="${escapeHtml(row.payout_qr_url)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHtml(row.payout_qr_url)}" alt="QR รับเงินของ ${escapeHtml(row.account_name)}"/><span>เปิด QR</span></a>`
+    : "";
+  return `<span class="admin-payout-account"><b>${escapeHtml(where)}</b> <code>${escapeHtml(number)}</code><br/>${escapeHtml(row.account_name)}</span>${qr}`;
 }
 /** Money to pass on to group owners: verified member payments minus the 2% commission. */
 function payoutsContent(rows) {
@@ -411,7 +414,12 @@ async function getSectionContent(section) {
         ? "ฐานข้อมูลยังไม่มีฟังก์ชันของหน้านี้ กรุณารัน migration 20261120120000_commission_from_owner_payout.sql และ 20261120130000_escrow_receipts_and_promo.sql"
         : billingErrorMessage(error));
     }
-    return payoutsContent(data || []);
+    const rows = await Promise.all((data || []).map(async (row) => {
+      if (!row.payout_qr_path) return row;
+      const { data: signed } = await currentClient.storage.from("payout-qr").createSignedUrl(row.payout_qr_path, 600);
+      return { ...row, payout_qr_url: signed?.signedUrl || null };
+    }));
+    return payoutsContent(rows);
   }
   if (section === "billing") {
     // Read straight from the database (admin-only RPC), so this page works without redeploying admin-api.

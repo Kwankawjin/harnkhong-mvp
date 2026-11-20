@@ -100,6 +100,7 @@ import {
   confirmSupabaseCycleReceipt,
   redeemSupabasePromo,
   loadSupabasePayoutAccount,
+  saveSupabasePayoutQr,
   saveSupabasePayoutAccount,
   openPayoutSlip,
 } from "./supabase-groups.js";
@@ -520,9 +521,10 @@ const THAI_BANKS = ["กสิกรไทย", "กรุงเทพ", "กร
 const maskNumber = (value = "") => (value.length > 4 ? `${"•".repeat(Math.max(0, value.length - 4))}${value.slice(-4)}` : value);
 function payoutAccountSummary(account) {
   if (!account) return "";
+  const qr = payoutQrSrc(account) ? ` · ${t("แนบ QR แล้ว")}` : "";
   return account.method === "promptpay"
-    ? `PromptPay ${maskNumber(account.promptpay_id)} · ${escape(account.account_name)}`
-    : `${escape(account.bank_name)} ${maskNumber(account.account_number)} · ${escape(account.account_name)}`;
+    ? `PromptPay ${maskNumber(account.promptpay_id)} · ${escape(account.account_name)}${qr}`
+    : `${escape(account.bank_name)} ${maskNumber(account.account_number)} · ${escape(account.account_name)}${qr}`;
 }
 /** Transfers the admin already made to this owner, each with its slip. */
 function payoutsReceivedList(g) {
@@ -544,9 +546,29 @@ function payoutAccountCard() {
       <label data-payout-field="bank">${t("ธนาคาร")}<select name="bankName">${THAI_BANKS.map((bank) => `<option value="${escape(bank)}" ${account.bank_name === bank ? "selected" : ""}>${escape(bank)}</option>`).join("")}</select></label>
       <label data-payout-field="bank">${t("เลขบัญชี")}<input name="accountNumber" inputmode="numeric" autocomplete="off" maxlength="20" value="${escape(account.account_number || "")}" placeholder="xxx-x-xxxxx-x"/></label>
       <label>${t("ชื่อบัญชี")}<input name="accountName" maxlength="100" autocomplete="name" value="${escape(account.account_name || state.user?.name || "")}" required/></label>
+      ${payoutQrField(account)}
       <button type="submit" class="button primary">${account.method ? t("บันทึกการเปลี่ยนแปลง") : t("บันทึกบัญชีรับเงิน")}</button>
     </form></section>`;
 }
+const PAYOUT_QR_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const PAYOUT_QR_MAX_BYTES = 5 * 1024 * 1024;
+/** Where the saved payout QR image can be shown from, or "". */
+const payoutQrSrc = (account) => (supabaseConfigured ? account?.qr_url : account?.qr_data) || "";
+/** Optional QR image (PromptPay or bank app QR) the admin can scan when paying the owner. */
+function payoutQrField(account) {
+  const src = payoutQrSrc(account);
+  return `<div class="payout-qr-field"><span class="payout-qr-label">${t("QR รับเงิน (ไม่บังคับ)")}</span><small>${t("แนบรูป QR PromptPay หรือ QR จากแอปธนาคาร เพื่อให้แอดมินสแกนโอนได้ทันที")}</small>
+    <div class="payout-qr-row"><img class="payout-qr-preview" data-payout-qr-preview src="${escape(src)}" alt="${t("QR รับเงินของคุณ")}" ${src ? "" : "hidden"}/>
+    <div class="payout-qr-controls"><label class="checkout-slip-file">${icon("copy", 16)}<span data-payout-qr-status>${src ? t("เปลี่ยนรูป QR") : t("แนบรูป QR (JPG, PNG, WebP ไม่เกิน 5 MB)")}</span><input type="file" name="qr" accept="${PAYOUT_QR_TYPES.join(",")}" data-payout-qr-input/></label>
+    ${src ? `<label class="payout-qr-remove"><input type="checkbox" name="removeQr"/> ${t("ลบ QR นี้")}</label>` : ""}</div></div></div>`;
+}
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 /** "plus" while a paid month is running, otherwise "free". */
 function subscriptionFor(userId = state.user?.id) {
   const sub = mySubscription(userId);
@@ -4869,6 +4891,27 @@ document.addEventListener("change", async (e) => {
     if (submit) submit.disabled = !file;
     return;
   }
+  if (input.matches?.("[data-payout-qr-input]")) {
+    const form = input.closest("#payout-account-form"),
+      status = form?.querySelector("[data-payout-qr-status]"),
+      preview = form?.querySelector("[data-payout-qr-preview]"),
+      file = input.files?.[0];
+    if (file && (!PAYOUT_QR_TYPES.includes(file.type) || file.size > PAYOUT_QR_MAX_BYTES)) {
+      input.value = "";
+      if (status) status.textContent = t("กรุณาเลือกไฟล์ JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB");
+      return;
+    }
+    if (status && file) status.textContent = file.name;
+    if (preview && file) {
+      if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
+      preview.dataset.objectUrl = URL.createObjectURL(file);
+      preview.src = preview.dataset.objectUrl;
+      preview.hidden = false;
+    }
+    const remove = form?.querySelector('[name="removeQr"]');
+    if (remove && file) remove.checked = false;
+    return;
+  }
   if (input.name === "method" && input.closest("#payout-account-form")) {
     input.closest("#payout-account-form").dataset.method = input.value;
     return;
@@ -6519,15 +6562,32 @@ document.addEventListener("submit", async (e) => {
         throw new Error(t("PromptPay ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตรประชาชน 13 หลัก"));
       if (method === "bank" && !/^\d{10,15}$/.test(account.accountNumber))
         throw new Error(t("เลขบัญชีต้องเป็นตัวเลข 10–15 หลัก"));
+      const qrFile = d.get("qr") instanceof File && d.get("qr").size ? d.get("qr") : null,
+        removeQr = !qrFile && d.get("removeQr") === "on";
+      if (qrFile && (!PAYOUT_QR_TYPES.includes(qrFile.type) || qrFile.size > PAYOUT_QR_MAX_BYTES))
+        throw new Error(t("กรุณาเลือกไฟล์ JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB"));
       if (supabaseConfigured) {
         await saveSupabasePayoutAccount(account);
+        if (qrFile || removeQr) {
+          try {
+            await saveSupabasePayoutQr(state.user.id, qrFile);
+          } catch (err) {
+            state.remotePayoutAccount = await loadSupabasePayoutAccount(state.user.id);
+            render();
+            const missing = err?.code === "PGRST202" || String(err?.message || "").includes("set_my_payout_qr") || /bucket not found/i.test(String(err?.message || ""));
+            alertError(missing ? t("บันทึกบัญชีแล้ว แต่ฐานข้อมูลยังไม่รองรับ QR กรุณารัน migration 20261120200000_payout_account_qr.sql") : t("บันทึกบัญชีแล้ว แต่แนบ QR ไม่สำเร็จ กรุณาลองใหม่"));
+            return;
+          }
+        }
         state.remotePayoutAccount = await loadSupabasePayoutAccount(state.user.id);
       } else {
+        const previous = state.payoutAccounts?.[state.user.id] || {};
+        const qrData = qrFile ? await readFileAsDataUrl(qrFile) : removeQr ? null : previous.qr_data || null;
         save({
           ...state,
           payoutAccounts: {
             ...(state.payoutAccounts || {}),
-            [state.user.id]: { method, promptpay_id: account.promptpayId || null, bank_name: account.bankName || null, account_number: account.accountNumber || null, account_name: account.accountName, updated_at: new Date().toISOString() },
+            [state.user.id]: { method, promptpay_id: account.promptpayId || null, bank_name: account.bankName || null, account_number: account.accountNumber || null, account_name: account.accountName, qr_data: qrData, updated_at: new Date().toISOString() },
           },
         });
       }

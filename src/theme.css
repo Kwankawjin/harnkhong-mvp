@@ -2464,3 +2464,62 @@ body:has(.chat-workspace) .site-footer {
   color: var(--hk-muted);
   font-size: 0.75rem;
 }
+
+/* Payout account QR */
+.payout-qr-field {
+  display: grid;
+  gap: 6px;
+}
+.payout-qr-label {
+  color: var(--hk-ink);
+  font-weight: 500;
+}
+.payout-qr-field > small {
+  color: var(--hk-muted, #5b6b7f);
+}
+.payout-qr-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+}
+.payout-qr-preview {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  padding: 6px;
+  border: 1px solid var(--hk-sky-300);
+  border-radius: var(--hk-radius-control);
+  background: #fff;
+}
+.payout-qr-preview[hidden] {
+  display: none;
+}
+.payout-qr-controls {
+  display: grid;
+  flex: 1 1 200px;
+  gap: 8px;
+  min-width: 0;
+}
+.payout-account-form label.checkout-slip-file {
+  display: flex;
+  color: var(--hk-blue);
+  font-weight: 600;
+}
+.payout-account-form .checkout-slip-file input {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+}
+.payout-account-form label.payout-qr-remove {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+.payout-account-form .payout-qr-remove input {
+  min-height: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
