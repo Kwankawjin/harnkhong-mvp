@@ -458,3 +458,14 @@ begin
   reset role;
 end $$;
 rollback;
+
+-- Logged-out visitors can query cycles (the public group list embeds them) but see no rows.
+begin;
+set local role anon;
+do $$
+begin
+  if (select count(*) from public.group_cycles) <> 0 or (select count(*) from public.group_cycle_members) <> 0 then
+    raise exception 'anon must not see cycle rows';
+  end if;
+end $$;
+rollback;
