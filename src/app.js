@@ -7694,6 +7694,10 @@ function authErrorMessage(error) {
     return t(
       "ฐานข้อมูลยังใช้กติกาเตะสมาชิกเวอร์ชันเก่า กรุณารัน migration ล่าสุดของ Supabase",
     );
+  if (message.includes("member_has_paid"))
+    return t("สมาชิกคนนี้จ่ายเงินเข้ากองกลางแล้ว เตะออกไม่ได้ ติดต่อแอดมินเพื่อคืนเงินก่อน");
+  if (message.includes("group_closed"))
+    return t("กลุ่มนี้ปิดแล้ว");
   if (
     error?.code === "groupHasMembers" ||
     message.includes("group_has_members")

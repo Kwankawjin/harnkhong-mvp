@@ -95,3 +95,27 @@ do $$ begin perform public.hide_group_for_me('11111111-0000-0000-0000-0000000000
 select * from r;
 
 rollback;
+
+-- 4. Removing members (needs 20261120230000_kick_member_when_ready.sql)
+begin;
+create temp table r(step text, result text) on commit drop;
+create or replace function pg_temp.as_user(u text) returns void language sql as $$ select set_config('request.jwt.claims', json_build_object('sub', u, 'role', 'authenticated')::text, true); $$;
+insert into auth.users (id) values ('00000000-0000-0000-0000-00000000000a'),('00000000-0000-0000-0000-00000000000b'),('00000000-0000-0000-0000-00000000000c');
+insert into public.groups (id, owner_id, request_id, listing_id, name, visibility, capacity, product_satang, delivery_per_member_satang, pricing_mode, status, total_satang)
+values ('11111111-0000-0000-0000-000000000002','00000000-0000-0000-0000-00000000000c', gen_random_uuid(), 'p1', 'QA kick', 'link', 3, 30000, 0, 'seat_v3', 'ready', 30000);
+insert into public.group_members (group_id, user_id, display_name) values
+ ('11111111-0000-0000-0000-000000000002','00000000-0000-0000-0000-00000000000c','owner'),
+ ('11111111-0000-0000-0000-000000000002','00000000-0000-0000-0000-00000000000a','a'),
+ ('11111111-0000-0000-0000-000000000002','00000000-0000-0000-0000-00000000000b','b');
+insert into public.group_payment_reports (group_id, user_id, revision, amount_satang, status)
+values ('11111111-0000-0000-0000-000000000002','00000000-0000-0000-0000-00000000000a',1,10000,'reported');
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c');
+do $$ begin perform public.remove_group_member('11111111-0000-0000-0000-000000000002','00000000-0000-0000-0000-00000000000a', gen_random_uuid()); insert into r values ('kick member who paid','ALLOWED (bad)'); exception when others then insert into r values ('kick member who paid', sqlerrm); end $$;
+insert into r select 'kick unpaid member while ready', public.remove_group_member('11111111-0000-0000-0000-000000000002','00000000-0000-0000-0000-00000000000b', gen_random_uuid())::text;
+insert into r select 'status after kick', status from public.groups where id = '11111111-0000-0000-0000-000000000002';
+insert into r select 'members left', count(*)::text from public.group_members where group_id = '11111111-0000-0000-0000-000000000002';
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+do $$ begin perform public.remove_group_member('11111111-0000-0000-0000-000000000002','00000000-0000-0000-0000-00000000000c', gen_random_uuid()); insert into r values ('member kicks owner','ALLOWED (bad)'); exception when others then insert into r values ('member kicks owner', sqlerrm); end $$;
+select * from r;
+
+rollback;
