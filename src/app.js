@@ -3213,6 +3213,7 @@ const NOTE_KINDS = [
   ["payment", "การชำระเงิน", "calc"],
   ["group", "อัปเดตกลุ่ม", "users"],
   ["system", "อัปเดตระบบ", "sparkles"],
+  ["request", "ประกาศหากลุ่ม", "search"],
 ];
 const CYCLE_EVENT_TEXT = {
   started: "เริ่มรอบที่ {number} แล้ว ยืนยันยอดและชำระภายใน 3 วัน",
@@ -3229,6 +3230,7 @@ function readNoteIds() {
   }
 }
 function markNotesRead(ids) {
+  requestMarketplace.markRead(ids);
   const read = readNoteIds();
   ids.forEach((id) => read.add(id));
   try {
@@ -3299,8 +3301,10 @@ function notificationFeed() {
   if (waiver)
     items.push({ id: `promo:${waiver}`, kind: "system", title: t("ยกเว้นค่าคอม 2% ด้วยโค้ดพิเศษ"), body: t("ใช้ได้ถึง {date}", { date: shortDate(waiver) }), href: "/subscription", at: new Date(Date.parse(waiver) - 60 * 86_400_000).toISOString() });
   for (const n of state.notifications.filter((x) => x.recipient === me)) {
-    items.push({ id: `local:${n.id}`, localId: n.id, kind: n.href?.startsWith("/groups") || n.href?.startsWith("/orders") ? "group" : "system", title: n.title, body: n.body, href: n.href, at: n.at, read: n.read });
+    items.push({ id: `local:${n.id}`, localId: n.id, kind: n.href?.startsWith("/requests") ? "request" : n.href?.startsWith("/groups") || n.href?.startsWith("/orders") ? "group" : "system", title: n.title, body: n.body, href: n.href, at: n.at, read: n.read });
   }
+  // Request Marketplace notifications stored in Supabase (test mode already uses state.notifications).
+  items.push(...requestMarketplace.feedItems());
   return items
     .map((item) => ({ ...item, read: item.read || read.has(item.id) }))
     .sort((a, b) => (a.kind === "payment") !== (b.kind === "payment") ? (a.kind === "payment" ? -1 : 1) : Date.parse(b.at || 0) - Date.parse(a.at || 0));
@@ -7958,7 +7962,7 @@ async function refreshSupabaseGroups(session = activeSupabaseSession) {
 }
 
 function beginSupabaseSession(session) {
-  requestMarketplace.onSessionChange();
+  requestMarketplace.onSessionChange(session);
   authSessionSync.invalidate();
   activeSupabaseSession = session;
   if ((state.user?.id || null) !== (session?.user?.id || null)) {
