@@ -268,3 +268,10 @@ body.admin-mode #app { min-height: 100vh; }
   .admin-howto { padding: 12px 14px; font-size: 12px; }
   .admin-todo { min-height: 72px; }
 }
+
+/* รายงานปัญหา: open reports stay red until an admin closes them. */
+.admin-row-alert td:first-child { box-shadow: inset 3px 0 0 #e5484d; }
+.admin-report-new { background: #e5484d; color: #fff; }
+.admin-report-topic { display: inline-block; margin-bottom: 4px; padding: 2px 8px; border-radius: 6px; background: #fff0ef; color: #a32a21; font-size: 12px; font-weight: 700; }
+.admin-report-message { margin: 0 0 4px; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 520px; }
+.admin-report-ua { display: block; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .7; }

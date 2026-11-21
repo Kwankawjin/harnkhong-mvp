@@ -423,6 +423,17 @@ export async function reportSupabaseProblem(groupId, cycleNumber, reason) {
   if (error) throw error;
   return data;
 }
+/** "รายงานปัญหา" from the account page; goes to the admin queue. */
+export async function submitSupabaseAppProblem(topic, message) {
+  const { data, error } = await supabase.rpc("submit_app_problem_report", {
+    p_topic: topic,
+    p_message: message,
+    p_page: typeof location === "undefined" ? null : location.pathname,
+    p_user_agent: typeof navigator === "undefined" ? null : navigator.userAgent,
+  });
+  if (error) throw error;
+  return data;
+}
 export async function confirmSupabaseCycleReceipt(groupId, cycleNumber) {
   const { data, error } = await supabase.rpc("confirm_cycle_receipt", { p_group: groupId, p_cycle_number: cycleNumber });
   if (error) throw error;

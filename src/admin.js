@@ -7,6 +7,7 @@ const navItems = [
   ["payments", "2. ตรวจสลิป", "slip", "งานที่ต้องทำ"],
   ["disputes", "3. แจ้งปัญหา", "alert", "งานที่ต้องทำ"],
   ["payouts", "4. โอนให้เจ้าของ", "payout", "งานที่ต้องทำ"],
+  ["reports", "รายงานปัญหา", "flag", "งานที่ต้องทำ"],
   ["groups", "กลุ่มทั้งหมด", "groups", "ข้อมูล"],
   ["users", "สมาชิก", "users", "ข้อมูล"],
   ["settings", "ตั้งค่า", "settings", "ระบบ"],
@@ -306,6 +307,7 @@ function adminIcon(name) {
     check: '<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.6 2.5L16 9.5"/>',
     slip: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6"/>',
     alert: '<path d="M12 3 2 20h20L12 3Z"/><path d="M12 10v4M12 17h.01"/>',
+    flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
     payout: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9h.01M18 15h.01"/>',
     grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     payments: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>',
@@ -366,6 +368,7 @@ function dashboardContent(data, work = { counts: {}, money: null, owedTotal: 0 }
     ["payments", "ตรวจสลิป", "สลิปกลุ่มรอบเดียว รายเดือน และ Plus"],
     ["disputes", "แจ้งปัญหา", "เงินถูกพักจนกว่าจะตัดสิน"],
     ["payouts", "โอนเงินให้เจ้าของ", work.owedTotal ? `รวม ${formatMoney(work.owedTotal)}` : "สมาชิกได้รับของแล้ว"],
+    ["reports", "รายงานปัญหา", "ผู้ใช้แจ้งปัญหาการใช้งาน"],
   ];
   const totalWork = todo.reduce((sum, [key]) => sum + (Number(work.counts[key]) || 0), 0);
   const totals = work.money;
@@ -394,12 +397,13 @@ const isApprovalPending = (row) => row.status !== "cancelled" && Number(row.memb
 /** How much work is waiting in each section. A part that fails to load just shows no badge. */
 async function loadWorkCounts() {
   const settle = async (promise) => { try { const { data, error } = await promise; return error ? null : data; } catch { return null; } };
-  const [groups, payments, billing, payouts, disputes] = await Promise.all([
+  const [groups, payments, billing, payouts, disputes, appReports] = await Promise.all([
     settle(currentClient.rpc("admin_list_groups", { p_limit: 500 })),
     settle(currentClient.rpc("admin_group_payment_reports", { p_limit: 200 })),
     settle(currentClient.rpc("admin_billing_queue")),
     settle(currentClient.rpc("admin_payouts")),
     settle(currentClient.rpc("admin_disputes")),
+    settle(currentClient.rpc("admin_app_problem_reports")),
   ]);
   const slips = (payments || []).filter((row) => row.status === "reported" && !row.stale_revision && row.slip_path).length
     + [...(billing?.subscriptions || []), ...(billing?.cycles || [])].filter((row) => row.status === "reported").length;
@@ -409,6 +413,7 @@ async function loadWorkCounts() {
     payments: slips,
     disputes: (disputes || []).filter((row) => row.status === "open").length,
     payouts: owed.length,
+    reports: (appReports || []).filter((row) => row.status === "open").length,
   };
   return {
     counts: workCounts,
@@ -505,7 +510,35 @@ function disputesContent(rows) {
   return `${howTo(["ระหว่างที่มีเรื่องเปิดอยู่ เงินของกลุ่มนั้นถูก <b>พักไว้</b> และไม่ยืนยันรับของอัตโนมัติ", "คุยกับทั้งสมาชิกและเจ้าของกลุ่ม ขอรูปหรือหลักฐาน", "ตัดสิน: <b>ปล่อยเงินให้เจ้าของ</b> หรือ <b>คืนเงินสมาชิก</b> (โอนคืนนอกแอปก่อน แล้วจดเลขอ้างอิง)"])}<section class="admin-panel"><div class="admin-panel-heading"><div><h2>รอตัดสิน ${openCount ? `<span class="admin-count">${openCount}</span>` : ""}</h2><p>เรื่องที่สมาชิกหรือผู้ซื้อแจ้งเข้ามา</p></div></div>${table(["กลุ่ม", "ผู้แจ้ง", "ปัญหา", "สถานะ", "ตัดสิน"], body, "ไม่มีเรื่องค้าง 🎉")}</section>`;
 }
 
+/** "รายงานปัญหา" sent from the account page. Open ones carry a red label until an admin closes them. */
+function appReportsContent(rows) {
+  const render = (row) => {
+    const open = row.status === "open";
+    const status = open ? '<span class="admin-status bad admin-report-new">ใหม่ · รอตรวจ</span>' : '<span class="admin-status good">ปิดเรื่องแล้ว</span>';
+    const action = open
+      ? `<button type="button" class="admin-primary" data-admin-action="resolve-app-report" data-report-id="${escapeHtml(row.id)}" data-label="${escapeHtml(row.member_name)} · ${escapeHtml(row.topic)}">ปิดเรื่อง</button>`
+      : `<small>${escapeHtml(row.resolution_note || "")}${row.resolved_at ? ` · ${formatDate(row.resolved_at)}` : ""}</small>`;
+    return `<tr class="${open ? "admin-row-alert" : ""}"><td><strong>${escapeHtml(row.member_name)}</strong><small>${escapeHtml(row.member_email)}</small></td><td><span class="admin-report-topic">${escapeHtml(row.topic)}</span><p class="admin-report-message">${escapeHtml(row.message)}</p><small>${formatDate(row.created_at)}${row.page ? ` · หน้า ${escapeHtml(row.page)}` : ""}</small>${row.user_agent ? `<small class="admin-report-ua">${escapeHtml(row.user_agent)}</small>` : ""}</td><td>${status}</td><td>${action}</td></tr>`;
+  };
+  const openRows = rows.filter((row) => row.status === "open");
+  const closed = rows.filter((row) => row.status !== "open");
+  const headers = ["ผู้แจ้ง", "เรื่องที่แจ้ง", "สถานะ", ""];
+  return `${howTo(["ผู้ใช้กด <b>รายงานปัญหา</b> ในหน้าบัญชี เรื่องใหม่จะขึ้น <b>ป้ายแดง</b> ที่เมนูนี้", "อ่านรายละเอียด ติดต่อกลับทางอีเมลถ้าต้องการข้อมูลเพิ่ม", "แก้หรือส่งต่อทีมพัฒนาแล้ว กด <b>ปิดเรื่อง</b> พร้อมบันทึกสั้น ๆ"])}
+  <section class="admin-panel"><div class="admin-panel-heading"><div><h2>เรื่องใหม่ ${openRows.length ? `<span class="admin-count admin-count-alert">${openRows.length}</span>` : ""}</h2><p>ยังไม่มีใครตรวจ</p></div></div>${table(headers, openRows.map(render).join(""), "ไม่มีเรื่องใหม่")}</section>
+  ${closed.length ? `<section class="admin-panel admin-panel-muted"><div class="admin-panel-heading"><div><h2>ปิดเรื่องแล้ว</h2></div></div>${table(headers, closed.map(render).join(""))}</section>` : ""}`;
+}
+
 async function getSectionContent(section) {
+  if (section === "reports") {
+    const { data, error } = await currentClient.rpc("admin_app_problem_reports");
+    if (error) {
+      const message = String(error.message || "");
+      throw new Error(error.code === "PGRST202" || message.includes("Could not find the function")
+        ? "ฐานข้อมูลยังไม่มีระบบรายงานปัญหา กรุณารัน migration 20261121090000_app_problem_reports.sql ใน Supabase SQL Editor"
+        : billingErrorMessage(error));
+    }
+    return appReportsContent(data || []);
+  }
   if (section === "payouts") {
     const { data, error } = await currentClient.rpc("admin_payouts");
     if (error) {
@@ -819,6 +852,27 @@ document.addEventListener("click", async (event) => {
       feedback = outcome === "refunded" ? "บันทึกการคืนเงินแล้ว ยอดนี้ไม่นับเป็นเงินของเจ้าของ" : "ปล่อยเงินแล้ว";
     } catch (error) {
       feedback = error.message || "ตัดสินไม่สำเร็จ";
+    } finally {
+      busy = false;
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+    }
+  } else if (action === "resolve-app-report") {
+    if (busy) return;
+    const note = prompt(`ปิดเรื่อง ${button.dataset.label} — บันทึกสั้น ๆ ว่าทำอะไรไป`, "");
+    if (note === null) return;
+    if (!note.trim()) {
+      feedback = "กรุณาเขียนบันทึกก่อนปิดเรื่อง";
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+      return;
+    }
+    busy = true;
+    button.disabled = true;
+    try {
+      const { error } = await currentClient.rpc("admin_resolve_app_problem_report", { p_report: button.dataset.reportId, p_note: note.trim() });
+      if (error) throw new Error(String(error.message || "").includes("report_not_open") ? "เรื่องนี้ถูกปิดไปแล้ว" : error.message || "ปิดเรื่องไม่สำเร็จ");
+      feedback = "ปิดเรื่องแล้ว";
+    } catch (error) {
+      feedback = error.message || "ปิดเรื่องไม่สำเร็จ";
     } finally {
       busy = false;
       mountAdminPage({ supabase: currentClient, supabaseConfigured: true });

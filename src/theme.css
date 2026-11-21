@@ -2192,6 +2192,41 @@ body:has(.chat-workspace) .site-footer {
   height: 46px;
 }
 
+/* "รายงานปัญหา": full-width red tile under the shortcuts. */
+:root .account-shortcut.account-shortcut-report {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  min-height: 64px;
+  border: 1.5px solid #f0a9a5;
+  background: #fff6f5;
+  font: inherit;
+  cursor: pointer;
+}
+:root .account-shortcut.account-shortcut-report:hover {
+  border-color: #e5484d;
+  background: #ffeceb;
+}
+:root .account-shortcut.account-shortcut-report:focus-visible {
+  outline: 3px solid rgba(229, 72, 77, 0.28);
+  outline-offset: 2px;
+}
+:root .account-shortcut.account-shortcut-report strong {
+  color: #c4282d;
+}
+:root .account-shortcut .account-shortcut-icon.red {
+  width: 40px;
+  height: 40px;
+  background: #ffe1df;
+  color: #d93036;
+}
+:root[data-theme="dark"] .account-shortcut.account-shortcut-report {
+  border-color: rgba(229, 72, 77, 0.55);
+  background: rgba(229, 72, 77, 0.1);
+}
+:root[data-theme="dark"] .account-shortcut.account-shortcut-report strong {
+  color: #ff8a8d;
+}
+
 /* Account: real money summary */
 .account-summary-tile.amber .account-summary-icon {
   background: var(--hk-sun-soft);

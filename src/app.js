@@ -128,6 +128,7 @@ import {
   hideSupabaseGroup,
   endSupabaseGroupAfterCycle,
   reportSupabaseProblem,
+  submitSupabaseAppProblem,
   saveSupabasePayoutAccount,
   openPayoutSlip,
 } from "./supabase-groups.js";
@@ -2339,6 +2340,11 @@ function ownerShipPanel({ shippedAt, openDisputes = 0, shipAction, attrs, canShi
     return `<div class="receipt-owner">${softBox({ tone: "green", title: t("ส่งของแล้ว"), rows: [[t("คุณแจ้งส่งของ"), shortDate(shippedAt)], [t("ยืนยันรับของอัตโนมัติ"), shortDate(autoReceiptAt(shippedAt))]], note: t("ผู้ซื้อที่ไม่ได้แจ้งปัญหา จะถูกยืนยันให้อัตโนมัติ") })}${problems}</div>`;
   return `<div class="receipt-owner">${canShip ? `<button class="button primary full summary-action-btn" data-action="${shipAction}" ${attrs}><span class="summary-btn-left">${icon("truck", 18)} <span>${t("แจ้งว่าส่งของแล้ว")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button><p class="summary-receipt-note">${t("กดเมื่อส่งของหรือส่งมอบสิทธิ์แล้ว ถ้าผู้ซื้อไม่แจ้งปัญหาภายใน {days} วัน ระบบจะยืนยันรับของให้อัตโนมัติและปล่อยเงินให้คุณ", { days: AUTO_RECEIPT_DAYS })}</p>` : ""}${problems}</div>`;
 }
+/** "รายงานปัญหา" from the account page: tells the team something in the app is wrong. */
+function appProblemDialog() {
+  const topics = ["ใช้งานแอปไม่ได้ / มีบัค", "ปัญหาการชำระเงิน", "ปัญหากับกลุ่มหรือสมาชิก", "บัญชีและการเข้าสู่ระบบ", "อื่น ๆ"];
+  return `<dialog id="app-problem-dialog" class="form-dialog problem-dialog app-problem-dialog" aria-labelledby="app-problem-title"><form method="dialog" id="app-problem-form"><div class="dialog-heading"><div><h2 id="app-problem-title">${t("รายงานปัญหา")}</h2><p>${t("แจ้งทีมงานเมื่อเจอปัญหาในการใช้งาน ทีมงานจะตรวจสอบและติดต่อกลับ")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><fieldset class="problem-reasons">${topics.map((topic, i) => `<label><input type="radio" name="topic" value="${escape(topic)}" ${i === 0 ? "checked" : ""}/><span>${t(topic)}</span></label>`).join("")}</fieldset><label>${t("รายละเอียด")}<textarea name="message" minlength="5" maxlength="1000" required placeholder="${t("เช่น กดปุ่มยืนยันยอดแล้วไม่มีอะไรเกิดขึ้น / หน้าไหน ทำอะไรอยู่")}"></textarea></label><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button danger">${t("ส่งรายงาน")}</button></div></form></dialog>`;
+}
 /** Dialog for reporting a problem; the submit button carries the same data attributes. */
 function problemDialog(attrs) {
   return `<dialog id="problem-dialog" class="form-dialog problem-dialog" aria-labelledby="problem-title"><form method="dialog" id="problem-form" ${attrs}><div class="dialog-heading"><div><h2 id="problem-title">${t("แจ้งปัญหา")}</h2><p>${t("ตัวกลางจะพักเงินไว้ก่อน แล้วทีมงานจะติดต่อทั้งสองฝ่ายเพื่อตรวจสอบ")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><fieldset class="problem-reasons">${["ยังไม่ได้รับของ", "ของไม่ตรงตามที่ตกลง", "ของเสียหาย / ใช้งานไม่ได้", "ได้ไม่ครบจำนวน"].map((reason, i) => `<label><input type="radio" name="reasonType" value="${escape(reason)}" ${i === 0 ? "checked" : ""}/><span>${t(reason)}</span></label>`).join("")}</fieldset><label>${t("รายละเอียด")}<textarea name="reasonDetail" maxlength="800" placeholder="${t("เช่น สั่งไป 2 ชิ้น ได้มา 1 ชิ้น / รูปที่ได้รับ")}"></textarea></label><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("ส่งเรื่องให้ตัวกลาง")}</button></div></form></dialog>`;
@@ -3660,7 +3666,7 @@ function profile() {
       <aside class="account-aside">
         ${payoutAccountCard()}
         ${supabaseConfigured ? `<section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("การชำระเงินล่าสุด")}</h2>${a("/my-groups", `${t("ดูกลุ่ม")} ${icon("arrow", 17)}`, "account-all-link")}</div>${mySums.entries.length ? `<div class="account-pay-list">${mySums.entries.slice(0, 5).map(moneyEntryRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีรายการชำระเงิน")}</strong><p>${t("เมื่อกลุ่มครบและทุกคนยืนยันยอด ยอดที่ต้องโอนจะขึ้นที่นี่")}</p>${a("/explore", t("หากลุ่มเข้าร่วม"), "button outline")}</div>`}</section>` : `<section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("อัปเดตคำสั่งซื้อ")}</h2>${a("/my-orders", `${t("ดูทั้งหมด")} ${icon("arrow", 17)}`, "account-all-link")}</div>${orders.length ? `<div class="order-updates-grid">${orders.slice(0, 3).map(accountOrderRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีคำสั่งซื้อเดโม")}</strong><p>${t("เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่")}</p>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button outline")}</div>`}</section>`}
-        <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t("ทางลัด")}</h2><div class="account-shortcut-grid">${shortcut("/my-groups", "users", t("กลุ่มของฉัน"), t("ดูและจัดการกลุ่มที่เข้าร่วม"), "blue")}${shortcut("/notifications", "bell", t("แจ้งเตือน"), t("อัปเดตยอดและกิจกรรม"), "amber")}${shortcut("/explore", "search", t("สำรวจ"), t("ค้นหาสินค้าและเข้าร่วมกลุ่ม"), "violet")}${shortcut(supabaseConfigured ? "/subscription" : "/my-orders", supabaseConfigured ? "sparkles" : "check", t(supabaseConfigured ? "แพ็กเกจ" : "คำสั่งซื้อ"), t(supabaseConfigured ? "Free หรือ Plus" : "ดูสถานะคำสั่งซื้อของฉัน"), "mint")}</div></section>
+        <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t("ทางลัด")}</h2><div class="account-shortcut-grid">${shortcut("/my-groups", "users", t("กลุ่มของฉัน"), t("ดูและจัดการกลุ่มที่เข้าร่วม"), "blue")}${shortcut("/notifications", "bell", t("แจ้งเตือน"), t("อัปเดตยอดและกิจกรรม"), "amber")}${shortcut("/explore", "search", t("สำรวจ"), t("ค้นหาสินค้าและเข้าร่วมกลุ่ม"), "violet")}${shortcut(supabaseConfigured ? "/subscription" : "/my-orders", supabaseConfigured ? "sparkles" : "check", t(supabaseConfigured ? "แพ็กเกจ" : "คำสั่งซื้อ"), t(supabaseConfigured ? "Free หรือ Plus" : "ดูสถานะคำสั่งซื้อของฉัน"), "mint")}<button type="button" class="account-shortcut account-shortcut-report" data-action="report-app-problem"><span class="account-shortcut-icon red">${icon("alert-circle", 22)}</span><strong>${t("รายงานปัญหา")}</strong></button></div></section>
       </aside>
       </div>
     </main>
@@ -6184,6 +6190,13 @@ document.addEventListener("click", async (e) => {
       }
       render();
       alertMessage({ "close-group": t("ปิดกลุ่มแล้ว ย้ายไปที่ประวัติ"), "hide-group": t("ซ่อนจากรายการของคุณแล้ว ดูได้ในประวัติ"), "unhide-group": t("แสดงในรายการของคุณแล้ว"), "end-after-cycle": cycleNumber ? t("ตั้งให้รอบที่ {number} เป็นรอบสุดท้ายแล้ว", { number: cycleNumber }) : t("ยกเลิกแล้ว กลุ่มต่ออายุตามปกติ") }[action]);
+    } else if (action === "report-app-problem") {
+      document.querySelector("#app-problem-dialog")?.remove();
+      document.body.insertAdjacentHTML("beforeend", appProblemDialog());
+      const dialog = document.querySelector("#app-problem-dialog");
+      dialog.addEventListener("close", () => dialog.remove(), { once: true });
+      dialog.showModal();
+      return;
     } else if (action === "report-problem") {
       document.querySelector("#problem-dialog")?.remove();
       const attrs = [["id", btn.dataset.id], ["cycle", btn.dataset.cycle]].filter(([, v]) => v).map(([k, v]) => `data-${k}="${escape(v)}"`).join(" ");
@@ -6761,6 +6774,30 @@ document.addEventListener("input", (e) => {
 document.addEventListener("submit", async (e) => {
   const f = e.target,
     actionSession = activeSupabaseSession;
+  if (f.id === "app-problem-form") {
+    e.preventDefault();
+    const d = new FormData(f);
+    const topic = String(d.get("topic") || "อื่น ๆ");
+    const message = String(d.get("message") || "").trim();
+    if (message.length < 5) {
+      alertError(t("กรุณาเล่ารายละเอียดอย่างน้อย 5 ตัวอักษร"));
+      return;
+    }
+    const submit = f.querySelector('[type="submit"]');
+    if (submit) submit.disabled = true;
+    try {
+      if (supabaseConfigured) await submitSupabaseAppProblem(topic, message);
+      f.closest("dialog")?.close();
+      alertMessage(supabaseConfigured ? t("ส่งรายงานแล้ว ทีมงานจะตรวจสอบและติดต่อกลับ") : t("ส่งรายงานแล้ว (เดโม)"));
+    } catch (err) {
+      const msg = String(err?.message || "");
+      alertError(msg.includes("too_many_reports") ? t("วันนี้คุณส่งรายงานครบ 10 ครั้งแล้ว ลองใหม่พรุ่งนี้")
+        : msg.includes("submit_app_problem_report") || err?.code === "PGRST202" ? t("ระบบรายงานปัญหายังไม่พร้อม กรุณาลองใหม่ภายหลัง")
+        : authErrorMessage(err));
+      if (submit) submit.disabled = false;
+    }
+    return;
+  }
   if (f.id === "problem-form") {
     e.preventDefault();
     const d = new FormData(f);
