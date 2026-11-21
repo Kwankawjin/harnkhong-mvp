@@ -2237,6 +2237,12 @@ Object.assign(labels, {
   "ข้อเสนอตอนนี้": "Offers so far"
 });
 
+
+Object.assign(labels, {
+  "เช่น บริการสตรีมมิ่ง": "e.g. streaming service",
+  "กรุณาระบุชื่อหมวดหมู่": "Please enter the category name"
+});
+
 export const messages = {
   th: {
     ...Object.fromEntries(Object.keys(labels).map((key) => [key, key])),

@@ -102,7 +102,8 @@ export function createRequestMarketplace(ctx) {
   // Supabase notifications for the bell, kept live with Realtime.
   const notes = { userId: null, items: [], unsubscribe: null };
   const remote = { open: null, mine: null, myOffers: null, detail: new Map(), offerable: new Map(), loading: new Set(), errors: new Map() };
-  const blankDraft = () => ({ step: 1, category: "", title: "", description: "", budgetMax: "", budgetMin: "", billingCycle: "monthly", expiresInDays: 7 });
+  const OTHER = "อื่น ๆ (ระบุชื่อเอง)";
+  const blankDraft = () => ({ step: 1, category: "", pick: "", otherCategory: "", title: "", description: "", budgetMax: "", budgetMin: "", billingCycle: "monthly", expiresInDays: 7 });
   let draft = blankDraft();
 
   const local = () => {
@@ -310,6 +311,41 @@ export function createRequestMarketplace(ctx) {
     }
   };
 
+  /** Same picker as the create-group page (selected box + option list), single choice. */
+  function categoryPicker() {
+    const pick = draft.pick || (draft.category ? (ctx.categories.includes(draft.category) ? draft.category : OTHER) : "");
+    const other = pick === OTHER;
+    return `<fieldset class="category-picker hk-category-picker"><legend>${t("หมวดหมู่สินค้า")} <b>*</b></legend>
+      <input type="hidden" name="categoryPick" value="${escape(pick)}"/>
+      <div class="selected-categories" data-hk-selected>${selectedTag(pick)}</div>
+      <div class="category-options">${ctx.categories.map((name) => `<button type="button" class="category-option ${pick === name ? "selected" : ""}" data-action="hk-pick-category" data-category="${escape(name)}" aria-pressed="${pick === name}">${escape(t(name))}</button>`).join("")}</div></fieldset>
+      <label data-hk-other ${other ? "" : "hidden"}>${t("ระบุชื่อหมวดหมู่")} <b>*</b><input name="otherCategory" maxlength="60" value="${escape(other ? draft.otherCategory || (ctx.categories.includes(draft.category) ? "" : draft.category) : "")}" placeholder="${t("เช่น บริการสตรีมมิ่ง")}"/></label>`;
+  }
+  const selectedTag = (pick) =>
+    pick ? `<button type="button" class="selected-category" data-action="hk-pick-category" data-category="" aria-label="${t("นำหมวดหมู่ออก {category}", { category: t(pick) })}">${escape(t(pick))}<span aria-hidden="true">×</span></button>` : "";
+
+  /** Picks (or clears) the category in place, so whatever is typed below stays. */
+  function pickCategory(button) {
+    const form = button.closest("form");
+    if (!form) return;
+    const pick = button.dataset.category || "";
+    form.querySelector('[name="categoryPick"]').value = pick;
+    form.querySelector("[data-hk-selected]").innerHTML = selectedTag(pick);
+    for (const option of form.querySelectorAll(".category-options .category-option")) {
+      const on = option.dataset.category === pick;
+      option.classList.toggle("selected", on);
+      option.setAttribute("aria-pressed", String(on));
+    }
+    const otherField = form.querySelector("[data-hk-other]");
+    otherField.hidden = pick !== OTHER;
+    if (pick === OTHER) otherField.querySelector("input").focus();
+    updateSummary(form);
+  }
+  const resolvedCategory = (data) => {
+    const pick = String(data.get("categoryPick") || "");
+    return pick === OTHER ? String(data.get("otherCategory") || "").trim() : pick;
+  };
+
   function wizardPage() {
     const user = ctx.getState().user;
     if (!user) return `<div class="hk-page">${title(t("โพสต์หาของหาร"))}${signInBlock(t("เข้าสู่ระบบเพื่อโพสต์ประกาศหากลุ่ม"))}</div>`;
@@ -319,8 +355,7 @@ export function createRequestMarketplace(ctx) {
     let body = "";
     if (step === 1) {
       body = `<div class="create-form-section"><h2>${icon("search", 20)} ${t("ต้องการหาอะไร")}</h2>
-        <fieldset class="category-picker"><legend>${t("บริการหรือหมวดหมู่")} <b>*</b></legend><div class="category-options">${ctx.categories.map((name) => `<label class="category-option hk-category-option${draft.category === name ? " selected" : ""}"><input type="radio" name="category" value="${escape(name)}" ${draft.category === name ? "checked" : ""}/>${escape(t(name))}</label>`).join("")}</div></fieldset>
-        <p class="field-help">${t("ไม่เจอบริการที่ต้องการ? เลือก “อื่น ๆ (ระบุชื่อเอง)” แล้วใส่ชื่อบริการในชื่อประกาศ")}</p>
+        ${categoryPicker()}
         <label>${t("ชื่อประกาศ")} <b>*</b><input name="title" required minlength="3" maxlength="80" value="${escape(draft.title)}" placeholder="${t("หาเพื่อนหาร YouTube Premium")}"/></label>
         <label>${t("รายละเอียดเพิ่มเติม")} <small>(${t("ไม่บังคับ")})</small><textarea name="description" maxlength="600" rows="4" placeholder="${t("ต้องการเข้าร่วมกลุ่มระยะยาว...")}">${escape(draft.description)}</textarea></label></div>`;
     } else if (step === 2) {
@@ -604,8 +639,9 @@ export function createRequestMarketplace(ctx) {
     const data = new FormData(form);
     const step = Number(form.dataset.step);
     if (step === 1) {
-      draft = { ...draft, category: String(data.get("category") || ""), title: String(data.get("title") || "").trim(), description: String(data.get("description") || "").trim() };
-      if (!draft.category) return feedback(form, t("กรุณาเลือกบริการหรือหมวดหมู่"));
+      draft = { ...draft, pick: String(data.get("categoryPick") || ""), otherCategory: String(data.get("otherCategory") || "").trim(), category: resolvedCategory(data), title: String(data.get("title") || "").trim(), description: String(data.get("description") || "").trim() };
+      if (!draft.pick) return feedback(form, t("กรุณาเลือกบริการหรือหมวดหมู่"));
+      if (!draft.category) return feedback(form, t("กรุณาระบุชื่อหมวดหมู่"));
       if (draft.title.length < 3) return feedback(form, t("ชื่อประกาศต้องยาว 3–80 ตัวอักษร"));
     } else if (step === 2) {
       draft = { ...draft, billingCycle: String(data.get("billingCycle") || "monthly"), budgetMax: String(data.get("budgetMax") || "").trim(), budgetMin: String(data.get("budgetMin") || "").trim(), expiresInDays: Number(data.get("expiresInDays") || 7) };
@@ -850,6 +886,10 @@ export function createRequestMarketplace(ctx) {
     const target = e.target.closest?.("[data-action]");
     if (!target) return false;
     const action = target.dataset.action;
+    if (action === "hk-pick-category") {
+      pickCategory(target);
+      return true;
+    }
     if (action === "hk-wizard-step") {
       const goal = Number(target.dataset.step);
       if (!(goal < draft.step)) return true;
@@ -859,14 +899,7 @@ export function createRequestMarketplace(ctx) {
       return true;
     }
     if (action === "hk-wizard-back") {
-      const form = target.closest("form");
-      if (form) {
-        // Keep what was typed on this step before going back.
-        const data = new FormData(form);
-        for (const key of ["title", "description", "budgetMax", "budgetMin", "billingCycle", "category"])
-          if (data.has(key)) draft[key] = String(data.get(key));
-        if (data.has("expiresInDays")) draft.expiresInDays = Number(data.get("expiresInDays"));
-      }
+      keepDraft(target.closest("form"));
       draft.step = Math.max(1, draft.step - 1);
       ctx.render();
       return true;
@@ -935,8 +968,12 @@ export function createRequestMarketplace(ctx) {
   function keepDraft(form) {
     if (!form) return;
     const data = new FormData(form);
-    for (const key of ["title", "description", "budgetMax", "budgetMin", "billingCycle", "category"])
+    for (const key of ["title", "description", "budgetMax", "budgetMin", "billingCycle", "otherCategory"])
       if (data.has(key)) draft[key] = String(data.get(key));
+    if (data.has("categoryPick")) {
+      draft.pick = String(data.get("categoryPick"));
+      draft.category = resolvedCategory(data);
+    }
     if (data.has("expiresInDays")) draft.expiresInDays = Number(data.get("expiresInDays"));
   }
 
@@ -948,7 +985,7 @@ export function createRequestMarketplace(ctx) {
       if (el) el.textContent = text;
     };
     if (data.has("title")) set("title", String(data.get("title")).trim() || t("ชื่อประกาศ"));
-    if (data.has("category")) set("category", t(String(data.get("category"))));
+    if (data.has("categoryPick")) set("category", resolvedCategory(data) ? t(resolvedCategory(data)) : "—");
     if (data.has("billingCycle")) set("billing", billingLabel(String(data.get("billingCycle"))));
     if (data.has("budgetMax")) set("budgetMax", moneyText(data.get("budgetMax")) || "—");
     if (data.has("budgetMin")) set("budgetMin", moneyText(data.get("budgetMin")) || "—");
@@ -967,11 +1004,7 @@ export function createRequestMarketplace(ctx) {
       if (box) box.textContent = Number.isSafeInteger(price) ? money(price) : "—";
       return true;
     }
-    if (!e.target.matches?.("[data-hk-category-filter]")) return false;
-    const query = e.target.value.trim().toLowerCase();
-    for (const option of document.querySelectorAll(".hk-category-option"))
-      option.hidden = Boolean(query) && !option.dataset.name.includes(query) && !option.querySelector("input").checked;
-    return true;
+    return false;
   }
 
   /** Leaving the wizard starts it blank next time; new data shows after a sign-in change. */
