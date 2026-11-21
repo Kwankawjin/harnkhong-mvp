@@ -12498,10 +12498,10 @@ dialog:not([open]),
   background:
     radial-gradient(
       ellipse at 73% 70%,
-      rgba(255, 203, 73, 0.24),
+      rgba(129, 164, 255, 0.19),
       transparent 42%
     ),
-    linear-gradient(105deg, #fff9e8, #ffedb8 58%, #fff6d9);
+    linear-gradient(105deg, #f8fbff, #eaf1ff 58%, #f7f8ff);
   margin-right: calc(50% - 50vw);
 }
 .home-market-copy {
@@ -12641,6 +12641,20 @@ dialog:not([open]),
       transparent 45%
     ),
     linear-gradient(100deg, #e7f2ff, #dceaff);
+}
+.hk-home-section .home-section-banner {
+  background:
+    radial-gradient(
+      ellipse at 75% 110%,
+      rgba(255, 194, 48, 0.28),
+      transparent 45%
+    ),
+    linear-gradient(100deg, #fff3c9, #ffe39a 58%, #fff0bd);
+}
+.hk-home-section .hk-home-icon {
+  color: #8a5a00;
+  background: rgba(255, 255, 255, 0.62);
+  filter: drop-shadow(0 5px 9px rgba(190, 132, 0, 0.18));
 }
 .home-used-section .home-section-banner {
   background:
