@@ -91,6 +91,7 @@ import { testMode,
   saveAuthenticatedAddress,
 } from "./supabase.js";
 import { createAuthSessionSync } from "./auth-session.js";
+import { createRequestMarketplace } from "./request-marketplace.js";
 
 const BANK_PAYMENT_QR_SRC = "/images/bank-payment-qr.webp";
 const BANK_PAYMENT_RECIPIENT = "จิณห์นิภา บรรจบสมัย";
@@ -634,6 +635,7 @@ const icons = `<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;
 const a = (href, label, cls = "") =>
   `<a href="${href}" data-link class="${cls}">${label}</a>`;
 function go(path) {
+  requestMarketplace.onNavigate(path.split("?")[0]);
   profileMenuOpen = false;
   listingMenuOpen = false;
   // Leaving or entering the create form starts it blank.
@@ -1571,6 +1573,28 @@ const CATEGORY_NAMES = CATEGORIES_LIST.map((c) => c.name);
 const CREATE_CATEGORY_NAMES = CATEGORY_NAMES.filter(
   (name) => name !== "ทั้งหมด",
 );
+// Request Marketplace pages (/requests, /my-requests): see src/request-marketplace.js.
+const requestMarketplace = createRequestMarketplace({
+  t: (key, values) => t(key, values),
+  escape: (value) => escape(value),
+  icon: (id, size) => icon(id, size),
+  a: (href, label, cls) => a(href, label, cls),
+  title: (heading, sub) => title(heading, sub),
+  money: (amount) => money(amount),
+  parseBaht,
+  bahtInput,
+  categories: CREATE_CATEGORY_NAMES,
+  categorySymbol: (name) => CATEGORIES_LIST.find((item) => item.name === name)?.symbol || "",
+  getState: () => state,
+  save: () => save(),
+  notice: (...args) => notice(...args),
+  go: (path) => go(path),
+  render: () => render(),
+  alertMessage: (message) => alertMessage(message),
+  alertError: (message) => alertError(message),
+  errorMessage: (error) => errorMessage(error),
+  supabaseConfigured: () => supabaseConfigured,
+});
 function home() {
   const activeGroups = state.groups.filter(
     (g) =>
@@ -1848,6 +1872,7 @@ function explore() {
       ? `<nav class="pagination" aria-label="${t("การแบ่งหน้า")}"><button type="button" class="pagination-control" data-page="${page - 1}" ${page === 1 ? "disabled" : ""}>${t("ก่อนหน้า")}</button>${pageItems.map((number, index) => `${index && number - pageItems[index - 1] > 1 ? '<span class="pagination-ellipsis" aria-hidden="true">…</span>' : ""}${a(pageHref(number), String(number), `pagination-number${number === page ? " active" : ""}`)}`).join("")}<button type="button" class="pagination-control" data-page="${page + 1}" ${page === pageCount ? "disabled" : ""}>${t("ถัดไป")}</button></nav>`
       : "";
   return `<div class="explore-page">
+    ${requestMarketplace.marketTabs("groups")}
     ${title(t("กลุ่มที่เปิดรับสมาชิก"), t("ตรวจสอบยอดประมาณ จำนวนที่ว่าง และเงื่อนไขของแต่ละกลุ่มก่อนเข้าร่วม"))}
     <form class="search-bar" id="search-form"><span>${icon("search")}</span><input type="hidden" name="category" value="${escape(category)}"/><input name="q" value="${escape(q)}" placeholder="${t("ค้นหาสินค้าหรือชื่อกลุ่ม")}" aria-label="${t("ค้นหา")}"/><button type="submit">${t("ค้นหากลุ่ม")}</button></form>
     <div class="filter-carousel"><button type="button" class="filter-scroll-button filter-scroll-prev" data-action="scroll-filter" data-direction="prev" aria-label="${t("เลื่อนหมวดหมู่ไปซ้าย")}" hidden><span aria-hidden="true">‹</span></button><nav class="filter-row" aria-label="${t("หมวดหมู่")}">${CATEGORY_NAMES.map((x) => a("/explore?category=" + encodeURIComponent(x) + (q ? "&q=" + encodeURIComponent(q) : ""), t(x), "filter " + (category === x ? "active" : ""))).join("")}</nav><button type="button" class="filter-scroll-button filter-scroll-next" data-action="scroll-filter" data-direction="next" aria-label="${t("เลื่อนหมวดหมู่ไปขวา")}" hidden><span aria-hidden="true">›</span></button></div>
@@ -3666,7 +3691,7 @@ function profile() {
       <aside class="account-aside">
         ${payoutAccountCard()}
         ${supabaseConfigured ? `<section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("การชำระเงินล่าสุด")}</h2>${a("/my-groups", `${t("ดูกลุ่ม")} ${icon("arrow", 17)}`, "account-all-link")}</div>${mySums.entries.length ? `<div class="account-pay-list">${mySums.entries.slice(0, 5).map(moneyEntryRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีรายการชำระเงิน")}</strong><p>${t("เมื่อกลุ่มครบและทุกคนยืนยันยอด ยอดที่ต้องโอนจะขึ้นที่นี่")}</p>${a("/explore", t("หากลุ่มเข้าร่วม"), "button outline")}</div>`}</section>` : `<section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("อัปเดตคำสั่งซื้อ")}</h2>${a("/my-orders", `${t("ดูทั้งหมด")} ${icon("arrow", 17)}`, "account-all-link")}</div>${orders.length ? `<div class="order-updates-grid">${orders.slice(0, 3).map(accountOrderRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีคำสั่งซื้อเดโม")}</strong><p>${t("เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่")}</p>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button outline")}</div>`}</section>`}
-        <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t("ทางลัด")}</h2><div class="account-shortcut-grid">${shortcut("/my-groups", "users", t("กลุ่มของฉัน"), t("ดูและจัดการกลุ่มที่เข้าร่วม"), "blue")}${shortcut("/notifications", "bell", t("แจ้งเตือน"), t("อัปเดตยอดและกิจกรรม"), "amber")}${shortcut("/explore", "search", t("สำรวจ"), t("ค้นหาสินค้าและเข้าร่วมกลุ่ม"), "violet")}${shortcut(supabaseConfigured ? "/subscription" : "/my-orders", supabaseConfigured ? "sparkles" : "check", t(supabaseConfigured ? "แพ็กเกจ" : "คำสั่งซื้อ"), t(supabaseConfigured ? "Free หรือ Plus" : "ดูสถานะคำสั่งซื้อของฉัน"), "mint")}<button type="button" class="account-shortcut account-shortcut-report" data-action="report-app-problem"><span class="account-shortcut-icon red">${icon("alert-circle", 22)}</span><strong>${t("รายงานปัญหา")}</strong></button></div></section>
+        <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t("ทางลัด")}</h2><div class="account-shortcut-grid">${shortcut("/my-groups", "users", t("กลุ่มของฉัน"), t("ดูและจัดการกลุ่มที่เข้าร่วม"), "blue")}${shortcut("/notifications", "bell", t("แจ้งเตือน"), t("อัปเดตยอดและกิจกรรม"), "amber")}${shortcut("/explore", "search", t("สำรวจ"), t("ค้นหาสินค้าและเข้าร่วมกลุ่ม"), "violet")}${shortcut("/my-requests", "search", t("ประกาศหากลุ่ม"), t("ประกาศหาของหารและข้อเสนอที่ได้รับ"), "violet")}${shortcut(supabaseConfigured ? "/subscription" : "/my-orders", supabaseConfigured ? "sparkles" : "check", t(supabaseConfigured ? "แพ็กเกจ" : "คำสั่งซื้อ"), t(supabaseConfigured ? "Free หรือ Plus" : "ดูสถานะคำสั่งซื้อของฉัน"), "mint")}<button type="button" class="account-shortcut account-shortcut-report" data-action="report-app-problem"><span class="account-shortcut-icon red">${icon("alert-circle", 22)}</span><strong>${t("รายงานปัญหา")}</strong></button></div></section>
       </aside>
       </div>
     </main>
@@ -4389,6 +4414,8 @@ function route() {
   if (path === "/profile") return profile();
   if (/^\/shops\/[^/]+$/.test(path)) return shopPage(path.split("/")[2]);
   if (/^\/orders\/[^/]+$/.test(path)) return orderPage(path.split("/")[2]);
+  const requestPage = requestMarketplace.route(path);
+  if (requestPage !== null) return requestPage;
   return notFound();
 }
 function updateFilterCarousel() {
@@ -4479,7 +4506,7 @@ function render() {
           ${desktopNav.map(([href, , label]) => a(href, label, "nav-link " + (location.pathname === href || (href === "/profile" && location.pathname.startsWith("/profile/")) || (href === "/marketplace/secondhand" && location.pathname.startsWith("/checkout/secondhand/")) ? "active" : ""))).join("")}
         </nav>
         <div class="header-actions">
-          ${/^\/groups\/[^/]+$/.test(location.pathname) ? "" : `<div class="header-create-menu-wrap"><button type="button" class="button primary header-create-btn" data-action="listing-menu-toggle" aria-expanded="${listingMenuOpen}" aria-haspopup="menu">${icon("plus", 18)} ${t("สร้างกลุ่มหารของ")}</button>${listingMenuOpen ? `<div class="header-create-dropdown" role="menu">${a("/groups/create", `<span class="header-create-option-icon">${icon("users", 20)}</span><span><strong>${t("สร้างกลุ่มหารของ")}</strong><small>${t("ชวนคนร่วมซื้อ")}</small></span>`, "header-create-option")}</div>` : ""}</div>`}
+          ${/^\/groups\/[^/]+$/.test(location.pathname) ? "" : `<div class="header-create-menu-wrap"><button type="button" class="button primary header-create-btn" data-action="listing-menu-toggle" aria-expanded="${listingMenuOpen}" aria-haspopup="menu">${icon("plus", 18)} ${t("สร้างกลุ่มหารของ")}</button>${listingMenuOpen ? `<div class="header-create-dropdown" role="menu">${a("/groups/create", `<span class="header-create-option-icon">${icon("users", 20)}</span><span><strong>${t("สร้างกลุ่มหารของ")}</strong><small>${t("ชวนคนร่วมซื้อ")}</small></span>`, "header-create-option")}${a("/requests/new", `<span class="header-create-option-icon">${icon("search", 20)}</span><span><strong>${t("โพสต์หาของหาร")}</strong><small>${t("ให้เจ้าของกลุ่มเสนอ")}</small></span>`, "header-create-option")}</div>` : ""}</div>`}
           ${a("/notifications", `${icon("bell", 22)}<span class="sr-only">${t("การแจ้งเตือน")}</span>${unread ? `<i>${unread}</i>` : ""}`, "icon-button header-notifications-btn")}
           ${state.user ? `<div class="profile-menu-wrap"><button type="button" class="profile-pill" data-action="profile-menu-toggle" aria-expanded="${profileMenuOpen}" aria-haspopup="menu"><span class="avatar tiny">${profileAvatarMarkup(state.user)}</span><span class="header-user-name">${escape(state.user.name)}</span><span class="profile-menu-chevron" aria-hidden="true">⌄</span></button>${profileMenuOpen ? `<div class="profile-dropdown" role="menu"><div class="profile-dropdown-heading"><strong>${escape(state.user.name)}</strong><small>${escape(state.user.email || "")}</small></div>${a("/profile", `${icon("user", 18)}<span>${t("บัญชี")}</span>`, "profile-dropdown-link")}${a("/chat", `${icon("chat", 18)}<span>${t("แชตกลุ่ม")}</span>`, "profile-dropdown-link")}${a("/notifications", `${icon("bell", 18)}<span>${t("การแจ้งเตือน")}</span>${unread ? `<i>${unread}</i>` : ""}`, "profile-dropdown-link")}<button type="button" role="menuitem" class="profile-dropdown-link" data-action="theme-toggle"><span class="profile-dropdown-theme-icon" aria-hidden="true">${theme === "dark" ? "☀" : "☾"}</span><span>${theme === "dark" ? t("โหมดสว่าง") : t("โหมดมืด")}</span><small class="profile-dropdown-state">${theme === "dark" ? t("เปิด") : t("ปิด")}</small></button></div>` : ""}</div>` : `<div class="profile-menu-wrap"><button type="button" class="profile-pill profile-menu-guest" data-action="profile-menu-toggle" aria-label="${t("เมนูบัญชี")}" aria-expanded="${profileMenuOpen}" aria-haspopup="menu">${icon("user", 18)}<span class="profile-menu-chevron" aria-hidden="true">⌄</span></button>${profileMenuOpen ? `<div class="profile-dropdown" role="menu"><div class="profile-dropdown-heading"><strong>${t("บัญชี")}</strong><small>${t("เข้าสู่ระบบเพื่อใช้งานบัญชี แชต และการแจ้งเตือน")}</small></div>${a("/profile", `${icon("user", 18)}<span>${t("บัญชี")}</span>`, "profile-dropdown-link")}${a("/chat", `${icon("chat", 18)}<span>${t("แชตกลุ่ม")}</span>`, "profile-dropdown-link")}${a("/notifications", `${icon("bell", 18)}<span>${t("การแจ้งเตือน")}</span>`, "profile-dropdown-link")}<button type="button" role="menuitem" class="profile-dropdown-link" data-action="theme-toggle"><span class="profile-dropdown-theme-icon" aria-hidden="true">${theme === "dark" ? "☀" : "☾"}</span><span>${theme === "dark" ? t("โหมดสว่าง") : t("โหมดมืด")}</span><small class="profile-dropdown-state">${theme === "dark" ? t("เปิด") : t("ปิด")}</small></button><button type="button" role="menuitem" class="profile-dropdown-link" data-action="open-auth" data-step="1">${icon("user", 18)}<span>${t("เข้าสู่ระบบ")}</span></button></div>` : ""}</div><button type="button" class="button primary header-login-btn" data-action="open-auth" data-step="1">${icon("user", 18)} ${t("เข้าสู่ระบบ")}</button>`}
           <button type="button" class="icon-button mobile-menu-toggle" data-action="mobile-menu-toggle" aria-label="${mobileMenuOpen ? t("ปิดเมนู") : t("เปิดเมนู")}" aria-expanded="${mobileMenuOpen}" aria-controls="mobile-menu"><span></span><span></span></button>
@@ -4490,7 +4517,7 @@ function render() {
           ${nav.map(([href, ic, label]) => a(href, `${icon(ic, 21)}<span>${label}</span>`, location.pathname === href || (href === "/profile" && location.pathname.startsWith("/profile/")) ? "active" : "")).join("")}
         </nav>
         <div class="mobile-menu-actions">
-          ${/^\/groups\/[^/]+$/.test(location.pathname) ? "" : a("/groups/create", `${icon("plus", 18)} ${t("เปิดกลุ่ม")}`, "button primary")}
+          ${/^\/groups\/[^/]+$/.test(location.pathname) ? "" : a("/groups/create", `${icon("plus", 18)} ${t("เปิดกลุ่ม")}`, "button primary")}${a("/requests/new", `${icon("search", 18)} ${t("โพสต์หาของหาร")}`, "button outline")}
           ${state.user ? a("/profile", `${icon("user", 18)} ${t("บัญชี")}`, "button outline") : `<button type="button" class="button primary" data-action="open-auth" data-step="1">${icon("user", 18)} ${t("เข้าสู่ระบบ")}</button>`}
         </div>
       </div>
@@ -5445,6 +5472,7 @@ document.addEventListener("change", (e) => {
   window.scrollTo(0, scrollY);
 });
 document.addEventListener("click", async (e) => {
+  if (requestMarketplace.onClick(e)) return;
   const unitStep = e.target.closest("[data-unit-step]");
   if (unitStep) {
     const card = unitStep.closest("[data-unit-join]");
@@ -6570,6 +6598,9 @@ document.addEventListener("click", async (e) => {
     );
   }
 });
+document.addEventListener("submit", (e) => {
+  requestMarketplace.onSubmit(e);
+});
 document.addEventListener("submit", async (e) => {
   const f = e.target;
   if (f.id !== "edit-group-form") return;
@@ -6749,6 +6780,7 @@ document.addEventListener("submit", async (e) => {
     return;
   }
 });
+document.addEventListener("input", (e) => requestMarketplace.onInput(e));
 document.addEventListener("input", (e) => {
   if (e.target?.matches?.("[data-chat-search]")) {
     const query = e.target.value.trim().toLocaleLowerCase();
@@ -7900,6 +7932,7 @@ async function refreshSupabaseGroups(session = activeSupabaseSession) {
 }
 
 function beginSupabaseSession(session) {
+  requestMarketplace.onSessionChange();
   authSessionSync.invalidate();
   activeSupabaseSession = session;
   if ((state.user?.id || null) !== (session?.user?.id || null)) {
@@ -8011,6 +8044,7 @@ if (typeof document !== "undefined") {
   window.addEventListener("popstate", render);
 }
 if (testMode) {
+  requestMarketplace.seedTestData(TEST_USERS);
   document.body.insertAdjacentHTML("beforeend", testBanner());
   document.body.classList.add("has-test-banner");
   document.addEventListener("change", (e) => {
