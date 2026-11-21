@@ -1752,7 +1752,18 @@ function whyFees() {
    Later renders (a filter click re-renders the page) show them as they are. */
 const revealedKinds = new Set();
 let revealObserver = null;
+let homeRevealActive = false;
 function revealHomeSections() {
+  if (location.pathname !== "/") {
+    homeRevealActive = false;
+    revealObserver?.disconnect();
+    revealObserver = null;
+    return;
+  }
+  if (!homeRevealActive) {
+    homeRevealActive = true;
+    revealedKinds.clear();
+  }
   const pending = [...document.querySelectorAll("[data-reveal-kind]:not([data-reveal])")];
   if (!pending.length) return;
   const still = !("IntersectionObserver" in window) || matchMedia("(prefers-reduced-motion: reduce)").matches;
