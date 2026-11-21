@@ -1854,6 +1854,196 @@ Object.assign(labels, {
   ค่าจัดส่ง: "Shipping fee",
 });
 
+
+// Request Marketplace (src/request-marketplace.js)
+Object.assign(labels, {
+  "ประกาศหมดอายุ": "Request expired",
+  "ประกาศ “{title}” หมดอายุแล้ว": "Your request “{title}” has expired",
+  "/ เดือน": "/ month",
+  "/ ที่นั่ง": "/ seat",
+  "หมดเวลาแล้ว": "Time's up",
+  "เหลือเวลา {days} วัน": "{days} days left",
+  "เหลือเวลา {hours} ชม.": "{hours}h left",
+  "กำลังโหลด": "Loading",
+  "โหลดข้อมูลไม่สำเร็จ": "Could not load data",
+  "ระบบประกาศหากลุ่มยังไม่ได้เปิดในฐานข้อมูลนี้": "The Request Marketplace is not set up in this database yet.",
+  "เข้าสู่ระบบก่อน": "Please sign in",
+  "ค้นหากลุ่มที่ต้องการ หรือประกาศหาสิ่งที่กำลังมองหา": "Find a group, or post what you're looking for",
+  "กลุ่มที่เปิดหาร": "Open groups",
+  "กำลังหากลุ่ม": "Find a Group",
+  "ต้องการ {count} ที่นั่ง": "Needs {count} seat(s)",
+  "งบสูงสุด": "Max budget",
+  "{count} ข้อเสนอ": "{count} offers",
+  "ไม่พบประกาศที่ตรงกับการค้นหา": "No requests match your search",
+  "ยังไม่มีคนประกาศหากลุ่ม": "No one is looking for a group yet",
+  "โพสต์สิ่งที่คุณต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ": "Post what you need and let group owners make you an offer.",
+  "โพสต์หาของหาร": "Post a Request",
+  "โพสต์สิ่งที่ต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอได้เลย ไม่ต้องเปิดกลุ่มเอง": "Post what you need and let group owners make an offer. No need to start a group yourself.",
+  "ประกาศของฉัน": "My requests",
+  "ค้นหาบริการที่ต้องการ...": "Search for a service...",
+  "ประกาศหากลุ่มล่าสุด": "Latest requests",
+  "{count} ประกาศ": "{count} requests",
+  "เข้าสู่ระบบเพื่อโพสต์ประกาศหากลุ่ม": "Sign in to post a request.",
+  "ต้องการหาอะไร?": "What are you looking for?",
+  "ระบุความต้องการ": "Your needs",
+  "ตรวจสอบประกาศ": "Review",
+  "ขั้นตอน": "Steps",
+  "ขั้นตอนที่ 1: ต้องการหาอะไร?": "Step 1: What are you looking for?",
+  "เลือกบริการหรือหมวดหมู่ที่ต้องการหาร": "Choose the service or category you want to share.",
+  "ค้นหาบริการ...": "Search services...",
+  "ไม่เจอบริการที่ต้องการ? เลือก “อื่น ๆ (ระบุชื่อเอง)” แล้วใส่ชื่อบริการในชื่อประกาศ": "Can't find it? Choose “Other” and put the service name in the title.",
+  "รายละเอียดที่ต้องการ": "Details",
+  "ชื่อประกาศ": "Title",
+  "หาเพื่อนหาร YouTube Premium": "Looking to share YouTube Premium",
+  "รายละเอียดเพิ่มเติม": "More details",
+  "ไม่บังคับ": "optional",
+  "ต้องการเข้าร่วมกลุ่มระยะยาว...": "I'd like to join a long-term group...",
+  "ขั้นตอนที่ 2: ระบุความต้องการ": "Step 2: Your needs",
+  "จำนวนที่นั่ง": "Seats",
+  "1 ที่นั่ง": "1 seat",
+  "1 บัญชีเข้าร่วมกลุ่มได้ 1 ที่นั่ง": "One account takes one seat in a group",
+  "รอบการชำระเงิน": "Billing",
+  "งบสูงสุด (บาท)": "Max budget (THB)",
+  "งบขั้นต่ำ (บาท)": "Min budget (THB)",
+  "งบต่อ 1 ที่นั่ง ตามรอบการชำระเงินที่เลือก": "Budget for one seat, per the billing you chose.",
+  "ระยะเวลาประกาศ": "Request runs for",
+  "{days} วัน": "{days} days",
+  "ขั้นตอนที่ 3: ตรวจสอบประกาศ": "Step 3: Review your request",
+  "ประกาศจะแสดงแบบนี้ในหน้ารวมประกาศ": "This is how your request will look in the list.",
+  "เจ้าของกลุ่มจะเห็นประกาศและส่งข้อเสนอพร้อมกลุ่มที่มีอยู่จริง": "Group owners see your request and offer a group that already exists.",
+  "คุณเลือกข้อเสนอได้ 1 รายการ แล้วเข้าร่วมกลุ่มตามขั้นตอนเดิม": "You pick one offer, then join the group the usual way.",
+  "ประกาศหมดอายุใน {days} วัน": "Expires in {days} days",
+  "ย้อนกลับ": "Back",
+  "กลับไปหน้าประกาศ": "Back to requests",
+  "สร้างประกาศหากลุ่ม": "Post a request",
+  "ไม่พบประกาศนี้": "Request not found",
+  "ประกาศอาจหมดอายุหรือถูกยกเลิกแล้ว": "It may have expired or been cancelled.",
+  "ดูประกาศทั้งหมด": "See all requests",
+  "แก้ไขประกาศ": "Edit request",
+  "ยกเลิกประกาศ": "Cancel request",
+  "มีข้อเสนอแล้ว จึงแก้ไขประกาศไม่ได้ เพื่อให้ข้อเสนอตรงกับสิ่งที่ประกาศไว้": "It already has offers, so it can't be edited: offers must match what you posted.",
+  "{count} ที่นั่ง": "{count} seat(s)",
+  "ยังไม่มีข้อเสนอ": "No offers yet",
+  "เมื่อเจ้าของกลุ่มส่งข้อเสนอ จะแสดงที่นี่": "Offers from group owners will show here.",
+  "ข้อเสนอจะเห็นได้เฉพาะเจ้าของประกาศ": "Only the person who posted can see the offers.",
+  "มีกลุ่มที่ตรงกับประกาศนี้?": "Have a group that fits?",
+  "เจ้าของกลุ่มจะส่งข้อเสนอพร้อมแนบกลุ่มที่มีอยู่ได้ เร็ว ๆ นี้": "Group owners will soon be able to make an offer with an existing group.",
+  "เร็ว ๆ นี้": "coming soon",
+  "ต้องการเข้าร่วมกลุ่ม{cycle} จำนวน {count} ที่นั่ง": "Wants to join a {cycle} group, {count} seat(s)",
+  "งบประมาณสูงสุด": "Max budget",
+  "ขั้นต่ำ {amount}": "min {amount}",
+  "จำนวนที่ต้องการ": "Seats needed",
+  "ระยะเวลา": "Time left",
+  "ผู้โพสต์: {name}": "Posted by {name}",
+  "ข้อเสนอที่ได้รับ": "Offers received",
+  "รอพิจารณา {count}": "{count} pending",
+  "เข้าสู่ระบบเพื่อแก้ไขประกาศ": "Sign in to edit your request.",
+  "แก้ไขประกาศนี้ไม่ได้": "This request can't be edited",
+  "แก้ไขได้เฉพาะประกาศที่เปิดอยู่และยังไม่มีข้อเสนอ": "Only open requests without offers can be edited.",
+  "กลับไปที่ประกาศ": "Back to the request",
+  "บริการ รอบการชำระเงิน และวันหมดอายุเปลี่ยนไม่ได้ ถ้าต้องการเปลี่ยน ให้ยกเลิกแล้วโพสต์ใหม่": "Service, billing and expiry can't change. Cancel and post again to change them.",
+  "เข้าสู่ระบบเพื่อดูประกาศหากลุ่มของคุณ": "Sign in to see your requests.",
+  "คุณยังไม่มีประกาศหากลุ่ม": "You haven't posted a request yet",
+  "ไม่มีประกาศในแท็บนี้": "Nothing in this tab",
+  "ประกาศหากลุ่มของฉัน": "My requests",
+  "ติดตามประกาศและข้อเสนอที่ได้รับ": "Track your requests and the offers you receive",
+  "กรุณาเลือกบริการหรือหมวดหมู่": "Please choose a service or category",
+  "ชื่อประกาศต้องยาว 3–80 ตัวอักษร": "The title must be 3–80 characters",
+  "กรุณากรอกงบสูงสุดให้ถูกต้อง": "Please enter a valid max budget",
+  "โพสต์ประกาศแล้ว เจ้าของกลุ่มจะเห็นประกาศของคุณ": "Request posted. Group owners can see it now.",
+  "ยกเลิกประกาศนี้ใช่ไหม? ข้อเสนอที่ยังรออยู่จะถูกยกเลิกด้วย": "Cancel this request? Pending offers will be cancelled too.",
+  "ประกาศถูกยกเลิก": "Request cancelled",
+  "ผู้หากลุ่มยกเลิกประกาศ “{title}” แล้ว": "The requester cancelled “{title}”",
+  "ยกเลิกประกาศแล้ว": "Request cancelled",
+  "เปิดรับข้อเสนอ": "Open for offers",
+  "มีข้อเสนอแล้ว": "Has offers",
+  "เลือกข้อเสนอแล้ว": "Matched",
+  "เข้าร่วมสำเร็จ": "Joined",
+  "หมดอายุ": "Expired",
+  "รอพิจารณา": "Pending",
+  "ยอมรับแล้ว": "Accepted",
+  "ปฏิเสธแล้ว": "Declined",
+  "Host ถอนข้อเสนอ": "Withdrawn by host",
+  "รอข้อเสนอ": "Waiting",
+  "มีข้อเสนอ": "With offers",
+  "เสร็จสิ้น": "Done",
+  "รายเดือน": "Monthly",
+  "ครั้งเดียว": "One-time",
+  "ประกาศหากลุ่ม": "My requests",
+  "ประกาศหาของหารและข้อเสนอที่ได้รับ": "Your requests and offers",
+  "ให้เจ้าของกลุ่มเสนอ": "Let group owners offer"
+});
+Object.assign(errors, {
+  "hk_invalid_title": [
+    "ชื่อประกาศต้องยาว 3–80 ตัวอักษร",
+    "The title must be 3–80 characters"
+  ],
+  "hk_invalid_description": [
+    "รายละเอียดยาวได้ไม่เกิน 600 ตัวอักษร",
+    "Details can be up to 600 characters"
+  ],
+  "hk_invalid_budget": [
+    "กรุณากรอกงบสูงสุดให้ถูกต้อง",
+    "Please enter a valid max budget"
+  ],
+  "hk_invalid_budget_range": [
+    "งบขั้นต่ำต้องไม่มากกว่างบสูงสุด",
+    "The min budget can't be above the max"
+  ],
+  "hk_invalid_category": [
+    "กรุณาเลือกบริการหรือหมวดหมู่",
+    "Please choose a service or category"
+  ],
+  "hk_invalid_billing": [
+    "กรุณาเลือกรอบการชำระเงิน",
+    "Please choose a billing option"
+  ],
+  "hk_invalid_expiry": [
+    "กรุณาเลือกระยะเวลาประกาศ",
+    "Please choose how long the request runs"
+  ],
+  "hk_invalid_input": [
+    "ข้อมูลประกาศไม่ถูกต้อง",
+    "Some request details are invalid"
+  ],
+  "hk_not_installed": [
+    "ระบบประกาศหากลุ่มยังไม่ได้เปิดในฐานข้อมูลนี้",
+    "The Request Marketplace is not set up in this database yet."
+  ],
+  "authentication_required": [
+    "กรุณาเข้าสู่ระบบก่อน",
+    "Please sign in first"
+  ],
+  "profile_required": [
+    "กรุณาตั้งชื่อในโปรไฟล์ก่อน",
+    "Please set your profile name first"
+  ],
+  "too_many_open_requests": [
+    "เปิดประกาศค้างไว้ได้ไม่เกิน 10 ประกาศ",
+    "You can have up to 10 open requests"
+  ],
+  "request_not_found": [
+    "ไม่พบประกาศนี้",
+    "Request not found"
+  ],
+  "request_not_open": [
+    "ประกาศนี้ไม่ได้เปิดรับข้อเสนอแล้ว",
+    "This request is no longer open"
+  ],
+  "request_has_offers": [
+    "มีข้อเสนอแล้ว แก้ไขประกาศไม่ได้",
+    "This request has offers and can't be edited"
+  ],
+  "invalid_request_expiry": [
+    "กรุณาเลือกระยะเวลาประกาศ",
+    "Please choose how long the request runs"
+  ],
+  "product_unavailable": [
+    "ไม่พบบริการนี้",
+    "This service isn't available"
+  ]
+});
+
 export const messages = {
   th: {
     ...Object.fromEntries(Object.keys(labels).map((key) => [key, key])),

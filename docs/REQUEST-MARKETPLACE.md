@@ -72,3 +72,31 @@ Tests: `supabase/tests/request_marketplace.sql` (`supabase/tests/local/run.sh su
 - ยังไม่มี UI (Phase 2–4)
 - ลำดับล็อกตอนลบกลุ่ม (group → request) สวนกับตอนยอมรับ (request → group) ถ้าเกิดพร้อมกันพอดี Postgres จะยกเลิกอันหนึ่ง (deadlock detected) ให้ลองใหม่ได้ ไม่ทำให้ข้อมูลเสีย
 - แจ้งเตือน "ใกล้หมดอายุ" ต้องใช้ scheduler ยังไม่ได้ทำ
+
+---
+
+# Phase 2 — Requester Experience
+
+| หน้า | ทำอะไร |
+| --- | --- |
+| `/explore` | เพิ่มแท็บ Marketplace: **กลุ่มที่เปิดหาร** / **กำลังหากลุ่ม** |
+| `/requests` | รวมประกาศที่เปิดอยู่ ค้นหา กรองหมวดหมู่ ปุ่ม “โพสต์หาของหาร” |
+| `/requests/new` | Wizard 3 ขั้น: เลือกบริการ+ชื่อ+รายละเอียด → รอบบิล/งบ/ระยะเวลา (3/7/14 วัน) → Preview → Publish Request |
+| `/requests/:id` | รายละเอียด, สถานะ, งบ, เวลาที่เหลือ เจ้าของเห็นข้อเสนอที่ได้รับ + ปุ่มแก้ไข/ยกเลิก คนอื่นเห็นปุ่ม “Make an Offer · เร็ว ๆ นี้” (Phase 3) |
+| `/requests/:id/edit` | แก้ชื่อ รายละเอียด งบ (ได้เฉพาะตอนเปิดและยังไม่มีข้อเสนอ) |
+| `/my-requests` | แท็บ ทั้งหมด / รอข้อเสนอ / มีข้อเสนอ / เสร็จสิ้น |
+
+ทางเข้า: เมนู “สร้างกลุ่มหารของ” → “โพสต์หาของหาร”, เมนูมือถือ, ทางลัดในหน้าบัญชี “ประกาศหากลุ่ม”
+
+## โค้ด
+
+- `src/requests.js` — กติกาฝั่ง requester (ตรวจ input, สร้าง/แก้/ยกเลิก, หมดอายุ, สถานะ “มีข้อเสนอ” ที่คำนวณเอา) ตรงกับ RPC ใน migration
+- `src/supabase-requests.js` — อ่านตาราง `hk_*` และเรียก `hk_create_request` / `hk_update_request` / `hk_cancel_request` / `hk_sync`
+- `src/request-marketplace.js` + `src/requests.css` — หน้าจอทั้งหมด (app.js แค่ต่อ route, ปุ่ม, event)
+- Test mode (`VITE_TEST_MODE=1`): ข้อมูลอยู่ใน `localStorage` และมีประกาศตัวอย่าง 3 อันจากผู้ทดสอบ B/C
+
+## ทดสอบแล้ว
+
+- `tests/requests.test.js` 8 ข้อ
+- Playwright บน iPhone 13 และเดสก์ท็อป: แท็บ, ค้นหา, wizard (validation, ย้อนกลับแล้วค่าไม่หาย), escape HTML ในรายละเอียด, แก้ไข, My Requests, มุมมองของผู้ทดสอบคนอื่น, ยกเลิก, ไม่มี horizontal scroll, ไม่มี console error, dark mode
+- โหมด Supabase จริงยังไม่ได้ลองกับ PostgREST (ยังไม่ได้ apply migration) ทดสอบเฉพาะ RPC ในระดับ SQL
