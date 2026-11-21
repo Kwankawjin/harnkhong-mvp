@@ -12498,10 +12498,10 @@ dialog:not([open]),
   background:
     radial-gradient(
       ellipse at 73% 70%,
-      rgba(129, 164, 255, 0.19),
+      rgba(255, 203, 73, 0.24),
       transparent 42%
     ),
-    linear-gradient(105deg, #f8fbff, #eaf1ff 58%, #f7f8ff);
+    linear-gradient(105deg, #fff9e8, #ffedb8 58%, #fff6d9);
   margin-right: calc(50% - 50vw);
 }
 .home-market-copy {
