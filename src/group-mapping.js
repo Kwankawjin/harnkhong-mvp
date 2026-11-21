@@ -1,4 +1,4 @@
-import { costBreakdown, totalCost, SEAT_MODE } from "./domain.js";
+import { costBreakdown, totalCost, SEAT_MODE, ownerFee } from "./domain.js";
 
 const eventReason = {
   group_created: "สร้างกลุ่มแล้ว",
@@ -30,9 +30,17 @@ export function mapDatabaseGroup(
   const costs = { product, delivery, mode: seatPriced ? SEAT_MODE : "per_member_v2" };
   // Seat-priced totals cover every seat; legacy totals cover the people present.
   const units = seatPriced ? Number(row.capacity) : members.length;
+  // Until 20261120120000 runs, seat-priced rows still carry the old owner fee in their totals;
+  // accept both so the site keeps loading during the switch.
+  const subtotal = product + delivery * units;
+  const legacySeatTotals =
+    seatPriced &&
+    asSafeSatang(row.total_satang) === subtotal + ownerFee(subtotal) &&
+    asSafeSatang(row.service_satang) === ownerFee(subtotal);
   if (
-    asSafeSatang(row.total_satang) !== totalCost(costs, units) ||
-    asSafeSatang(row.service_satang) !== costBreakdown(costs, units).service
+    !legacySeatTotals &&
+    (asSafeSatang(row.total_satang) !== totalCost(costs, units) ||
+      asSafeSatang(row.service_satang) !== costBreakdown(costs, units).service)
   ) {
     throw Object.assign(new Error("Database and app group totals differ"), {
       code: "groupTotalMismatch",
@@ -57,7 +65,7 @@ export function mapDatabaseGroup(
     costs,
     billing: row.billing_mode === "monthly" ? "monthly" : "one_time",
     ...(row.billing_mode === "monthly"
-      ? { cycleAnchor: row.cycle_anchor || null, cycles: mapCycles(row.cycles, row.owner_id) }
+      ? { cycleAnchor: row.cycle_anchor || null, payDay: row.pay_day == null ? null : Number(row.pay_day), cycles: mapCycles(row.cycles, row.owner_id) }
       : {}),
     members,
     revision: Number(row.revision),
@@ -66,6 +74,8 @@ export function mapDatabaseGroup(
       : Number(row.admin_approved_revision),
     approvals,
     status: row.status,
+    closedAt: row.closed_at || null,
+    lastCycle: row.last_cycle_number == null ? null : Number(row.last_cycle_number),
     orderId: null,
     history: history.map((event) => ({
       revision: Number(event.revision),
@@ -97,6 +107,9 @@ export function mapCycles(rows = [], ownerId) {
         ),
         payments: Object.fromEntries(
           shares.filter((share) => share.payment_status).map((share) => [share.user_id, share.payment_status]),
+        ),
+        receipts: Object.fromEntries(
+          shares.filter((share) => share.received_at).map((share) => [share.user_id, share.received_at]),
         ),
         rejections: Object.fromEntries(
           shares.filter((share) => share.rejection_note).map((share) => [share.user_id, share.rejection_note]),

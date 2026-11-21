@@ -1,6 +1,6 @@
 // Monthly billing cycles for groups and the HarnKhong Plus subscription.
 // Every amount is in satang; every date is an ISO string. Functions are pure.
-import { assertSatang, seatShares } from "./domain.js";
+import { assertSatang, shares } from "./domain.js";
 
 function fail(code, message) {
   throw Object.assign(new Error(message), { code });
@@ -37,13 +37,14 @@ export const currentCycle = (group) => group.cycles?.at(-1) ?? null;
 // does not drift to the 28th after February.
 function snapshot(group, number, anchor) {
   const start = number === 1 ? anchor : addMonths(anchor, number - 1);
-  const amounts = seatShares(group.costs, group.capacity, group.members, group.ownerId);
+  const amounts = shares(group);
   return {
     number,
     start,
     end: addMonths(anchor, number),
     status: "awaiting_confirmation",
     members: [...group.members],
+    ...(group.units ? { units: { ...group.units } } : {}),
     ownerId: group.ownerId,
     costs: { ...group.costs },
     amounts,
@@ -53,13 +54,27 @@ function snapshot(group, number, anchor) {
   };
 }
 
+/**
+ * The first pay date on or after 3 days from now, at local midnight. Starting a cycle too
+ * close to the pay day moves the first payment to next month, so members have time to pay.
+ */
+export function firstPayDate(now, payDay) {
+  const today = new Date(now);
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  let candidate = new Date(today.getFullYear(), today.getMonth(), payDay);
+  if (candidate.getTime() < start.getTime() + 3 * 86_400_000)
+    candidate = new Date(today.getFullYear(), today.getMonth() + 1, payDay);
+  return candidate;
+}
+
 /** The owner starts the first month; people who joined while gathering are all in it. */
 export function startFirstCycle(group, actorId, now = new Date()) {
   if (group.billing !== "monthly") fail("notMonthly", "กลุ่มนี้ไม่ใช่แบบรายเดือน");
   if (group.ownerId !== actorId) fail("ownerOnly", "เฉพาะเจ้าของกลุ่มเริ่มรอบได้");
   if (group.cycles?.length) fail("cycleStarted", "กลุ่มเริ่มรอบไปแล้ว");
   if (group.status === "cancelled") fail("cancelledGroup", "กลุ่มนี้ยกเลิกแล้ว");
-  const anchor = iso(now).toISOString();
+  // With a pay day, cycles run from pay date to pay date and each payment is due on the cycle start.
+  const anchor = (group.payDay ? firstPayDate(iso(now), group.payDay) : iso(now)).toISOString();
   const cycle = snapshot(group, 1, anchor);
   return { ...group, status: "active", cycleAnchor: anchor, cycles: [cycle] };
 }
@@ -75,7 +90,7 @@ export function rollCycles(group, now = new Date()) {
     if ((guard += 1) > 120) fail("cycleOverflow", "รอบค้างนานเกินไป");
     const last = cycles.at(-1);
     cycles[cycles.length - 1] = { ...last, status: "closed", closedFrom: last.status };
-    if (group.status === "cancelled") break;
+    if (group.status === "cancelled" || group.closedAt || (group.lastCycle && last.number >= group.lastCycle)) break;
     cycles.push(snapshot(group, last.number + 1, group.cycleAnchor ?? cycles[0].start));
   }
   return { ...group, cycles };
@@ -101,15 +116,45 @@ export function recordCyclePayment(group, userId, cycleNumber, status, amount) {
   const cycle = currentCycle(group);
   if (!cycle || cycle.number !== cycleNumber) fail("staleCycle", "รอบนี้ไม่ใช่รอบปัจจุบัน");
   if (!cycle.members.includes(userId)) fail("notInCycle", "ไม่ได้อยู่ในรอบนี้");
+  if (userId === cycle.ownerId)
+    fail("ownerReceivesPayout", "เจ้าของกลุ่มไม่ต้องโอน ระบบจะโอนเงินจากสมาชิกให้หลังหักค่าคอม 2%");
   if (!cycle.confirmations[userId]) fail("confirmFirst", "กรุณายืนยันยอดก่อนชำระ");
   if (!["reported", "verified", "rejected"].includes(status)) fail("invalidStatus", "สถานะไม่ถูกต้อง");
   if (assertSatang(amount) !== cycle.amounts[userId])
     fail("amountMismatch", "ยอดชำระไม่ตรงกับยอดของรอบนี้");
   const payments = { ...cycle.payments, [userId]: status };
-  const allPaid = cycle.status === "confirmed" && cycle.members.every((id) => payments[id] === "verified");
+  // The owner does not transfer; the cycle is paid once every other member's payment is verified.
+  const allPaid = cycle.status === "confirmed" && cycle.members.filter((id) => id !== cycle.ownerId).every((id) => payments[id] === "verified");
   const next = { ...cycle, payments, status: allPaid ? "paid" : cycle.status };
   return { ...group, cycles: [...group.cycles.slice(0, -1), next] };
 }
+
+/** A member whose payment was verified confirms they received the product or can use the app. */
+export function confirmCycleReceipt(group, userId, cycleNumber, now = new Date()) {
+  const cycle = group.cycles?.find((c) => c.number === cycleNumber);
+  if (!cycle) fail("noCycle", "ไม่พบรอบนี้");
+  if (userId === cycle.ownerId || cycle.payments[userId] !== "verified")
+    fail("paymentNotVerified", "ยืนยันรับสินค้าได้หลังแอดมินตรวจการชำระของคุณแล้ว");
+  const receipts = { ...(cycle.receipts || {}), [userId]: cycle.receipts?.[userId] || iso(now).toISOString() };
+  return { ...group, cycles: group.cycles.map((c) => (c.number === cycleNumber ? { ...c, receipts } : c)) };
+}
+/** Money of this cycle is released to the owner once every payer is verified and received. */
+export const cycleReleased = (cycle) =>
+  Boolean(cycle) && cyclePayers(cycle).every((id) => cycle.payments[id] === "verified" && cycle.receipts?.[id]);
+
+export const LAUNCH_PROMO = Object.freeze({ code: "HARN-WITH-JINN", months: 2, limit: 50 });
+/** Demo-mode redemption of the launch code; the database enforces the 50-person limit. */
+export function redeemPromo(existing, code, now = new Date()) {
+  if (String(code || "").trim().toUpperCase() !== LAUNCH_PROMO.code) fail("promoInvalid", "โค้ดไม่ถูกต้อง");
+  if (existing) fail("promoAlreadyUsed", "คุณใช้โค้ดนี้ไปแล้ว");
+  const at = iso(now).toISOString();
+  return { code: LAUNCH_PROMO.code, redeemedAt: at, waiverUntil: addMonths(at, LAUNCH_PROMO.months) };
+}
+export const commissionWaived = (promo, now = new Date()) =>
+  Boolean(promo?.waiverUntil) && promo.waiverUntil > iso(now).toISOString();
+
+/** Who transfers money this cycle: everyone in it except the owner. */
+export const cyclePayers = (cycle) => (cycle ? cycle.members.filter((id) => id !== cycle.ownerId) : []);
 
 /** True when this person has nothing to do this cycle because they joined after it started. */
 export const waitsForNextCycle = (group, userId) => {
@@ -198,3 +243,59 @@ export function rejectSubscriptionPayment(subscription, paymentId, note = "", no
 
 /** How many open groups a person may own at once on their current plan. */
 export const groupLimit = (subscription, now = new Date()) => PLAN_GROUP_LIMITS[effectivePlan(subscription, now)];
+
+// ---------------------------------------------------------------- next cycle forecast
+/**
+ * What a member will owe next month, worked out from the group as it is now (the next cycle
+ * is locked from these same members and costs when it opens). Null when the group has no running
+ * cycle or the person will not be in the next one. `reasons` explains a change from this month:
+ * "joined" / "left" (members) and "costs" (price or delivery changed).
+ */
+export function nextCycleForecast(group, userId) {
+  const cycle = currentCycle(group);
+  if (group.billing !== "monthly" || !cycle || !group.members.includes(userId)) return null;
+  // No next cycle after the owner's last one, or once the group is closed.
+  if (group.closedAt || (group.lastCycle && cycle.number >= group.lastCycle)) return null;
+  const amounts = shares(group);
+  const amount = Number(amounts[userId]) || 0;
+  const previous = cycle.members.includes(userId) ? Number(cycle.amounts[userId]) || 0 : null;
+  const before = new Set(cycle.members), after = new Set(group.members);
+  const joined = group.members.filter((id) => !before.has(id)).length;
+  const left = cycle.members.filter((id) => !after.has(id)).length;
+  const costsChanged = cycle.costs && (cycle.costs.product !== group.costs.product || cycle.costs.delivery !== group.costs.delivery);
+  const reasons = [];
+  if (previous !== null && previous !== amount) {
+    if (joined) reasons.push({ kind: "joined", count: joined });
+    if (left) reasons.push({ kind: "left", count: left });
+    if (costsChanged) reasons.push({ kind: "costs" });
+  }
+  return { number: cycle.number + 1, startsAt: cycle.end, amount, previous, changed: previous !== null && previous !== amount, reasons, owner: group.ownerId === userId };
+}
+
+// ---------------------------------------------------------------- finishing a group
+/** Monthly: the owner picks the last cycle (null keeps going); it cannot be before the running one. */
+export function endAfterCycle(group, actorId, cycleNumber) {
+  if (group.billing !== "monthly") fail("notMonthly", "กลุ่มนี้ไม่ใช่แบบรายเดือน");
+  if (group.ownerId !== actorId) fail("ownerOnly", "เฉพาะเจ้าของกลุ่มทำได้");
+  const current = currentCycle(group)?.number ?? null;
+  if (cycleNumber !== null && (current === null || !Number.isInteger(cycleNumber) || cycleNumber < current))
+    fail("invalidLastCycle", "เลือกรอบสุดท้ายไม่ถูกต้อง");
+  return { ...group, lastCycle: cycleNumber };
+}
+/** Monthly: the chosen last cycle has ended, so the group is over. */
+export const monthlyEnded = (group, now = new Date()) => {
+  const cycle = currentCycle(group);
+  return Boolean(group.billing === "monthly" && group.lastCycle && cycle && cycle.number >= group.lastCycle && cycle.end <= iso(now).toISOString());
+};
+/**
+ * Demo/test version of closing: one-time groups once everyone confirmed, monthly groups once their
+ * last cycle ended. The real check (everyone has the goods, the owner was paid) runs in the database.
+ */
+export function closeGroup(group, actorId, now = new Date()) {
+  if (group.ownerId !== actorId) fail("ownerOnly", "เฉพาะเจ้าของกลุ่มปิดกลุ่มได้");
+  const done = group.billing === "monthly"
+    ? monthlyEnded(group, now)
+    : group.members.length === group.capacity && group.members.every((id) => group.approvals?.[id] === group.revision);
+  if (!done) fail("groupNotFinished", "กลุ่มยังไม่เสร็จ ปิดไม่ได้");
+  return { ...group, closedAt: group.closedAt || iso(now).toISOString() };
+}

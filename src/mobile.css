@@ -1,0 +1,541 @@
+/*
+ * Phone layout (≤ 640px only). Same elements as desktop, sized like a shopping app:
+ * smaller type, tighter spacing, two cards per row. Desktop is untouched.
+ */
+@media (max-width: 640px) {
+  .page-heading p {
+    font-size: 0.85rem;
+  }
+  /* ---------- type scale ---------- */
+  html {
+    font-size: 15px;
+  }
+  body {
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  h1,
+  .hero h1,
+  :root .hero.home-hero h1 {
+    font-size: 1.55rem;
+    line-height: 1.25;
+  }
+  h2 {
+    font-size: 1.15rem;
+  }
+  h3 {
+    font-size: 1rem;
+  }
+  .main-wrap,
+  .main-wrap.home-main {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .main-wrap {
+    padding-top: 14px;
+  }
+
+  /* ---------- buttons and fields ---------- */
+  .button {
+    min-height: 40px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+  }
+  .summary-action-btn {
+    min-height: 42px;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* keeps iOS from zooming into fields */
+  }
+
+  /* ---------- group cards: two per row ---------- */
+  .group-grid,
+  .home-open-groups-grid,
+  .hk-section .home-open-groups-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .opportunity-card,
+  .home-open-groups-grid .opportunity-card {
+    min-height: 0;
+    border-radius: 14px;
+  }
+  .opportunity-media,
+  .home-open-groups-grid .opportunity-media {
+    height: 92px;
+    overflow: hidden;
+  }
+  .opportunity-media .art,
+  .opportunity-media .product-art {
+    transform: scale(0.62);
+    transform-origin: center;
+  }
+  .opportunity-content,
+  .home-open-groups-grid .opportunity-content {
+    padding: 10px;
+    gap: 6px;
+  }
+  .opportunity-topline {
+    gap: 4px;
+    font-size: 0.68rem;
+  }
+  .opportunity-category {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .opportunity-spots {
+    flex: none;
+    padding: 2px 6px;
+    font-size: 0.66rem;
+  }
+  .opportunity-title h3,
+  :root .home-open-groups-grid .opportunity-title h3 {
+    display: -webkit-box;
+    margin: 2px 0 0;
+    overflow: hidden;
+    font-size: 0.9rem;
+    line-height: 1.3;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .opportunity-group-name,
+  .opportunity-leader,
+  .opportunity-terms,
+  :root .home-open-groups-grid .opportunity-group-name {
+    margin: 0;
+    font-size: 0.7rem;
+  }
+  .opportunity-price,
+  :root .home-open-groups-grid .opportunity-price {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    margin-bottom: 6px;
+    padding: 8px;
+    border-radius: 10px;
+  }
+  .opportunity-price > div + div,
+  :root .home-open-groups-grid .opportunity-price > div + div {
+    padding-top: 4px;
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--hk-line, #dde8f4);
+  }
+  .opportunity-price small {
+    font-size: 0.64rem;
+  }
+  .opportunity-price strong,
+  :root .home-open-groups-grid .opportunity-price strong {
+    font-size: 1.1rem;
+  }
+  .opportunity-price b {
+    font-size: 0.85rem;
+  }
+  .opportunity-members,
+  :root .home-open-groups-grid .opportunity-members {
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: 0.7rem;
+  }
+  .opportunity-members > span {
+    gap: 4px;
+  }
+  .opportunity-members svg,
+  .opportunity-leader svg,
+  .opportunity-terms svg {
+    width: 13px;
+    height: 13px;
+  }
+  .opportunity-track {
+    flex-basis: 100%;
+  }
+  .opportunity-terms,
+  :root .home-open-groups-grid .opportunity-terms {
+    min-height: 0;
+    margin: 2px 0 6px;
+  }
+  :root .home-open-groups-grid .opportunity-leader {
+    margin: 0;
+  }
+  .opportunity-actions,
+  :root .home-open-groups-grid .opportunity-actions {
+    gap: 6px;
+  }
+  :root .home-open-groups-grid .opportunity-actions .opportunity-view {
+    min-height: 36px;
+  }
+  .opportunity-actions .button {
+    min-height: 36px;
+    padding: 6px 8px;
+    font-size: 0.8rem;
+  }
+  .opportunity-actions a,
+  .opportunity-actions button:not(.button) {
+    font-size: 0.72rem;
+  }
+
+  /* ---------- home ---------- */
+  :root .hero.home-hero {
+    padding: 22px 14px 12px;
+    gap: 6px;
+  }
+  .hero-text > p,
+  .home-hero .hero-text p {
+    font-size: 0.9rem;
+  }
+  .hero-search,
+  :root .home-hero .hero-search {
+    padding: 4px 4px 4px 12px;
+  }
+  .hero-search input {
+    height: 40px;
+  }
+  .hero-search button {
+    min-height: 38px;
+    padding: 0 14px;
+    font-size: 0.85rem;
+  }
+  .hero-tag {
+    padding: 5px 10px;
+    font-size: 0.75rem;
+  }
+  .hero-points {
+    gap: 6px 12px;
+    font-size: 0.75rem;
+  }
+  .hero-visual,
+  :root .home-hero .hero-visual {
+    max-height: 300px;
+    overflow: visible;
+  }
+  .hero-phone-showcase {
+    transform: scale(0.78);
+    transform-origin: top center;
+    margin-bottom: -70px;
+  }
+  .home-discovery-section {
+    padding: 10px;
+    border-radius: 18px;
+  }
+  .home-section-banner {
+    min-height: 0;
+    gap: 10px;
+    margin: -10px -10px 10px;
+    padding: 10px 12px;
+    border-radius: 18px 18px 12px 12px;
+  }
+  .home-section-banner h2 {
+    font-size: 1rem;
+  }
+  .home-section-banner p {
+    font-size: 0.75rem;
+  }
+  .home-section-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+  .home-section-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+  .home-filter-pill {
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: 0.78rem;
+  }
+  .home-promo-strip {
+    gap: 10px;
+    padding: 12px;
+    border-radius: 16px;
+  }
+  .home-promo-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+  .home-promo-copy strong {
+    font-size: 0.95rem;
+  }
+  .home-promo-copy small,
+  .home-promo-button {
+    font-size: 0.75rem;
+  }
+  .home-promo-art {
+    font-size: 2rem;
+  }
+  .features-section {
+    padding: 22px 14px;
+    border-radius: 18px;
+  }
+  .features-header {
+    margin-bottom: 16px;
+  }
+  .features-grid {
+    gap: 10px;
+  }
+  .feature-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px 12px;
+    padding: 14px;
+  }
+  .feature-card .feature-icon-box {
+    grid-row: span 2;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    border-radius: 12px;
+  }
+  .feature-card h3 {
+    margin: 0;
+    font-size: 0.95rem;
+  }
+  .feature-card p {
+    margin: 0;
+    font-size: 0.8rem;
+  }
+  .cta-banner {
+    gap: 14px;
+    padding: 22px 16px;
+    border-radius: 18px;
+  }
+  .cta-copy h2 {
+    font-size: 1.25rem;
+  }
+
+  /* ---------- explore ---------- */
+  .search-bar {
+    padding: 4px 4px 4px 12px;
+  }
+  .search-bar button {
+    min-height: 38px;
+    font-size: 0.85rem;
+  }
+
+  /* ---------- group page ---------- */
+  .group-identity-card,
+  .members-card,
+  .cost-card,
+  .summary-card,
+  .group-payment-panel,
+  .cycle-panel {
+    padding: 14px;
+    border-radius: 16px;
+  }
+  .group-heading-line h1 {
+    font-size: 1.3rem;
+  }
+  .group-member-row {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 10px;
+  }
+  .group-member-person {
+    flex: 1 1 100%;
+  }
+  .group-member-row .member-approval {
+    margin-left: 48px;
+    font-size: 0.7rem;
+  }
+  .group-member-row > b {
+    margin-left: auto;
+    font-size: 0.9rem;
+  }
+  .group-member-row .button {
+    min-height: 32px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+  }
+  .summary-card strong {
+    font-size: 1.8rem;
+  }
+  .cost-card > div {
+    font-size: 0.88rem;
+  }
+
+  /* ---------- account / profile ---------- */
+  .account-profile-badge,
+  .my-profile-badge-panel {
+    height: 300px;
+    max-height: 300px;
+    overflow: hidden;
+  }
+  #profile-lanyard-badge {
+    height: 100%;
+  }
+  .account-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .account-summary-tile {
+    gap: 8px;
+    padding: 10px;
+  }
+  .account-summary-tile strong {
+    font-size: 1.1rem;
+  }
+  .account-summary-icon {
+    width: 32px;
+    height: 32px;
+  }
+  .account-card {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  /* ---------- subscription ---------- */
+  .hk-plan {
+    padding: 20px 16px;
+  }
+  .hk-plan-price strong {
+    font-size: 2.4rem;
+  }
+  .hk-plan-features li {
+    font-size: 0.85rem;
+  }
+  .subscription-status,
+  .promo-section {
+    padding: 16px;
+  }
+
+  /* ---------- page titles ---------- */
+  .page-heading h1,
+  :root .page-heading h1,
+  .subscription-hero h1 {
+    font-size: 1.45rem;
+  }
+}
+
+/* Group cards as a list: one row per group — picture left, name and members in the middle,
+   price on the right. The whole card opens the group; the full details live on the group page. */
+@media (max-width: 640px) {
+  .group-grid,
+  .home-open-groups-grid,
+  .hk-section .home-open-groups-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .group-grid > .opportunity-card,
+  .home-open-groups-grid > .opportunity-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "media top top"
+      "media title price"
+      "media members price";
+    align-items: center;
+    gap: 4px 10px;
+    padding: 10px;
+    border-radius: 16px;
+  }
+  .group-grid > .opportunity-card .opportunity-content,
+  .home-open-groups-grid > .opportunity-card .opportunity-content {
+    display: contents;
+  }
+  .group-grid > .opportunity-card .opportunity-media,
+  .home-open-groups-grid > .opportunity-card .opportunity-media {
+    grid-area: media;
+    align-self: center;
+    width: 76px;
+    height: 76px;
+    border-radius: 12px;
+  }
+  .group-grid > .opportunity-card .opportunity-media > a,
+  .home-open-groups-grid > .opportunity-card .opportunity-media > a {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+  }
+  .group-grid > .opportunity-card .opportunity-media img,
+  .home-open-groups-grid > .opportunity-card .opportunity-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .group-grid > .opportunity-card .opportunity-media .art,
+  .group-grid > .opportunity-card .opportunity-media .product-art,
+  .home-open-groups-grid > .opportunity-card .opportunity-media .art,
+  .home-open-groups-grid > .opportunity-card .opportunity-media .product-art {
+    transform: scale(0.42);
+  }
+  .opportunity-card .opportunity-topline {
+    grid-area: top;
+    position: relative;
+    z-index: 1;
+  }
+  .opportunity-card .opportunity-category {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--hk-sky-100);
+  }
+  .opportunity-card .opportunity-title {
+    grid-area: title;
+    align-self: end;
+  }
+  .opportunity-card .opportunity-title h3,
+  :root .home-open-groups-grid .opportunity-card .opportunity-title h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    -webkit-line-clamp: 1;
+  }
+  /* The title link covers the whole card, so a tap anywhere opens the group. */
+  .opportunity-card .opportunity-title::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  .opportunity-card .opportunity-members,
+  :root .home-open-groups-grid .opportunity-card .opportunity-members {
+    grid-area: members;
+    align-self: start;
+    font-size: 0.72rem;
+  }
+  .opportunity-card .opportunity-price,
+  :root .home-open-groups-grid .opportunity-card .opportunity-price {
+    grid-area: price;
+    display: grid;
+    grid-template-columns: auto;
+    gap: 2px;
+    margin: 0;
+    padding: 0 0 0 10px;
+    border: 0;
+    border-left: 1px solid var(--hk-line, #dde8f4);
+    border-radius: 0;
+    background: none;
+    text-align: left;
+  }
+  .opportunity-card .opportunity-price > div + div,
+  :root .home-open-groups-grid .opportunity-card .opportunity-price > div + div {
+    padding: 0;
+    border: 0;
+  }
+  .opportunity-card .opportunity-price > div:first-child small {
+    display: none;
+  }
+  .opportunity-card .opportunity-price strong,
+  :root .home-open-groups-grid .opportunity-card .opportunity-price strong {
+    font-size: 1rem;
+    white-space: nowrap;
+  }
+  .opportunity-card .opportunity-price b {
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  .opportunity-card .opportunity-price small {
+    font-size: 0.62rem;
+    white-space: nowrap;
+  }
+  .opportunity-card .opportunity-group-name,
+  .opportunity-card .opportunity-leader,
+  .opportunity-card .opportunity-terms,
+  .opportunity-card .opportunity-actions {
+    display: none;
+  }
+}

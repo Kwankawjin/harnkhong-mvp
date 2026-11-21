@@ -1,4 +1,4 @@
--- Seat pricing, owner-only fee, monthly cycles and Plus subscription.
+-- Seat pricing, 2% commission taken from the owner's payout, monthly cycles and Plus subscription.
 -- Run as postgres (SQL editor or supabase/tests/local/run.sh). Everything is rolled back.
 begin;
 do $$
@@ -25,17 +25,17 @@ begin
   reset role;
   assert (select pricing_mode = 'seat_v3' and billing_mode = 'one_time' from public.groups where id = g),
     'new groups use seat pricing and one-time billing by default';
-  assert (select service_satang = 800 and total_satang = 40800 from public.groups where id = g),
-    'fee is 2% of the whole group, fixed by seats';
-  assert private.group_member_amount(g, owner) = 40800,
-    'alone, the owner covers every empty seat plus the fee';
+  assert (select service_satang = 0 and total_satang = 40000 from public.groups where id = g),
+    'no fee on top: the total is the seats';
+  assert private.group_member_amount(g, owner) = 40000,
+    'alone, the owner carries every empty seat';
   perform set_config('request.jwt.claim.sub', a::text, true);
   set local role authenticated;
   perform public.join_group(g, gen_random_uuid(), null);
   reset role;
   assert private.group_member_amount(g, a) = 10000, 'a participant pays one seat and no fee';
-  assert private.group_member_amount(g, owner) = 30800, 'the owner pays own seat, two empty seats and the fee';
-  assert (select total_satang = 40800 from public.groups where id = g), 'the total does not move when people join';
+  assert private.group_member_amount(g, owner) = 30000, 'the owner carries own seat and two empty seats';
+  assert (select total_satang = 40000 from public.groups where id = g), 'the total does not move when people join';
 
   -- Legacy groups keep the old rule.
   update public.groups set pricing_mode = 'per_member_v2' where id = g;
@@ -68,7 +68,7 @@ begin
   perform set_config('request.jwt.claim.sub', owner::text, true);
   set local role authenticated;
   m := public.create_group_from_form(gen_random_uuid(), 'Monthly', array['แอปพลิเคชันและเว็บไซต์'],
-    '[]'::jsonb, 'public', 4, 0, 41900, product, form_details || '{"billing":"monthly"}');
+    '[]'::jsonb, 'public', 4, 0, 41900, product, form_details || '{"billing":"monthly","payDay":5}');
   reset role;
   assert (select billing_mode = 'monthly' and not details ? 'billing' from public.groups where id = m),
     'billing is stored on the group, not in details';
@@ -86,8 +86,8 @@ begin
   assert (select count(*) = 2 from public.group_cycle_members where cycle_id = c1), 'cycle 1 holds owner and a';
   assert (select amount_satang = 10475 from public.group_cycle_members where cycle_id = c1 and user_id = a),
     'a pays one seat';
-  assert (select sum(amount_satang) = 41900 + 838 from public.group_cycle_members where cycle_id = c1),
-    'the cycle collects product plus the 2% fee';
+  assert (select sum(amount_satang) = 41900 from public.group_cycle_members where cycle_id = c1),
+    'the cycle seats add up to the product, with nothing on top';
   assert (select ends_at = private.add_month(starts_at) from public.group_cycles where id = c1), 'a cycle lasts one month';
 
   -- Mid-cycle join: this cycle does not change.
@@ -99,7 +99,7 @@ begin
     raise exception 'a mid-cycle joiner confirmed this cycle';
   exception when insufficient_privilege then null; end;
   reset role;
-  assert (select count(*) = 2 and sum(amount_satang) = 42738 from public.group_cycle_members where cycle_id = c1),
+  assert (select count(*) = 2 and sum(amount_satang) = 41900 from public.group_cycle_members where cycle_id = c1),
     'joining mid-cycle changes neither the people nor the amounts of this cycle';
 
   -- Confirm once; the cycle is complete.
@@ -122,25 +122,53 @@ begin
   set local role authenticated;
   perform public.report_group_cycle_payment(m, 1, slip, now());
   reset role;
-  perform public.verify_group_cycle_payment(m, 1, a, admin);
-  assert (select status = 'confirmed' from public.group_cycles where id = c1), 'not paid until everyone is verified';
+  -- The owner does not transfer for their own seat.
   slip := owner::text || '/' || m::text || '/1/' || gen_random_uuid()::text || '.png';
   insert into storage.objects(bucket_id, name, owner) values ('cycle-payment-slips', slip, owner);
   perform set_config('request.jwt.claim.sub', owner::text, true);
   set local role authenticated;
-  perform public.report_group_cycle_payment(m, 1, slip, now());
+  begin
+    perform public.report_group_cycle_payment(m, 1, slip, now());
+    raise exception 'the owner reported a transfer';
+  exception when check_violation then
+    if sqlerrm <> 'owner_receives_payout' then raise; end if;
+  end;
   reset role;
-  perform public.verify_group_cycle_payment(m, 1, owner, admin);
-  assert (select status = 'paid' from public.group_cycles where id = c1), 'every share verified: cycle paid';
+  perform public.verify_group_cycle_payment(m, 1, a, admin);
+  assert (select status = 'paid' from public.group_cycles where id = c1), 'every member except the owner verified: cycle paid';
+  -- Escrow: a paid 10475; the platform keeps 2% (210); 10265 is held until a confirms receipt.
+  assert (select gross_satang = 10475 and commission_satang = 210 and held_satang = 10265 and owed_satang = 0
+          from private.group_payout_summary(m)), 'the money waits in escrow until receipt';
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  begin
+    perform public.confirm_cycle_receipt(m, 1);
+    raise exception 'the owner confirmed receipt';
+  exception when check_violation then null; end;
+  perform set_config('request.jwt.claim.sub', a::text, true);
+  perform public.confirm_cycle_receipt(m, 1);
+  reset role;
+  assert (select held_satang = 0 and owed_satang = 10265 from private.group_payout_summary(m)),
+    'every payer received: the owner is owed the payment minus 2%';
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  assert (public.my_group_payout(m)->>'net')::bigint = 10265, 'the owner sees what they will receive';
+  perform set_config('request.jwt.claim.sub', a::text, true);
+  begin
+    perform public.my_group_payout(m);
+    raise exception 'a member read the owner payout';
+  exception when insufficient_privilege then null; end;
+  reset role;
 
   -- A leaver keeps this cycle; month two opens with today's people and asks again.
   perform set_config('request.jwt.claim.sub', a::text, true);
   set local role authenticated;
   perform public.leave_group(m, gen_random_uuid());
   reset role;
-  update public.groups set cycle_anchor = cycle_anchor - interval '1 month' - interval '1 minute' where id = m;
-  update public.group_cycles set starts_at = starts_at - interval '1 month' - interval '1 minute',
-    ends_at = ends_at - interval '1 month' - interval '1 minute' where id = c1;
+  -- Move month one back so it ended a minute ago (its pay day may be up to a month ahead).
+  update public.groups set cycle_anchor = cycle_anchor - ((select ends_at from public.group_cycles where id = c1) - now() + interval '1 minute') where id = m;
+  update public.group_cycles set starts_at = starts_at - (ends_at - now() + interval '1 minute'),
+    ends_at = now() - interval '1 minute' where id = c1;
   perform set_config('request.jwt.claim.sub', owner::text, true);
   set local role authenticated;
   perform public.sync_group_cycles(m);
@@ -240,13 +268,37 @@ begin
   perform set_config('request.jwt.claim.sub', admin::text, true);
   perform set_config('request.jwt.claims', '{"app_metadata":{"role":"admin"}}', true);
   v := public.admin_billing_queue();
-  assert jsonb_array_length(v->'subscriptions') >= 1 and jsonb_array_length(v->'cycles') >= 2,
+  assert jsonb_array_length(v->'subscriptions') >= 1 and jsonb_array_length(v->'cycles') >= 1,
     'the admin queue lists Plus and monthly slips';
   begin
     perform public.admin_review_subscription_payment(pay, false, 'x');
     raise exception 'rejected without a reason';
   exception when invalid_parameter_value then null; end;
   perform public.admin_review_subscription_payment(pay, true);
+  v := public.admin_payouts();
+  assert exists (select 1 from jsonb_array_elements(v) e where (e->>'group_id')::uuid = m and (e->>'owed_satang')::bigint = 10265),
+    'the admin sees the money owed to the owner';
+  begin
+    perform public.admin_record_payout(m, 'no-slip', 'โอนผ่าน PromptPay');
+    raise exception 'recorded a payout without a slip';
+  exception when check_violation then null; end;
+  slip := owner::text || '/' || m::text || '/' || gen_random_uuid()::text || '.jpg';
+  insert into storage.objects(bucket_id, name, owner) values ('payout-slips', slip, admin);
+  perform public.admin_record_payout(m, slip, 'โอนผ่าน PromptPay');
+  reset role;
+  assert (select slip_path = slip from public.group_payouts where group_id = m), 'the payout keeps its slip';
+  set local role authenticated;
+  assert exists (select 1 from jsonb_array_elements(public.admin_payouts()) e
+                 where (e->>'group_id')::uuid = m and (e->>'owed_satang')::bigint = 0 and (e->>'paid_out_satang')::bigint = 10265),
+    'a recorded payout clears what is owed';
+  slip := owner::text || '/' || m::text || '/' || gen_random_uuid()::text || '.jpg';
+  insert into storage.objects(bucket_id, name, owner) values ('payout-slips', slip, admin);
+  begin
+    perform public.admin_record_payout(m, slip);
+    raise exception 'paid the same money twice';
+  exception when check_violation then
+    if sqlerrm <> 'nothing_owed' then raise; end if;
+  end;
   v := public.admin_list_groups();
   assert jsonb_array_length(v) >= 2 and (v->0) ? 'member_count' and (v->0) ? 'owner_email',
     'the admin sees every group with counts and the owner email';
@@ -289,5 +341,279 @@ begin
   -- Checked as postgres, so row-level security cannot hide a row that still exists.
   assert not exists (select 1 from public.groups where id = g), 'the admin deleted a group that has payment reports';
   assert not exists (select 1 from public.group_payment_reports where group_id = g), 'its payment reports went with it';
+end $$;
+rollback;
+
+-- Launch promo: HARN-WITH-JINN waives the 2% for 2 months, 50 people at most, once each.
+begin;
+do $$
+declare
+  owner uuid := gen_random_uuid(); a uuid := gen_random_uuid(); admin uuid := gen_random_uuid();
+  g uuid; rev integer; slip text; v jsonb; n integer;
+  product jsonb := '{"type":"physical","title":"ของ 100 บาท","category":"ของใช้ทั่วไป"}';
+  form_details jsonb := jsonb_build_object('minimumMembers', 2, 'closesAt', (current_date + 7)::text);
+begin
+  insert into auth.users(id, aud, role, email)
+    select id, 'authenticated', 'authenticated', id::text || '@example.invalid' from unnest(array[owner, a, admin]) id;
+  insert into public.profiles(id, display_name) values (owner, 'Owner'), (a, 'A'), (admin, 'Admin')
+    on conflict (id) do update set display_name = excluded.display_name;
+
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  v := public.redeem_promo_code(' harn-with-jinn ');
+  assert (v->>'months')::int = 2, 'the code is case- and space-insensitive and gives 2 months';
+  assert (public.my_subscription()->>'feeWaiverUntil') is not null, 'my_subscription shows the waiver';
+  begin
+    perform public.redeem_promo_code('HARN-WITH-JINN');
+    raise exception 'redeemed twice';
+  exception when unique_violation then null; end;
+  begin
+    perform public.redeem_promo_code('NOPE');
+    raise exception 'accepted an unknown code';
+  exception when invalid_parameter_value then null; end;
+
+  -- One-time group 100 split 2: a pays 50, receipt confirmed, owner gets the full 50 (waived).
+  g := public.create_group_from_form(gen_random_uuid(), 'หาร 100', array['ของใช้ทั่วไป'], '[]'::jsonb, 'public', 2, 0, 10000, product, form_details);
+  perform set_config('request.jwt.claim.sub', a::text, true);
+  perform public.join_group(g, gen_random_uuid(), null);
+  select revision into rev from public.groups where id = g;
+  perform public.approve_group(g, rev, gen_random_uuid());
+  slip := a::text || '/' || g::text || '/' || rev::text || '/' || gen_random_uuid()::text || '.png';
+  insert into storage.objects(bucket_id, name, owner) values ('group-payment-slips', slip, a);
+  perform public.report_group_payment_with_slip(g, rev, slip, now());
+  reset role;
+  update public.group_payment_reports set status = 'verified', verified_at = now(), verified_by = admin where group_id = g;
+  assert (select commission_satang = 0 and held_satang = 5000 and owed_satang = 0 from private.group_payout_summary(g)),
+    'with the code, no 2% is kept, and the money is held until receipt';
+  perform set_config('request.jwt.claim.sub', a::text, true);
+  set local role authenticated;
+  perform public.confirm_group_receipt(g);
+  perform public.confirm_group_receipt(g);
+  reset role;
+  assert (select owed_satang = 5000 from private.group_payout_summary(g)), 'receipt confirmed: the owner is owed all 50.00';
+
+  -- Without a code the same payment would lose 1.00.
+  delete from public.promo_redemptions where user_id = owner;
+  assert (select commission_satang = 100 and owed_satang = 4900 from private.group_payout_summary(g)),
+    'no code: 50.00 in, 49.00 to the owner';
+
+  -- Admin release without every receipt.
+  delete from public.group_receipts where group_id = g;
+  assert (select owed_satang = 0 from private.group_payout_summary(g)), 'held again without the receipt';
+  perform set_config('request.jwt.claim.sub', admin::text, true);
+  perform set_config('request.jwt.claims', '{"app_metadata":{"role":"admin"}}', true);
+  set local role authenticated;
+  begin
+    perform public.admin_release_payout(g, null, 'x');
+    raise exception 'released without a reason';
+  exception when invalid_parameter_value then null; end;
+  perform public.admin_release_payout(g, null, 'สมาชิกยืนยันทางแชทแล้ว');
+  perform set_config('request.jwt.claims', '', true);
+  reset role;
+  assert (select owed_satang = 4900 from private.group_payout_summary(g)), 'an admin release pays the owner';
+
+  -- The code runs out after 50 people.
+  delete from public.promo_redemptions where code = 'HARN-WITH-JINN';
+  insert into auth.users(id, aud, role, email)
+    select gen_random_uuid(), 'authenticated', 'authenticated', 'promo' || i || '@example.invalid' from generate_series(1, 50) i;
+  insert into public.promo_redemptions(user_id, code, waiver_until)
+    select id, 'HARN-WITH-JINN', now() + interval '2 months' from auth.users where email like 'promo%@example.invalid';
+  perform set_config('request.jwt.claim.sub', a::text, true);
+  set local role authenticated;
+  begin
+    perform public.redeem_promo_code('HARN-WITH-JINN');
+    raise exception 'the 51st person got the code';
+  exception when check_violation then
+    if sqlerrm <> 'promo_sold_out' then raise; end if;
+  end;
+  reset role;
+end $$;
+rollback;
+
+-- Owner payout accounts: only the owner and admins can see them.
+begin;
+do $$
+declare owner uuid := gen_random_uuid(); other uuid := gen_random_uuid(); n integer;
+begin
+  insert into auth.users(id, aud, role, email)
+    select id, 'authenticated', 'authenticated', id::text || '@example.invalid' from unnest(array[owner, other]) id;
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  perform public.set_my_payout_account('promptpay', 'ต้น ใจดี', '081-234-5678');
+  assert (select promptpay_id = '0812345678' and bank_name is null from public.payout_accounts where user_id = owner),
+    'PromptPay saved without dashes';
+  perform public.set_my_payout_account('bank', 'ต้น ใจดี', null, 'กสิกรไทย', '123-4-56789-0');
+  assert (select method = 'bank' and account_number = '1234567890' and promptpay_id is null from public.payout_accounts where user_id = owner),
+    'switching to a bank account replaces PromptPay';
+  begin
+    perform public.set_my_payout_account('promptpay', 'ต้น', '12345');
+    raise exception 'accepted a short PromptPay number';
+  exception when invalid_parameter_value then null; end;
+  begin
+    perform public.set_my_payout_account('bank', 'ต้น', null, 'กสิกรไทย', '123');
+    raise exception 'accepted a short account number';
+  exception when invalid_parameter_value then null; end;
+  perform set_config('request.jwt.claim.sub', other::text, true);
+  select count(*) into n from public.payout_accounts where user_id = owner;
+  assert n = 0, 'another member cannot read the owner''s account';
+  reset role;
+end $$;
+rollback;
+
+-- Logged-out visitors can query cycles (the public group list embeds them) but see no rows.
+begin;
+set local role anon;
+do $$
+begin
+  if (select count(*) from public.group_cycles) <> 0 or (select count(*) from public.group_cycle_members) <> 0 then
+    raise exception 'anon must not see cycle rows';
+  end if;
+end $$;
+rollback;
+
+-- Cycle history: a trigger records cycle changes, keeps 3 days, members read it.
+begin;
+do $$
+declare
+  owner uuid := gen_random_uuid();
+  member uuid := gen_random_uuid();
+  outsider uuid := gen_random_uuid();
+  g uuid;
+  c uuid;
+  n int;
+  product jsonb := '{"type":"digital","title":"Spotify","category":"แอปพลิเคชันและเว็บไซต์"}';
+  form_details jsonb := jsonb_build_object('minimumMembers', 2, 'closesAt', (current_date + 7)::text, 'billing', 'monthly', 'payDay', 5);
+begin
+  insert into auth.users(id, aud, role, email)
+    select id, 'authenticated', 'authenticated', id::text || '@example.invalid' from unnest(array[owner, member, outsider]) id;
+  insert into public.profiles(id, display_name) values (owner, 'Owner'), (member, 'Member'), (outsider, 'Outsider')
+    on conflict (id) do update set display_name = excluded.display_name;
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  g := public.create_group_from_form(gen_random_uuid(), 'History', array['แอปพลิเคชันและเว็บไซต์'], '[]'::jsonb, 'public', 2, 0, 10000, product, form_details);
+  reset role;
+  perform set_config('request.jwt.claim.sub', member::text, true);
+  set local role authenticated;
+  perform public.join_group(g, gen_random_uuid(), null);
+  reset role;
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  perform public.start_group_cycle(g);
+  reset role;
+  select id into c from public.group_cycles where group_id = g and cycle_number = 1;
+  update public.group_cycles set status = 'confirmed' where id = c;
+  update public.group_cycles set status = 'confirmed' where id = c; -- no change, no entry
+  select count(*) into n from public.group_cycle_history where group_id = g;
+  assert n = 2, 'started and confirmed are recorded once each, got ' || n;
+
+  -- An entry older than 3 days is hidden from readers and removed by the next change.
+  insert into public.group_cycle_history (group_id, cycle_number, event, created_at) values (g, 0, 'closed', now() - interval '4 days');
+  perform set_config('request.jwt.claim.sub', member::text, true);
+  set local role authenticated;
+  select count(*) into n from public.group_cycle_history where group_id = g;
+  assert n = 2, 'members see only the last 3 days, got ' || n;
+  reset role;
+  perform set_config('request.jwt.claim.sub', outsider::text, true);
+  set local role authenticated;
+  select count(*) into n from public.group_cycle_history where group_id = g;
+  assert n = 0, 'outsiders see nothing';
+  reset role;
+  update public.group_cycles set status = 'paid' where id = c;
+  select count(*) into n from public.group_cycle_history where group_id = g and created_at < now() - interval '3 days';
+  assert n = 0, 'old history is deleted on the next change';
+end $$;
+rollback;
+
+-- Admin reviews group payment slips through RPCs (no Edge Function needed).
+begin;
+do $$
+declare
+  admin uuid := gen_random_uuid();
+  owner uuid := gen_random_uuid();
+  member uuid := gen_random_uuid();
+  g uuid;
+  slip text;
+  v jsonb;
+  pay uuid;
+  product jsonb := '{"type":"digital","title":"Netflix","category":"แอปพลิเคชันและเว็บไซต์"}';
+  form_details jsonb := jsonb_build_object('minimumMembers', 2, 'closesAt', (current_date + 7)::text);
+begin
+  insert into auth.users(id, aud, role, email, raw_app_meta_data)
+    select id, 'authenticated', 'authenticated', id::text || '@example.invalid', '{}'::jsonb from unnest(array[owner, member]) id;
+  insert into auth.users(id, aud, role, email, raw_app_meta_data) values (admin, 'authenticated', 'authenticated', 'admin@example.invalid', '{"role":"admin"}');
+  insert into public.profiles(id, display_name) values (owner, 'Owner'), (member, 'Member'), (admin, 'Admin')
+    on conflict (id) do update set display_name = excluded.display_name;
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  g := public.create_group_from_form(gen_random_uuid(), 'Slips', array['แอปพลิเคชันและเว็บไซต์'], '[]'::jsonb, 'public', 2, 0, 20000, product, form_details);
+  reset role;
+  perform set_config('request.jwt.claim.sub', member::text, true);
+  set local role authenticated;
+  perform public.join_group(g, gen_random_uuid(), null);
+  reset role;
+  slip := member::text || '/' || g::text || '/' || (select revision from public.groups where id = g)::text || '/' || gen_random_uuid()::text || '.png';
+  insert into storage.objects(bucket_id, name, owner) values ('group-payment-slips', slip, member);
+  insert into public.group_payment_reports(group_id, user_id, revision, amount_satang, status, slip_path, transferred_at)
+    values (g, member, (select revision from public.groups where id = g), 10000, 'reported', slip, now()) returning id into pay;
+
+  -- A member cannot list or review.
+  perform set_config('request.jwt.claims', json_build_object('sub', member, 'role', 'authenticated', 'app_metadata', '{}'::json)::text, true);
+  set local role authenticated;
+  begin
+    perform public.admin_group_payment_reports();
+    raise exception 'members must not list payments';
+  exception when insufficient_privilege then null;
+  end;
+  reset role;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', admin, 'role', 'authenticated', 'app_metadata', json_build_object('role', 'admin'))::text, true);
+  perform set_config('request.jwt.claim.sub', admin::text, true);
+  set local role authenticated;
+  v := public.admin_group_payment_reports();
+  assert exists (select 1 from jsonb_array_elements(v) e where (e->>'id')::uuid = pay and e->>'slip_path' = slip and e->>'member_name' = 'Member'),
+    'admin sees the report with its slip path';
+  v := public.admin_review_group_payment(pay, true, null);
+  reset role;
+  assert (select status = 'verified' from public.group_payment_reports where id = pay), 'admin approval verifies the payment';
+end $$;
+rollback;
+
+-- Pay day: monthly groups need one (1-28), cycles start on it, one-time groups keep closesAt.
+begin;
+do $$
+declare
+  owner uuid := gen_random_uuid();
+  g uuid;
+  d date;
+  product jsonb := '{"type":"digital","title":"Spotify","category":"แอปพลิเคชันและเว็บไซต์"}';
+  base jsonb := jsonb_build_object('minimumMembers', 2);
+begin
+  assert (private.first_pay_date(5, '2026-11-01 05:00+07') at time zone 'Asia/Bangkok')::date = '2026-11-05', 'pay day later this month';
+  assert (private.first_pay_date(5, '2026-11-03 05:00+07') at time zone 'Asia/Bangkok')::date = '2026-12-05', 'under 3 days away moves to next month';
+  assert (private.first_pay_date(5, '2026-11-20 05:00+07') at time zone 'Asia/Bangkok')::date = '2026-12-05', 'past this month moves to next month';
+  assert (private.first_pay_date(28, '2026-12-27 05:00+07') at time zone 'Asia/Bangkok')::date = '2027-01-28', 'year rolls over';
+
+  insert into auth.users(id, aud, role, email) values (owner, 'authenticated', 'authenticated', 'payday@example.invalid');
+  insert into public.profiles(id, display_name) values (owner, 'Owner') on conflict (id) do update set display_name = excluded.display_name;
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  begin
+    perform public.create_group_from_form(gen_random_uuid(), 'No day', array['x'], '[]'::jsonb, 'public', 2, 0, 10000, product, base || '{"billing":"monthly"}');
+    raise exception 'monthly without a pay day was accepted';
+  exception when invalid_parameter_value then null; end;
+  begin
+    perform public.create_group_from_form(gen_random_uuid(), 'Day 31', array['x'], '[]'::jsonb, 'public', 2, 0, 10000, product, base || '{"billing":"monthly","payDay":31}');
+    raise exception 'pay day 31 was accepted';
+  exception when invalid_parameter_value then null; end;
+  begin
+    perform public.create_group_from_form(gen_random_uuid(), 'No close', array['x'], '[]'::jsonb, 'public', 2, 0, 10000, product, base);
+    raise exception 'one-time without a closing date was accepted';
+  exception when invalid_parameter_value then null; end;
+  g := public.create_group_from_form(gen_random_uuid(), 'Day 5', array['x'], '[]'::jsonb, 'public', 2, 0, 10000, product, base || '{"billing":"monthly","payDay":5}');
+  perform public.start_group_cycle(g);
+  reset role;
+  assert (select pay_day = 5 and not details ? 'payDay' from public.groups where id = g), 'pay day stored on the group';
+  select (starts_at at time zone 'Asia/Bangkok')::date into d from public.group_cycles where group_id = g and cycle_number = 1;
+  assert extract(day from d) = 5 and d >= (now() at time zone 'Asia/Bangkok')::date + 3, 'cycle one starts on the pay day, at least 3 days out';
 end $$;
 rollback;

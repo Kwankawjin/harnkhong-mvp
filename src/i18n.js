@@ -2,6 +2,78 @@ import { assertSatang } from "./domain.js";
 
 // Thai source text is the key for UI copy; stored/user-entered content is never translated.
 const labels = {
+  "โอนให้คุณแล้ว": "Paid to you",
+  "ดูสลิป": "View slip",
+  "ยังไม่มีบัญชีรับเงิน": "No payout account yet",
+  "เพิ่มบัญชีรับเงิน": "Add a payout account",
+  "บัญชีรับเงิน": "Payout account",
+  "สำหรับเจ้าของกลุ่ม แอดมินจะโอนเงินจากกองกลางเข้าบัญชีนี้หลังหักค่าคอม 2% เห็นได้เฉพาะคุณกับแอดมิน": "For group owners: the admin pays escrow into this account after the 2% commission. Only you and admins can see it.",
+  "บันทึกแล้ว": "Saved",
+  "รับเงินผ่าน": "Receive via",
+  "บัญชีธนาคาร": "Bank account",
+  "เบอร์โทรหรือเลขบัตรประชาชนที่ผูก PromptPay": "PromptPay phone or national ID",
+  "ธนาคาร": "Bank",
+  "เลขบัญชี": "Account number",
+  "ชื่อบัญชี": "Account name",
+  "บันทึกบัญชีรับเงิน": "Save payout account",
+  "กรุณากรอกชื่อบัญชี": "Please enter the account name",
+  "PromptPay ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตรประชาชน 13 หลัก": "PromptPay must be a 10-digit mobile number or a 13-digit national ID",
+  "เลขบัญชีต้องเป็นตัวเลข 10–15 หลัก": "The account number must be 10–15 digits",
+  "บันทึกบัญชีรับเงินแล้ว": "Payout account saved",
+  "QR รับเงิน (ไม่บังคับ)": "Payout QR (optional)",
+  "แนบรูป QR PromptPay หรือ QR จากแอปธนาคาร เพื่อให้แอดมินสแกนโอนได้ทันที": "Attach a PromptPay or banking-app QR so the admin can scan it to pay you",
+  "QR รับเงินของคุณ": "Your payout QR",
+  "เปลี่ยนรูป QR": "Change QR image",
+  "แนบรูป QR (JPG, PNG, WebP ไม่เกิน 5 MB)": "Attach QR image (JPG, PNG, WebP up to 5 MB)",
+  "ลบ QR นี้": "Remove this QR",
+  "แนบ QR แล้ว": "QR attached",
+  "กรุณาเลือกไฟล์ JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB": "Please choose a JPG, PNG or WebP file up to 5 MB",
+  "บันทึกบัญชีแล้ว แต่ฐานข้อมูลยังไม่รองรับ QR กรุณารัน migration 20261120200000_payout_account_qr.sql": "Account saved, but the database does not support QR yet. Run migration 20261120200000_payout_account_qr.sql.",
+  "บันทึกบัญชีแล้ว แต่แนบ QR ไม่สำเร็จ กรุณาลองใหม่": "Account saved, but the QR could not be attached. Please try again.",
+  "ฐานข้อมูลยังไม่รองรับบัญชีรับเงิน กรุณารัน migration 20261120140000_owner_payout_accounts.sql": "The database does not support payout accounts yet. Run migration 20261120140000_owner_payout_accounts.sql.",
+  "ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)": "2% commission (waived by your code)",
+  "สมาชิกโอนเข้ากองกลางของแพลตฟอร์ม คุณออกเงินซื้อสินค้าไปก่อน เมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ เงินจะโอนให้คุณหลังหักค่าคอม 2%": "Members pay into the platform's escrow. You buy the product first; once every member confirms receipt, you are paid minus a 2% commission.",
+  "คุณยืนยันว่าได้รับสินค้าแล้ว": "You confirmed you received it",
+  "ได้รับสินค้าแล้ว": "I received it",
+  "กดเมื่อได้รับสินค้าหรือใช้งานแอปได้แล้ว เงินในกองกลางจะโอนให้เจ้าของกลุ่มเมื่อทุกคนยืนยันครบ": "Press once you have the product or can use the app. Escrow is paid to the owner when everyone has confirmed.",
+  "ได้รับสินค้าหรือใช้งานได้แล้ว": "I received it / it works",
+  "ยืนยันรับสินค้า": "Receipts confirmed",
+  "สมาชิกยืนยันรับครบแล้ว แอดมินจะโอนเงินรอบนี้ให้คุณ": "Every member confirmed receipt; an admin will pay you this cycle.",
+  "เงินอยู่ในกองกลางจนกว่าสมาชิกที่จ่ายยืนยันว่าได้รับสินค้าครบ": "The money stays in escrow until every paying member confirms receipt.",
+  "ยืนยันว่าได้รับสินค้าหรือใช้งานได้แล้วใช่ไหม? ยืนยันแล้วเงินของคุณจะถูกโอนให้เจ้าของกลุ่มเมื่อทุกคนยืนยันครบ": "Confirm you received the product or can use it? Your payment goes to the owner once everyone has confirmed.",
+  "ยืนยันรับสินค้าได้เมื่อเชื่อมต่อระบบชำระเงินจริง": "Receipts can be confirmed once real payments are connected.",
+  "ยืนยันรับสินค้าแล้ว ขอบคุณครับ": "Receipt confirmed, thank you",
+  "กรุณากรอกโค้ดส่วนลด": "Please enter a code",
+  "ยินดีด้วย! คุณได้รับโค้ดพิเศษ ไม่เสียค่าธรรมเนียมเว็บ 2% เป็นเวลา 2 เดือน": "Congratulations! Your special code waives the 2% web fee for 2 months.",
+  "โค้ดส่วนลด": "Promo code",
+  "ยินดีด้วย! คุณได้รับโค้ดพิเศษ": "Congratulations! You got a special code",
+  "ไม่เสียค่าธรรมเนียมเว็บ 2% ถึงวันที่ {date}": "No 2% web fee until {date}",
+  "โค้ดพิเศษของคุณหมดอายุแล้ว": "Your special code has expired",
+  "เข้าสู่ระบบเพื่อกรอกโค้ดส่วนลด": "Log in to enter a promo code",
+  "มีโค้ดส่วนลด? กรอกเพื่อรับสิทธิ์ยกเว้นค่าธรรมเนียมเว็บ": "Have a promo code? Enter it to waive the web fee.",
+  "กรอกโค้ด": "Enter code",
+  "ใช้โค้ด": "Apply",
+  "โค้ดไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง": "That code is not valid. Please check it.",
+  "คุณใช้โค้ดนี้ไปแล้ว": "You have already used this code",
+  "โค้ดนี้ครบ 50 สิทธิ์แล้ว": "This code has reached its 50 uses",
+  "ยืนยันรับสินค้าได้หลังแอดมินตรวจการชำระของคุณแล้ว": "You can confirm receipt after an admin verifies your payment.",
+  "เจ้าของกลุ่มไม่ต้องโอน ระบบจะโอนเงินจากสมาชิกให้หลังหักค่าคอม 2%": "The owner does not transfer; members' payments are passed on minus 2%.",
+  "ยืนยันยอดกลุ่ม": "Confirm group amounts",
+  "คุณจะได้รับเมื่อสมาชิกโอนครบ": "You receive once members have paid",
+  "สมาชิกโอนรวม": "Members pay in total",
+  "สมาชิกโอนรวม ({count} ที่นั่ง)": "Members pay in total ({count} seats)",
+  "ค่าคอมแพลตฟอร์ม 2%": "2% platform commission",
+  "ส่วนของคุณเอง (ไม่ต้องโอน)": "Your own share (no transfer)",
+  "สมาชิกโอนเข้าบัญชีแพลตฟอร์ม แอดมินตรวจแล้วโอนให้คุณหลังหักค่าคอม 2% ของแต่ละยอด": "Members pay the platform; after an admin verifies, you receive each payment minus a 2% commission.",
+  "ราคาต่อที่นั่งคงที่ ผู้ร่วมหารจ่ายเฉพาะราคาที่นั่ง ไม่มีค่าธรรมเนียม แพลตฟอร์มหักค่าคอม 2% จากเงินที่โอนต่อให้เจ้าของกลุ่ม": "Seat prices are fixed. Members pay only their seat with no fee; the platform keeps 2% of what it passes to the owner.",
+  "ยืนยันยอดกลุ่มรอบนี้ใช่ไหม? คุณไม่ต้องโอนเงิน สมาชิกจะโอนเข้าบัญชีแพลตฟอร์ม": "Confirm this round's amounts? You don't transfer anything; members pay the platform.",
+  "คุณไม่ต้องโอน": "You don't need to transfer",
+  "คุณจะได้รับรอบนี้": "You receive this cycle",
+  "ตรวจแล้ว": "Verified so far",
+  "ค่าคอม 2% (หักจากเงินที่คุณได้รับ)": "2% commission (taken from what you receive)",
+  "ผู้ร่วมหารจ่ายเฉพาะราคาที่นั่ง แพลตฟอร์มหักค่าคอม 2% จากเงินที่สมาชิกโอน ก่อนโอนต่อให้คุณ": "Members pay only their seat; the platform keeps 2% of each payment before passing it to you.",
+  "ราคาที่นั่งของคุณ": "Your seat price",
+  "คุณจ่ายเฉพาะราคาที่นั่ง ไม่มีค่าธรรมเนียม ยอดนี้ไม่เปลี่ยนเมื่อมีคนเข้าหรือออก": "You pay only your seat, with no fee. It does not change when people join or leave.",
   "ปิดการแจ้งเตือน": "Dismiss notification",
   "ชำระรายเดือน": "Billed monthly",
   "ไม่มีค่าใช้จ่าย": "Free of charge",
@@ -1780,6 +1852,405 @@ Object.assign(labels, {
   "จัดส่ง · ค่าส่ง {amount}": "Shipping · {amount}",
   ค่าสินค้า: "Items",
   ค่าจัดส่ง: "Shipping fee",
+});
+
+
+// Request Marketplace (src/request-marketplace.js)
+Object.assign(labels, {
+  "ประกาศหมดอายุ": "Request expired",
+  "ประกาศ “{title}” หมดอายุแล้ว": "Your request “{title}” has expired",
+  "/ เดือน": "/ month",
+  "/ ที่นั่ง": "/ seat",
+  "หมดเวลาแล้ว": "Time's up",
+  "เหลือเวลา {days} วัน": "{days} days left",
+  "เหลือเวลา {hours} ชม.": "{hours}h left",
+  "กำลังโหลด": "Loading",
+  "โหลดข้อมูลไม่สำเร็จ": "Could not load data",
+  "ระบบประกาศหากลุ่มยังไม่ได้เปิดในฐานข้อมูลนี้": "The Request Marketplace is not set up in this database yet.",
+  "เข้าสู่ระบบก่อน": "Please sign in",
+  "ค้นหากลุ่มที่ต้องการ หรือประกาศหาสิ่งที่กำลังมองหา": "Find a group, or post what you're looking for",
+  "กลุ่มที่เปิดหาร": "Open groups",
+  "กำลังหากลุ่ม": "Find a Group",
+  "ต้องการ {count} ที่นั่ง": "Needs {count} seat(s)",
+  "งบสูงสุด": "Max budget",
+  "{count} ข้อเสนอ": "{count} offers",
+  "ไม่พบประกาศที่ตรงกับการค้นหา": "No requests match your search",
+  "ยังไม่มีคนประกาศหากลุ่ม": "No one is looking for a group yet",
+  "โพสต์สิ่งที่คุณต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ": "Post what you need and let group owners make you an offer.",
+  "โพสต์หาของหาร": "Post a Request",
+  "โพสต์สิ่งที่ต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอได้เลย ไม่ต้องเปิดกลุ่มเอง": "Post what you need and let group owners make an offer. No need to start a group yourself.",
+  "ประกาศของฉัน": "My requests",
+  "ค้นหาบริการที่ต้องการ...": "Search for a service...",
+  "ประกาศหากลุ่มล่าสุด": "Latest requests",
+  "{count} ประกาศ": "{count} requests",
+  "เข้าสู่ระบบเพื่อโพสต์ประกาศหากลุ่ม": "Sign in to post a request.",
+  "ต้องการหาอะไร?": "What are you looking for?",
+  "ระบุความต้องการ": "Your needs",
+  "ตรวจสอบประกาศ": "Review",
+  "ขั้นตอน": "Steps",
+  "ขั้นตอนที่ 1: ต้องการหาอะไร?": "Step 1: What are you looking for?",
+  "เลือกบริการหรือหมวดหมู่ที่ต้องการหาร": "Choose the service or category you want to share.",
+  "ค้นหาบริการ...": "Search services...",
+  "ไม่เจอบริการที่ต้องการ? เลือก “อื่น ๆ (ระบุชื่อเอง)” แล้วใส่ชื่อบริการในชื่อประกาศ": "Can't find it? Choose “Other” and put the service name in the title.",
+  "รายละเอียดที่ต้องการ": "Details",
+  "ชื่อประกาศ": "Title",
+  "หาเพื่อนหาร YouTube Premium": "Looking to share YouTube Premium",
+  "รายละเอียดเพิ่มเติม": "More details",
+  "ไม่บังคับ": "optional",
+  "ต้องการเข้าร่วมกลุ่มระยะยาว...": "I'd like to join a long-term group...",
+  "ขั้นตอนที่ 2: ระบุความต้องการ": "Step 2: Your needs",
+  "จำนวนที่นั่ง": "Seats",
+  "1 ที่นั่ง": "1 seat",
+  "1 บัญชีเข้าร่วมกลุ่มได้ 1 ที่นั่ง": "One account takes one seat in a group",
+  "รอบการชำระเงิน": "Billing",
+  "งบสูงสุด (บาท)": "Max budget (THB)",
+  "งบขั้นต่ำ (บาท)": "Min budget (THB)",
+  "งบต่อ 1 ที่นั่ง ตามรอบการชำระเงินที่เลือก": "Budget for one seat, per the billing you chose.",
+  "ระยะเวลาประกาศ": "Request runs for",
+  "{days} วัน": "{days} days",
+  "ขั้นตอนที่ 3: ตรวจสอบประกาศ": "Step 3: Review your request",
+  "ประกาศจะแสดงแบบนี้ในหน้ารวมประกาศ": "This is how your request will look in the list.",
+  "เจ้าของกลุ่มจะเห็นประกาศและส่งข้อเสนอพร้อมกลุ่มที่มีอยู่จริง": "Group owners see your request and offer a group that already exists.",
+  "คุณเลือกข้อเสนอได้ 1 รายการ แล้วเข้าร่วมกลุ่มตามขั้นตอนเดิม": "You pick one offer, then join the group the usual way.",
+  "ประกาศหมดอายุใน {days} วัน": "Expires in {days} days",
+  "ย้อนกลับ": "Back",
+  "กลับไปหน้าประกาศ": "Back to requests",
+  "สร้างประกาศหากลุ่ม": "Post a request",
+  "ไม่พบประกาศนี้": "Request not found",
+  "ประกาศอาจหมดอายุหรือถูกยกเลิกแล้ว": "It may have expired or been cancelled.",
+  "ดูประกาศทั้งหมด": "See all requests",
+  "แก้ไขประกาศ": "Edit request",
+  "ยกเลิกประกาศ": "Cancel request",
+  "มีข้อเสนอแล้ว จึงแก้ไขประกาศไม่ได้ เพื่อให้ข้อเสนอตรงกับสิ่งที่ประกาศไว้": "It already has offers, so it can't be edited: offers must match what you posted.",
+  "{count} ที่นั่ง": "{count} seat(s)",
+  "ยังไม่มีข้อเสนอ": "No offers yet",
+  "เมื่อเจ้าของกลุ่มส่งข้อเสนอ จะแสดงที่นี่": "Offers from group owners will show here.",
+  "ข้อเสนอจะเห็นได้เฉพาะเจ้าของประกาศ": "Only the person who posted can see the offers.",
+  "มีกลุ่มที่ตรงกับประกาศนี้?": "Have a group that fits?",
+  "เจ้าของกลุ่มจะส่งข้อเสนอพร้อมแนบกลุ่มที่มีอยู่ได้ เร็ว ๆ นี้": "Group owners will soon be able to make an offer with an existing group.",
+  "เร็ว ๆ นี้": "coming soon",
+  "ต้องการเข้าร่วมกลุ่ม{cycle} จำนวน {count} ที่นั่ง": "Wants to join a {cycle} group, {count} seat(s)",
+  "งบประมาณสูงสุด": "Max budget",
+  "ขั้นต่ำ {amount}": "min {amount}",
+  "จำนวนที่ต้องการ": "Seats needed",
+  "ระยะเวลา": "Time left",
+  "ผู้โพสต์: {name}": "Posted by {name}",
+  "ข้อเสนอที่ได้รับ": "Offers received",
+  "รอพิจารณา {count}": "{count} pending",
+  "เข้าสู่ระบบเพื่อแก้ไขประกาศ": "Sign in to edit your request.",
+  "แก้ไขประกาศนี้ไม่ได้": "This request can't be edited",
+  "แก้ไขได้เฉพาะประกาศที่เปิดอยู่และยังไม่มีข้อเสนอ": "Only open requests without offers can be edited.",
+  "กลับไปที่ประกาศ": "Back to the request",
+  "บริการ รอบการชำระเงิน และวันหมดอายุเปลี่ยนไม่ได้ ถ้าต้องการเปลี่ยน ให้ยกเลิกแล้วโพสต์ใหม่": "Service, billing and expiry can't change. Cancel and post again to change them.",
+  "เข้าสู่ระบบเพื่อดูประกาศหากลุ่มของคุณ": "Sign in to see your requests.",
+  "คุณยังไม่มีประกาศหากลุ่ม": "You haven't posted a request yet",
+  "ไม่มีประกาศในแท็บนี้": "Nothing in this tab",
+  "ประกาศหากลุ่มของฉัน": "My requests",
+  "ติดตามประกาศและข้อเสนอที่ได้รับ": "Track your requests and the offers you receive",
+  "กรุณาเลือกบริการหรือหมวดหมู่": "Please choose a service or category",
+  "ชื่อประกาศต้องยาว 3–80 ตัวอักษร": "The title must be 3–80 characters",
+  "กรุณากรอกงบสูงสุดให้ถูกต้อง": "Please enter a valid max budget",
+  "โพสต์ประกาศแล้ว เจ้าของกลุ่มจะเห็นประกาศของคุณ": "Request posted. Group owners can see it now.",
+  "ยกเลิกประกาศนี้ใช่ไหม? ข้อเสนอที่ยังรออยู่จะถูกยกเลิกด้วย": "Cancel this request? Pending offers will be cancelled too.",
+  "ประกาศถูกยกเลิก": "Request cancelled",
+  "ผู้หากลุ่มยกเลิกประกาศ “{title}” แล้ว": "The requester cancelled “{title}”",
+  "ยกเลิกประกาศแล้ว": "Request cancelled",
+  "เปิดรับข้อเสนอ": "Open for offers",
+  "มีข้อเสนอแล้ว": "Has offers",
+  "เลือกข้อเสนอแล้ว": "Matched",
+  "เข้าร่วมสำเร็จ": "Joined",
+  "หมดอายุ": "Expired",
+  "รอพิจารณา": "Pending",
+  "ยอมรับแล้ว": "Accepted",
+  "ปฏิเสธแล้ว": "Declined",
+  "Host ถอนข้อเสนอ": "Withdrawn by host",
+  "รอข้อเสนอ": "Waiting",
+  "มีข้อเสนอ": "With offers",
+  "เสร็จสิ้น": "Done",
+  "รายเดือน": "Monthly",
+  "ครั้งเดียว": "One-time",
+  "ประกาศหากลุ่ม": "My requests",
+  "ประกาศหาของหารและข้อเสนอที่ได้รับ": "Your requests and offers",
+  "ให้เจ้าของกลุ่มเสนอ": "Let group owners offer"
+});
+Object.assign(errors, {
+  "hk_invalid_title": [
+    "ชื่อประกาศต้องยาว 3–80 ตัวอักษร",
+    "The title must be 3–80 characters"
+  ],
+  "hk_invalid_description": [
+    "รายละเอียดยาวได้ไม่เกิน 600 ตัวอักษร",
+    "Details can be up to 600 characters"
+  ],
+  "hk_invalid_budget": [
+    "กรุณากรอกงบสูงสุดให้ถูกต้อง",
+    "Please enter a valid max budget"
+  ],
+  "hk_invalid_budget_range": [
+    "งบขั้นต่ำต้องไม่มากกว่างบสูงสุด",
+    "The min budget can't be above the max"
+  ],
+  "hk_invalid_category": [
+    "กรุณาเลือกบริการหรือหมวดหมู่",
+    "Please choose a service or category"
+  ],
+  "hk_invalid_billing": [
+    "กรุณาเลือกรอบการชำระเงิน",
+    "Please choose a billing option"
+  ],
+  "hk_invalid_expiry": [
+    "กรุณาเลือกระยะเวลาประกาศ",
+    "Please choose how long the request runs"
+  ],
+  "hk_invalid_input": [
+    "ข้อมูลประกาศไม่ถูกต้อง",
+    "Some request details are invalid"
+  ],
+  "hk_not_installed": [
+    "ระบบประกาศหากลุ่มยังไม่ได้เปิดในฐานข้อมูลนี้",
+    "The Request Marketplace is not set up in this database yet."
+  ],
+  "authentication_required": [
+    "กรุณาเข้าสู่ระบบก่อน",
+    "Please sign in first"
+  ],
+  "profile_required": [
+    "กรุณาตั้งชื่อในโปรไฟล์ก่อน",
+    "Please set your profile name first"
+  ],
+  "too_many_open_requests": [
+    "เปิดประกาศค้างไว้ได้ไม่เกิน 10 ประกาศ",
+    "You can have up to 10 open requests"
+  ],
+  "request_not_found": [
+    "ไม่พบประกาศนี้",
+    "Request not found"
+  ],
+  "request_not_open": [
+    "ประกาศนี้ไม่ได้เปิดรับข้อเสนอแล้ว",
+    "This request is no longer open"
+  ],
+  "request_has_offers": [
+    "มีข้อเสนอแล้ว แก้ไขประกาศไม่ได้",
+    "This request has offers and can't be edited"
+  ],
+  "invalid_request_expiry": [
+    "กรุณาเลือกระยะเวลาประกาศ",
+    "Please choose how long the request runs"
+  ],
+  "product_unavailable": [
+    "ไม่พบบริการนี้",
+    "This service isn't available"
+  ]
+});
+
+
+// Request Marketplace, host side
+Object.assign(labels, {
+  "ส่งเมื่อ {date}": "Sent {date}",
+  "ถอนข้อเสนอ": "Withdraw offer",
+  "ข้อเสนอของฉัน": "My offers",
+  "ข้อเสนอของคุณ": "Your offers",
+  "สำหรับเจ้าของกลุ่ม": "For group owners",
+  "เลือกกลุ่มที่คุณเปิดอยู่ แล้วส่งข้อเสนอให้ผู้หากลุ่มได้เลย": "Pick one of your open groups and send an offer.",
+  "เข้าสู่ระบบเพื่อส่งข้อเสนอ": "Sign in to make an offer",
+  "นี่คือประกาศของคุณ": "This is your request",
+  "ส่งข้อเสนอให้ประกาศของตัวเองไม่ได้": "You can't make an offer on your own request.",
+  "ประกาศนี้ปิดรับข้อเสนอแล้ว": "This request is closed to offers",
+  "ดูประกาศอื่น": "See other requests",
+  "คุณยังไม่มีกลุ่มที่เปิดอยู่": "You don't have an open group yet",
+  "เปิดกลุ่มก่อน แล้วกลับมาส่งข้อเสนอด้วยกลุ่มนั้น": "Start a group first, then come back and offer it.",
+  "เลือกได้": "Available",
+  "เลือกไม่ได้": "Not available",
+  "ที่นั่งว่าง": "Free seats",
+  "{count} ที่": "{count}",
+  "เลือกกลุ่มที่ต้องการนำมาเสนอให้ผู้หากลุ่ม": "Choose the group to offer.",
+  "ยังไม่มีกลุ่มที่ตรงกับประกาศนี้ กลุ่มต้องอยู่หมวดเดียวกัน รอบการชำระเงินเดียวกัน มีที่ว่าง และราคาไม่เกินงบ": "None of your groups fit yet: it needs the same category and billing, a free seat, and a price within budget.",
+  "ราคาที่เสนอ": "Offered price",
+  "ราคาคิดจากราคาต่อที่นั่งของกลุ่ม ซึ่งเป็นยอดที่ผู้หากลุ่มจะจ่ายจริงเมื่อเข้าร่วม และจะล็อกไว้ตอนส่ง": "The price is the group's seat price, what the requester will really pay on joining. It is locked when you send.",
+  "ข้อความถึงผู้หาของ": "Message to the requester",
+  "สามารถเข้าร่วมได้ 1 ที่นั่ง รายละเอียดตามเงื่อนไขกลุ่ม...": "1 seat available, terms as in the group...",
+  "ส่งข้อเสนอ": "Send offer",
+  "เข้าสู่ระบบเพื่อดูข้อเสนอที่คุณส่ง": "Sign in to see the offers you sent.",
+  "คุณยังไม่ได้ส่งข้อเสนอ": "You haven't sent any offers",
+  "ไม่มีข้อเสนอในแท็บนี้": "No offers in this tab",
+  "ดูประกาศของคนที่กำลังหากลุ่ม แล้วเสนอกลุ่มที่คุณเปิดอยู่": "Browse requests and offer one of your groups.",
+  "ดูประกาศหากลุ่ม": "Browse requests",
+  "ติดตามข้อเสนอที่คุณส่งให้คนที่กำลังหากลุ่ม": "Track the offers you sent",
+  "เป็นคนแรกที่โพสต์ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ": "Be the first to post and let group owners make offers.",
+  "ไม่อยากเปิดกลุ่มเอง? โพสต์สิ่งที่ต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ": "Don't want to start a group? Post what you need and let group owners make an offer.",
+  "สำหรับคนหาของ": "For people looking",
+  "โพสต์ว่าต้องการอะไร งบเท่าไหร่ แล้วรอข้อเสนอ": "Say what you need and your budget, then wait for offers.",
+  "สำหรับเจ้าของกลุ่ม (Host)": "For group owners (Host)",
+  "มีกลุ่มที่ยังมีที่ว่าง? เสนอให้คนที่กำลังหาได้เลย": "Have a group with free seats? Offer it to people looking.",
+  "กรุณาเลือกกลุ่มที่จะเสนอ": "Please choose a group to offer",
+  "มีข้อเสนอใหม่!": "New offer!",
+  "{name} ส่งข้อเสนอสำหรับประกาศ “{title}” ของคุณ": "{name} made an offer on your request “{title}”",
+  "ส่งข้อเสนอแล้ว รอผู้หากลุ่มพิจารณา": "Offer sent. Waiting for the requester.",
+  "ถอนข้อเสนอนี้ใช่ไหม? ผู้หากลุ่มจะได้รับแจ้ง": "Withdraw this offer? The requester will be told.",
+  "{name} ถอนข้อเสนอสำหรับประกาศ “{title}”": "{name} withdrew their offer on “{title}”",
+  "ถอนข้อเสนอแล้ว": "Offer withdrawn",
+  "กลุ่มนี้ไม่ได้เปิดรับสมาชิก": "This group isn't taking members",
+  "รอบการชำระเงินไม่ตรงกับประกาศ": "Billing doesn't match the request",
+  "บริการไม่ตรงกับประกาศ": "Service doesn't match the request",
+  "หมวดหมู่ไม่ตรงกับประกาศ": "Category doesn't match the request",
+  "ผู้หากลุ่มอยู่ในกลุ่มนี้แล้ว": "The requester is already in this group",
+  "ที่นั่งเต็มแล้ว": "No free seats",
+  "ราคาต่อที่นั่งเกินงบของประกาศ": "Seat price is over the request's budget",
+  "ส่งข้อเสนอด้วยกลุ่มนี้แล้ว": "Already offered with this group",
+  "ปิดแล้ว": "Closed",
+  "ข้อเสนอที่คุณส่งให้คนที่กำลังหากลุ่ม": "Offers you sent to people looking for a group"
+});
+Object.assign(errors, {
+  "own_request": [
+    "ส่งข้อเสนอให้ประกาศของตัวเองไม่ได้",
+    "You can't make an offer on your own request"
+  ],
+  "group_not_owned": [
+    "เลือกได้เฉพาะกลุ่มที่คุณเป็นเจ้าของ",
+    "You can only offer groups you own"
+  ],
+  "offer_not_found": [
+    "ไม่พบข้อเสนอนี้",
+    "Offer not found"
+  ],
+  "offer_not_pending": [
+    "ข้อเสนอนี้ไม่ได้รอพิจารณาแล้ว",
+    "This offer is no longer pending"
+  ],
+  "hk_invalid_message": [
+    "ข้อความยาวได้ไม่เกิน 400 ตัวอักษร",
+    "The message can be up to 400 characters"
+  ]
+});
+
+
+// Request Marketplace, matching
+Object.assign(labels, {
+  "การจองที่นั่งหมดเวลา": "Seat hold expired",
+  "ที่นั่งที่จองไว้สำหรับ “{title}” หมดเวลาแล้ว ประกาศกลับมารับข้อเสนอได้": "The seat held for “{title}” has expired. Your request is open for offers again.",
+  "ผู้หากลุ่มไม่ได้เข้าร่วมกลุ่มภายในเวลา ที่นั่งกลับมาว่างแล้ว": "The requester didn't join in time. The seat is free again.",
+  "ยอมรับข้อเสนอ": "Accept offer",
+  "ปฏิเสธ": "Decline",
+  "ผู้หากลุ่มยอมรับแล้ว ที่นั่งถูกจองไว้ {left}": "Accepted. The seat is held: {left}",
+  "ผู้หากลุ่มยอมรับแล้ว รอเข้าร่วมกลุ่ม": "Accepted. Waiting for them to join",
+  "ผู้หากลุ่มเข้าร่วมกลุ่มแล้ว": "The requester joined your group",
+  "เข้าร่วมกลุ่มแล้ว": "You joined the group",
+  "คุณเป็นสมาชิกกลุ่ม “{name}” แล้ว ขั้นต่อไปคือยืนยันยอดและชำระเงินตามขั้นตอนของกลุ่ม แอดมินจะตรวจสลิปก่อนยืนยัน": "You're a member of “{name}”. Next, confirm the amount and pay through the group's usual steps; an admin checks the slip before confirming.",
+  "ไปที่กลุ่ม": "Go to the group",
+  "จองที่นั่งไว้ให้คุณแล้ว": "A seat is held for you",
+  "ที่นั่งนี้ถูกจองไว้ให้คุณ {left} กดเข้าร่วมกลุ่มก่อนหมดเวลา ถ้าไม่ทัน ที่นั่งจะถูกปล่อยและประกาศจะกลับมารับข้อเสนอใหม่": "This seat is held for you ({left}). Join before it runs out, or the seat is released and your request reopens for offers.",
+  "หลังเข้าร่วม คุณจะยืนยันยอดและชำระเงินตามขั้นตอนเดิมของกลุ่ม การเข้าร่วมยังไม่ใช่การชำระเงิน": "After joining you confirm and pay through the group's usual steps. Joining is not a payment.",
+  "ดูกลุ่มก่อน": "See the group first",
+  "ผู้หากลุ่มยอมรับข้อเสนอนี้แล้ว ถ้าถอน ที่นั่งที่จองไว้จะถูกปล่อย และประกาศจะกลับมารับข้อเสนอใหม่ ถอนใช่ไหม?": "The requester accepted this offer. Withdrawing releases the held seat and reopens their request. Withdraw?",
+  "ยอมรับข้อเสนอนี้ใช่ไหม? ระบบจะจองที่นั่งไว้ให้ {hours} ชั่วโมง และข้อเสนออื่นของประกาศนี้จะถูกปฏิเสธ": "Accept this offer? A seat is held for you for {hours} hours and the other offers on this request are declined.",
+  "ข้อเสนอได้รับการยอมรับ": "Offer accepted",
+  "{name} ยอมรับข้อเสนอจากกลุ่ม “{group}” แล้ว ที่นั่งถูกจองไว้ {hours} ชั่วโมง": "{name} accepted your offer with “{group}”. The seat is held for {hours} hours.",
+  "ข้อเสนอไม่ได้รับเลือก": "Offer not chosen",
+  "ผู้หากลุ่มเลือกข้อเสนออื่นสำหรับ “{title}”": "The requester chose another offer for “{title}”",
+  "ยอมรับข้อเสนอแล้ว จองที่นั่งไว้ให้คุณ {hours} ชั่วโมง": "Offer accepted. A seat is held for you for {hours} hours.",
+  "ปฏิเสธข้อเสนอนี้ใช่ไหม?": "Decline this offer?",
+  "ผู้หากลุ่มปฏิเสธข้อเสนอสำหรับ “{title}”": "The requester declined your offer for “{title}”",
+  "ปฏิเสธข้อเสนอแล้ว": "Offer declined",
+  "ผู้หากลุ่มเข้าร่วมแล้ว": "Requester joined",
+  "{name} เข้าร่วมกลุ่ม “{group}” จากประกาศหากลุ่มแล้ว": "{name} joined “{group}” from their request",
+  "ราคากลุ่มเปลี่ยนไปจากที่เสนอ ขอให้ Host ส่งข้อเสนอใหม่": "The group's price changed since the offer. Ask the host for a new offer."
+});
+Object.assign(errors, {
+  "offer_price_changed": [
+    "ราคากลุ่มเปลี่ยนไปจากที่เสนอ",
+    "The group's price changed since the offer"
+  ],
+  "reservation_not_found": [
+    "ไม่พบการจองที่นั่งนี้",
+    "Seat hold not found"
+  ],
+  "reservation_not_active": [
+    "การจองที่นั่งหมดเวลาหรือถูกยกเลิกแล้ว",
+    "This seat hold has expired or was cancelled"
+  ]
+});
+
+
+// Request Marketplace, design pass and notifications
+Object.assign(labels, {
+  "ตลาดหารของ": "Marketplace",
+  "งบสูงสุดต่อที่นั่ง": "Max budget per seat",
+  "งบขั้นต่ำ": "Min budget",
+  "ปิดรับข้อเสนอ": "Offers close in",
+  "{hours} ชม.": "{hours}h",
+  "คนที่กำลังหากลุ่ม": "People looking for a group",
+  "ค้นหาประกาศ": "Search requests",
+  "เจ้าของกลุ่มเลือกประกาศที่ตรงกับกลุ่มของตัวเอง แล้วส่งข้อเสนอได้เลย": "Group owners pick a request that fits their group and send an offer.",
+  "สรุปประกาศ": "Request summary",
+  "เจ้าของกลุ่มจะเสนอกลุ่มที่มีอยู่จริง ราคาคิดจากราคาต่อที่นั่งของกลุ่มนั้น": "Group owners offer a group that already exists, at that group's seat price.",
+  "ต้องการหาอะไร": "What are you looking for",
+  "บริการหรือหมวดหมู่": "Service or category",
+  "งบและรอบการชำระเงิน": "Budget and billing",
+  "จ่ายทุกเดือน เช่น แอปหรือบริการ": "Paid every month, like an app or service",
+  "จ่ายรอบเดียวจบ เช่น สินค้า": "Paid once, like a product",
+  "งบสูงสุดต่อที่นั่ง (บาท)": "Max budget per seat (THB)",
+  "เปิดรับข้อเสนอนาน": "Open for offers for",
+  "ต้องการเร็ว": "Need it soon",
+  "แนะนำ": "Recommended",
+  "ไม่รีบ": "No rush",
+  "ตรวจสอบก่อนโพสต์": "Check before posting",
+  "ต่อไป": "Next",
+  "โพสต์ประกาศ": "Post request",
+  "บอกว่าต้องการอะไร งบเท่าไหร่ แล้วรอให้เจ้าของกลุ่มเข้ามาเสนอ": "Say what you need and your budget, then wait for group owners to offer.",
+  "กดเข้าร่วมกลุ่มก่อนหมดเวลา ถ้าไม่ทัน ที่นั่งจะถูกปล่อยและประกาศจะกลับมารับข้อเสนอใหม่": "Join before time runs out, or the seat is released and your request reopens for offers.",
+  "เลือกได้ 1 ข้อเสนอ ระบบจะจองที่นั่งให้ 24 ชั่วโมง": "Pick one offer; a seat is held for you for 24 hours.",
+  "ประกาศนี้ไม่รับข้อเสนอเพิ่มแล้ว": "This request takes no more offers.",
+  "ผู้หากลุ่มเห็นข้อเสนอนี้แล้ว": "The requester can see this offer.",
+  "เสนอกลุ่มของคุณ": "Offer your group",
+  "ประกาศ {id}": "Request {id}",
+  "ผู้โพสต์ไม่ได้ใส่รายละเอียดเพิ่มเติม": "No extra details from the requester.",
+  "ผู้โพสต์": "Posted by",
+  "ต้องการ": "Needs",
+  "เจ้าของกลุ่มจะเสนอราคาต่อที่นั่งของกลุ่มตัวเอง ไม่เกินงบนี้": "Group owners offer their own group's seat price, within this budget.",
+  "เสนอได้เฉพาะกลุ่มที่ราคาต่อที่นั่งไม่เกินงบนี้ และหมวดกับรอบชำระตรงกัน": "Only groups within this budget, in the same category and billing, can be offered.",
+  "รายละเอียดประกาศ": "Request details",
+  "ประกาศนี้": "This request",
+  "ราคาที่คุณเสนอ": "Your offered price",
+  "เลือกกลุ่มของคุณ": "Choose your group",
+  "กลุ่มที่จะเสนอ": "Group to offer",
+  "ผู้หากลุ่มจะเห็นกลุ่มและราคาต่อที่นั่งที่คุณเสนอ": "The requester sees your group and its seat price.",
+  "{host} เสนอกลุ่ม “{group}” สำหรับ “{title}”": "{host} offered “{group}” for “{title}”",
+  "ผู้หากลุ่มยอมรับข้อเสนอสำหรับ “{title}” ที่นั่งถูกจองไว้ 24 ชั่วโมง": "Your offer for “{title}” was accepted. The seat is held for 24 hours.",
+  "ผู้หากลุ่มไม่ได้เลือกข้อเสนอของคุณสำหรับ “{title}”": "Your offer for “{title}” wasn't chosen",
+  "{host} ถอนข้อเสนอสำหรับ “{title}”": "{host} withdrew their offer for “{title}”",
+  "ข้อเสนอถูกยกเลิก": "Offer cancelled",
+  "กลุ่ม “{group}” ไม่ได้เปิดรับแล้ว ข้อเสนอสำหรับ “{title}” จึงถูกยกเลิก": "“{group}” is no longer open, so its offer for “{title}” was cancelled.",
+  "ที่นั่งที่จองไว้สำหรับ “{title}” ถูกปล่อยแล้ว": "The seat held for “{title}” was released",
+  "ผู้หากลุ่มเข้าร่วมกลุ่ม “{group}” จากประกาศ “{title}” แล้ว": "The requester joined “{group}” from “{title}”"
+});
+
+
+Object.assign(labels, {
+  "เสนอกลุ่มที่คุณเปิดอยู่ได้ใน 3 ขั้น": "Offer one of your open groups in 3 steps",
+  "หมวดและรอบชำระต้องตรง มีที่ว่าง และราคาต่อที่นั่งไม่เกินงบ": "Same category and billing, a free seat, and a seat price within budget",
+  "ราคาคิดจากราคาต่อที่นั่งของกลุ่ม แนบข้อความได้": "The price is the group's seat price; you can add a message",
+  "รอผู้หากลุ่มตอบ": "Wait for the requester",
+  "ถ้ายอมรับ ระบบจะจองที่นั่งไว้ 24 ชั่วโมงให้เขาเข้ากลุ่ม": "If they accept, a seat is held for 24 hours for them to join",
+  "โพสต์เมื่อ {date}": "Posted {date}",
+  "รายละเอียดจากผู้โพสต์": "Details from the requester",
+  "ข้อเสนอตอนนี้": "Offers so far"
+});
+
+
+Object.assign(labels, {
+  "เช่น บริการสตรีมมิ่ง": "e.g. streaming service",
+  "กรุณาระบุชื่อหมวดหมู่": "Please enter the category name"
+});
+
+
+Object.assign(labels, {
+  "หลังโพสต์": "After you post",
+  "เจ้าของกลุ่มเห็นประกาศ": "Group owners see your request",
+  "แล้วส่งข้อเสนอพร้อมกลุ่มที่มีอยู่จริง": "and offer a group that already exists",
+  "คุณเลือกได้ 1 ข้อเสนอ": "You pick one offer",
+  "ระบบจองที่นั่งให้ 24 ชั่วโมง แล้วเข้าร่วมกลุ่มตามขั้นตอนเดิม": "A seat is held for 24 hours, then you join the usual way",
+  "ยกเลิกหรือแก้ไขได้ก่อนมีข้อเสนอ": "You can edit or cancel it until offers arrive"
 });
 
 export const messages = {

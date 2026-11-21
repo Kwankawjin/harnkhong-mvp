@@ -1,9 +1,11 @@
 import "./style.css";
 import "./theme.css";
+import "./mobile.css";
 import * as React from "react";
 import { createRoot } from "react-dom/client";
 import DoodleCrewFooter from "../components/ui/doodle-crew-footer.tsx";
 import LanyardBadge from "../components/ui/lanyard-badge.tsx";
+import { paymentReminders, recentCycleHistory, cycleChanges, HISTORY_KEEP_DAYS } from "./reminders.js";
 import QRCode from "qrcode";
 import {
   demoAccount,
@@ -21,6 +23,7 @@ import {
 import {
   assertCapacity,
   createGroup,
+  recommendGroups,
   costBreakdown,
   totalCost,
   shares,
@@ -32,7 +35,26 @@ import {
   allApproved,
   transferOwner,
   SEAT_MODE,
+  UNIT_MODE,
+  AUTO_RECEIPT_DAYS,
+  receiptState,
+  receiptDone,
+  autoReceiptAt,
+  autoReceiptDaysLeft,
+  saleMode,
+  MAX_STOCK,
+  seatPriced,
+  unitMode,
+  unitsOf,
+  takenUnits,
+  openUnits,
+  groupFull,
+  unitHolders,
+  unitShares,
+  unitJoinPrice,
+  MAX_UNITS,
   seatPrice,
+  ownerPayout,
 } from "./domain.js";
 import {
   currentCycle,
@@ -41,6 +63,16 @@ import {
   confirmCycle,
   recordCyclePayment,
   waitsForNextCycle,
+  nextCycleForecast,
+  endAfterCycle,
+  monthlyEnded,
+  closeGroup,
+  cyclePayers,
+  confirmCycleReceipt,
+  cycleReleased,
+  redeemPromo,
+  commissionWaived,
+  LAUNCH_PROMO,
   emptySubscription,
   effectivePlan,
   expireSubscription,
@@ -50,7 +82,7 @@ import {
   PLUS_PRICE_SATANG,
 } from "./billing.js";
 import { messages, translate, formatSatang, bahtInput } from "./i18n.js";
-import {
+import { testMode,
   supabase,
   supabaseConfigured,
   googleAuthAvailable,
@@ -59,10 +91,10 @@ import {
   saveAuthenticatedAddress,
 } from "./supabase.js";
 import { createAuthSessionSync } from "./auth-session.js";
+import { createRequestMarketplace } from "./request-marketplace.js";
 
 const BANK_PAYMENT_QR_SRC = "/images/bank-payment-qr.webp";
 const BANK_PAYMENT_RECIPIENT = "จิณห์นิภา บรรจบสมัย";
-const ADMIN_ACCOUNT_EMAILS = ["harnkhong@gmail.com", "asdwadwaa8@gmail.com"];
 
 let doodleFooterRoot = null;
 let profileBadgeRoot = null;
@@ -87,6 +119,19 @@ import {
   reportSupabaseCyclePayment,
   loadSupabaseSubscription,
   reportSupabaseSubscriptionPayment,
+  confirmSupabaseReceipt,
+  confirmSupabaseCycleReceipt,
+  redeemSupabasePromo,
+  loadSupabasePayoutAccount,
+  saveSupabasePayoutQr,
+  markSupabaseShipped,
+  closeSupabaseGroup,
+  hideSupabaseGroup,
+  endSupabaseGroupAfterCycle,
+  reportSupabaseProblem,
+  submitSupabaseAppProblem,
+  saveSupabasePayoutAccount,
+  openPayoutSlip,
 } from "./supabase-groups.js";
 import {
   createOrder,
@@ -139,8 +184,11 @@ let heroHeadlineTimeout = null;
 let heroHeadlineIndex = 0;
 let heroHeadlineAnimation = null;
 let heroHeadlineResizeHandler = null;
+let heroHeadlineObserver = null;
 function startHeroHeadlineLoop() {
   clearTimeout(heroHeadlineTimeout);
+  heroHeadlineObserver?.disconnect();
+  heroHeadlineObserver = null;
   heroHeadlineAnimation?.cancel();
   heroHeadlineAnimation = null;
   if (heroHeadlineResizeHandler)
@@ -165,8 +213,18 @@ function startHeroHeadlineLoop() {
   const heading = visible.closest("h1");
   heroHeadlineResizeHandler = () => {
     if (!heading || !staticElement || !windowElement || !measure) return;
+    // Phone: the h1 shrinks to fit its own text, so measuring it fed back into
+    // itself on every resize (iOS fires one when the toolbar collapses) until
+    // the blue box was clamped to 80px. Measure the hero column instead.
+    const mobileColumn =
+      window.innerWidth < 960 ? heading.parentElement?.clientWidth || 0 : 0;
+    if (window.innerWidth < 960 && !mobileColumn) {
+      windowElement.style.maxWidth = "";
+      measure.style.maxWidth = "";
+      return;
+    }
     const headingWidth =
-      window.innerWidth >= 960 ? window.innerWidth - 32 : heading.clientWidth;
+      window.innerWidth >= 960 ? window.innerWidth - 32 : mobileColumn;
     const available = Math.max(
       80,
       headingWidth -
@@ -181,6 +239,16 @@ function startHeroHeadlineLoop() {
   window.addEventListener("resize", heroHeadlineResizeHandler, {
     passive: true,
   });
+  if (window.innerWidth < 960 && heading) {
+    const refit = heroHeadlineResizeHandler;
+    if (typeof ResizeObserver !== "undefined") {
+      heroHeadlineObserver = new ResizeObserver(() => refit());
+      if (heading.parentElement) heroHeadlineObserver.observe(heading.parentElement);
+    }
+    document.fonts?.ready.then(() => {
+      if (visible.isConnected) refit();
+    });
+  }
   const cycle = async () => {
     heroHeadlineIndex = (heroHeadlineIndex + 1) % phrases.length;
     const phrase = phrases[heroHeadlineIndex];
@@ -191,6 +259,7 @@ function startHeroHeadlineLoop() {
       heroHeadlineTimeout = setTimeout(cycle, 3000);
       return;
     }
+    if (window.innerWidth < 960) heroHeadlineResizeHandler();
     const previousWidth = windowElement.getBoundingClientRect().width;
     heroHeadlineAnimation = windowElement.animate(
       [
@@ -401,13 +470,30 @@ const save = (next = state) => {
   if (!supabaseConfigured) localStorage.setItem(KEY, JSON.stringify(next));
   state = next;
 };
+// Test mode: three ready-made people, already signed in, switchable from the banner.
+const TEST_USERS = [
+  { id: "test-a", name: "ผู้ทดสอบ A", email: "test-a@example.com" },
+  { id: "test-b", name: "ผู้ทดสอบ B", email: "test-b@example.com" },
+  { id: "test-c", name: "ผู้ทดสอบ C", email: "test-c@example.com" },
+].map((user) => ({ ...user, role: "member", address: { name: user.name, phone: "0800000000", line1: "ที่อยู่ทดสอบ", province: "กรุงเทพมหานคร", postcode: "10110" } }));
+function switchTestUser(id) {
+  const user = TEST_USERS.find((item) => item.id === id) || TEST_USERS[0];
+  const profiles = { ...state.profiles };
+  for (const item of TEST_USERS) profiles[item.id] = { ...item, ...(state.profiles?.[item.id] || {}), id: item.id };
+  save({ ...state, user: profiles[user.id], profiles });
+}
+if (testMode && (!state.user || !TEST_USERS.some((user) => user.id === state.user.id))) switchTestUser("test-a");
+const testBanner = () =>
+  testMode
+    ? `<div class="test-mode-banner" role="status"><strong>${t("โหมดทดสอบ")}</strong><span>${t("ไม่ต้องล็อกอิน ข้อมูลเก็บในเบราว์เซอร์นี้เท่านั้น")}</span><label>${t("ใช้งานเป็น")}<select data-test-user>${TEST_USERS.map((user) => `<option value="${user.id}" ${state.user?.id === user.id ? "selected" : ""}>${escape(user.name)}</option>`).join("")}</select></label><button type="button" data-test-reset>${t("ล้างข้อมูลทดสอบ")}</button></div>`
+    : "";
 const restoredOrders = migrateOrders(state.orders, state.groups, [
   ...seedListings,
   ...state.customListings,
 ]);
 const restoredGroups = lockOrderedGroups(state.groups, restoredOrders).map(
   (g) => {
-    if (g.orderId || g.costs?.mode === "per_member_v2" || g.costs?.mode === SEAT_MODE) return g;
+    if (g.orderId || g.costs?.mode === "per_member_v2" || seatPriced(g.costs)) return g;
     return {
       ...g,
       costs: {
@@ -466,6 +552,69 @@ function mySubscription(userId = state.user?.id) {
   if (supabaseConfigured) return state.remoteSubscription || null;
   return expireSubscription(state.subscriptions?.[userId] || emptySubscription(userId));
 }
+/** The launch promo (HARN-WITH-JINN): no 2% commission until this date, or null. */
+function myFeeWaiverUntil(userId = state.user?.id) {
+  if (!userId) return null;
+  const until = supabaseConfigured ? state.remoteSubscription?.feeWaiverUntil : state.promos?.[userId]?.waiverUntil;
+  return until && new Date(until) > new Date() ? until : null;
+}
+/** Where the admin sends this person's payouts as a group owner, or null. */
+function myPayoutAccount(userId = state.user?.id) {
+  if (!userId) return null;
+  return supabaseConfigured ? state.remotePayoutAccount || null : state.payoutAccounts?.[userId] || null;
+}
+const THAI_BANKS = ["กสิกรไทย", "กรุงเทพ", "กรุงไทย", "ไทยพาณิชย์", "กรุงศรีอยุธยา", "ทหารไทยธนชาต (ttb)", "ออมสิน", "ธ.ก.ส.", "อาคารสงเคราะห์", "ยูโอบี", "ซีไอเอ็มบี ไทย", "เกียรตินาคินภัทร", "แลนด์ แอนด์ เฮ้าส์", "ไอซีบีซี (ไทย)", "ทิสโก้"];
+const maskNumber = (value = "") => (value.length > 4 ? `${"•".repeat(Math.max(0, value.length - 4))}${value.slice(-4)}` : value);
+function payoutAccountSummary(account) {
+  if (!account) return "";
+  const qr = payoutQrSrc(account) ? ` · ${t("แนบ QR แล้ว")}` : "";
+  return account.method === "promptpay"
+    ? `PromptPay ${maskNumber(account.promptpay_id)} · ${escape(account.account_name)}${qr}`
+    : `${escape(account.bank_name)} ${maskNumber(account.account_number)} · ${escape(account.account_name)}${qr}`;
+}
+/** Transfers the admin already made to this owner, each with its slip. */
+function payoutsReceivedList(g) {
+  const rows = g.payoutsReceived || [];
+  if (!rows.length) return "";
+  return `<div class="payouts-received"><strong>${t("โอนให้คุณแล้ว")}</strong><ul>${rows.map((row) => `<li><span>${shortDate(row.paid_at)}</span><b>${money(Number(row.net_satang))}</b>${row.slip_path ? `<button type="button" class="link-button" data-action="open-payout-slip" data-path="${escape(row.slip_path)}">${t("ดูสลิป")}</button>` : ""}</li>`).join("")}</ul></div>`;
+}
+/** Reminder shown to group owners who have money coming but no account to receive it. */
+const payoutAccountReminder = () =>
+  myPayoutAccount() ? "" : `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("ยังไม่มีบัญชีรับเงิน")} ${a("/profile#payout-account", t("เพิ่มบัญชีรับเงิน"))}</span></p>`;
+function payoutAccountCard() {
+  const account = myPayoutAccount() || {};
+  const method = account.method || "promptpay";
+  return `<section class="account-card payout-account-card" id="payout-account" aria-labelledby="payout-account-title"><div class="account-card-heading"><div><h2 id="payout-account-title">${t("บัญชีรับเงิน")}</h2><p>${t("สำหรับเจ้าของกลุ่ม แอดมินจะโอนเงินจากกองกลางเข้าบัญชีนี้หลังหักค่าคอม 2% เห็นได้เฉพาะคุณกับแอดมิน")}</p></div>${account.method ? `<span class="chip">${t("บันทึกแล้ว")}</span>` : ""}</div>
+    ${account.method ? `<p class="payout-account-current">${icon("check", 16)} ${payoutAccountSummary(account)}</p>` : ""}
+    <form id="payout-account-form" class="payout-account-form" data-method="${method}">
+      <fieldset class="visibility-picker"><legend>${t("รับเงินผ่าน")}</legend><label><input type="radio" name="method" value="promptpay" ${method === "promptpay" ? "checked" : ""}/><span>PromptPay</span></label><label><input type="radio" name="method" value="bank" ${method === "bank" ? "checked" : ""}/><span>${t("บัญชีธนาคาร")}</span></label></fieldset>
+      <label data-payout-field="promptpay">${t("เบอร์โทรหรือเลขบัตรประชาชนที่ผูก PromptPay")}<input name="promptpayId" inputmode="numeric" autocomplete="off" maxlength="17" value="${escape(account.promptpay_id || "")}" placeholder="08x-xxx-xxxx"/></label>
+      <label data-payout-field="bank">${t("ธนาคาร")}<select name="bankName">${THAI_BANKS.map((bank) => `<option value="${escape(bank)}" ${account.bank_name === bank ? "selected" : ""}>${escape(bank)}</option>`).join("")}</select></label>
+      <label data-payout-field="bank">${t("เลขบัญชี")}<input name="accountNumber" inputmode="numeric" autocomplete="off" maxlength="20" value="${escape(account.account_number || "")}" placeholder="xxx-x-xxxxx-x"/></label>
+      <label>${t("ชื่อบัญชี")}<input name="accountName" maxlength="100" autocomplete="name" value="${escape(account.account_name || state.user?.name || "")}" required/></label>
+      ${payoutQrField(account)}
+      <button type="submit" class="button primary">${account.method ? t("บันทึกการเปลี่ยนแปลง") : t("บันทึกบัญชีรับเงิน")}</button>
+    </form></section>`;
+}
+const PAYOUT_QR_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const PAYOUT_QR_MAX_BYTES = 5 * 1024 * 1024;
+/** Where the saved payout QR image can be shown from, or "". */
+const payoutQrSrc = (account) => (supabaseConfigured ? account?.qr_url : account?.qr_data) || "";
+/** Optional QR image (PromptPay or bank app QR) the admin can scan when paying the owner. */
+function payoutQrField(account) {
+  const src = payoutQrSrc(account);
+  return `<div class="payout-qr-field"><span class="payout-qr-label">${t("QR รับเงิน (ไม่บังคับ)")}</span><small>${t("แนบรูป QR PromptPay หรือ QR จากแอปธนาคาร เพื่อให้แอดมินสแกนโอนได้ทันที")}</small>
+    <div class="payout-qr-row"><img class="payout-qr-preview" data-payout-qr-preview src="${escape(src)}" alt="${t("QR รับเงินของคุณ")}" ${src ? "" : "hidden"}/>
+    <div class="payout-qr-controls"><label class="checkout-slip-file">${icon("copy", 16)}<span data-payout-qr-status>${src ? t("เปลี่ยนรูป QR") : t("แนบรูป QR (JPG, PNG, WebP ไม่เกิน 5 MB)")}</span><input type="file" name="qr" accept="${PAYOUT_QR_TYPES.join(",")}" data-payout-qr-input/></label>
+    ${src ? `<label class="payout-qr-remove"><input type="checkbox" name="removeQr"/> ${t("ลบ QR นี้")}</label>` : ""}</div></div></div>`;
+}
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 /** "plus" while a paid month is running, otherwise "free". */
 function subscriptionFor(userId = state.user?.id) {
   const sub = mySubscription(userId);
@@ -482,15 +631,17 @@ const escape = (s) =>
   );
 const icon = (id, size = 22) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-${id}"/></svg>`;
-const icons = `<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden"><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="7"/><path d="m16 16 5 5"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol><symbol id="i-edit" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="10" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol><symbol id="i-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 4h16v13H8l-4 3z"/><path d="M8 9h8M8 13h5"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 9h18c0-1-3-2-3-9ZM10 21h4"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol><symbol id="i-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol><symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/></symbol><symbol id="i-calc" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/></symbol><symbol id="i-trending" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol><symbol id="i-fire" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol><symbol id="i-truck" viewBox="0 0 24 24"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-5l-3-4h-5v10Z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol><symbol id="i-package" viewBox="0 0 24 24"><path d="m16.5 9.4-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol><symbol id="i-map-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol></svg>`;
+const icons = `<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden"><symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol><symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-7h6v7"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="7"/><path d="m16 16 5 5"/></symbol><symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol><symbol id="i-edit" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></symbol><symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="10" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol><symbol id="i-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol><symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 4h16v13H8l-4 3z"/><path d="M8 9h8M8 13h5"/></symbol><symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol><symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 9h18c0-1-3-2-3-9ZM10 21h4"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol><symbol id="i-back" viewBox="0 0 24 24"><path d="m14 5-7 7 7 7"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol><symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2"/></symbol><symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol><symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z"/></symbol><symbol id="i-calc" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><path d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/></symbol><symbol id="i-trending" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol><symbol id="i-fire" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></symbol><symbol id="i-truck" viewBox="0 0 24 24"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-5l-3-4h-5v10Z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol><symbol id="i-package" viewBox="0 0 24 24"><path d="m16.5 9.4-9-5.19M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></symbol><symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol><symbol id="i-map-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol><symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol><symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3"/><path d="M3 7h16a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h7"/><circle cx="16" cy="12" r="0.6" fill="currentColor"/></symbol><symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.2"/></symbol><symbol id="i-percent" viewBox="0 0 24 24"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></symbol><symbol id="i-bank" viewBox="0 0 24 24"><path d="M3 21h18M4 10h16M12 3l9 5H3l9-5Z"/><path d="M6 10v8M10 10v8M14 10v8M18 10v8"/></symbol><symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 1.9-1.5L21 8H6"/></symbol><symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol></svg>`;
 const a = (href, label, cls = "") =>
   `<a href="${href}" data-link class="${cls}">${label}</a>`;
 function go(path) {
+  requestMarketplace.onNavigate(path.split("?")[0]);
   profileMenuOpen = false;
   listingMenuOpen = false;
+  // Leaving or entering the create form starts it blank.
   if (
-    location.pathname === "/groups/create" &&
-    path.split("?")[0] !== "/groups/create"
+    (location.pathname === "/groups/create") !==
+    (path.split("?")[0] === "/groups/create")
   ) {
     groupImages = [];
     selectedCreateCategories = [];
@@ -799,6 +950,11 @@ function notice(
   save();
 }
 function updateGroup(next) {
+  const previous = state.groups.find((g) => g.id === next.id);
+  const changes = cycleChanges(previous, next);
+  // Demo keeps cycle history the way the database trigger does: 3 days, then gone.
+  if (changes.length || next.cycleHistory?.length)
+    next = { ...next, cycleHistory: recentCycleHistory([...(next.cycleHistory || []), ...changes]) };
   state.groups = state.groups.map((g) => (g.id === next.id ? next : g));
   save();
 }
@@ -905,7 +1061,9 @@ function alertMessage(msg, type = "success") {
   toast.innerHTML = `<span class="app-toast-icon">${icon(TOAST_ICONS[kind], 18)}</span><p class="app-toast-text">${escape(text)}</p><button type="button" class="app-toast-close" aria-label="${t("ปิดการแจ้งเตือน")}">✕</button><span class="app-toast-bar" aria-hidden="true"></span>`;
   toast.querySelector(".app-toast-close").addEventListener("click", () => dismissToast(toast));
   stack.prepend(toast);
-  while (stack.children.length > 4) dismissToast(stack.lastElementChild);
+  // Keep at most 4 toasts. dismissToast removes a toast only after its exit animation, so drop the
+  // extras right away; looping until the count drops would never end and freeze the page.
+  [...stack.children].filter((node) => !node.dataset.leaving).slice(4).forEach((node) => node.remove());
   let timer = setTimeout(() => dismissToast(toast), duration);
   toast.addEventListener("mouseenter", () => clearTimeout(timer));
   toast.addEventListener("mouseleave", () => { clearTimeout(timer); timer = setTimeout(() => dismissToast(toast), 1800); });
@@ -1300,7 +1458,8 @@ function listingCard(p) {
       g.listingId === p.id &&
       g.visibility === "public" &&
       g.status !== "cancelled" &&
-      g.members.length < g.capacity &&
+      !g.closedAt &&
+      !groupFull(g) &&
       !g.orderId,
   );
   const g = groups[0];
@@ -1338,7 +1497,7 @@ function listingCard(p) {
             ? `
           <div class="listing-group-preview">
             ${icon("users", 14)}
-            <span>${t("กลุ่ม “{name}” ว่างอีก {count} ที่", { name: escape(g.name), count: "<b>" + (g.capacity - g.members.length) + "</b>" })}</span>
+            <span>${t("กลุ่ม “{name}” ว่างอีก {count} ที่", { name: escape(g.name), count: "<b>" + openUnits(g) + "</b>" })}</span>
           </div>
         `
             : `
@@ -1361,11 +1520,15 @@ function groupCard(g) {
   if (!p) return "";
   const category = g.category || p.category;
   const categories = g.categories?.length ? g.categories : [category];
-  const remaining = Math.max(0, g.capacity - g.members.length);
-  const open = remaining > 0 && !g.orderId && g.status !== "cancelled";
+  const remaining = openUnits(g);
+  const open = remaining > 0 && !g.orderId && g.status !== "cancelled" && !g.closedAt;
   const isMember = g.members.includes(state.user?.id);
   const nowCount = g.members.length + (open && !isMember ? 1 : 0);
-  const seatMode = g.costs?.mode === SEAT_MODE;
+  const seatMode = seatPriced(g.costs);
+  const units = unitMode(g);
+  const sale = saleMode(g);
+  const U = (split, sell, values) => t(sale ? sell : split, values);
+  const buyerView = isMember && !(sale && g.ownerId === state.user?.id);
   const now = isMember
     ? shares(g)[state.user.id]
     : seatMode
@@ -1381,14 +1544,14 @@ function groupCard(g) {
         .map((item) => escape(t(item)))
         .join(
           " · ",
-        )}${categories.length > 2 ? ` +${categories.length - 2}` : ""}</span><span class="opportunity-spots ${open ? "" : "is-closed"}">${open ? t("ว่าง {count} ที่", { count: remaining }) : t("ปิดรับสมาชิก")}</span></div>
+        )}${categories.length > 2 ? ` +${categories.length - 2}` : ""}</span><span class="opportunity-spots ${open ? "" : "is-closed"}">${open ? units ? U("เหลือ {count} ส่วน", "เหลือ {count} ชิ้น", { count: remaining }) : t("ว่าง {count} ที่", { count: remaining }) : sale ? t("ขายหมดแล้ว") : t("ปิดรับสมาชิก")}</span></div>
       ${a(destination, `<h3>${escape(g.name)}</h3>`, "opportunity-title")}
       <p class="opportunity-group-name">${t("หมวดหมู่")}: ${escape(t(category))}</p>
-      <div class="opportunity-price"><div><small>${isMember ? t("ยอดปัจจุบันของคุณ") : open ? t("ถ้าคุณเข้าร่วมตอนนี้") : t("ประมาณต่อคนปัจจุบัน")}</small><strong>${money(now)} <span>${t("/คน")}</span></strong></div><div><small>${t("เมื่อครบ {count} คน", { count: g.capacity })}</small><b>${money(full)} ${t("/คน")}</b></div></div>
-      <div class="opportunity-members"><span>${icon("users", 17)} ${t("สมาชิก {count} / {capacity} คน", { count: g.members.length, capacity: g.capacity })}</span><div class="opportunity-track" role="progressbar" aria-label="${t("ความคืบหน้า")}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${(g.members.length / g.capacity) * 100}%"></span></div></div>
-      <p class="opportunity-leader">${icon("user", 16)} ${t("หัวหน้ากลุ่ม")}: ${escape(name(g.ownerId).replace(/\s*\(หัวหน้ากลุ่ม\)$/, ""))}</p>
-      <p class="opportunity-terms">${icon("check", 16)} ${t("ยืนยันยอดก่อนสั่งซื้อ")}</p>
-      <div class="opportunity-actions">${a(destination, open && !isMember ? t("ดูรายละเอียดกลุ่ม") : t("ดูกลุ่ม"), `button opportunity-view ${open && !isMember ? "primary" : "outline"}`)}${isMember ? a(`/groups/${g.id}/chat`, `${icon("chat", 17)} ${t("แชทกลุ่ม")}`, "opportunity-chat") : ""}${open || isMember || g.ownerId === state.user?.id ? `<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t("คัดลอกลิงก์เชิญ")}">${icon("link", 17)} ${t("ชวนเพื่อน")}</button>` : ""}</div>
+      <div class="opportunity-price">${units ? `<div><small>${buyerView ? t("ยอดปัจจุบันของคุณ") : U("ราคาต่อ 1 ส่วน", "ราคาต่อชิ้น")}</small><strong>${money(buyerView ? now : sale ? g.costs.product : joinEstimate(g))} <span>${buyerView ? unitsLabel(g, state.user.id) : U("/ส่วน", "/ชิ้น")}</span></strong></div><div><small>${U("แบ่งเป็น", "ค่าส่ง")}</small><b>${sale ? money(g.costs.delivery) : t("{count} ส่วน", { count: g.capacity })}</b></div>` : `<div><small>${isMember ? t("ยอดปัจจุบันของคุณ") : open ? t("ถ้าคุณเข้าร่วมตอนนี้") : t("ประมาณต่อคนปัจจุบัน")}</small><strong>${money(now)} <span>${t("/คน")}</span></strong></div><div><small>${t("เมื่อครบ {count} คน", { count: g.capacity })}</small><b>${money(full)} ${t("/คน")}</b></div>`}</div>
+      <div class="opportunity-members"><span>${icon("users", 17)} ${units ? U("จองแล้ว {count} / {capacity} ส่วน", "ขายแล้ว {count} / {capacity} ชิ้น", { count: takenUnits(g), capacity: g.capacity }) : t("สมาชิก {count} / {capacity} คน", { count: g.members.length, capacity: g.capacity })}</span><div class="opportunity-track" role="progressbar" aria-label="${t("ความคืบหน้า")}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${takenUnits(g)}"><span style="width:${(takenUnits(g) / g.capacity) * 100}%"></span></div></div>
+      <p class="opportunity-leader">${icon("user", 16)} ${sale ? t("ผู้ขาย") : t("หัวหน้ากลุ่ม")}: ${escape(name(g.ownerId).replace(/\s*\(หัวหน้ากลุ่ม\)$/, ""))}</p>
+      <p class="opportunity-terms">${icon(g.payDay ? "clock" : "check", 16)} ${g.billing === "monthly" && g.payDay ? t("จ่ายทุกวันที่ {day} ของเดือน", { day: g.payDay }) : sale ? t("ขายผ่านตัวกลาง จ่ายแล้วได้ของจึงโอนให้ผู้ขาย") : t("ยืนยันยอดก่อนสั่งซื้อ")}</p>
+      <div class="opportunity-actions">${a(destination, sale ? (open && !isMember ? t("ดูสินค้า / ซื้อ") : t("ดูรายการขาย")) : open && !isMember ? t("ดูรายละเอียดกลุ่ม") : t("ดูกลุ่ม"), `button opportunity-view ${open && !isMember ? "primary" : "outline"}`)}${isMember && !sale && !inHistory(g) ? a(`/groups/${g.id}/chat`, `${icon("chat", 17)} ${t("แชทกลุ่ม")}`, "opportunity-chat") : ""}${open || isMember || g.ownerId === state.user?.id ? `<button type="button" class="opportunity-share" data-action="copy-link" data-id="${escape(g.id)}" aria-label="${t("คัดลอกลิงก์เชิญ")}">${icon("link", 17)} ${t("ชวนเพื่อน")}</button>` : ""}</div>
     </div>
   </article>`;
 }
@@ -1410,13 +1573,50 @@ const CATEGORY_NAMES = CATEGORIES_LIST.map((c) => c.name);
 const CREATE_CATEGORY_NAMES = CATEGORY_NAMES.filter(
   (name) => name !== "ทั้งหมด",
 );
+// Request Marketplace pages (/requests, /my-requests): see src/request-marketplace.js.
+const requestMarketplace = createRequestMarketplace({
+  t: (key, values) => t(key, values),
+  escape: (value) => escape(value),
+  icon: (id, size) => icon(id, size),
+  a: (href, label, cls) => a(href, label, cls),
+  title: (heading, sub) => title(heading, sub),
+  money: (amount) => money(amount),
+  parseBaht,
+  bahtInput,
+  categories: CREATE_CATEGORY_NAMES,
+  categorySymbol: (name) => CATEGORIES_LIST.find((item) => item.name === name)?.symbol || "",
+  getState: () => state,
+  save: () => save(),
+  notice: (...args) => notice(...args),
+  go: (path) => go(path),
+  render: () => render(),
+  alertMessage: (message) => alertMessage(message),
+  alertError: (message) => alertError(message),
+  errorMessage: (error) => errorMessage(error),
+  supabaseConfigured: () => supabaseConfigured,
+  locale: () => (locale === "en" ? "en-GB" : "th-TH"),
+  refreshGroups: () => refreshSupabaseGroups(activeSupabaseSession),
+  joinGroupLocally: (groupId) => joinGroupLocally(groupId),
+});
+/** Test mode join used by the Request Marketplace: the same steps as the group page's join button. */
+function joinGroupLocally(id) {
+  const g = joinGroup(group(id), state.user.id, 1);
+  updateGroup(g);
+  g.members.forEach((u) =>
+    notice(t("ยอดกลุ่มเปลี่ยน"), t("มีสมาชิกใหม่ กรุณายืนยันยอดรอบ {revision}", { revision: g.revision }), `/groups/${id}`, u),
+  );
+  if (groupFull(g))
+    g.members.forEach((u) => notice(t("กลุ่มครบสมาชิก"), t("รอทุกคนยืนยันยอดก่อนสรุปคำสั่งซื้อ"), `/groups/${id}`, u));
+  return g;
+}
 function home() {
   const activeGroups = state.groups.filter(
     (g) =>
       g.visibility === "public" &&
       g.status !== "cancelled" &&
+      !g.closedAt &&
       !g.orderId &&
-      g.members.length < g.capacity,
+      !groupFull(g),
   );
   const groupFilters = [
     ["ทั้งหมด", "ทั้งหมด"],
@@ -1465,7 +1665,7 @@ function home() {
       )
       .join("")}</nav>`;
   return `
-    <section class="hero home-hero">
+    <section class="hero home-hero" data-reveal-kind="hero">
       <div class="hero-text">
         <h1><span class="sr-only" data-headline-accessible>${t("หาร")} ${currentHeadline}</span><span class="dynamic-headline headline-loop" aria-hidden="true" data-text-loop="${escape(JSON.stringify(headlines))}" data-static-text="${t("หาร")}"><span class="hero-headline-static">${t("หาร")}</span><span class="headline-rotator-slot"><span class="headline-rotator-measure">${widestHeadline}</span><span class="headline-rotator-window"><span class="headline-rotator-highlight"></span><span class="headline-rotator-current">${currentHeadline}</span><span class="headline-rotator-cursor"></span></span></span></span></h1>
         <p>${t("ชวนเพื่อนหารค่าสินค้าหรือแพ็กเกจ ดูส่วนแบ่งและค่าส่งของแต่ละคนก่อนยืนยัน")}</p>
@@ -1498,25 +1698,130 @@ function home() {
       </div>
     </section>
 
-    <section class="home-discovery-section home-group-section">
+    <section class="home-discovery-section home-group-section" data-reveal-kind="deal">
       <div class="home-section-banner"><span class="home-section-icon group">${icon("users", 40)}</span><div><h2>${t("กลุ่มหารของ")} <small>(Group Buying)</small></h2><p>${t("เลือกกลุ่มที่เปิดรับ แล้วดูยอดประมาณต่อคน")}</p></div>${a("/explore", `${t("ดูทั้งหมด")} ${icon("arrow", 18)}`, "home-view-all")}</div>
       ${filterPills(groupFilters, "/explore", "group")}
       ${filteredGroups.length ? `<div class="group-grid home-open-groups-grid">${filteredGroups.slice(0, 3).map(groupCard).join("")}</div>` : `<div class="empty home-section-empty"><h3>${selectedHomeGroupCategory === "ทั้งหมด" ? t("ยังไม่มีกลุ่มที่เปิดรับ") : t("หมวดหมู่นี้ยังไม่มีกลุ่มที่เปิดรับ")}</h3>${selectedHomeGroupCategory !== "ทั้งหมด" ? `<button type="button" class="button outline" data-action="home-group-filter" data-category="ทั้งหมด">${t("ดูกลุ่มทั้งหมด")}</button>` : a("/explore", t("ดูกลุ่มทั้งหมด"), "button outline")}</div>`}
     </section>
 
-    <a class="home-promo-strip group" href="/groups/create"><span class="home-promo-icon">${icon("users", 42)}</span><span class="home-promo-copy"><strong>${t("เริ่มหารของกับเพื่อน")}</strong><small>${t("เปิดกลุ่มและแบ่งค่าใช้จ่ายกัน")}</small></span><span class="home-promo-art" aria-hidden="true">🛍️</span><span class="home-promo-button">${t("สร้างกลุ่มหารของ")} ${icon("arrow", 18)}</span></a>
+    ${requestMarketplace.homeSection()}
 
-    <section class="features-section home-restored-features">
-      <div class="features-header"><h2>${t("ทำไมต้องหารของ")}</h2><p>${t("ดูส่วนแบ่งและค่าส่งของแต่ละคนก่อนตัดสินใจ")}</p></div>
-      <div class="features-grid">
-        <div class="feature-card"><div class="feature-icon-box">${icon("calc", 26)}</div><h3>${t("แยกยอดเป็นรายคน")}</h3><p>${t("ระบบแสดงส่วนแบ่งสินค้าและค่าส่ง พร้อมจัดการเศษสตางค์ให้ยอดรวมตรงกัน")}</p></div>
-        <div class="feature-card"><div class="feature-icon-box">${icon("shield", 26)}</div><h3>${t("ยืนยันยอดก่อนสั่ง")}</h3><p>${t("เมื่อจำนวนสมาชิกหรือค่าส่งเปลี่ยน ทุกคนต้องยืนยันยอดล่าสุด คำสั่งซื้อในตอนนี้เป็นเดโม")}</p></div>
-        <div class="feature-card"><div class="feature-icon-box">${icon("trending", 26)}</div><h3>${t("หารซื้อเป็นกลุ่ม")}</h3><p>${t("ร่วมซื้อสินค้าราคาส่งหรือแพ็กใหญ่ แบ่งจำนวนและค่าใช้จ่ายกันในกลุ่ม")}</p></div>
-      </div>
-    </section>
+    <a class="home-promo-strip group" href="/groups/create" data-reveal-kind="sweep"><span class="home-promo-icon">${icon("users", 42)}</span><span class="home-promo-copy"><strong>${t("เริ่มหารของกับเพื่อน")}</strong><small>${t("เปิดกลุ่มและแบ่งค่าใช้จ่ายกัน")}</small></span><span class="home-promo-art" aria-hidden="true">🛍️</span><span class="home-promo-button">${t("สร้างกลุ่มหารของ")} ${icon("arrow", 18)}</span></a>
 
-    <section class="cta-section home-restored-cta"><div class="cta-banner"><div class="cta-copy"><h2>${t("เริ่มกลุ่มหารของ")}</h2><p>${t("สร้างกลุ่มแล้วชวนเพื่อน หรือเลือกกลุ่มที่ยังเปิดรับสมาชิก")}</p></div><div class="cta-actions">${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่มใหม่")}`, "button primary")}${a("/explore", t("ดูกลุ่มที่เปิดรับ"), "button outline")}</div></div></section>
+    ${whySection()}
+
+    <section class="cta-section home-restored-cta" data-reveal-kind="iris"><div class="cta-banner"><div class="cta-copy"><h2>${t("เริ่มกลุ่มหารของ")}</h2><p>${t("สร้างกลุ่มแล้วชวนเพื่อน หรือเลือกกลุ่มที่ยังเปิดรับสมาชิก")}</p></div><div class="cta-actions">${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่มใหม่")}`, "button primary")}${a("/explore", t("ดูกลุ่มที่เปิดรับ"), "button outline")}</div></div></section>
   `;
+}
+/* "Why HarnKhong": the trust story — money waits in the platform pool until members get their item. */
+let whyTab = "buyer";
+const WHY_STEPS = {
+  buyer: [
+    ["search", "เลือกกลุ่ม", "เห็นราคาต่อที่นั่งก่อนเข้า"],
+    ["check", "ยืนยันยอด", "ตรวจยอดแล้วกดยืนยัน"],
+    ["calc", "โอนเข้ากองกลาง", "สแกน QR แล้วแนบสลิป"],
+    ["shield", "แอดมินตรวจสลิป", "ยอดไม่ตรงจะถูกตีกลับ"],
+    ["package", "ได้ของแล้วกดยืนยัน", "เงินถึงหัวกลุ่มหลังจากนี้"],
+  ],
+  owner: [
+    ["plus", "สร้างกลุ่ม", "ตั้งราคาและจำนวนที่นั่ง"],
+    ["link", "แชร์ลิงก์", "ชวนเพื่อนเข้ากลุ่ม"],
+    ["users", "สมาชิกโอนครบ", "เงินพักไว้ที่กองกลาง"],
+    ["package", "ส่งของให้สมาชิก", "คุณออกเงินซื้อไปก่อน"],
+    ["check", "รับเงิน", "เมื่อทุกคนยืนยันว่าได้ของ"],
+  ],
+};
+const WHY_NOTES = {
+  buyer: "ถ้ายังไม่ได้ของ เงินของคุณยังอยู่ที่กองกลาง ไม่ถึงมือหัวกลุ่ม",
+  owner: "แพลตฟอร์มโอนให้คุณหลังหักค่าคอม 2% คุณไม่ต้องโอนอะไรเข้าระบบ",
+};
+function whySteps(kind) {
+  const steps = WHY_STEPS[kind];
+  return `<ol class="why-steps">${steps
+    .map(([ic, title, text], i) => `<li class="why-step${i === steps.length - 1 ? " is-key" : ""}" style="--i:${i}"><span class="why-step-icon">${icon(ic, 24)}</span><b>${t(title)}</b><span>${t(text)}</span></li>`)
+    .join("")}</ol><p class="why-note">${icon("lock", 16)} ${t(WHY_NOTES[kind])}</p>`;
+}
+function whyFees() {
+  return `<div class="why-fees">
+    <div class="why-fee" style="--i:0"><small>${t("ผู้ร่วมซื้อ")}</small><strong>฿0</strong><span>${t("จ่ายแค่ราคาที่นั่ง ไม่มีค่าธรรมเนียม")}</span></div>
+    <div class="why-fee" style="--i:1"><small>${t("หัวกลุ่ม")}</small><strong>2%</strong><span>${t("หักจากเงินที่ได้รับ ไม่ต้องโอนเพิ่ม")}</span></div>
+    <div class="why-fee is-example" style="--i:2"><small>${t("ตัวอย่าง")}</small><strong>฿50 → ฿49</strong><span>${t("สมาชิกโอน ฿50 หัวกลุ่มได้รับ ฿49")}</span></div>
+  </div>`;
+}
+/* Home sections each have their own entrance, played once when they first scroll into view.
+   Later renders (a filter click re-renders the page) show them as they are. */
+const revealedKinds = new Set();
+let revealObserver = null;
+function revealHomeSections() {
+  const pending = [...document.querySelectorAll("[data-reveal-kind]:not([data-reveal])")];
+  if (!pending.length) return;
+  const still = !("IntersectionObserver" in window) || matchMedia("(prefers-reduced-motion: reduce)").matches;
+  revealObserver?.disconnect();
+  revealObserver = still ? null : new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      const el = entry.target;
+      revealObserver.unobserve(el);
+      revealedKinds.add(el.dataset.revealKind);
+      el.dataset.reveal = "in";
+    }
+  }, { threshold: 0.15, rootMargin: "0px 0px -6% 0px" });
+  for (const el of pending) {
+    if (still || revealedKinds.has(el.dataset.revealKind)) {
+      el.dataset.reveal = "done";
+      continue;
+    }
+    el.dataset.reveal = "pending";
+    revealObserver.observe(el);
+  }
+}
+/* Reveal the section once, when it first scrolls into view; later renders show it as is. */
+let whyRevealed = false;
+function revealWhySection() {
+  const section = document.querySelector(".why-section");
+  if (!section || section.dataset.reveal) return;
+  if (whyRevealed || !("IntersectionObserver" in window) || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    section.dataset.reveal = "done";
+    return;
+  }
+  section.dataset.reveal = "pending";
+  const observer = new IntersectionObserver((entries) => {
+    if (!entries.some((entry) => entry.isIntersecting)) return;
+    observer.disconnect();
+    whyRevealed = true;
+    section.dataset.reveal = "in";
+    // After the entrance, tab switches replay the short step stagger without the opening delay.
+    setTimeout(() => { section.dataset.reveal = "done"; }, 2200);
+  }, { threshold: 0.18 });
+  observer.observe(section);
+}
+function whySection() {
+  const tabs = [["buyer", "ผู้ร่วมซื้อ", "users"], ["owner", "หัวกลุ่ม", "user"], ["fee", "ค่าธรรมเนียม", "calc"]];
+  const panel = (kind) => (kind === "fee" ? whyFees() : whySteps(kind));
+  return `<section class="why-section" aria-labelledby="why-heading">
+    <div class="why-top">
+      <div class="why-intro">
+        <span class="why-kicker">${t("ทำไมต้อง")}</span>
+        <h2 id="why-heading">HarnKhong?</h2>
+        <p class="why-lead">${t("เงินของคุณไม่ถึงมือหัวกลุ่ม จนกว่าคุณจะได้ของ")}</p>
+        <p>${t("ทุกบาทพักไว้ที่กองกลางของแพลตฟอร์ม และปล่อยให้หัวกลุ่มเมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ")}</p>
+      </div>
+      <ul class="why-points">
+        <li style="--i:0">${`<span class="why-point-icon">${icon("lock", 22)}</span>`}<b>${t("เงินพักที่กองกลาง")}</b><span>${t("ไม่โอนตรงให้หัวกลุ่ม ไม่มีใครหอบเงินหนีได้")}</span></li>
+        <li style="--i:1">${`<span class="why-point-icon">${icon("shield", 22)}</span>`}<b>${t("แอดมินตรวจทุกสลิป")}</b><span>${t("ยอดไม่ตรงจะถูกตีกลับให้โอนใหม่")}</span></li>
+        <li style="--i:2">${`<span class="why-point-icon">${icon("calc", 22)}</span>`}<b>${t("ราคาล็อกก่อนเข้า")}</b><span>${t("เห็นราคาต่อที่นั่งก่อนกด ไม่มีบวกเพิ่มทีหลัง")}</span></li>
+      </ul>
+    </div>
+    <div class="why-flow">
+      <div class="why-flow-head">
+        <h3>${t("ขั้นตอนการทำรายการ")}</h3>
+        <div class="why-tabs" role="tablist" aria-label="${t("ขั้นตอนการทำรายการ")}">${tabs
+          .map(([kind, label, ic]) => `<button type="button" role="tab" id="why-tab-${kind}" aria-controls="why-panel-${kind}" aria-selected="${whyTab === kind}" data-action="why-tab" data-tab="${kind}">${icon(ic, 18)} ${t(label)}</button>`)
+          .join("")}</div>
+      </div>
+      ${tabs.map(([kind]) => `<div class="why-panel" role="tabpanel" id="why-panel-${kind}" aria-labelledby="why-tab-${kind}"${whyTab === kind ? "" : " hidden"}>${panel(kind)}</div>`).join("")}
+    </div>
+  </section>`;
 }
 function explore() {
   const params = new URLSearchParams(location.search),
@@ -1549,8 +1854,9 @@ function explore() {
     (g) =>
       g.visibility === "public" &&
       g.status !== "cancelled" &&
+      !g.closedAt &&
       !g.orderId &&
-      g.members.length < g.capacity &&
+      !groupFull(g) &&
       matches(g),
   );
   const pageSize = 6,
@@ -1582,6 +1888,7 @@ function explore() {
       ? `<nav class="pagination" aria-label="${t("การแบ่งหน้า")}"><button type="button" class="pagination-control" data-page="${page - 1}" ${page === 1 ? "disabled" : ""}>${t("ก่อนหน้า")}</button>${pageItems.map((number, index) => `${index && number - pageItems[index - 1] > 1 ? '<span class="pagination-ellipsis" aria-hidden="true">…</span>' : ""}${a(pageHref(number), String(number), `pagination-number${number === page ? " active" : ""}`)}`).join("")}<button type="button" class="pagination-control" data-page="${page + 1}" ${page === pageCount ? "disabled" : ""}>${t("ถัดไป")}</button></nav>`
       : "";
   return `<div class="explore-page">
+    ${requestMarketplace.marketTabs("groups")}
     ${title(t("กลุ่มที่เปิดรับสมาชิก"), t("ตรวจสอบยอดประมาณ จำนวนที่ว่าง และเงื่อนไขของแต่ละกลุ่มก่อนเข้าร่วม"))}
     <form class="search-bar" id="search-form"><span>${icon("search")}</span><input type="hidden" name="category" value="${escape(category)}"/><input name="q" value="${escape(q)}" placeholder="${t("ค้นหาสินค้าหรือชื่อกลุ่ม")}" aria-label="${t("ค้นหา")}"/><button type="submit">${t("ค้นหากลุ่ม")}</button></form>
     <div class="filter-carousel"><button type="button" class="filter-scroll-button filter-scroll-prev" data-action="scroll-filter" data-direction="prev" aria-label="${t("เลื่อนหมวดหมู่ไปซ้าย")}" hidden><span aria-hidden="true">‹</span></button><nav class="filter-row" aria-label="${t("หมวดหมู่")}">${CATEGORY_NAMES.map((x) => a("/explore?category=" + encodeURIComponent(x) + (q ? "&q=" + encodeURIComponent(q) : ""), t(x), "filter " + (category === x ? "active" : ""))).join("")}</nav><button type="button" class="filter-scroll-button filter-scroll-next" data-action="scroll-filter" data-direction="next" aria-label="${t("เลื่อนหมวดหมู่ไปขวา")}" hidden><span aria-hidden="true">›</span></button></div>
@@ -1654,7 +1961,7 @@ function legacyProductRoute(id) {
       (g.visibility === "public" || g.members.includes(state.user?.id)),
   );
   const target =
-    groups.find((g) => !g.orderId && g.members.length < g.capacity) ||
+    groups.find((g) => !g.orderId && !groupFull(g)) ||
     groups[0];
   if (target) {
     history.replaceState({}, "", `/groups/${target.id}`);
@@ -1662,8 +1969,20 @@ function legacyProductRoute(id) {
   }
   return `<div class="empty"><h1>${t("ยังไม่มีกลุ่มสำหรับรายการนี้")}</h1><p>${t("เลือกกลุ่มที่เปิดรับอยู่จากหน้าสำรวจได้เลย")}</p>${a("/explore", t("สำรวจกลุ่ม"), "button primary")}</div>`;
 }
+/** Unit groups: everyone's share once the open parts are sold (to one more buyer). */
+function unitProjection(g) {
+  const open = openUnits(g);
+  if (!open) return shares(g);
+  return unitShares(g.costs, g.capacity, [...g.members, "__rest__"], g.ownerId, { ...g.units, __rest__: open });
+}
+/** "2 ส่วน" chip for unit groups. */
+const unitsLabel = (g, id) => (saleMode(g) ? t("{count} ชิ้น", { count: unitsOf(g, id) }) : unitMode(g) ? t("{count} ส่วน", { count: unitsOf(g, id) }) : "");
 /** What someone pays if they join now: a fixed seat for seat-priced groups, the old average otherwise. */
-function joinEstimate(g) {
+function joinEstimate(g, units = 1) {
+  if (unitMode(g))
+    return openUnits(g)
+      ? unitJoinPrice(g, Math.max(1, Math.min(units, openUnits(g))))
+      : Math.ceil(g.costs.product / g.capacity) + g.costs.delivery; // full: the list price of one part
   if (g.costs?.mode === SEAT_MODE) return seatPrice(g.costs, g.capacity, Math.min(g.members.length, g.capacity - 1));
   const count = Math.min(g.capacity, g.members.length + 1);
   return Math.ceil(totalCost(g.costs, count) / count);
@@ -1702,14 +2021,18 @@ function monthlyGroupView(g, id, { isMember, isOwner, full, locked, estimate }) 
   const payment = inCycle ? cycle.payments[me] : null;
   const waits = waitsForNextCycle(g, me);
   const myAmount = inCycle ? cycle.amounts[me] : null;
-  const summary = `<div class="summary-card"><small>${inCycle ? t("ยอดของคุณเดือนนี้") : isMember ? t("ราคาต่อที่นั่งต่อเดือน") : t("ราคาต่อที่นั่งต่อเดือน")}</small><strong>${money(inCycle ? myAmount : estimate)}</strong><p>${cycle ? t("รอบที่ {number}: {start} ถึง {end}", { number: cycle.number, start: shortDate(cycle.start), end: shortDate(cycle.end) }) : t("จ่ายรายเดือน เริ่มนับเมื่อเจ้าของกลุ่มเริ่มรอบแรก")}</p>
+  const summary = `<div class="summary-card"><small>${inCycle && me === cycle.ownerId ? t("ส่วนของคุณเอง (ไม่ต้องโอน)") : inCycle ? t("ยอดของคุณเดือนนี้") : isMember ? t("ราคาต่อที่นั่งต่อเดือน") : t("ราคาต่อที่นั่งต่อเดือน")}</small><strong>${money(inCycle ? myAmount : estimate)}</strong><p>${cycle ? t("รอบที่ {number}: {start} ถึง {end}", { number: cycle.number, start: shortDate(cycle.start), end: shortDate(cycle.end) }) + (g.payDay ? ` · ${t("จ่ายทุกวันที่ {day}", { day: g.payDay })}` : "") : (g.payDay ? t("จ่ายทุกวันที่ {day} ของเดือน เริ่มนับเมื่อเจ้าของกลุ่มเริ่มรอบแรก", { day: g.payDay }) : t("จ่ายรายเดือน เริ่มนับเมื่อเจ้าของกลุ่มเริ่มรอบแรก"))}</p>
     <div class="summary-actions">
-      ${!isMember && !full && !locked ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
+      ${!isMember && !full && !locked && !g.closedAt ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
       ${isOwner && !cycle ? `<button class="button primary full summary-action-btn" data-action="start-cycle" data-id="${escape(id)}"><span>${t("เริ่มรอบแรก")}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
       ${inCycle && !confirmed && cycle.status !== "closed" ? `<button class="button primary full summary-action-btn" data-action="confirm-cycle" data-id="${escape(id)}" data-cycle="${cycle.number}"><span>${t("ยืนยันยอดเดือนนี้ {amount}", { amount: money(myAmount) })}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
       ${confirmed ? `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันยอดรอบนี้แล้ว ยืนยันใหม่เมื่อขึ้นเดือนถัดไป")}</div>` : ""}
+      ${isMember ? nextCycleBox(g) : ""}
+      ${isMember && !isOwner && g.lastCycle && !g.closedAt ? softBox({ tone: "amber", title: t("รอบที่ {number} เป็นรอบสุดท้าย", { number: g.lastCycle }), note: t("ผู้จัดกลุ่มจะจบกลุ่มหลังรอบนี้ ไม่มีการเก็บเงินรอบถัดไป") }) : ""}
+      ${isOwner ? monthlyEndControls(g) : ""}
+      ${g.closedAt || (isMember && !isOwner && monthlyEnded(g)) ? softBox({ tone: "green", icon: "check", title: g.closedAt ? t("กลุ่มนี้ปิดแล้ว") : t("กลุ่มนี้จบแล้ว"), note: t("ไม่มีการเก็บเงินเพิ่ม ข้อมูลเก็บไว้เป็นประวัติ"), action: isMember && !isOwner ? hideGroupButton(g) : "" }) : ""}
       ${waits ? `<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("คุณเข้าร่วมระหว่างรอบ เริ่มจ่ายรอบถัดไปวันที่ {date}", { date: shortDate(cycle.end) })}</span></div>` : ""}
-      ${isMember ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
+      ${isMember && !inHistory(g) ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
       ${isMember && !isOwner ? `<button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${escape(id)}"><span class="summary-btn-left">${icon("back", 19)} <span>${t("ออกจากกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
       ${isOwner ? `<button class="button outline full summary-action-btn" data-action="edit-group" data-id="${escape(id)}"><span class="summary-btn-left">${icon("edit", 19)} <span>${t("แก้ไขกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
       ${isOwner ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${escape(id)}"><span class="summary-btn-left">${icon("link", 18)} <span>${t("คัดลอกลิงก์เชิญ")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
@@ -1719,16 +2042,110 @@ function monthlyGroupView(g, id, { isMember, isOwner, full, locked, estimate }) 
   const panel = !cycle
     ? `<section class="group-payment-panel cycle-panel" aria-labelledby="cycle-heading"><span class="chip">${t("รอบรายเดือน")}</span><h2 id="cycle-heading">${t("ยังไม่เริ่มรอบแรก")}</h2><p>${isOwner ? t("กดเริ่มรอบแรกเมื่อพร้อม สมาชิกที่อยู่ในกลุ่มตอนนั้นจะอยู่ในรอบแรก ที่นั่งว่างเจ้าของกลุ่มจ่ายแทน") : t("เจ้าของกลุ่มจะเริ่มรอบแรกเมื่อพร้อม แล้วทุกคนยืนยันยอดเดือนละครั้ง")}</p></section>`
     : `<section class="group-payment-panel cycle-panel" aria-labelledby="cycle-heading"><span class="chip">${t("รอบที่ {number}", { number: cycle.number })}</span><h2 id="cycle-heading">${t(cycleStatusLabel[cycle.status])}</h2><p>${t("{start} ถึง {end} ยอดของรอบนี้ล็อกแล้ว คนเข้าหรือออกระหว่างรอบไม่ทำให้ยอดเปลี่ยน", { start: shortDate(cycle.start), end: shortDate(cycle.end) })}</p>
-      <div class="cycle-progress"><span>${t("ยืนยันแล้ว {done} / {count} คน", { done: Object.keys(cycle.confirmations).length, count: cycle.members.length })}</span><span>${t("ชำระแล้ว {done} / {count} คน", { done: Object.values(cycle.payments).filter((v) => v === "verified").length, count: cycle.members.length })}</span></div>
-      ${confirmed ? payment === "verified" ? `<p class="success-line">${icon("check", 18)} ${t("ชำระแล้ว")} ${money(myAmount)}</p>` : payment === "reported" ? `<p class="summary-warning">${t(cyclePaymentLabel.reported)} ${money(myAmount)}</p>` : `<div class="cycle-pay"><h3>${payment === "rejected" ? t(cyclePaymentLabel.rejected) : t("โอนค่าเดือนนี้ {amount}", { amount: money(myAmount) })}</h3>${payment === "rejected" && cycle.rejections?.[me] ? `<p>${escape(cycle.rejections[me])}</p>` : ""}${paymentQr()}${cycleSlipForm(id, cycle.number)}</div>` : ""}
+      <div class="cycle-progress"><span>${t("ยืนยันแล้ว {done} / {count} คน", { done: Object.keys(cycle.confirmations).length, count: cycle.members.length })}</span><span>${t("ชำระแล้ว {done} / {count} คน", { done: cyclePayers(cycle).filter((id) => cycle.payments[id] === "verified").length, count: cyclePayers(cycle).length })}</span></div>${dueNotice(g)}
+      ${confirmed && me === cycle.ownerId ? ownerCyclePayout(cycle, g) + (supabaseConfigured ? ownerShipPanel({ shippedAt: groupShipment(g, cycle.number), openDisputes: openDisputeCount(g, cycle.number), shipAction: "mark-shipped", attrs: `data-id="${escape(id)}" data-cycle="${cycle.number}"` }) : "") : confirmed ? payment === "verified" ? `<p class="success-line">${icon("check", 18)} ${t("ชำระแล้ว")} ${money(myAmount)}</p>${receiptPanel({ state: receiptState({ received: Boolean(cycle.receipts?.[me]), shippedAt: groupShipment(g, cycle.number), dispute: myDispute(g, cycle.number) }), shippedAt: groupShipment(g, cycle.number), dispute: myDispute(g, cycle.number), confirmAction: "confirm-cycle-receipt", attrs: `data-id="${escape(id)}" data-cycle="${cycle.number}"`, shipLabel: "ผู้จัดกลุ่มแจ้งส่งมอบรอบนี้แล้ว" })}` : payment === "reported" ? `<p class="summary-warning">${t(cyclePaymentLabel.reported)} ${money(myAmount)}</p>` : `<div class="cycle-pay"><h3>${payment === "rejected" ? t(cyclePaymentLabel.rejected) : t("โอนค่าเดือนนี้ {amount}", { amount: money(myAmount) })}</h3>${payment === "rejected" && cycle.rejections?.[me] ? `<p>${escape(cycle.rejections[me])}</p>` : ""}${paymentQr()}${cycleSlipForm(id, cycle.number)}</div>` : ""}
+      ${cycleHistoryList(g)}
       ${history ? `<details class="cycle-history"><summary>${t("รอบที่ผ่านมา")}</summary><ul>${history}</ul></details>` : ""}
     </section>`;
   return { summary, panel };
+}
+/** The owner's side of a monthly cycle: what members transfer and what reaches the owner after 2%. */
+function ownerCyclePayout(cycle, g = null) {
+  const payers = cyclePayers(cycle);
+  const waived = Boolean(myFeeWaiverUntil());
+  const expected = ownerPayout(payers.map((id) => cycle.amounts[id]), { waived });
+  const received = ownerPayout(payers.filter((id) => cycle.payments[id] === "verified").map((id) => cycle.amounts[id]), { waived });
+  const receiptsDone = payers.filter((id) => cycle.receipts?.[id]).length;
+  return `<div class="cycle-pay owner-cycle-payout"><h3>${t("คุณไม่ต้องโอน")}</h3><p>${t("สมาชิกโอนเข้ากองกลางของแพลตฟอร์ม คุณออกเงินซื้อสินค้าไปก่อน เมื่อสมาชิกยืนยันว่าได้รับสินค้าครบ เงินจะโอนให้คุณหลังหักค่าคอม 2%")}</p><dl class="owner-payout-lines"><div><dt>${t("สมาชิกโอนรวม")}</dt><dd>${money(expected.gross)}</dd></div><div><dt>${waived ? t("ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)") : t("ค่าคอมแพลตฟอร์ม 2%")}</dt><dd>−${money(expected.commission)}</dd></div><div class="is-total"><dt>${t("คุณจะได้รับรอบนี้")}</dt><dd>${money(expected.net)}</dd></div><div><dt>${t("ตรวจแล้ว")}</dt><dd>${money(received.net)}</dd></div><div><dt>${t("ยืนยันรับสินค้า")}</dt><dd>${receiptsDone} / ${payers.length}</dd></div></dl>${payoutAccountReminder()}${g ? payoutsReceivedList(g) : ""}<p>${cycleReleased(cycle) ? t("สมาชิกยืนยันรับครบแล้ว แอดมินจะโอนเงินรอบนี้ให้คุณ") : t("เงินอยู่ในกองกลางจนกว่าสมาชิกที่จ่ายยืนยันว่าได้รับสินค้าครบ")}</p></div>`;
 }
 function paymentQr() {
   return `<figure class="cycle-qr"><img src="/images/bank-payment-qr.webp" alt="${t("QR บัญชีรับชำระเงิน")}" width="180" height="180" loading="lazy"/><figcaption>${t("สแกนเพื่อโอน แล้วแนบสลิป")}</figcaption></figure>`;
 }
 
+/** "Pay by ..." line for this group, red on the due day; nothing once paid. */
+function dueNotice(g) {
+  const reminder = paymentReminders([g], state.user?.id)[0];
+  if (!reminder) return "";
+  const copy = reminderCopy(reminder);
+  return `<p class="due-notice tone-${copy.tone}" role="${copy.tone === "urgent" ? "alert" : "status"}">${icon(copy.tone === "urgent" ? "alert-circle" : "clock", 18)}<span><b>${copy.title}</b> ${t("ครบกำหนด {date}", { date: shortDate(reminder.dueAt) })}</span></p>`;
+}
+/**
+ * The payout card for a seller or group owner: what they will receive, the breakdown, a payout
+ * account reminder and where the money is in the three steps (buyer pays, receipt, transfer).
+ */
+function payoutCard({ heading, heroLabel, net, rows, step, actions = "", extra = "", split = false }) {
+  const steps = [["cart", split ? "สมาชิกชำระเงิน" : "ผู้ซื้อชำระเงิน"], ["check", "ยืนยันได้รับของ"], ["bank", "โอนเงินให้คุณ"]];
+  const accountMissing = !myPayoutAccount();
+  return `<div class="summary-card payout-card">
+    <h2 class="payout-card-title">${heading}</h2>
+    <div class="payout-hero"><div><small>${heroLabel} <span class="payout-hint" title="${t("หลังหักค่าคอม 2% ที่ตัวกลางเก็บจากแต่ละยอด")}">${icon("info", 16)}</span></small><strong>${money(net)}</strong></div><span class="payout-hero-icon">${icon("wallet", 46)}</span></div>
+    <div class="payout-box"><h3>${t("รายละเอียด")}</h3><dl class="payout-rows">${rows.map(({ icon: iconName, label, value, tone = "" }) => `<div class="${tone}"><dt>${icon(iconName, 20)}<span>${label}</span></dt><dd>${value}</dd></div>`).join("")}</dl></div>
+    ${accountMissing ? a("/profile#payout-account", `<span class="payout-warn-icon">${icon("alert-circle", 26)}</span><span><b>${t("ยังไม่มีบัญชีรับเงิน")}</b><small>${split ? t("เพิ่มบัญชีเพื่อรับโอนเงินจากกลุ่ม") : t("เพิ่มบัญชีเพื่อรับโอนยอดขาย")}</small></span>${icon("chevron", 20)}`, "payout-warning") : ""}
+    ${extra}
+    <div class="payout-box payout-steps-box"><h3>${icon("bank", 20)} ${t("การรับเงิน")}</h3><ol class="payout-steps">${steps.map(([iconName, label], i) => `<li class="${i < step ? "is-done" : i === step ? "is-current" : ""}"><span>${icon(iconName, 22)}</span><small>${t(label)}</small></li>`).join("")}</ol><p>${icon("info", 16)} ${split ? t("หากสมาชิกไม่แจ้งปัญหาใน {days} วันหลังส่งของ ระบบจะยืนยันรับของอัตโนมัติ", { days: AUTO_RECEIPT_DAYS }) : t("หากผู้ซื้อไม่แจ้งปัญหาใน {days} วัน ระบบจะยืนยันรับของอัตโนมัติ", { days: AUTO_RECEIPT_DAYS })}</p></div>
+    ${actions}
+  </div>`;
+}
+/** Simple tinted box: a bold title, label/amount rows and an optional note (the payout card style). */
+const softBox = ({ tone = "blue", title: heading, rows = [], note = "", icon: iconName = "", action = "" }) =>
+  `<div class="soft-box tone-${tone}">${heading ? `<strong>${iconName ? icon(iconName, 17) + " " : ""}${heading}</strong>` : ""}${rows.length ? `<ul>${rows.map(([label, value]) => `<li><span>${label}</span><b>${value}</b></li>`).join("")}</ul>` : ""}${note ? `<small>${note}</small>` : ""}${action}</div>`;
+/** A button that sits inside a soft box (one box instead of a box plus a separate button). */
+const boxButton = (label, attrs, subtle = false) =>
+  `<button type="button" class="soft-box-action ${subtle ? "is-subtle" : ""}" ${attrs}><span>${label}</span>${subtle ? "" : icon("arrow", 17)}</button>`;
+/** "Next month" box for a monthly group: when it starts, what I'll owe and why it changed. */
+function nextCycleBox(g) {
+  const f = nextCycleForecast(g, state.user?.id);
+  if (!f) return "";
+  const when = g.payDay ? t("ครบกำหนด {date}", { date: shortDate(f.startsAt) }) : t("เริ่มรอบ {date}", { date: shortDate(f.startsAt) });
+  const heading = t("รอบถัดไป · รอบที่ {number}", { number: f.number });
+  if (f.owner) return softBox({ title: heading, rows: [[when, ""]] });
+  const why = f.reasons.map((r) => r.kind === "joined" ? t("มีสมาชิกเข้าใหม่ {count} คน", { count: r.count }) : r.kind === "left" ? t("มีสมาชิกออก {count} คน", { count: r.count }) : t("ผู้จัดกลุ่มเปลี่ยนราคาหรือค่าส่ง")).join(" · ");
+  const note = f.changed
+    ? `${t("ยอดเปลี่ยนจาก {from} เป็น {to}", { from: money(f.previous), to: money(f.amount) })}${why ? ` · ${why}` : ""}`
+    : f.previous === null ? t("รอบแรกของคุณ") : t("ยอดเท่าเดือนนี้");
+  return softBox({ tone: f.changed ? "amber" : "blue", title: heading, rows: [[when, money(f.amount)]], note });
+}
+/** Closed by the owner, or hidden from my own list. */
+const hiddenForMe = (g) => (supabaseConfigured ? Boolean(g.hiddenForMe) : Boolean(state.hiddenGroups?.[state.user?.id]?.includes(g.id)));
+const inHistory = (g) => Boolean(g.closedAt) || hiddenForMe(g);
+/** Owner: close a finished group (records stay; it leaves every list). */
+function closeGroupBox(g) {
+  if (g.closedAt) return softBox({ tone: "green", icon: "check", title: t("ปิดกลุ่มแล้ว"), note: t("กลุ่มย้ายไปที่ประวัติ ข้อมูลเงินและสลิปยังเก็บไว้ครบ") });
+  return softBox({ tone: "green", icon: "check", title: t("กลุ่มนี้เสร็จแล้วใช่ไหม?"), note: t("ทุกคนได้รับของและคุณได้รับเงินครบแล้ว ปิดกลุ่มเพื่อเก็บเข้าประวัติ ข้อมูลเงินและสลิปไม่หาย"), action: boxButton(t("ปิดกลุ่ม"), `data-action="close-group" data-id="${escape(g.id)}"`) });
+}
+/** Member: the group is over for me, offer to hide it from my list. */
+function hideGroupButton(g) {
+  return hiddenForMe(g)
+    ? boxButton(t("แสดงในรายการของฉันอีกครั้ง"), `data-action="unhide-group" data-id="${escape(g.id)}"`, true)
+    : boxButton(t("ซ่อนจากรายการของฉัน"), `data-action="hide-group" data-id="${escape(g.id)}"`);
+}
+/** Monthly owner: choose the last cycle, or close once it has ended. */
+function monthlyEndControls(g) {
+  const cycle = currentCycle(g);
+  if (!cycle || g.closedAt) return "";
+  if (monthlyEnded(g)) return closeGroupBox(g);
+  if (g.lastCycle)
+    return softBox({ tone: "amber", title: t("รอบที่ {number} เป็นรอบสุดท้าย", { number: g.lastCycle }), note: t("จะไม่เปิดรอบใหม่ หลังรอบนี้จบและโอนเงินครบ คุณปิดกลุ่มได้"), action: boxButton(t("ยกเลิก · ต่ออายุตามปกติ"), `data-action="end-after-cycle" data-id="${escape(g.id)}" data-cycle=""`, true) });
+  return `<button class="button outline full summary-action-btn" data-action="end-after-cycle" data-id="${escape(g.id)}" data-cycle="${cycle.number}"><span class="summary-btn-left">${icon("clock", 18)} <span>${t("จบกลุ่มหลังรอบนี้ (รอบที่ {number})", { number: cycle.number })}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>`;
+}
+/** Suggestions after someone finished paying for a one-time group. */
+function recommendSection(g) {
+  const picks = recommendGroups(state.groups, g, state.user?.id, 3).filter((x) => listing(x.listingId));
+  const row = (x) => {
+    const open = Math.max(0, x.capacity - x.members.length);
+    const category = x.category || listing(x.listingId)?.category || "";
+    return a(`/groups/${x.id}`, `<span class="recommend-name"><b>${escape(x.name)}</b><small>${escape(t(category))} · ${t("ว่าง {count} ที่", { count: open })}</small></span><span class="recommend-price"><b>${money(joinEstimate(x))}</b><small>${t("/คน")}</small></span>${icon("arrow", 16)}`, "recommend-row");
+  };
+  return `<section class="recommend-section" aria-labelledby="recommend-heading"><small>${t("จ่ายเรียบร้อยแล้ว")}</small><h2 id="recommend-heading">${t("กลุ่มที่คุณอาจสนใจ")}</h2>${picks.length ? `<div class="recommend-list">${picks.map(row).join("")}</div>` : `<p class="recommend-empty">${t("ยังไม่มีกลุ่มที่เปิดรับตอนนี้ ลองเปิดกลุ่มเองดูไหม?")}</p>`}${a("/groups/create", `<span class="summary-btn-left">${icon("plus", 18)} <span>${t("เปิดกลุ่มแบบนี้เอง")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn")}</section>`;
+}
+/** Cycle changes in the last few days (older ones are deleted). */
+function cycleHistoryList(g) {
+  const entries = recentCycleHistory(g.cycleHistory);
+  if (!entries.length) return "";
+  return `<div class="cycle-feed"><h3>${t("ความเคลื่อนไหวของรอบ ({days} วันล่าสุด)", { days: HISTORY_KEEP_DAYS })}</h3><ol>${entries
+    .map((entry) => `<li><span>${t(CYCLE_EVENT_TEXT[entry.event] || "รอบชำระมีการเปลี่ยนแปลง", { number: entry.cycle })}</span><time>${escape(dateTime(entry.at))}</time></li>`)
+    .join("")}</ol></div>`;
+}
 function groupPage(id) {
   let g = group(id);
   if (g && !supabaseConfigured && g.billing === "monthly") {
@@ -1756,22 +2173,37 @@ function groupPage(id) {
   }
   const p = listing(g.listingId);
   if (!p) return notFound();
+  if (saleMode(g)) return salePage(g, p, id);
   const groupDetails = g.details || g;
   const groupCategory = g.category || p.category;
   const groupCategories = g.categories?.length ? g.categories : [groupCategory];
-  const seatMode = g.costs?.mode === SEAT_MODE;
+  const seatMode = seatPriced(g.costs);
+  const units = unitMode(g);
   const monthly = g.billing === "monthly";
-  const costs = costBreakdown(g.costs, seatMode ? g.capacity : g.members.length);
+  const costs = costBreakdown(g.costs, units ? unitHolders(g).length : seatMode ? g.capacity : g.members.length);
   const sum = costs.total;
   const alloc = shares(g);
   const me = state.user?.id;
   const isMember = g.members.includes(me);
   const isOwner = g.ownerId === me;
+  // Seat-priced groups: the owner never transfers; they receive the members' payments minus 2%.
+  const ownerSeat = seatMode && isOwner;
+  // What the owner gets once every other seat is filled and paid, minus 2% unless the promo waives it.
+  const projected = ownerSeat && units ? unitProjection(g) : null;
+  const payout = ownerSeat
+    ? ownerPayout(
+        units
+          ? Object.entries(projected).filter(([memberId]) => memberId !== g.ownerId).map(([, amount]) => amount)
+          : Array.from({ length: g.capacity - 1 }, (_, i) => seatPrice(g.costs, g.capacity, i + 1)),
+        { waived: Boolean(myFeeWaiverUntil()) },
+      )
+    : null;
+  const ownSeatShare = ownerSeat ? units ? projected[g.ownerId] : seatPrice(g.costs, g.capacity, 0) : 0;
   const locked = !!g.orderId;
-  const full = g.members.length === g.capacity;
+  const full = groupFull(g);
   const approved = g.approvals[me] === g.revision;
   const adminApproved = g.adminApprovedRevision === g.revision;
-  const remaining = g.capacity - g.members.length;
+  const remaining = openUnits(g);
   const estimateCount = g.members.length + (isMember || full ? 0 : 1);
   const estimate = seatMode ? joinEstimate(g) : Math.ceil(totalCost(g.costs, estimateCount) / estimateCount);
   const fullEstimate = seatMode ? estimate : Math.ceil(totalCost(g.costs, g.capacity) / g.capacity);
@@ -1819,23 +2251,28 @@ function groupPage(id) {
     : isMember
       ? alloc[me]
       : estimate;
-  const earlyPaymentReportPanel = isMember && supabaseConfigured && approved && !adminApproved && !hasVisiblePaymentReport
+  const earlyPaymentReportPanel = !ownerSeat && isMember && supabaseConfigured && approved && !adminApproved && !hasVisiblePaymentReport
     ? hasCurrentPaymentReport
       && paymentReport.status !== "rejected"
       ? `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${paymentReport.status === "verified" ? t("ตรวจยอดแล้ว") : t("แจ้งโอนแล้ว รอแอดมินตรวจยอด")}</h2><p>${paymentReport.status === "verified" ? t("แอดมินตรวจสอบยอดโอนของคุณแล้ว") : t("ระบบส่งรายการให้แอดมินตรวจสอบยอดเงินจริงแล้ว")}</p></div><div class="group-payment-reported"><strong>${money(paymentReport.amount_satang)}</strong><span>${paymentReport.status === "verified" ? t("ยืนยันรับเงินแล้ว") : t("กำลังรอตรวจสอบ")}</span></div></section>`
       : `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${paymentReport?.status === "rejected" ? t("ยอดโอนไม่ตรง กรุณาโอนใหม่") : t("โอนแล้วใช่ไหม?")}</h2><p>${paymentReport?.status === "rejected" ? t("แอดมินปฏิเสธรายการนี้ กรุณาโอนยอดที่ถูกต้องอีกครั้ง แล้วแนบสลิปใหม่เพื่อให้ตรวจสอบ") : t("ถ้าคุณโอนยอดส่วนนี้แล้ว แจ้งแอดมินให้ตรวจรายการเงินเข้าได้เลย")}</p></div>${paymentSlipForm(id, g.revision)}</section>`
     : "";
-  const groupPaymentSection = isMember && supabaseConfigured && full && allApproved(g) && Number(alloc[me]) > 0
+  // Finished paying (demo: the group is confirmed): suggest other groups to join next.
+  const paidUp = isMember && !isOwner && (supabaseConfigured ? paymentReport?.status === "verified" : allApproved(g));
+  // My part is over: I have the goods (or the group was closed). Demo: the group is confirmed.
+  const myPartDone = paidUp && (Boolean(g.closedAt) || (supabaseConfigured ? receiptDone(receiptState({ received: g.myReceipt, shippedAt: groupShipment(g), dispute: myDispute(g) })) : true));
+  const groupPaymentSection = !ownerSeat && isMember && supabaseConfigured && full && allApproved(g) && Number(alloc[me]) > 0
     ? hasVisiblePaymentReport
       ? ""
-      : `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${paymentReport?.status === "rejected" ? t("ยอดโอนไม่ตรง กรุณาโอนใหม่") : t("โอนเงินเข้าบัญชี")}</h2><p>${paymentReport?.status === "rejected" ? t("แอดมินปฏิเสธรายการนี้ กรุณาโอนยอดที่ถูกต้องอีกครั้ง แล้วแนบสลิปใหม่เพื่อให้ตรวจสอบ") : t("สแกน QR บัญชีธนาคาร แล้วกดแจ้งโอนหลังโอนเงินจริง เพื่อให้แอดมินตรวจยอด")}</p></div><div class="group-payment-transfer"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><small>${t("ชื่อบัญชีรับโอน")}</small><strong>${BANK_PAYMENT_RECIPIENT}</strong><small>${t("ยอดที่ต้องโอน")}</small><b>${money(alloc[me])}</b>${paymentReport?.status === "rejected" && paymentReport.rejection_note ? `<p class="group-payment-rejection">${escape(paymentReport.rejection_note)}</p>` : ""}${paymentSlipForm(id, g.revision)}</div></div></section>`
+      : `<section class="group-payment-panel" aria-labelledby="group-payment-heading"><div><span class="chip">${t("ชำระเงิน")}</span><h2 id="group-payment-heading">${paymentReport?.status === "rejected" ? t("ยอดโอนไม่ตรง กรุณาโอนใหม่") : t("โอนเงินเข้าบัญชี")}</h2><p>${paymentReport?.status === "rejected" ? t("แอดมินปฏิเสธรายการนี้ กรุณาโอนยอดที่ถูกต้องอีกครั้ง แล้วแนบสลิปใหม่เพื่อให้ตรวจสอบ") : t("สแกน QR บัญชีธนาคาร แล้วกดแจ้งโอนหลังโอนเงินจริง เพื่อให้แอดมินตรวจยอด")}</p></div><div class="group-payment-transfer"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><small>${t("ชื่อบัญชีรับโอน")}</small><strong>${BANK_PAYMENT_RECIPIENT}</strong><small>${t("ยอดที่ต้องโอน")}</small><b>${money(alloc[me])}</b>${dueNotice(g)}${paymentReport?.status === "rejected" && paymentReport.rejection_note ? `<p class="group-payment-rejection">${escape(paymentReport.rejection_note)}</p>` : ""}${paymentSlipForm(id, g.revision)}</div></div></section>`
     : "";
   const actions = `
-    ${!isMember && !full && !locked ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
-    ${isMember && !approved && !locked ? `<button class="button primary full summary-action-btn" data-action="approve" data-id="${id}" data-revision="${g.revision}"><span>${t("ยืนยันยอด {amount}", { amount: money(alloc[me]) })}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
+    ${!isMember && !full && !locked && !g.closedAt ? a(`/groups/${id}/join`, `<span>${t("เข้าร่วมกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn") : ""}
+    ${isMember && !approved && !locked ? ownerSeat ? `<button class="button primary full summary-action-btn" data-action="approve-owner" data-id="${id}" data-revision="${g.revision}"><span>${t("ยืนยันยอดกลุ่ม")}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : `<button class="button primary full summary-action-btn" data-action="approve" data-id="${id}" data-revision="${g.revision}"><span>${t("ยืนยันยอด {amount}", { amount: money(alloc[me]) })}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${isMember && approved && !adminApproved ? `<div class="warning summary-warning"><span class="warning-icon">${icon("clock", 18)}</span><span>${full && allMembersApproved ? t("รอแอดมินอนุมัติยอดกลุ่ม") : t("คุณยืนยันยอดแล้ว รอสมาชิกครบ")}</span></div>` : ""}
     ${isMember && approved && adminApproved ? `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันยอดรอบนี้แล้ว")}</div>` : ""}
-    ${isMember ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
+    ${seatMode && !isOwner && paymentReport?.status === "verified" ? receiptPanel({ state: receiptState({ received: g.myReceipt, shippedAt: groupShipment(g), dispute: myDispute(g) }), shippedAt: groupShipment(g), dispute: myDispute(g), confirmAction: "confirm-receipt", attrs: `data-id="${id}"`, shipLabel: "ผู้จัดกลุ่มแจ้งส่งของแล้ว" }) : ""}
+    ${isMember && !inHistory(g) ? a(`/groups/${id}/chat`, `<span class="summary-btn-left">${icon("chat", 19)} <span>${t("แชทกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button outline full summary-action-btn") : ""}
     ${isMember && !isOwner && !locked ? `<button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${id}"><span class="summary-btn-left">${icon("back", 19)} <span>${t("ออกจากกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="edit-group" data-id="${id}"><span class="summary-btn-left">${icon("edit", 19)} <span>${t("แก้ไขกลุ่ม")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
     ${isOwner && !locked ? `<button class="button outline full summary-action-btn" data-action="copy-link" data-id="${id}"><span class="summary-btn-left">${icon("link", 18)} <span>${t("คัดลอกลิงก์เชิญ")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
@@ -1848,10 +2285,26 @@ function groupPage(id) {
     return groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategories, status, full, remaining, isMember, isOwner, locked, costs, sum, seatMode, monthly,
       summaryCard: view.summary, paymentSection: view.panel, paymentStatusCard: "", alloc, me, adminApproved });
   }
-  const summaryCard = `<div class="summary-card"><small>${isMember ? t("ยอดที่คุณต้องยืนยัน") : full || locked ? t("ประมาณต่อคนปัจจุบัน") : t("ยอดประมาณเมื่อเข้าร่วม")}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${!full ? `<div class="summary-future-price"><span>${t("เมื่อครบ {count} คน", { count: g.capacity })}</span><b>${money(fullEstimate)} <small>${t("/คน")}</small></b></div>` : ""}<p>${isMember ? t("ยอดรอบที่ {revision}", { revision: g.revision }) + (approved ? adminApproved ? t(" · คุณยืนยันแล้ว") : full && allMembersApproved ? t(" · รอแอดมินอนุมัติยอดกลุ่ม") : t(" · คุณยืนยันแล้ว รอสมาชิกครบ") : t(" · กรุณาตรวจสอบก่อนยืนยัน")) : full || locked ? t("กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่") : t("ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง")}</p>${actions}${!full ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน")}</span></p>` : !allApproved(g) && !approved ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${allMembersApproved ? t("รอแอดมินอนุมัติยอดกลุ่ม") : t("รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด")}</span></p>` : ""}</div>`;
-  const paymentStatusCard = `<section class="group-payment-panel group-payment-status-card is-${paymentStatusState}" aria-labelledby="payment-status-heading"><span class="chip">${t("ชำระเงิน")}</span><h2 id="payment-status-heading">${t(paymentStatusCopy[0])}</h2><p>${escape(t(paymentStatusCopy[1]))}</p><strong>${money(paymentStatusAmount)}</strong><span>${t(paymentStatusCopy[2])}</span></section>`;
+  const summaryCard = ownerSeat
+    ? payoutCard({
+        split: true,
+        heading: t("ยอดของคุณในกลุ่มนี้"),
+        heroLabel: t("คุณจะได้รับเมื่อสมาชิกโอนครบ"),
+        net: payout.net,
+        rows: [
+          { icon: "users", label: units ? t("สมาชิกโอนรวม ({count} ส่วน)", { count: g.capacity - unitsOf(g, g.ownerId) }) : t("สมาชิกโอนรวม ({count} ที่นั่ง)", { count: g.capacity - 1 }), value: money(payout.gross) },
+          { icon: "percent", label: myFeeWaiverUntil() ? t("ค่าคอม 2% (ยกเว้นด้วยโค้ดพิเศษ)") : t("ค่าคอมมิชชั่น (2%)"), value: `−${money(payout.commission)}`, tone: "is-minus" },
+          { icon: "wallet", label: t("ยอดสุทธิที่ได้รับ"), value: money(payout.net), tone: "is-total" },
+          ...(units && !unitsOf(g, g.ownerId) ? [] : [{ icon: "tag", label: t("ส่วนของคุณเอง (ไม่ต้องโอน)"), value: money(ownSeatShare) }]),
+        ],
+        step: (g.payoutsReceived || []).length ? 3 : full && allApproved(g) ? 1 : 0,
+        extra: `${supabaseConfigured && full && !g.closedAt ? ownerShipPanel({ shippedAt: groupShipment(g), openDisputes: openDisputeCount(g), shipAction: "mark-shipped", attrs: `data-id="${id}"` }) : ""}${payoutsReceivedList(g)}${g.closedAt || (full && allApproved(g) && (!supabaseConfigured || (g.payoutsReceived || []).length)) ? closeGroupBox(g) : ""}`,
+        actions: `<div class="payout-actions">${actions}</div>`,
+      })
+    : `<div class="summary-card"><small>${isMember ? t("ยอดที่คุณต้องยืนยัน") : full || locked ? t("ประมาณต่อคนปัจจุบัน") : t("ยอดประมาณเมื่อเข้าร่วม")}</small><strong>${money(isMember ? alloc[me] : estimate)}</strong>${units ? `<div class="summary-future-price"><span>${isMember ? t("ส่วนของคุณ") : t("ราคาต่อ 1 ส่วน")}</span><b>${isMember ? unitsLabel(g, me) : money(estimate)}</b></div>` : !full ? `<div class="summary-future-price"><span>${t("เมื่อครบ {count} คน", { count: g.capacity })}</span><b>${money(fullEstimate)} <small>${t("/คน")}</small></b></div>` : ""}<p>${isMember ? t("ยอดรอบที่ {revision}", { revision: g.revision }) + (approved ? adminApproved ? t(" · คุณยืนยันแล้ว") : full && allMembersApproved ? t(" · รอแอดมินอนุมัติยอดกลุ่ม") : t(" · คุณยืนยันแล้ว รอสมาชิกครบ") : t(" · กรุณาตรวจสอบก่อนยืนยัน")) : full || locked ? t("กลุ่มนี้ยังไม่เปิดรับสมาชิกใหม่") : t("ยอดจะคำนวณใหม่เมื่อคุณเข้าร่วม และสมาชิกทุกคนต้องยืนยันอีกครั้ง")}</p>${actions}${!full ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("ยังสั่งซื้อไม่ได้จนกว่าสมาชิกจะครบและยืนยันยอดทุกคน")}</span></p>` : !allApproved(g) && !approved ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${allMembersApproved ? t("รอแอดมินอนุมัติยอดกลุ่ม") : t("รอสมาชิกทุกคนยืนยันยอดรอบล่าสุด")}</span></p>` : ""}</div>`;
+  const paymentStatusCard = ownerSeat ? "" : `<section class="group-payment-panel group-payment-status-card is-${paymentStatusState}" aria-labelledby="payment-status-heading"><span class="chip">${t("ชำระเงิน")}</span><h2 id="payment-status-heading">${t(paymentStatusCopy[0])}</h2><p>${escape(t(paymentStatusCopy[1]))}</p><strong>${money(paymentStatusAmount)}</strong><span>${t(paymentStatusCopy[2])}</span></section>`;
   return groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategories, status, full, remaining, isMember, isOwner, locked, costs, sum, seatMode, monthly,
-    summaryCard, paymentSection: earlyPaymentReportPanel || groupPaymentSection, paymentStatusCard, alloc, me, adminApproved });
+    summaryCard, paymentSection: (earlyPaymentReportPanel || groupPaymentSection) + (paidUp ? recommendSection(g) + (myPartDone ? `<div class="finished-member">${softBox({ tone: "green", icon: "check", title: g.closedAt ? t("กลุ่มนี้ปิดแล้ว") : t("ส่วนของคุณเสร็จเรียบร้อย"), note: t("ซ่อนกลุ่มนี้จากรายการของคุณได้ ข้อมูลยังดูได้ในประวัติ"), action: hideGroupButton(g) })}</div>` : "") : ""), paymentStatusCard, alloc, me, adminApproved });
 }
 function groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategories, status, full, remaining, isMember, isOwner, locked, costs, sum, seatMode, monthly, summaryCard, paymentSection, paymentStatusCard, alloc, me, adminApproved }) {
   const monthlyCycle = monthly ? currentCycle(g) : null;
@@ -1870,16 +2323,16 @@ function groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategorie
             <div class="group-product-price"><span>${t("ราคาสินค้า")}</span><strong>${money(p.price ?? g.costs.product)}</strong></div>
           </div>
           <div class="group-identity-footer"><span class="chip">${groupDetails.visibilityMode === "private" ? t("ส่วนตัว") : g.visibility === "link" ? t("เฉพาะผู้มีลิงก์") : t("กลุ่มสาธารณะ")}</span>${g.images?.length ? gallery(g.images) : ""}</div>
-          <div class="group-created-details">${groupDetails.minimumMembers ? `<span>${t("สมาชิกขั้นต่ำ")}: <strong>${groupDetails.minimumMembers} ${t("คน")}</strong></span>` : ""}${groupDetails.closesAt ? `<span>${t("ปิดรับสมาชิก")}: <strong>${escape(groupDetails.closesAt)}</strong></span>` : ""}${groupDetails.deliveryMethod === "pickup" && groupDetails.pickupLocation ? `<span>${t("สถานที่นัดรับ")}: <strong>${escape(groupDetails.pickupLocation)}</strong></span>` : groupDetails.deliveryMethod ? `<span>${t("วิธีรับสินค้า")}: <strong>${t(({ship_to_owner:"จัดส่งรวม",ship_separately:"จัดส่งแยก",digital:"ส่งมอบสิทธิ์ดิจิทัล",pickup:"นัดรับ"})[groupDetails.deliveryMethod] || "จัดส่งรวม")}</strong></span>` : ""}${groupDetails.digitalHandoff ? `<span>${t("การส่งมอบสิทธิ์")}: <strong>${escape(groupDetails.digitalHandoff)}</strong></span>` : ""}${groupDetails.memberNote ? `<p>${t("หมายเหตุถึงสมาชิก")}: ${escape(groupDetails.memberNote)}</p>` : ""}</div>
+          <div class="group-created-details">${groupDetails.minimumMembers ? `<span>${t("สมาชิกขั้นต่ำ")}: <strong>${groupDetails.minimumMembers} ${t("คน")}</strong></span>` : ""}${g.billing === "monthly" && g.payDay ? `<span>${t("จ่ายทุกเดือน")}: <strong>${t("วันที่ {day}", { day: g.payDay })}</strong></span>` : groupDetails.closesAt ? `<span>${t("ปิดรับสมาชิก")}: <strong>${escape(groupDetails.closesAt)}</strong></span>` : ""}${groupDetails.deliveryMethod === "pickup" && groupDetails.pickupLocation ? `<span>${t("สถานที่นัดรับ")}: <strong>${escape(groupDetails.pickupLocation)}</strong></span>` : groupDetails.deliveryMethod ? `<span>${t("วิธีรับสินค้า")}: <strong>${t(({ship_to_owner:"จัดส่งรวม",ship_separately:"จัดส่งแยก",digital:"ส่งมอบสิทธิ์ดิจิทัล",pickup:"นัดรับ"})[groupDetails.deliveryMethod] || "จัดส่งรวม")}</strong></span>` : ""}${groupDetails.digitalHandoff ? `<span>${t("การส่งมอบสิทธิ์")}: <strong>${escape(groupDetails.digitalHandoff)}</strong></span>` : ""}${groupDetails.memberNote ? `<p>${t("หมายเหตุถึงสมาชิก")}: ${escape(groupDetails.memberNote)}</p>` : ""}</div>
         </section>
         <section class="members-card group-members-card" aria-labelledby="members-heading">
-          <div class="group-section-head"><div><h2 id="members-heading">${t("สมาชิก {count} / {capacity} คน", { count: g.members.length, capacity: g.capacity })}</h2><p>${status}</p></div><strong>${remaining ? t("ว่าง {count} ที่", { count: remaining }) : t("สมาชิกครบแล้ว")}</strong></div>
-          <div class="progress" role="progressbar" aria-label="${t("ความคืบหน้า")}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${g.members.length}"><span style="width:${(g.members.length / g.capacity) * 100}%"></span></div>
-          <div class="group-member-list">${g.members.map((memberId) => { const memberName = name(memberId); const memberProfile = state.profiles?.[memberId] || {}; const memberAvatar = profileAvatarMarkup({ name: memberName, avatar: memberProfile.avatar || memberProfile.avatar_url || "" }); const profileHref = `/profile/member/${encodeURIComponent(memberId)}?group=${encodeURIComponent(id)}`; const memberApproved = monthlyCycle ? Boolean(monthlyCycle.confirmations[memberId]) : g.approvals[memberId] === g.revision; const inThisCycle = !monthlyCycle || monthlyCycle.members.includes(memberId); return `<div class="group-member-row">${a(profileHref, `<span class="avatar small">${memberAvatar}</span><span class="group-member-name"><strong>${escape(memberName)}</strong>${memberId === g.ownerId && !memberName.includes("หัวหน้ากลุ่ม") ? `<small>${t("หัวหน้ากลุ่ม")}</small>` : ""}</span>`, "group-member-person")}<span class="member-approval ${memberApproved && (adminApproved || monthlyCycle) ? "approved" : ""}">${monthlyCycle ? !inThisCycle ? t("เริ่มจ่ายรอบหน้า") : memberApproved ? t("ยืนยันรอบนี้แล้ว") : t("รอยืนยันรอบนี้") : memberApproved ? adminApproved ? t("ยืนยันยอดกลุ่มแล้ว") : t("สมาชิกยืนยันแล้ว") : t("รอยืนยันยอด")}</span><b>${monthlyCycle ? inThisCycle ? money(monthlyCycle.amounts[memberId]) : "–" : money(alloc[memberId])}</b>${isOwner && !locked && memberId !== me ? `<button class="button danger-soft" data-action="kick-member" data-id="${id}" data-member="${memberId}">${t("เตะออก")}</button>` : ""}</div>`; }).join("")}
-            ${remaining ? `<div class="group-open-row"><span class="avatar small">${icon("plus", 18)}</span><div><strong>${t("ยังว่างอีก {count} ที่", { count: remaining })}</strong><small>${t("รอสมาชิกเข้าร่วม")}</small></div>${!isMember && !locked ? a(`/groups/${id}/join`, t("เข้าร่วมกลุ่ม"), "button outline") : ""}</div>` : ""}
+          <div class="group-section-head"><div><h2 id="members-heading">${unitMode(g) ? t("จองแล้ว {count} / {capacity} ส่วน", { count: takenUnits(g), capacity: g.capacity }) : t("สมาชิก {count} / {capacity} คน", { count: g.members.length, capacity: g.capacity })}</h2><p>${status}</p></div><strong>${remaining ? unitMode(g) ? t("เหลือ {count} ส่วน", { count: remaining }) : t("ว่าง {count} ที่", { count: remaining }) : unitMode(g) ? t("จองครบทุกส่วนแล้ว") : t("สมาชิกครบแล้ว")}</strong></div>
+          <div class="progress" role="progressbar" aria-label="${t("ความคืบหน้า")}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${takenUnits(g)}"><span style="width:${(takenUnits(g) / g.capacity) * 100}%"></span></div>
+          <div class="group-member-list">${g.members.map((memberId) => { const memberName = name(memberId); const memberProfile = state.profiles?.[memberId] || {}; const memberAvatar = profileAvatarMarkup({ name: memberName, avatar: memberProfile.avatar || memberProfile.avatar_url || "" }); const profileHref = `/profile/member/${encodeURIComponent(memberId)}?group=${encodeURIComponent(id)}`; const memberApproved = monthlyCycle ? Boolean(monthlyCycle.confirmations[memberId]) : g.approvals[memberId] === g.revision; const inThisCycle = !monthlyCycle || monthlyCycle.members.includes(memberId); return `<div class="group-member-row">${a(profileHref, `<span class="avatar small">${memberAvatar}</span><span class="group-member-name"><strong>${escape(memberName)}</strong>${memberId === g.ownerId && !memberName.includes("หัวหน้ากลุ่ม") ? `<small>${t("หัวหน้ากลุ่ม")}${unitMode(g) && !unitsOf(g, memberId) ? ` · ${t("ขายอย่างเดียว")}` : ""}</small>` : ""}${unitMode(g) && unitsOf(g, memberId) ? `<small class="member-units">${unitsLabel(g, memberId)}</small>` : ""}</span>`, "group-member-person")}<span class="member-approval ${memberApproved && (adminApproved || monthlyCycle) ? "approved" : ""}">${monthlyCycle ? !inThisCycle ? t("เริ่มจ่ายรอบหน้า") : memberApproved ? t("ยืนยันรอบนี้แล้ว") : t("รอยืนยันรอบนี้") : memberApproved ? adminApproved ? t("ยืนยันยอดกลุ่มแล้ว") : t("สมาชิกยืนยันแล้ว") : t("รอยืนยันยอด")}</span><b>${monthlyCycle ? inThisCycle ? money(monthlyCycle.amounts[memberId]) : "–" : money(alloc[memberId])}</b>${isOwner && !locked && memberId !== me ? `<button class="button danger-soft" data-action="kick-member" data-id="${id}" data-member="${memberId}">${t("เตะออก")}</button>` : ""}</div>`; }).join("")}
+            ${remaining ? `<div class="group-open-row"><span class="avatar small">${icon("plus", 18)}</span><div><strong>${unitMode(g) ? t("ยังเหลืออีก {count} ส่วน", { count: remaining }) : t("ยังว่างอีก {count} ที่", { count: remaining })}</strong><small>${t("รอสมาชิกเข้าร่วม")}</small></div>${!isMember && !locked ? a(`/groups/${id}/join`, t("เข้าร่วมกลุ่ม"), "button outline") : ""}</div>` : ""}
           </div>
         </section>
-        <section class="cost-card group-cost-card" aria-labelledby="cost-heading"><h2 id="cost-heading">${monthly ? t("ค่าใช้จ่ายต่อเดือน") : t("ค่าใช้จ่ายรอบที่ {revision}", { revision: g.revision })}</h2><div><span>${t("ราคาสินค้า")}</span><b>${money(p.price ?? costs.product)}</b></div><div><span>${t("ค่าส่งรวม")}</span><b>${money(groupDetails.shippingTotal ?? costs.delivery)}</b></div>${!seatMode || isOwner ? `<div><span>${seatMode ? t("ค่าธรรมเนียมแพลตฟอร์ม 2% (เจ้าของกลุ่มจ่าย)") : t("ค่าธรรมเนียมแพลตฟอร์ม 2%")}</span><b>${money(costs.service)}</b></div>` : ""}<div class="total"><span>${t("รวมทั้งหมด")}</span><b>${money(seatMode && !isOwner ? sum - costs.service : sum)}</b></div><p>${seatMode ? t("ราคาต่อที่นั่งคงที่ ผู้เข้าร่วมจ่ายเฉพาะราคาที่นั่งและไม่เสียค่าธรรมเนียม เจ้าของกลุ่มจ่ายค่าธรรมเนียม 2% และที่นั่งที่ยังว่าง") : t("หารตามจำนวนสมาชิกปัจจุบัน เศษสตางค์จัดสรรตามลำดับที่เข้ากลุ่ม")}</p></section>
+        <section class="cost-card group-cost-card" aria-labelledby="cost-heading"><h2 id="cost-heading">${monthly ? t("ค่าใช้จ่ายต่อเดือน") : t("ค่าใช้จ่ายรอบที่ {revision}", { revision: g.revision })}</h2><div><span>${t("ราคาสินค้า")}</span><b>${money(p.price ?? costs.product)}</b></div>${unitMode(g) ? `<div><span>${t("แบ่งเป็น")}</span><b>${t("{count} ส่วน", { count: g.capacity })}</b></div><div><span>${t("ค่าส่ง (ต่อคน)")}</span><b>${money(g.costs.delivery)}</b></div>` : `<div><span>${t("ค่าส่งรวม")}</span><b>${money(groupDetails.shippingTotal ?? costs.delivery)}</b></div>`}${!seatMode ? `<div><span>${t("ค่าธรรมเนียมแพลตฟอร์ม 2%")}</span><b>${money(costs.service)}</b></div>` : ""}<div class="total"><span>${t("รวมทั้งหมด")}</span><b>${money(sum)}</b></div><p>${unitMode(g) ? t("แต่ละคนจ่ายตามจำนวนส่วนที่จอง ค่าส่งคิดครั้งเดียวต่อคน ไม่มีค่าธรรมเนียม แพลตฟอร์มหักค่าคอม 2% จากเงินที่โอนต่อให้เจ้าของกลุ่ม") : seatMode ? t("ราคาต่อที่นั่งคงที่ ผู้ร่วมหารจ่ายเฉพาะราคาที่นั่ง ไม่มีค่าธรรมเนียม แพลตฟอร์มหักค่าคอม 2% จากเงินที่โอนต่อให้เจ้าของกลุ่ม") : t("หารตามจำนวนสมาชิกปัจจุบัน เศษสตางค์จัดสรรตามลำดับที่เข้ากลุ่ม")}</p></section>
     ${paymentSection}
         <details class="group-history"><summary>${t("ประวัติการเปลี่ยนยอด")}</summary>${g.history
           .slice()
@@ -1895,6 +2348,142 @@ function groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategorie
       </aside>
     </div>
   </div>`;
+}
+// ---------------------------------------------------------------- receipt protection UI
+/** Split groups: shipping record and my problem report for the group ("one") or a cycle number. */
+const groupShipment = (g, key = "one") => g.shipments?.[key]?.at || null;
+const myDispute = (g, key = "one") => (g.disputes || []).find((d) => d.user_id === state.user?.id && String(d.cycle) === String(key)) || null;
+const openDisputeCount = (g, key = "one") => (g.disputes || []).filter((d) => d.status === "open" && String(d.cycle) === String(key)).length;
+const longDate = (iso) => new Date(iso).toLocaleDateString(locale === "en" ? "en-GB" : "th-TH", { day: "numeric", month: "short", year: "numeric" });
+/**
+ * What a paying member/buyer sees after paying: shipping status, the automatic confirmation date,
+ * "received" and "report a problem". `attrs` go on both buttons (data-id, data-cycle, ...).
+ */
+function receiptPanel({ state: rs, shippedAt, dispute, confirmAction, attrs, shipLabel = "ผู้ขายแจ้งส่งของแล้ว" }) {
+  const shipped = "";
+  const confirmBtn = `<button class="button primary full summary-action-btn" data-action="${confirmAction}" ${attrs}><span>${t("ได้รับของแล้ว")}</span><span class="btn-arrow">${icon("check", 18)}</span></button>`;
+  const reportBtn = `<button class="button danger-soft full summary-action-btn" data-action="report-problem" ${attrs}><span class="summary-btn-left">${icon("alert-circle", 18)} <span>${t("แจ้งปัญหา")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>`;
+  if (rs === "received") return `<div class="success-line">${icon("check", 18)} ${t("คุณยืนยันว่าได้รับของแล้ว")}</div>`;
+  if (rs === "auto_received") return softBox({ tone: "green", icon: "check", title: t("ยืนยันรับของอัตโนมัติแล้ว"), rows: shippedAt ? [[t(shipLabel), shortDate(shippedAt)]] : [], note: t("ครบ {days} วันหลังส่งของ ไม่มีการแจ้งปัญหา", { days: AUTO_RECEIPT_DAYS }) });
+  if (rs === "refunded") return softBox({ tone: "blue", icon: "info", title: t("ตัวกลางตัดสินคืนเงินให้คุณแล้ว"), note: dispute?.resolution_note ? escape(dispute.resolution_note) : "" });
+  if (rs === "disputed") return `${softBox({ tone: "red", icon: "alert-circle", title: t("แจ้งปัญหาแล้ว ตัวกลางพักเงินไว้"), rows: dispute?.reason ? [[t("ปัญหาที่แจ้ง"), escape(dispute.reason)]] : [], note: t("ทีมงานกำลังตรวจสอบ เงินจะยังไม่ถึงผู้ขายจนกว่าจะตัดสิน") })}${confirmBtn}<p class="summary-receipt-note">${t("ถ้าปัญหาจบแล้วและได้รับของครบ กด “ได้รับของแล้ว” ได้เลย")}</p>`;
+  const countdown = rs === "shipped"
+    ? softBox({ title: t("ส่งของแล้ว"), rows: [[t(shipLabel), shortDate(shippedAt)], [t("ยืนยันรับของอัตโนมัติ"), `${shortDate(autoReceiptAt(shippedAt))} · ${t("อีก {days} วัน", { days: autoReceiptDaysLeft(shippedAt) })}`]] })
+    : softBox({ title: t("รอผู้ขายส่งของ"), note: t("เงินของคุณอยู่กับตัวกลางจนกว่าคุณจะได้ของ") });
+  return `${countdown}${confirmBtn}${reportBtn}<p class="summary-receipt-note">${t("ของไม่มา ไม่ตรงปก หรือเสียหาย? กด “แจ้งปัญหา” ภายใน {days} วันหลังส่งของ ตัวกลางจะพักเงินไว้ก่อน", { days: AUTO_RECEIPT_DAYS })}</p>`;
+}
+/** What the seller/owner sees: a "shipped" button, then the auto-confirm date and any problem reports. */
+function ownerShipPanel({ shippedAt, openDisputes = 0, shipAction, attrs, canShip = true }) {
+  const problems = openDisputes
+    ? softBox({ tone: "red", icon: "alert-circle", title: t("มีผู้ซื้อแจ้งปัญหา {count} คน", { count: openDisputes }), note: t("ตัวกลางพักเงินไว้จนกว่าทีมงานจะตรวจสอบเสร็จ ลองคุยกับผู้ซื้อเพื่อแก้ปัญหา") })
+    : "";
+  if (shippedAt)
+    return `<div class="receipt-owner">${softBox({ tone: "green", title: t("ส่งของแล้ว"), rows: [[t("คุณแจ้งส่งของ"), shortDate(shippedAt)], [t("ยืนยันรับของอัตโนมัติ"), shortDate(autoReceiptAt(shippedAt))]], note: t("ผู้ซื้อที่ไม่ได้แจ้งปัญหา จะถูกยืนยันให้อัตโนมัติ") })}${problems}</div>`;
+  return `<div class="receipt-owner">${canShip ? `<button class="button primary full summary-action-btn" data-action="${shipAction}" ${attrs}><span class="summary-btn-left">${icon("truck", 18)} <span>${t("แจ้งว่าส่งของแล้ว")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button><p class="summary-receipt-note">${t("กดเมื่อส่งของหรือส่งมอบสิทธิ์แล้ว ถ้าผู้ซื้อไม่แจ้งปัญหาภายใน {days} วัน ระบบจะยืนยันรับของให้อัตโนมัติและปล่อยเงินให้คุณ", { days: AUTO_RECEIPT_DAYS })}</p>` : ""}${problems}</div>`;
+}
+/** "รายงานปัญหา" from the account page: tells the team something in the app is wrong. */
+function appProblemDialog() {
+  const topics = ["ใช้งานแอปไม่ได้ / มีบัค", "ปัญหาการชำระเงิน", "ปัญหากับกลุ่มหรือสมาชิก", "บัญชีและการเข้าสู่ระบบ", "อื่น ๆ"];
+  return `<dialog id="app-problem-dialog" class="form-dialog problem-dialog app-problem-dialog" aria-labelledby="app-problem-title"><form method="dialog" id="app-problem-form"><div class="dialog-heading"><div><h2 id="app-problem-title">${t("รายงานปัญหา")}</h2><p>${t("แจ้งทีมงานเมื่อเจอปัญหาในการใช้งาน ทีมงานจะตรวจสอบและติดต่อกลับ")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><fieldset class="problem-reasons">${topics.map((topic, i) => `<label><input type="radio" name="topic" value="${escape(topic)}" ${i === 0 ? "checked" : ""}/><span>${t(topic)}</span></label>`).join("")}</fieldset><label>${t("รายละเอียด")}<textarea name="message" minlength="5" maxlength="1000" required placeholder="${t("เช่น กดปุ่มยืนยันยอดแล้วไม่มีอะไรเกิดขึ้น / หน้าไหน ทำอะไรอยู่")}"></textarea></label><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button danger">${t("ส่งรายงาน")}</button></div></form></dialog>`;
+}
+/** Dialog for reporting a problem; the submit button carries the same data attributes. */
+function problemDialog(attrs) {
+  return `<dialog id="problem-dialog" class="form-dialog problem-dialog" aria-labelledby="problem-title"><form method="dialog" id="problem-form" ${attrs}><div class="dialog-heading"><div><h2 id="problem-title">${t("แจ้งปัญหา")}</h2><p>${t("ตัวกลางจะพักเงินไว้ก่อน แล้วทีมงานจะติดต่อทั้งสองฝ่ายเพื่อตรวจสอบ")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><fieldset class="problem-reasons">${["ยังไม่ได้รับของ", "ของไม่ตรงตามที่ตกลง", "ของเสียหาย / ใช้งานไม่ได้", "ได้ไม่ครบจำนวน"].map((reason, i) => `<label><input type="radio" name="reasonType" value="${escape(reason)}" ${i === 0 ? "checked" : ""}/><span>${t(reason)}</span></label>`).join("")}</fieldset><label>${t("รายละเอียด")}<textarea name="reasonDetail" maxlength="800" placeholder="${t("เช่น สั่งไป 2 ชิ้น ได้มา 1 ชิ้น / รูปที่ได้รับ")}"></textarea></label><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("ส่งเรื่องให้ตัวกลาง")}</button></div></form></dialog>`;
+}
+const SALE_STATUS = {
+  ordered: ["รอโอนเงิน", "is-waiting"],
+  reported: ["แจ้งโอนแล้ว รอตัวกลางตรวจยอด", "is-waiting"],
+  waiting_shipment: ["ตัวกลางรับเงินแล้ว รอส่งของ", "is-progress"],
+  shipped: ["ส่งของแล้ว รอผู้ซื้อยืนยัน", "is-progress"],
+  received: ["ผู้ซื้อได้รับของแล้ว", "is-done"],
+  auto_received: ["ยืนยันรับของอัตโนมัติแล้ว", "is-done"],
+  disputed: ["แจ้งปัญหา · เงินถูกพักไว้", "is-problem"],
+  refunded: ["ตัวกลางคืนเงินผู้ซื้อแล้ว", "is-problem"],
+};
+/** One sale order's state: payment first, then shipping and receipt (see receiptState). */
+function saleStatus(g, id) {
+  const paid = g.salePayments?.[id] || "ordered";
+  if (paid === "ordered" || paid === "reported") return paid;
+  const order = g.saleOrders?.[id] || {};
+  return receiptState({ received: paid === "received", shippedAt: order.shippedAt, dispute: order.dispute });
+}
+/** A sale listing: buyers pick a quantity and pay through the platform; the seller sees each order. */
+function salePage(g, p, id) {
+  const me = state.user?.id;
+  const isSeller = g.ownerId === me;
+  const bought = !isSeller && g.members.includes(me);
+  const amounts = shares(g);
+  const buyers = g.members.filter((memberId) => memberId !== g.ownerId);
+  const sold = takenUnits(g), left = openUnits(g);
+  const soldOut = left === 0;
+  const closed = g.status === "cancelled";
+  const counted = buyers.filter((buyer) => saleStatus(g, buyer) !== "refunded");
+  const payout = ownerPayout(counted.map((buyer) => amounts[buyer])); // commission always applies to sales: promo codes are for split groups only
+  const released = ownerPayout(counted.filter((buyer) => receiptDone(saleStatus(g, buyer))).map((buyer) => amounts[buyer]));
+  const openProblems = buyers.filter((buyer) => saleStatus(g, buyer) === "disputed").length;
+  const price = g.costs.product, delivery = g.costs.delivery;
+  const image = p.images?.[0] || g.images?.[0];
+  const statusChip = (buyer) => {
+    const [label, cls] = SALE_STATUS[saleStatus(g, buyer)];
+    return `<span class="member-approval sale-status ${cls}">${t(label)}</span>`;
+  };
+  const buyerRows = buyers.length
+    ? buyers.map((buyer) => isSeller || buyer === me
+        ? `<div class="group-member-row"><span class="group-member-person"><span class="avatar small">${profileAvatarMarkup({ name: name(buyer), avatar: state.profiles?.[buyer]?.avatar || "" })}</span><span class="group-member-name"><strong>${escape(name(buyer))}${buyer === me ? ` (${t("คุณ")})` : ""}</strong><small class="member-units">${unitsLabel(g, buyer)}</small></span></span>${statusChip(buyer)}<b>${money(amounts[buyer])}</b>${isSeller && saleStatus(g, buyer) === "waiting_shipment" ? `<button type="button" class="button primary sale-ship-btn" data-action="sale-mark-shipped" data-id="${id}" data-buyer="${escape(buyer)}">${icon("truck", 16)} ${t("ส่งของแล้ว")}</button>` : ""}${isSeller && saleStatus(g, buyer) === "shipped" ? `<small class="sale-auto-note">${t("ยืนยันอัตโนมัติ {date}", { date: longDate(autoReceiptAt(g.saleOrders[buyer].shippedAt)) })}</small>` : ""}${isSeller && saleStatus(g, buyer) === "disputed" ? `<small class="sale-auto-note is-problem">${t("ปัญหาที่แจ้ง")}: ${escape(g.saleOrders[buyer].dispute.reason)}</small>` : ""}</div>`
+        : "").join("") + (!isSeller && buyers.some((buyer) => buyer !== me) ? `<p class="sale-privacy-note">${t("รายชื่อผู้ซื้อคนอื่นเห็นเฉพาะผู้ขาย")}</p>` : "")
+    : `<p class="sale-privacy-note">${t("ยังไม่มีคนซื้อ")}</p>`;
+  const sellerCard = payoutCard({
+    heading: t("ยอดขายของคุณ"),
+    heroLabel: t("ยอดที่จะได้รับ"),
+    net: payout.net,
+    rows: [
+      { icon: "tag", label: t("ยอดขายทั้งหมด ({sold}/{stock} ชิ้น)", { sold, stock: g.capacity }), value: money(payout.gross) },
+      { icon: "percent", label: t("ค่าคอมมิชชั่น (2%)"), value: `−${money(payout.commission)}`, tone: "is-minus" },
+      { icon: "wallet", label: t("ยอดสุทธิที่ได้รับ"), value: money(payout.net), tone: "is-total" },
+      { icon: "check", label: t("พร้อมโอนแล้ว (ผู้ซื้อได้รับของ)"), value: money(released.net) },
+    ],
+    step: released.net > 0 ? 2 : payout.gross > 0 ? 1 : 0,
+    extra: openProblems ? softBox({ tone: "red", icon: "alert-circle", title: t("มีผู้ซื้อแจ้งปัญหา {count} คน", { count: openProblems }), note: t("ตัวกลางพักเงินของคำสั่งซื้อนั้นไว้จนกว่าทีมงานจะตรวจสอบเสร็จ") }) : "",
+    actions: !closed ? `<button class="payout-copy" data-action="copy-link" data-id="${id}">${icon("link", 22)}<span>${t("คัดลอกลิงก์ร้าน")}</span>${icon("copy", 22)}</button>` : "",
+  });
+  const status = saleStatus(g, me);
+  const buyerCard = bought
+    ? `<div class="summary-card sale-buyer-card is-${status}"><small>${t("คำสั่งซื้อของคุณ")} · ${unitsLabel(g, me)}</small><strong>${money(amounts[me])}</strong><p class="sale-status-line">${t(SALE_STATUS[status][0])}</p>
+        ${status === "ordered" ? `<div class="group-payment-transfer sale-transfer"><div class="bank-payment-qr-frame"><img src="${BANK_PAYMENT_QR_SRC}" alt="${t("QR สำหรับโอนเงินเข้าบัญชี")}"/></div><div><small>${t("โอนเข้าบัญชีตัวกลาง")}</small><strong>${BANK_PAYMENT_RECIPIENT}</strong><small>${t("ยอดที่ต้องโอน")}</small><b>${money(amounts[me])}</b></div></div><button class="button primary full summary-action-btn" data-action="sale-report-paid" data-id="${id}"><span>${t("โอนแล้ว แจ้งตัวกลาง")}</span><span class="btn-arrow">${icon("arrow", 18)}</span></button><button class="button danger-soft full summary-action-btn" data-action="leave" data-id="${id}"><span class="summary-btn-left">${icon("back", 19)} <span>${t("ยกเลิกการซื้อ")}</span></span><span class="btn-arrow">${icon("arrow", 18)}</span></button>` : ""}
+        ${status === "reported" && testMode ? `<button class="button outline full summary-action-btn" data-action="sale-mark-paid" data-id="${id}"><span>${t("(ทดสอบ) ให้ตัวกลางยืนยันรับเงิน")}</span><span class="btn-arrow">${icon("check", 18)}</span></button>` : ""}
+        ${!["ordered", "reported"].includes(status) ? receiptPanel({ state: status, shippedAt: g.saleOrders?.[me]?.shippedAt, dispute: g.saleOrders?.[me]?.dispute, confirmAction: "sale-confirm-receipt", attrs: `data-id="${id}"` }) : ""}
+        ${testMode && status === "shipped" ? `<button class="button outline full summary-action-btn test-only-btn" data-action="sale-skip-days" data-id="${id}"><span>${t("(ทดสอบ) ข้ามเวลาไป {days} วัน", { days: AUTO_RECEIPT_DAYS })}</span><span class="btn-arrow">${icon("clock", 18)}</span></button>` : ""}
+        ${testMode && status === "disputed" ? `<div class="test-only-row"><button class="button outline summary-action-btn test-only-btn" data-action="sale-admin-resolve" data-outcome="released" data-id="${id}">${t("(ทดสอบ) แอดมินปล่อยเงินให้ผู้ขาย")}</button><button class="button outline summary-action-btn test-only-btn" data-action="sale-admin-resolve" data-outcome="refunded" data-id="${id}">${t("(ทดสอบ) แอดมินคืนเงินผู้ซื้อ")}</button></div>` : ""}
+      </div>`
+    : `<div class="summary-card sale-buy-card"><small>${t("ราคาต่อชิ้น")}</small><strong>${money(price)}</strong><p>${t("ค่าส่ง {amount} ต่อคำสั่งซื้อ", { amount: money(delivery) })}</p>${soldOut || closed ? `<p class="warning summary-warning"><span class="warning-icon">${icon("alert-circle", 20)}</span><span>${t("สินค้าหมดแล้ว")}</span></p>` : a(`/groups/${id}/join`, `<span>${t("ซื้อเลย")}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`, "button primary full summary-action-btn")}<div class="summary-info-box"><span class="info-icon">${icon("info", 22)}</span><span class="info-divider"></span><span>${t("จ่ายผ่านตัวกลาง เงินถึงผู้ขายเมื่อคุณยืนยันว่าได้รับของ")}</span></div></div>`;
+  return `<div class="group-page sale-page">
+    <nav class="breadcrumb product-breadcrumb" aria-label="${t("เส้นทางนำทาง")}">${a("/explore", t("สำรวจ"))}<span aria-hidden="true">/</span><span aria-current="page">${escape(g.name)}</span></nav>
+    <div class="group-detail">
+      <main class="group-detail-main">
+        <section class="group-identity-card" aria-labelledby="group-title">
+          <div class="group-heading-line"><div><h1 id="group-title">${escape(g.name)}</h1><p>${t("ขายโดย")} ${escape(name(g.ownerId).replace(/\s*\(หัวหน้ากลุ่ม\)$/, ""))}</p></div><span class="group-state ${soldOut ? "is-full" : "is-open"}">${soldOut ? t("ขายหมดแล้ว") : t("เปิดขาย")}</span></div>
+          <div class="group-product-strip">${image ? `<div class="group-product-art"><img src="${escape(image)}" alt=""/></div>` : `<div class="group-product-art">${art(p)}</div>`}<div class="group-product-copy"><span>${t("ขายของ (ไม่หาร)")}</span><strong>${escape(p.title || g.name)}</strong><small>${escape(p.description || "")}</small></div><div class="group-product-price"><span>${t("ราคาต่อชิ้น")}</span><strong>${money(price)}</strong></div></div>
+        </section>
+        <section class="members-card group-members-card" aria-labelledby="buyers-heading">
+          <div class="group-section-head"><div><h2 id="buyers-heading">${t("ขายแล้ว {sold} / {stock} ชิ้น", { sold, stock: g.capacity })}</h2><p>${isSeller ? t("ผู้ซื้อ {count} คน", { count: buyers.length }) : t("ซื้อได้ทีละหลายชิ้น")}</p></div><strong>${soldOut ? t("ขายหมดแล้ว") : t("เหลือ {count} ชิ้น", { count: left })}</strong></div>
+          <div class="progress" role="progressbar" aria-label="${t("ขายแล้ว")}" aria-valuemin="0" aria-valuemax="${g.capacity}" aria-valuenow="${sold}"><span style="width:${(sold / g.capacity) * 100}%"></span></div>
+          <div class="group-member-list">${buyerRows}</div>
+        </section>
+        <section class="cost-card group-cost-card"><h2>${t("ราคาและค่าส่ง")}</h2><div><span>${t("ราคาต่อชิ้น")}</span><b>${money(price)}</b></div><div><span>${t("ค่าส่ง (คิดครั้งเดียวต่อคำสั่งซื้อ)")}</span><b>${money(delivery)}</b></div><div><span>${t("มีขายทั้งหมด")}</span><b>${t("{count} ชิ้น", { count: g.capacity })}</b></div><p>${t("ผู้ซื้อไม่มีค่าธรรมเนียมเพิ่ม ตัวกลางหักค่าคอม 2% จากยอดที่ผู้ขายได้รับ")}</p></section>
+      </main>
+      <aside class="group-detail-aside">${isSeller ? sellerCard : buyerCard}</aside>
+    </div>
+  </div>`;
+}
+/** Join a unit group: pick how many parts, the price updates as you go. */
+function unitJoinPage(g, id) {
+  const open = openUnits(g);
+  const price = unitJoinPrice(g, 1);
+  const sale = saleMode(g), L = (split, sell) => t(sale ? sell : split);
+  return `${title(L("ยืนยันการเข้าร่วม", "ยืนยันการซื้อ"), escape(g.name))}<div class="narrow"><div class="cost-card unit-join-card" data-unit-join data-id="${escape(id)}"><h2>${escape(g.name)}</h2>${sale ? `<div><span>${t("ราคาต่อชิ้น")}</span><b>${money(g.costs.product)}</b></div><div><span>${t("เหลือ")}</span><b>${t("{count} ชิ้น", { count: open })}</b></div><div><span>${t("ค่าส่ง (คิดครั้งเดียวต่อคำสั่งซื้อ)")}</span><b>${money(g.costs.delivery)}</b></div>` : `<div><span>${t("ราคาสินค้า")}</span><b>${money(g.costs.product)}</b></div><div><span>${t("แบ่งเป็น")}</span><b>${t("{count} ส่วน", { count: g.capacity })}</b></div><div><span>${t("เหลือให้จอง")}</span><b>${t("{count} ส่วน", { count: open })}</b></div><div><span>${t("ค่าส่ง (คิดครั้งเดียวต่อคน)")}</span><b>${money(g.costs.delivery)}</b></div>`}
+    <div class="unit-picker"><span>${L("คุณจะเอากี่ส่วน", "จำนวนที่จะซื้อ")}</span><div class="unit-stepper"><button type="button" class="button outline" data-unit-step="-1" aria-label="${t("ลดจำนวนส่วน")}" disabled>−</button><output data-unit-count aria-live="polite">1</output><button type="button" class="button outline" data-unit-step="1" aria-label="${t("เพิ่มจำนวนส่วน")}" ${open <= 1 ? "disabled" : ""}>+</button></div></div>
+    <div class="total"><span>${t("ยอดของคุณ")}</span><b data-unit-price>${money(price)}</b></div></div>
+    <div class="info-box">${L("คุณจ่ายตามจำนวนส่วนที่เลือก ไม่มีค่าธรรมเนียม ยอดนี้ไม่เปลี่ยนเมื่อมีคนเข้าหรือออก", "จ่ายผ่านตัวกลาง ไม่มีค่าธรรมเนียมเพิ่ม เงินถึงผู้ขายเมื่อคุณยืนยันว่าได้รับของ")}</div><button class="button primary full" data-action="join" data-id="${id}" data-units="1">${L("ยืนยันเข้าร่วมกลุ่ม", "ยืนยันสั่งซื้อ")}</button>${a(`/groups/${id}`, L("กลับไปดูกลุ่ม", "กลับไปหน้าสินค้า"), "button outline full")}</div>`;
 }
 function joinPage(id) {
   const g = group(id);
@@ -1924,12 +2513,14 @@ function joinPage(id) {
     );
   if (g.members.includes(state.user.id))
     return `<div class="empty"><h1>${t("คุณอยู่ในกลุ่มนี้แล้ว")}</h1>${a(`/groups/${id}`, t("ดูกลุ่ม"), "button primary")}</div>`;
-  if (g.members.length >= g.capacity)
+  if (groupFull(g))
     return `<div class="empty"><h1>${t("กลุ่มนี้เต็มแล้ว")}</h1>${a(`/groups/${id}`, t("ดูกลุ่ม"), "button secondary")}</div>`;
-  const count = g.members.length + 1,
+  if (unitMode(g)) return unitJoinPage(g, id);
+  const seatJoin = g.costs?.mode === SEAT_MODE;
+  const count = seatJoin ? g.capacity : g.members.length + 1,
     costs = costBreakdown(g.costs, count),
-    estimate = Math.ceil(costs.total / count);
-  return `${title(t("ยืนยันการเข้าร่วม"), escape(g.name))}<div class="narrow"><div class="cost-card"><h2>${escape(g.name)}</h2><div><span>${t("ราคาสินค้า")}</span><b>${money(costs.product)}</b></div><div><span>${costs.deliveryPerMember === null ? t("ค่าส่ง") : t("ค่าส่ง {amount} × {count} คน", { amount: money(costs.deliveryPerMember), count })}</span><b>${money(costs.delivery)}</b></div><div><span>${costs.deliveryPerMember === null ? t("ค่าบริการ") : t("ค่าธรรมเนียมแอป 2%")}</span><b>${money(costs.service)}</b></div><div class="total"><span>${t("ยอดประมาณของคุณ")}</span><b>${money(estimate)}</b></div></div><div class="info-box">${t("เมื่อเข้าร่วม ระบบจะคำนวณยอดใหม่และให้สมาชิกทุกคน รวมถึงคุณ ยืนยันยอดรอบใหม่อีกครั้ง ยังไม่มีการเก็บเงินจริง")}</div><button class="button primary full" data-action="join" data-id="${id}">${t("ยืนยันเข้าร่วมกลุ่ม")}</button>${a(`/groups/${id}`, t("กลับไปดูกลุ่ม"), "button outline full")}</div>`;
+    estimate = seatJoin ? joinEstimate(g) : Math.ceil(costs.total / count);
+  return `${title(t("ยืนยันการเข้าร่วม"), escape(g.name))}<div class="narrow"><div class="cost-card"><h2>${escape(g.name)}</h2><div><span>${t("ราคาสินค้า")}</span><b>${money(costs.product)}</b></div><div><span>${costs.deliveryPerMember === null ? t("ค่าส่ง") : t("ค่าส่ง {amount} × {count} คน", { amount: money(costs.deliveryPerMember), count })}</span><b>${money(costs.delivery)}</b></div>${costs.commissionFromOwner ? "" : `<div><span>${costs.deliveryPerMember === null ? t("ค่าบริการ") : t("ค่าธรรมเนียมแอป 2%")}</span><b>${money(costs.service)}</b></div>`}<div class="total"><span>${seatJoin ? t("ราคาที่นั่งของคุณ") : t("ยอดประมาณของคุณ")}</span><b>${money(estimate)}</b></div></div><div class="info-box">${seatJoin ? t("คุณจ่ายเฉพาะราคาที่นั่ง ไม่มีค่าธรรมเนียม ยอดนี้ไม่เปลี่ยนเมื่อมีคนเข้าหรือออก") : t("เมื่อเข้าร่วม ระบบจะคำนวณยอดใหม่และให้สมาชิกทุกคน รวมถึงคุณ ยืนยันยอดรอบใหม่อีกครั้ง ยังไม่มีการเก็บเงินจริง")}</div><button class="button primary full" data-action="join" data-id="${id}">${t("ยืนยันเข้าร่วมกลุ่ม")}</button>${a(`/groups/${id}`, t("กลับไปดูกลุ่ม"), "button outline full")}</div>`;
 }
 function createPage() {
   if (!requireAuth(location.pathname + location.search))
@@ -1941,11 +2532,9 @@ function createPage() {
     requested = params.get("product"),
     allListings = listings(),
     requestedListing = allListings.find((item) => item.id === requested);
-  const selected = requestedListing?.id || allListings[0]?.id,
-    initialCategory = requestedListing?.category || CREATE_CATEGORY_NAMES[0];
-  if (!selectedCreateCategories.length)
-    selectedCreateCategories = [initialCategory];
-  const selectedCategory = selectedCreateCategories[0],
+  // The owner fills every field themselves: no sample product, price or category is preset.
+  const selected = requestedListing?.id || allListings[0]?.id;
+  const selectedCategory = selectedCreateCategories[0] || "",
     selectedListing =
       allListings.find((item) => item.category === selectedCategory) ||
       listing(selected);
@@ -1961,25 +2550,25 @@ function createPage() {
     <input type="hidden" name="requestId" value="${crypto.randomUUID()}"/><input type="hidden" name="listingId" value="${selectedListing?.id || selected || ""}"/><input type="hidden" name="category" value="${escape(selectedCategory)}"/>
     <nav class="create-stepper" aria-label="${t("ขั้นตอนการสร้างกลุ่ม")}">${[[1,"ข้อมูลสินค้า"],[2,"ตั้งค่ากลุ่ม"],[3,"สรุปกลุ่ม"]].map(([step,label])=>`<button type="button" data-action="create-step" data-step="${step}" aria-current="${createGroupStep===step?"step":"false"}" class="${createGroupStep===step?"active":""}"><span>${step}</span>${t(label)}</button>`).join("")}</nav>
     <section class="create-step-panel" data-create-step-panel="1" ${createGroupStep===1?"":"hidden"}>
-      <div class="create-form-section"><h2>${icon("package",20)} ${t("ข้อมูลสินค้า")}</h2><fieldset class="product-type-picker"><legend>${t("ประเภทสินค้า")} <b>*</b></legend><label><input type="radio" name="productType" value="physical" checked/><span>${icon("package",20)}<strong>${t("สินค้าทั่วไป")}</strong><small>${t("มีการจัดส่ง")}</small></span></label><label><input type="radio" name="productType" value="digital"/><span>${icon("lock",20)}<strong>${t("สินค้าดิจิทัล")}</strong><small>${t("แอป / Subscription")}</small></span></label></fieldset>
+      ${SALE_ENABLED ? `<div class="create-form-section listing-kind-section"><h2>${icon("sparkles",20)} ${t("คุณจะสร้างแบบไหน")}</h2><fieldset class="product-type-picker listing-kind-picker"><legend>${t("รูปแบบ")} <b>*</b></legend><label><input type="radio" name="listingKind" value="split" checked/><span>${icon("users",20)}<strong>${t("หารของ")}</strong><small>${t("ชวนคนมาหารค่าใช้จ่ายกัน")}</small></span></label><label><input type="radio" name="listingKind" value="sale"/><span>${icon("package",20)}<strong>${t("ขายของ (ไม่หาร)")}</strong><small>${t("ตั้งราคา จำนวน ค่าส่งเอง ขายผ่านตัวกลาง")}</small></span></label></fieldset></div>` : ""}<div class="create-form-section"><h2>${icon("package",20)} ${t("ข้อมูลสินค้า")}</h2><fieldset class="product-type-picker"><legend>${t("ประเภทสินค้า")} <b>*</b></legend><label><input type="radio" name="productType" value="physical" checked/><span>${icon("package",20)}<strong>${t("สินค้าทั่วไป")}</strong><small>${t("มีการจัดส่ง")}</small></span></label><label><input type="radio" name="productType" value="digital"/><span>${icon("lock",20)}<strong>${t("สินค้าดิจิทัล")}</strong><small>${t("แอป / Subscription")}</small></span></label></fieldset>
       <div class="image-editor"><h3>${t("รูปสินค้า")} <b class="required-mark">*</b><small>${t("ต้องเพิ่มอย่างน้อย 1 รูป · สูงสุด 4 รูป")}</small></h3><label class="image-upload create-group-dropzone"><span class="create-group-upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg></span><strong>${t("คลิกเพื่ออัปโหลด หรือลากรูปมาวาง")}</strong><small>${t("JPG, PNG หรือ WebP · ไม่เกิน 5 MB ต่อรูป · ระบบย่อรูปให้อัตโนมัติ")}</small><span class="create-group-browse">${icon("plus",16)} ${t("เลือกไฟล์")}</span><input id="group-images" type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="${t("เลือกรูปสินค้า")}"/></label><div id="image-draft">${gallery(groupImages,true)}</div><p id="image-upload-status" role="status"></p></div>
-      <label>${t("ชื่อสินค้า")} <b>*</b><input name="productTitle" maxlength="100" required value="${escape(selectedListing?.title || "")}" placeholder="${t("เช่น คีย์บอร์ดสำหรับทำงาน")}"/></label>
+      <label>${t("ชื่อสินค้า")} <b>*</b><input name="productTitle" maxlength="100" required value="" placeholder="${t("เช่น คีย์บอร์ดสำหรับทำงาน")}"/></label>
       <label>${t("ลิงก์สินค้า")} <small>${t("ไม่บังคับ")}</small><input name="productUrl" type="url" maxlength="500" placeholder="https://"/></label>
-      <label>${t("รายละเอียดสินค้า")} <small>${t("ไม่บังคับ")}</small><textarea name="productDescription" maxlength="1000" placeholder="${t("รายละเอียดหรือเงื่อนไขที่สมาชิกควรรู้")}">${escape(selectedListing?.description || "")}</textarea></label>
+      <label>${t("รายละเอียดสินค้า")} <small>${t("ไม่บังคับ")}</small><textarea name="productDescription" maxlength="1000" placeholder="${t("เช่น ขนาด สี จำนวน หรือเงื่อนไขที่สมาชิกควรรู้")}"></textarea></label>
       <fieldset class="category-picker"><legend>${t("หมวดหมู่สินค้า")} <b>*</b></legend><div class="selected-categories" id="selected-categories">${categoryTags}</div><div class="category-options">${CREATE_CATEGORY_NAMES.map((category) => `<button type="button" class="category-option ${selectedCreateCategories.includes(category) ? "selected" : ""}" data-action="toggle-category" data-category="${escape(category)}" aria-pressed="${selectedCreateCategories.includes(category)}">${t(category)}</button>`).join("")}</div></fieldset>
       <label id="other-category-wrap" ${selectedCreateCategories.includes("อื่น ๆ (ระบุชื่อเอง)") ? "" : "hidden"}>${t("ระบุชื่อหมวดหมู่")}<input name="otherCategory" maxlength="60" ${selectedCreateCategories.includes("อื่น ๆ (ระบุชื่อเอง)") ? "required" : ""} placeholder="${t("ระบุชื่อหมวดหมู่")}"/></label>
-      <div class="digital-product-fields" id="digital-product-fields" hidden><label>${t("แพลตฟอร์ม")} <b>*</b><select name="digitalPlatform"><option value="">${t("เลือกแพลตฟอร์ม")}</option>${["iOS","Android","Windows","macOS","Website"].map(x=>`<option>${x}</option>`).join("")}</select></label><div class="form-grid"><label>${t("ประเภทบริการ")} <b>*</b><select name="digitalService"><option value="">${t("เลือกประเภท")}</option>${["Subscription","License","In-app Purchase"].map(x=>`<option>${x}</option>`).join("")}</select></label><label>${t("ระยะเวลาใช้งาน")} <b>*</b><input name="usageDuration" maxlength="60" placeholder="${t("เช่น 1 เดือน")}"/></label></div><div class="form-grid"><label>${t("สิทธิ์ที่แชร์ได้")} <b>*</b><input name="sharedSeats" type="number" min="2" max="20" value="2"/></label><label>${t("เงื่อนไขการแชร์")} <small>${t("ไม่บังคับ")}</small><input name="sharingConditions" maxlength="300" placeholder="${t("เช่น ใช้ได้พร้อมกัน 2 เครื่อง")}"/></label></div></div></div>
+      <div class="digital-product-fields" id="digital-product-fields" hidden><label>${t("แพลตฟอร์ม")} <b>*</b><select name="digitalPlatform"><option value="">${t("เลือกแพลตฟอร์ม")}</option>${["iOS","Android","Windows","macOS","Website"].map(x=>`<option>${x}</option>`).join("")}</select></label><div class="form-grid"><label>${t("ประเภทบริการ")} <b>*</b><select name="digitalService"><option value="">${t("เลือกประเภท")}</option>${["Subscription","License","In-app Purchase"].map(x=>`<option>${x}</option>`).join("")}</select></label><label>${t("ระยะเวลาใช้งาน")} <b>*</b><input name="usageDuration" maxlength="60" placeholder="${t("เช่น 1 เดือน")}"/></label></div><div class="form-grid"><label>${t("สิทธิ์ที่แชร์ได้")} <b>*</b><input name="sharedSeats" type="number" min="2" max="20" placeholder="${t("เช่น 2")}"/></label><label>${t("เงื่อนไขการแชร์")} <small>${t("ไม่บังคับ")}</small><input name="sharingConditions" maxlength="300" placeholder="${t("เช่น ใช้ได้พร้อมกัน 2 เครื่อง")}"/></label></div></div></div>
       <div class="create-step-actions"><span></span><button type="button" class="button primary" data-action="create-step" data-step="2">${t("ต่อไป: ตั้งค่ากลุ่ม")} ${icon("arrow",18)}</button></div>
     </section>
     <section class="create-step-panel" data-create-step-panel="2" ${createGroupStep===2?"":"hidden"}>
-      <div class="create-form-section"><h2>${icon("users",20)} ${t("ตั้งค่ากลุ่ม")}</h2><label>${t("ชื่อกลุ่ม")} <b>*</b><input name="name" maxlength="70" required placeholder="${t("เช่น หารค่าสมัครกับเพื่อน")}"/></label><div class="form-grid"><label>${t("สมาชิกขั้นต่ำ")} <b>*</b><input name="minimumMembers" type="number" min="2" max="6" value="3" required/></label><label>${t("สมาชิกสูงสุด")} <b>*</b><input name="capacity" type="number" min="2" max="6" value="4" required/></label></div><label>${t("วันปิดรับสมาชิก")} <b>*</b><input name="closesAt" type="date" min="${groupDateMin}" required/></label><fieldset class="visibility-picker"><legend>${t("การมองเห็นกลุ่ม")}</legend>${[["public","สาธารณะ"],["link","เฉพาะผู้มีลิงก์"],["private","ส่วนตัว"]].map(([value,label])=>`<label><input type="radio" name="visibilityMode" value="${value}" ${value==="public"?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><fieldset class="visibility-picker billing-picker"><legend>${t("รูปแบบการจ่าย")} <b>*</b></legend><label><input type="radio" name="billing" value="one_time" checked/><span>${t("รอบเดียวจบ")}</span></label><label><input type="radio" name="billing" value="monthly"/><span>${t("จ่ายรายเดือน")}</span></label><small>${t("รายเดือน: ยอดต่อที่นั่งคงที่ทุกเดือน ทุกคนยืนยันเดือนละครั้ง")}</small></fieldset><label>${t("หมายเหตุถึงสมาชิก")} <small>${t("ไม่บังคับ")}</small><textarea name="memberNote" maxlength="500" placeholder="${t("เช่น นัดโอนภายใน 2 วันหลังครบจำนวน")}"></textarea></label></div>
-      <div class="create-form-section"><h2>${icon("calc",20)} ${t("ค่าใช้จ่าย")}</h2><div class="form-grid"><label>${t("ราคาสินค้ารวม (บาท)")} <b>*</b><input name="product" type="number" inputmode="decimal" min="0.01" step="0.01" value="${bahtInput(selectedListing?.price || 0)}" required/></label><label id="shipping-total-wrap">${t("ค่าจัดส่งรวม (บาท)")}<input name="shippingTotal" type="number" inputmode="decimal" min="0" step="0.01" value="0.00"/></label></div><p class="create-fee-note">${t("ค่าธรรมเนียมแพลตฟอร์ม 2% ของยอดรวม เจ้าของกลุ่มเป็นผู้จ่าย ผู้เข้าร่วมไม่เสียค่าธรรมเนียม")}</p><div class="preview-cost" id="create-preview"></div></div>
+      <div class="create-form-section"><h2>${icon("users",20)} ${t("ตั้งค่ากลุ่ม")}</h2><label>${t("ชื่อกลุ่ม")} <b>*</b><input name="name" maxlength="70" required placeholder="${t("เช่น หารค่าสมัครกับเพื่อน")}"/></label><div data-kind-field="split"><div class="form-grid"><label>${t("สมาชิกขั้นต่ำ")} <b>*</b><input name="minimumMembers" type="number" min="2" max="6" placeholder="${t("เช่น 3")}" required/></label><label>${t("สมาชิกสูงสุด")} <b>*</b><input name="capacity" type="number" min="2" max="6" placeholder="${t("เช่น 4")}" required/></label></div><fieldset class="visibility-picker billing-picker"><legend>${t("รูปแบบการจ่าย")} <b>*</b></legend><label><input type="radio" name="billing" value="one_time" checked/><span>${t("รอบเดียวจบ")}</span></label><label><input type="radio" name="billing" value="monthly"/><span>${t("จ่ายรายเดือน")}</span></label><small>${t("รายเดือน: ยอดต่อที่นั่งคงที่ทุกเดือน ทุกคนยืนยันเดือนละครั้ง")}</small></fieldset><label data-billing-field="one_time">${t("วันปิดรับสมาชิก")} <b>*</b><input name="closesAt" type="date" min="${groupDateMin}" required/></label><label data-billing-field="monthly" hidden>${t("จ่ายทุกวันที่")} <b>*</b><select name="payDay" disabled><option value="">${t("เลือกวันที่")}</option>${Array.from({ length: 28 }, (_, i) => `<option value="${i + 1}">${t("วันที่ {day} ของทุกเดือน", { day: i + 1 })}</option>`).join("")}</select><small>${t("สมาชิกต้องจ่ายภายในวันนี้ของทุกเดือน ระบบเตือนล่วงหน้า 1 วัน (เลือกได้ 1–28 เพราะบางเดือนไม่มีวันที่ 29–31)")}</small></label></div><fieldset class="visibility-picker"><legend>${t("การมองเห็นกลุ่ม")}</legend>${[["public","สาธารณะ"],["link","เฉพาะผู้มีลิงก์"],["private","ส่วนตัว"]].map(([value,label])=>`<label><input type="radio" name="visibilityMode" value="${value}" ${value==="public"?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><label>${t("หมายเหตุถึงสมาชิก")} <small>${t("ไม่บังคับ")}</small><textarea name="memberNote" maxlength="500" placeholder="${t("เช่น นัดโอนภายใน 2 วันหลังครบจำนวน")}"></textarea></label></div>
+      <div class="create-form-section"><h2>${icon("calc",20)} ${t("ค่าใช้จ่าย")}</h2>${SALE_ENABLED ? `<div class="form-grid" data-kind-field="sale"><label>${t("ราคาขายต่อชิ้น (บาท)")} <b>*</b><input name="salePrice" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="${t("เช่น 250")}" required/></label><label>${t("จำนวนที่มีขาย (ชิ้น)")} <b>*</b><input name="stock" type="number" inputmode="numeric" min="1" max="${MAX_STOCK}" step="1" placeholder="${t("เช่น 10")}" required/></label><label>${t("ค่าส่งต่อผู้ซื้อ 1 คน (บาท)")}<input name="saleDelivery" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"/><small>${t("ใส่ 0 ถ้าส่งฟรีหรือนัดรับ")}</small></label></div><p class="create-fee-note" data-kind-field="sale">${t("ผู้ซื้อจ่ายผ่านตัวกลาง ระบบหักค่าคอม 2% จากยอดขาย แล้วโอนให้คุณเมื่อผู้ซื้อยืนยันรับสินค้า โค้ดยกเว้นค่าคอมใช้ไม่ได้กับการขาย")}</p>` : ""}<div class="form-grid" data-kind-field="split"><label>${t("ราคาสินค้ารวม (บาท)")} <b>*</b><input name="product" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="${t("เช่น 1200")}" required/></label><label id="shipping-total-wrap">${t("ค่าจัดส่งรวม (บาท)")}<input name="shippingTotal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"/></label></div><p class="create-fee-note" data-kind-field="split">${t("ผู้ร่วมหารจ่ายเฉพาะราคาที่นั่ง แพลตฟอร์มหักค่าคอม 2% จากเงินที่สมาชิกโอน ก่อนโอนต่อให้คุณ")}</p><div class="preview-cost" id="create-preview"></div></div>
       <section class="create-form-section" id="physical-delivery-section"><h2>${icon("truck",20)} ${t("การรับสินค้า")}</h2><fieldset class="delivery-picker">${[["ship_to_owner","จัดส่งรวมมาที่ผู้สร้างกลุ่ม แล้วนัดรับ"],["ship_separately","จัดส่งแยกให้สมาชิกแต่ละคน"],["pickup","นัดรับด้วยตนเอง"]].map(([value,label],i)=>`<label><input type="radio" name="deliveryMethod" value="${value}" ${i===0?"checked":""}/><span>${t(label)}</span></label>`).join("")}</fieldset><label id="pickup-location-wrap" hidden>${t("สถานที่นัดรับ")} <b>*</b><input name="pickupLocation" maxlength="180" placeholder="${t("ระบุสถานที่นัดรับ")}"/></label></section>
       <section class="create-form-section digital-handoff" id="digital-handoff-section" hidden><h2>${icon("lock",20)} ${t("การส่งมอบสิทธิ์ดิจิทัล")}</h2><p>${t("ระบุวิธีส่งมอบหลังกลุ่มยืนยันยอด")}</p><textarea name="digitalHandoff" maxlength="500" placeholder="${t("เช่น ส่งคำเชิญทางอีเมลหลังชำระเงิน")}"></textarea></section>
       <div class="create-step-actions"><button type="button" class="button outline" data-action="create-step" data-step="1">${t("ย้อนกลับ")}</button><button type="button" class="button primary" data-action="create-step" data-step="3">${t("ตรวจสอบสรุป")} ${icon("arrow",18)}</button></div>
     </section>
     <section class="create-step-panel create-review-panel" data-create-step-panel="3" ${createGroupStep===3?"":"hidden"}><div class="create-form-section"><h2>${icon("check",20)} ${t("ตรวจสอบก่อนสร้างกลุ่ม")}</h2><p>${t("ตรวจดูข้อมูลสินค้า จำนวนสมาชิก และยอดต่อคนให้เรียบร้อย")}</p><div id="create-review-summary"></div><div class="info-box">${t("การสร้างกลุ่มยังไม่มีการเรียกเก็บเงิน ระบบจะแสดงยอดให้สมาชิกยืนยันก่อนดำเนินการ")}</div><p id="create-error" class="create-error" role="alert" hidden></p></div><div class="create-step-actions"><button type="button" class="button outline" data-action="create-step" data-step="2">${t("ย้อนกลับ")}</button><button class="button primary" type="submit">${t("สร้างกลุ่ม")}</button></div></section>
-  </form><aside class="create-group-summary" aria-live="polite"><div class="create-summary-heading"><h2>${t("สรุปกลุ่ม")}</h2>${icon("package",28)}</div><div class="create-summary-product"><div id="create-summary-image">${groupImages[0]?`<img src="${groupImages[0]}" alt=""/>`:icon("package",32)}</div><div><strong id="summary-product-title">${escape(selectedListing?.title || t("ชื่อสินค้า"))}</strong><small id="summary-product-category">${escape(t(selectedCategory))}</small></div></div><dl><div><dt>${t("ราคาสินค้า")}</dt><dd id="summary-product-price">—</dd></div><div id="summary-shipping-row"><dt>${t("ค่าจัดส่ง")}</dt><dd id="summary-shipping">—</dd></div><div><dt>${t("ค่าธรรมเนียม 2% (คุณจ่าย)")}</dt><dd id="summary-fee">—</dd></div><div class="summary-per-person"><dt>${t("ประมาณต่อคน")}</dt><dd id="summary-per-person">—</dd></div><div><dt>${t("สมาชิก")}</dt><dd id="summary-members">—</dd></div><div><dt>${t("ปิดรับสมาชิก")}</dt><dd id="summary-deadline">—</dd></div><div><dt>${t("วิธีรับ")}</dt><dd id="summary-delivery">—</dd></div><div><dt>${t("การมองเห็น")}</dt><dd id="summary-visibility">—</dd></div></dl><p>${t("ยอดต่อคนเป็นประมาณการเมื่อสมาชิกครบ")}</p></aside></div>`;
+  </form><aside class="create-group-summary" aria-live="polite"><div class="create-summary-heading"><h2>${t("สรุปกลุ่ม")}</h2>${icon("package",28)}</div><div class="create-summary-product"><div id="create-summary-image">${groupImages[0]?`<img src="${groupImages[0]}" alt=""/>`:icon("package",32)}</div><div><strong id="summary-product-title">${t("ชื่อสินค้า")}</strong><small id="summary-product-category">${selectedCategory ? escape(t(selectedCategory)) : "—"}</small></div></div><dl><div><dt>${t("ราคาสินค้า")}</dt><dd id="summary-product-price">—</dd></div><div id="summary-shipping-row"><dt>${t("ค่าจัดส่ง")}</dt><dd id="summary-shipping">—</dd></div><div><dt>${t("ค่าคอม 2% (หักจากเงินที่คุณได้รับ)")}</dt><dd id="summary-fee">—</dd></div><div class="summary-per-person"><dt>${t("ประมาณต่อคน")}</dt><dd id="summary-per-person">—</dd></div><div><dt>${t("สมาชิก")}</dt><dd id="summary-members">—</dd></div><div><dt>${t("ปิดรับสมาชิก")}</dt><dd id="summary-deadline">—</dd></div><div><dt>${t("วิธีรับ")}</dt><dd id="summary-delivery">—</dd></div><div><dt>${t("การมองเห็น")}</dt><dd id="summary-visibility">—</dd></div></dl><p>${t("ยอดต่อคนเป็นประมาณการเมื่อสมาชิกครบ")}</p></aside></div>`;
 }
 function secondhandCheckoutPage(id) {
   if (!requireAuth(`/checkout/secondhand/${encodeURIComponent(id)}`))
@@ -2243,7 +2832,6 @@ function syncCreateCategoryUI() {
     nextListing = listingsForCategory[0] || listings()[0];
   if (nextListing) {
     form.querySelector('[name="listingId"]').value = nextListing.id;
-    form.querySelector('[name="product"]').value = bahtInput(nextListing.price);
   }
   updatePreview();
 }
@@ -2269,8 +2857,14 @@ function myGroups() {
         "ติดตามสมาชิกและยอดที่ต้องยืนยันในแต่ละกลุ่ม เข้าสู่ระบบหรือลงทะเบียนเพื่อเริ่มต้น",
       ),
     );
-  const gs = state.groups.filter((g) => g.members.includes(state.user.id));
-  return `${title(t("กลุ่มของฉัน"), t("ติดตามสมาชิกและยอดที่ต้องยืนยันในแต่ละกลุ่ม"))}<div class="section-header"><h2>${t("{count} กลุ่ม", { count: gs.length })}</h2>${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่ม")}`, "button secondary")}</div>${gs.length ? `<div class="group-grid">${gs.map(groupCard).join("")}</div>` : `<div class="empty"><h2>${t("ยังไม่มีกลุ่มที่เข้าร่วม")}</h2><p>${t("ลองสำรวจสินค้าที่อยากหารก่อน")}</p>${a("/explore", t("ไปสำรวจ"), "button primary")}</div>`}`;
+  const mine = state.groups.filter((g) => g.members.includes(state.user.id));
+  const gs = mine.filter((g) => !inHistory(g));
+  const past = mine.filter(inHistory);
+  const upcoming = gs.map((g) => ({ g, f: nextCycleForecast(g, state.user.id) })).filter(({ f }) => f && !f.owner).sort((x, y) => Date.parse(x.f.startsAt) - Date.parse(y.f.startsAt));
+  const upcomingBox = upcoming.length
+    ? `<section class="next-month-summary"><small>${t("รอบถัดไปของกลุ่มรายเดือน")}</small><strong>${money(upcoming.reduce((sum, { f }) => sum + f.amount, 0))}</strong><span class="next-month-sub">${t("รวม {count} กลุ่ม · ใกล้สุด {date}", { count: upcoming.length, date: shortDate(upcoming[0].f.startsAt) })}</span><dl class="owner-payout-lines">${upcoming.map(({ g, f }) => `<div><dt>${a(`/groups/${g.id}`, escape(g.name))} · ${shortDate(f.startsAt)}${f.changed ? ` <em>${t("ยอดเปลี่ยน")}</em>` : ""}</dt><dd>${money(f.amount)}</dd></div>`).join("")}</dl></section>`
+    : "";
+  return `${title(t("กลุ่มของฉัน"), t("ติดตามสมาชิกและยอดที่ต้องยืนยันในแต่ละกลุ่ม"))}${upcomingBox}<div class="section-header"><h2>${t("{count} กลุ่ม", { count: gs.length })}</h2>${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่ม")}`, "button secondary")}</div>${gs.length ? `<div class="group-grid">${gs.map(groupCard).join("")}</div>` : `<div class="empty"><h2>${t("ยังไม่มีกลุ่มที่เข้าร่วม")}</h2><p>${t("ลองสำรวจสินค้าที่อยากหารก่อน")}</p>${a("/explore", t("ไปสำรวจ"), "button primary")}</div>`}${past.length ? `<details class="group-history-list"><summary>${t("ประวัติ · กลุ่มที่จบแล้ว ({count})", { count: past.length })}</summary><ul>${past.map((g) => `<li>${a(`/groups/${g.id}`, `<span><b>${escape(g.name)}</b><small>${g.closedAt ? t("ปิดกลุ่ม {date}", { date: shortDate(g.closedAt) }) : t("ซ่อนจากรายการ")}</small></span>${icon("arrow", 16)}`)}</li>`).join("")}</ul></details>` : ""}`;
 }
 function getGroupMessages(groupId) {
   const defaultGroupMessages = {
@@ -2392,6 +2986,15 @@ function startSecondhandChatSync(conversationId) {
     4000,
   );
 }
+/** A steady colour per name, so each conversation keeps its own avatar tint. */
+function avatarHue(text = "") {
+  let hash = 0;
+  for (const ch of String(text)) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
+  return 190 + (hash % 70); // blues through teals and indigos
+}
+function chatAvatar(name, label = name) {
+  return `<span class="avatar chat-avatar" style="--hue:${avatarHue(name)}">${escape(String(label).slice(0, 1).toUpperCase())}</span>`;
+}
 function chatWorkspaceSidebar(selectedHref = "") {
   const userId = state.user.id;
   if (
@@ -2419,7 +3022,8 @@ function chatWorkspaceSidebar(selectedHref = "") {
           render();
       });
   }
-  const myGroups = state.groups.filter((g) => g.members.includes(userId));
+  // Finished groups (closed, or hidden by me) leave the chat list too.
+  const myGroups = state.groups.filter((g) => g.members.includes(userId) && !inHistory(g));
   const isSelected = (href) =>
     selectedHref === href ||
     (!href.includes("?") && selectedHref.split("?")[0] === href);
@@ -2441,7 +3045,7 @@ function chatWorkspaceSidebar(selectedHref = "") {
       const href = `/chat/${encodeURIComponent(peerId)}?product=${encodeURIComponent(conversation.listing_id)}&conversation=${encodeURIComponent(conversation.id)}`;
       return a(
         href,
-        `<span class="avatar">${escape(peerName.slice(0, 1))}</span><span><b>${escape(product?.title || t("ประกาศขาย"))}</b><small>${escape(peerName)} · ${t("แชทสินค้า")}</small></span>`,
+        `${chatAvatar(peerName)}<span><b>${escape(product?.title || t("ประกาศขาย"))}</b><small>${escape(peerName)} · ${t("แชทสินค้า")}</small></span>`,
         `chat-entry${isSelected(href) ? " active" : ""}`,
       );
     })
@@ -2455,7 +3059,7 @@ function chatWorkspaceSidebar(selectedHref = "") {
       const href = `/groups/${g.id}/chat`;
       return a(
         href,
-        `<span class="avatar">${escape(g.name.slice(0, 1))}</span><span><b>${escape(g.name)}</b><small>${escape(lastMsg?.text || lastMsg?.body || t("เริ่มคุยกับสมาชิกในกลุ่มได้ที่นี่"))}</small></span>`,
+        `${chatAvatar(g.name)}<span><b>${escape(g.name)}</b><small>${escape(lastMsg?.text || lastMsg?.body || t("เริ่มคุยกับสมาชิกในกลุ่มได้ที่นี่"))}</small></span>`,
         `chat-entry${isSelected(href) ? " active" : ""}`,
       );
     })
@@ -2467,14 +3071,14 @@ function chatWorkspaceSidebar(selectedHref = "") {
       const href = `/chat/${id}`;
       return a(
         href,
-        `<span class="avatar">${escape(contact.initials)}</span><span><b>${escape(contact.name)}</b><small>${escape(messages.at(-1)?.body || t("เริ่มต้นสนทนา"))}</small></span>`,
+        `${chatAvatar(contact.name, contact.initials)}<span><b>${escape(contact.name)}</b><small>${escape(messages.at(-1)?.body || t("เริ่มต้นสนทนา"))}</small></span>`,
         `chat-entry${isSelected(href) ? " active" : ""}`,
       );
     })
     .join("");
 
   return `<aside class="chat-sidebar" aria-label="${t("รายการแชต")}">
-    <div class="chat-sidebar-head"><h1>${t("แชต")}</h1><span>${icon("chat", 21)}</span></div>
+    <div class="chat-sidebar-head"><h1>${t("แชต")}</h1><a href="/my-groups" data-link class="chat-sidebar-action" aria-label="${t("กลุ่มของฉัน")}">${icon("users", 20)}</a></div>
     <label class="chat-search">${icon("search", 18)}<input type="search" data-chat-search placeholder="${t("ค้นหาแชต")}" aria-label="${t("ค้นหาแชต")}" autocomplete="off"/></label>
     <div class="chat-list-scroll">
       ${groupThreads ? `<h2 class="chat-list-label">${t("แชทกลุ่มของฉัน")}</h2>${groupThreads}` : ""}
@@ -2494,13 +3098,15 @@ function chatList() {
     );
   return `<section class="chat-workspace" aria-label="${t("แชต")}">
     ${chatWorkspaceSidebar()}
-    <div class="chat-workspace-pane chat-workspace-empty"><span>${icon("chat", 34)}</span><h2>${t("เลือกแชตที่ต้องการ")}</h2><p>${t("เลือกกลุ่มหรือผู้ติดต่อจากรายการด้านซ้ายเพื่อดูข้อความ")}</p></div>
+    <div class="chat-workspace-pane chat-workspace-empty"><span class="chat-empty-ring">${icon("chat", 44)}</span><h2>${t("ข้อความของคุณ")}</h2><p>${t("เลือกกลุ่มหรือผู้ติดต่อจากรายการด้านซ้ายเพื่อเริ่มคุย")}</p>${a("/my-groups", t("ไปที่กลุ่มของฉัน"), "button primary")}</div>
   </section>`;
 }
 function groupChatPage(id) {
   const g = group(id);
   if (!g) return notFound();
   if (!state.user || !g.members.includes(state.user.id)) return notFound();
+  if (inHistory(g))
+    return `<div class="empty"><h1>${t("แชทของกลุ่มนี้ปิดแล้ว")}</h1><p>${t("กลุ่มนี้จบแล้วหรือถูกซ่อนจากรายการของคุณ")}</p>${a(`/groups/${id}`, t("ดูกลุ่ม"), "button outline")}${a("/chat", t("กลับไปหน้าแชท"), "button primary")}</div>`;
   startGroupChatSync(id);
   const p = listing(g.listingId);
   const me = state.user?.id;
@@ -2512,10 +3118,10 @@ function groupChatPage(id) {
   return `<section class="chat-workspace" data-active="true" aria-label="${t("แชต")}">
   ${chatWorkspaceSidebar(`/groups/${id}/chat`)}
   <div class="chat-workspace-pane chat-workspace-active">
-  <a href="/chat" class="chat-mobile-back">${icon("back", 17)} ${t("รายการแชต")}</a>
   <div class="chat-shell group-chat-shell">
     <div class="chat-head group-chat-head">
-      ${a(destination, icon("back", 20), "back-link")}
+      <a href="/chat" class="chat-mobile-back" aria-label="${t("รายการแชต")}">${icon("back", 22)}</a>
+      ${chatAvatar(g.name)}
       <div class="group-chat-meta">
         <div class="group-chat-title-row">
           <h1>${escape(g.name)}</h1>
@@ -2555,7 +3161,7 @@ function groupChatPage(id) {
       isMember
         ? `<form id="group-chat-form" data-id="${id}" class="chat-input group-chat-input">
       <input name="body" maxlength="500" required placeholder="${t("พิมพ์ข้อความถึงสมาชิกในกลุ่ม...")}" aria-label="${t("ข้อความ")}" autocomplete="off"/>
-      <button class="button primary" type="submit">${t("ส่ง")}</button>
+      <button class="chat-send" type="submit" aria-label="${t("ส่ง")}">${icon("arrow", 20)}</button>
     </form>`
         : ""
     }
@@ -2590,10 +3196,142 @@ function chatPage(id) {
   return `<section class="chat-workspace" data-active="true" aria-label="${t("แชต")}">
     ${chatWorkspaceSidebar(selectedHref)}
     <div class="chat-workspace-pane chat-workspace-active">
-      <a href="/chat" class="chat-mobile-back">${icon("back", 17)} ${t("รายการแชต")}</a>
-      <div class="chat-shell"><div class="chat-head"><span class="avatar">${escape(peerInitial)}</span><div><h1>${escape(peerName)}</h1><small>${marketplaceChat ? t("แชทสินค้า") : t("แชตจำลอง · ไม่ส่งถึงผู้ขายจริง")}</small></div></div>${product ? `<div class="chat-product">${t(marketplaceChat ? "กำลังคุยเรื่องสินค้า" : "กำลังสอบถามเรื่อง")} ${a(`/products/${productId}`, escape(product.title || t("สินค้า")))}</div>` : ""}<div class="messages">${msgs.length ? msgs.map((m) => `<div class="bubble ${m.from === "me" ? "mine" : "theirs"}">${escape(m.body)}</div>`).join("") : `<div class="chat-empty">${t("เริ่มคุยเรื่องสินค้า เงื่อนไขรับของ หรือค่าส่งได้ที่นี่")}</div>`}</div><form id="chat-form" data-id="${marketplaceChat ? threadKey : id}" ${marketplaceChat ? `data-marketplace="true" data-conversation="${escape(conversationId || "")}" data-product="${escape(productId)}" data-peer="${escape(id)}"` : ""} class="chat-input"><input name="body" maxlength="500" required placeholder="${t(marketplaceChat ? "พิมพ์ข้อความ" : "พิมพ์ข้อความเดโม...")}" aria-label="${t("ข้อความ")}"/><button class="button primary" type="submit">${t("ส่ง")}</button></form></div>
+      <div class="chat-shell"><div class="chat-head"><a href="/chat" class="chat-mobile-back" aria-label="${t("รายการแชต")}">${icon("back", 22)}</a>${chatAvatar(peerName, peerInitial)}<div><h1>${escape(peerName)}</h1><small>${marketplaceChat ? t("แชทสินค้า") : t("แชตจำลอง · ไม่ส่งถึงผู้ขายจริง")}</small></div></div>${product ? `<div class="chat-product">${t(marketplaceChat ? "กำลังคุยเรื่องสินค้า" : "กำลังสอบถามเรื่อง")} ${a(`/products/${productId}`, escape(product.title || t("สินค้า")))}</div>` : ""}<div class="messages">${msgs.length ? msgs.map((m) => `<div class="bubble ${m.from === "me" ? "mine" : "theirs"}">${escape(m.body)}</div>`).join("") : `<div class="chat-empty">${t("เริ่มคุยเรื่องสินค้า เงื่อนไขรับของ หรือค่าส่งได้ที่นี่")}</div>`}</div><form id="chat-form" data-id="${marketplaceChat ? threadKey : id}" ${marketplaceChat ? `data-marketplace="true" data-conversation="${escape(conversationId || "")}" data-product="${escape(productId)}" data-peer="${escape(id)}"` : ""} class="chat-input"><input name="body" maxlength="500" required placeholder="${t(marketplaceChat ? "พิมพ์ข้อความ" : "พิมพ์ข้อความเดโม...")}" aria-label="${t("ข้อความ")}"/><button class="chat-send" type="submit" aria-label="${t("ส่ง")}">${icon("arrow", 20)}</button></form></div>
     </div>
   </section>`;
+}
+/* ---------- Notification feed: payment reminders, group updates, system updates ---------- */
+const NOTE_KINDS = [
+  ["payment", "การชำระเงิน", "calc"],
+  ["group", "อัปเดตกลุ่ม", "users"],
+  ["system", "อัปเดตระบบ", "sparkles"],
+  ["request", "ประกาศหากลุ่ม", "search"],
+];
+const CYCLE_EVENT_TEXT = {
+  started: "เริ่มรอบที่ {number} แล้ว ยืนยันยอดและชำระภายใน 3 วัน",
+  confirmed: "รอบที่ {number}: ทุกคนยืนยันยอดแล้ว",
+  paid: "รอบที่ {number}: ชำระครบทุกคนแล้ว",
+  closed: "รอบที่ {number} ปิดแล้ว",
+};
+const readNotesKey = () => `harnkhong-read-notes:${state.user?.id || ""}`;
+function readNoteIds() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(readNotesKey()) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+function markNotesRead(ids) {
+  requestMarketplace.markRead(ids);
+  const read = readNoteIds();
+  ids.forEach((id) => read.add(id));
+  try {
+    localStorage.setItem(readNotesKey(), JSON.stringify([...read].slice(-600)));
+  } catch {
+    /* private mode: read marks just do not stick */
+  }
+}
+/** The text and colour of a payment reminder, by how close its due date is. */
+function reminderCopy(reminder) {
+  if (reminder.rejected) return { title: t("สลิปไม่ผ่าน กรุณาโอนใหม่"), tone: "urgent" };
+  if (reminder.level === "overdue") return { title: t("เลยกำหนดชำระแล้ว กรุณาชำระโดยเร็ว"), tone: "urgent" };
+  if (reminder.level === "today") return { title: t("คุณต้องชำระเงินภายในวันนี้"), tone: "urgent" };
+  if (reminder.level === "tomorrow") return { title: t("ครบกำหนดชำระพรุ่งนี้"), tone: "soon" };
+  return { title: t("รอชำระเงิน"), tone: "normal" };
+}
+function notificationFeed() {
+  const me = state.user?.id;
+  if (!me) return [];
+  const read = readNoteIds();
+  const items = [];
+  const now = Date.now();
+  const recent = (at, days) => at && now - Date.parse(at) <= days * 86_400_000;
+  // Payment reminders: only while the money is still owed, so none after paying.
+  for (const reminder of paymentReminders(state.groups, me)) {
+    const copy = reminderCopy(reminder);
+    items.push({
+      id: `${reminder.id}:${reminder.rejected ? "rejected" : reminder.level}`,
+      kind: "payment",
+      tone: copy.tone,
+      title: copy.title,
+      body: `${reminder.groupName}${reminder.cycle ? ` · ${t("รอบที่ {number}", { number: reminder.cycle })}` : ""} · ${money(reminder.amount)} · ${t("ครบกำหนด {date}", { date: shortDate(reminder.dueAt) })}`,
+      href: `/groups/${reminder.groupId}`,
+      at: new Date(now).toISOString(),
+    });
+  }
+  // Group updates: changes in groups I am in, cycle history and payouts to me.
+  for (const g of state.groups.filter((x) => x.members.includes(me))) {
+    for (const event of g.history || []) {
+      if (!recent(event.at, 7)) continue;
+      items.push({ id: `grp:${g.id}:${event.at}:${event.reason}`, kind: "group", title: g.name, body: t(event.reason), href: `/groups/${g.id}`, at: event.at });
+    }
+    for (const entry of recentCycleHistory(g.cycleHistory)) {
+      items.push({ id: `cyc:${g.id}:${entry.cycle}:${entry.event}`, kind: "group", title: g.name, body: t(CYCLE_EVENT_TEXT[entry.event] || "รอบชำระมีการเปลี่ยนแปลง", { number: entry.cycle }), href: `/groups/${g.id}`, at: entry.at });
+    }
+    for (const payout of g.payoutsReceived || []) {
+      items.push({ id: `out:${g.id}:${payout.paid_at}`, kind: "group", title: t("ได้รับเงินจากกลุ่มแล้ว"), body: `${g.name} · ${money(Number(payout.net_satang) || 0)}`, href: `/groups/${g.id}`, at: payout.paid_at });
+    }
+    const report = g.paymentReport;
+    if (report?.status === "verified" && Number(report.revision) === Number(g.revision))
+      items.push({ id: `slip:${g.id}:r${g.revision}:verified`, kind: "system", title: t("แอดมินยืนยันสลิปแล้ว"), body: `${g.name} · ${money(Number(report.amount_satang) || 0)}`, href: `/groups/${g.id}`, at: report.reported_at });
+  }
+  // System updates: plan, promo and older stored notices.
+  const sub = mySubscription(me);
+  if (sub) {
+    const endsAt = sub.periodEnd;
+    const daysLeft = endsAt ? Math.ceil((Date.parse(endsAt) - now) / 86_400_000) : null;
+    if (sub.status === "pending_payment" || (sub.payments || []).some((p) => p.status === "reported"))
+      items.push({ id: `plus:pending:${sub.payments?.at(-1)?.reportedAt || ""}`, kind: "system", title: t("ได้รับสลิป Plus แล้ว"), body: t("แอดมินกำลังตรวจ เมื่อยืนยันแล้ว Plus จะเริ่มใช้งานทันที"), href: "/subscription", at: sub.payments?.at(-1)?.reportedAt });
+    if (subscriptionFor(me) === "plus" && sub.periodStart)
+      items.push({ id: `plus:active:${sub.periodStart}`, kind: "system", title: t("Plus ใช้งานได้แล้ว"), body: t("ใช้งานถึง {date}", { date: shortDate(endsAt) }), href: "/subscription", at: sub.periodStart });
+    if (subscriptionFor(me) === "plus" && daysLeft !== null && daysLeft <= 3)
+      items.push({ id: `plus:ending:${endsAt}`, kind: "system", tone: "soon", title: t("Plus ใกล้หมดอายุ"), body: t("เหลืออีก {days} วัน ต่ออายุได้ที่หน้าแพ็กเกจ", { days: Math.max(0, daysLeft) }), href: "/subscription", at: new Date(now).toISOString() });
+    if (sub.status === "expired")
+      items.push({ id: `plus:expired:${endsAt}`, kind: "system", title: t("Plus หมดอายุแล้ว"), body: t("บัญชีกลับเป็น Free สมัครใหม่ได้ทุกเมื่อ"), href: "/subscription", at: endsAt });
+  }
+  const waiver = myFeeWaiverUntil(me);
+  if (waiver)
+    items.push({ id: `promo:${waiver}`, kind: "system", title: t("ยกเว้นค่าคอม 2% ด้วยโค้ดพิเศษ"), body: t("ใช้ได้ถึง {date}", { date: shortDate(waiver) }), href: "/subscription", at: new Date(Date.parse(waiver) - 60 * 86_400_000).toISOString() });
+  for (const n of state.notifications.filter((x) => x.recipient === me)) {
+    items.push({ id: `local:${n.id}`, localId: n.id, kind: n.href?.startsWith("/requests") ? "request" : n.href?.startsWith("/groups") || n.href?.startsWith("/orders") ? "group" : "system", title: n.title, body: n.body, href: n.href, at: n.at, read: n.read });
+  }
+  // Request Marketplace notifications stored in Supabase (test mode already uses state.notifications).
+  items.push(...requestMarketplace.feedItems());
+  return items
+    .map((item) => ({ ...item, read: item.read || read.has(item.id) }))
+    .sort((a, b) => (a.kind === "payment") !== (b.kind === "payment") ? (a.kind === "payment" ? -1 : 1) : Date.parse(b.at || 0) - Date.parse(a.at || 0));
+}
+const unreadNoteCount = () => notificationFeed().filter((n) => !n.read).length;
+/** Red or amber toast once a day for payments due today, tomorrow or overdue. */
+function remindDuePayments() {
+  const me = state.user?.id;
+  if (!me) return;
+  const today = new Date().toDateString();
+  const key = `harnkhong-reminded:${me}:${today}`;
+  let shown;
+  try {
+    shown = new Set(JSON.parse(localStorage.getItem(key) || "[]"));
+  } catch {
+    return;
+  }
+  const fresh = paymentReminders(state.groups, me).filter((r) => (r.rejected || r.level !== "upcoming") && !shown.has(r.id));
+  if (!fresh.length) return;
+  const urgent = fresh.filter((r) => r.rejected || r.level === "today" || r.level === "overdue");
+  const first = (urgent[0] || fresh[0]);
+  const more = fresh.length > 1 ? ` ${t("และอีก {count} รายการ", { count: fresh.length - 1 })}` : "";
+  const message = `${reminderCopy(first).title}: ${first.groupName} ${money(first.amount)}${more}`;
+  if (urgent.length) alertError(message);
+  else alertWarning(message);
+  fresh.forEach((r) => shown.add(r.id));
+  try {
+    localStorage.setItem(key, JSON.stringify([...shown]));
+  } catch {
+    /* ignore */
+  }
+}
+function noteItem(n) {
+  const kind = NOTE_KINDS.find(([k]) => k === n.kind);
+  return `<button type="button" class="note-item ${n.read ? "" : "unread"} ${n.tone ? `tone-${n.tone}` : ""}" data-action="open-note" data-id="${escape(n.id)}" data-href="${escape(n.href || "/notifications")}"${n.localId ? ` data-local="${escape(n.localId)}"` : ""}><span class="note-icon kind-${n.kind}">${icon(n.tone === "urgent" ? "alert-circle" : kind?.[2] || "bell", 20)}</span><span class="note-text"><b>${escape(n.title)}</b><small>${escape(n.body || "")}</small>${n.at && n.kind !== "payment" ? `<time>${escape(dateTime(n.at))}</time>` : ""}</span>${n.read ? "" : '<i class="note-dot" aria-hidden="true"></i>'}</button>`;
 }
 function notifications() {
   if (!requireAuth("/notifications"))
@@ -2601,10 +3339,15 @@ function notifications() {
       t("การแจ้งเตือน"),
       t("เข้าสู่ระบบเพื่อดูการแจ้งเตือนกิจกรรมและยอดสมาชิก"),
     );
-  const notes = state.notifications.filter(
-    (n) => n.recipient === state.user.id,
-  );
-  return `${title(t("การแจ้งเตือน"), t("เหตุการณ์ในกลุ่มและข้อความจำลองของคุณ"))}<div class="narrow">${notes.length ? notes.map((n) => `<button class="notification ${n.read ? "" : "unread"}" data-action="open-notice" data-id="${n.id}"><span class="notice-dot"></span><span><b>${escape(n.title)}</b><small>${escape(n.body)}</small></span>${icon("arrow", 18)}</button>`).join("") : `<div class="empty"><h2>${t("ยังไม่มีการแจ้งเตือน")}</h2><p>${t("เมื่อมีสมาชิกหรือยอดเปลี่ยน รายการจะปรากฏที่นี่")}</p>${a("/explore", t("สำรวจสินค้า"), "button secondary")}</div>`}</div>`;
+  const feed = notificationFeed();
+  const tab = new URLSearchParams(location.search).get("tab") || "all";
+  const shown = tab === "all" ? feed : feed.filter((n) => n.kind === tab);
+  const count = (kind) => feed.filter((n) => (kind === "all" || n.kind === kind) && !n.read).length;
+  const tabs = [["all", "ทั้งหมด", "bell"], ...NOTE_KINDS]
+    .map(([kind, label]) => `<a href="/notifications${kind === "all" ? "" : `?tab=${kind}`}" data-link class="note-tab${tab === kind ? " active" : ""}"${tab === kind ? ' aria-current="page"' : ""}>${t(label)}${count(kind) ? `<i>${count(kind)}</i>` : ""}</a>`)
+    .join("");
+  const unread = feed.filter((n) => !n.read).length;
+  return `${title(t("การแจ้งเตือน"), t("การชำระเงิน การเปลี่ยนแปลงของกลุ่ม และข่าวจากระบบ"))}<div class="narrow notes-page"><div class="note-toolbar"><nav class="note-tabs" aria-label="${t("หมวดการแจ้งเตือน")}">${tabs}</nav>${unread ? `<button type="button" class="button subtle note-read-all" data-action="read-all-notes">${t("อ่านทั้งหมด")}</button>` : ""}</div>${shown.length ? `<div class="note-list">${shown.map(noteItem).join("")}</div>` : `<div class="empty"><h2>${t("ยังไม่มีการแจ้งเตือน")}</h2><p>${t(tab === "payment" ? "ไม่มียอดค้างชำระ เมื่อกลุ่มพร้อมจ่ายจะแจ้งที่นี่" : "เมื่อมีความเคลื่อนไหว รายการจะปรากฏที่นี่")}</p>${a("/explore", t("สำรวจกลุ่ม"), "button secondary")}</div>`}<p class="note-footnote">${t("แจ้งเตือนการชำระล่วงหน้า 1 วันและในวันครบกำหนด ประวัติรอบเก็บไว้ {days} วัน", { days: HISTORY_KEEP_DAYS })}</p></div>`;
 }
 function subscriptionStatusSection(sub, { current, pending, active, endsAt, daysLeft }) {
   const payments = sub?.payments || [];
@@ -2625,6 +3368,20 @@ function subscriptionStatusSection(sub, { current, pending, active, endsAt, days
         : ""}
     ${payments.length ? `<details class="cycle-history"><summary>${t("ประวัติการชำระ")}</summary><ul>${payments.map((p) => `<li><span>${shortDate(p.reportedAt)}</span><span>${p.coversFrom ? `${shortDate(p.coversFrom)} – ${shortDate(p.coversTo)}` : "–"}</span><b>${t(label[p.status] || p.status)}</b></li>`).join("")}</ul></details>` : ""}
   </section>`;
+}
+/** Bottom of /subscription: enter a code; HARN-WITH-JINN waives the 2% commission for 2 months. */
+function promoSection() {
+  const until = myFeeWaiverUntil();
+  const used = supabaseConfigured ? (state.remoteSubscription?.promoCodes || []).length > 0 : Boolean(state.promos?.[state.user?.id]);
+  return `<section class="promo-section" aria-labelledby="promo-heading"><h2 id="promo-heading">${icon("sparkles", 20)} ${t("โค้ดส่วนลด")}</h2>${
+    until
+      ? `<div class="promo-success" role="status"><strong>${t("ยินดีด้วย! คุณได้รับโค้ดพิเศษ")}</strong><p>${t("ไม่เสียค่าธรรมเนียมเว็บ 2% ถึงวันที่ {date}", { date: shortDate(until) })}</p></div>`
+      : used
+        ? `<p class="promo-note">${t("โค้ดพิเศษของคุณหมดอายุแล้ว")}</p>`
+        : !state.user
+          ? `<p class="promo-note">${t("เข้าสู่ระบบเพื่อกรอกโค้ดส่วนลด")}</p>`
+          : `<p class="promo-note">${t("มีโค้ดส่วนลด? กรอกเพื่อรับสิทธิ์ยกเว้นค่าธรรมเนียมเว็บ")}</p><div class="promo-form"><input id="promo-code-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="${t("กรอกโค้ด")}" aria-label="${t("โค้ดส่วนลด")}"/><button type="button" class="button primary" data-action="redeem-promo">${t("ใช้โค้ด")}</button></div>`
+  }</section>`;
 }
 function subscriptionSlipForm() {
   const localNow = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -2728,6 +3485,7 @@ function subscriptionPage() {
     </div>
     ${state.user ? subscriptionStatusSection(sub, { current, pending, active, endsAt, daysLeft }) : ""}
     <section class="subscription-comparison"><h2>${t("เปรียบเทียบแพ็กเกจ")}</h2><div class="subscription-table-wrap"><table class="subscription-table"><thead><tr><th scope="col">${t("ฟีเจอร์")}</th><th scope="col">Free</th><th scope="col">Plus</th></tr></thead><tbody>${features.map(([label, free, plus]) => `<tr><th scope="row">${escape(label)}</th><td>${mark(free)}</td><td>${mark(plus)}</td></tr>`).join("")}</tbody></table></div></section>
+    ${promoSection()}
   </section>`;
 }
 function accountOrderRow(o) {
@@ -2826,6 +3584,58 @@ function myOrdersPage() {
     );
   return `<div class="account-page account-orders-page">${title(t("อัปเดตคำสั่งซื้อ"), t("รายการและสถานะการชำระเงินในโหมดเดโม"))}<section class="account-card"><div class="account-card-heading"><h2>${t("รายการทั้งหมด")}</h2>${a("/profile", t("กลับไปบัญชีของฉัน"), "button subtle")}</div>${orders.length ? `<div class="order-updates-grid">${orders.map(accountOrderRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีคำสั่งซื้อเดโม")}</strong><p>${t("เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่")}</p>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button outline")}</div>`}</section></div>`;
 }
+/**
+ * My money across every group I belong to, from the real records: payment reports for
+ * one-time groups, the current cycle for monthly groups, and payouts I received as an owner.
+ */
+function myMoneySummary(userId = state.user?.id) {
+  const mine = state.groups.filter((g) => g.members.includes(userId));
+  const summary = { groups: mine.length, owned: 0, due: 0, waiting: 0, pending: 0, pendingCount: 0, paid: 0, received: 0, entries: [] };
+  for (const g of mine) {
+    if (g.ownerId === userId) {
+      summary.owned += 1;
+      for (const payout of g.payoutsReceived || []) {
+        summary.received += Number(payout.net_satang) || 0;
+        summary.entries.push({ group: g, amount: Number(payout.net_satang) || 0, status: "received", at: payout.paid_at });
+      }
+      continue;
+    }
+    if (g.billing === "monthly") {
+      const cycle = currentCycle(g);
+      if (!cycle || !cycle.members.includes(userId)) continue;
+      const amount = Number(cycle.amounts[userId]) || 0;
+      const status = cycle.payments[userId];
+      if (status === "verified") summary.paid += amount;
+      else if (status === "reported") { summary.pending += amount; summary.pendingCount += 1; }
+      else if (cycle.status !== "closed") summary.due += amount;
+      summary.entries.push({ group: g, amount, status: status || "due", at: cycle.start, cycle: cycle.number });
+      continue;
+    }
+    const report = g.paymentReport;
+    const amount = Number(report?.amount_satang ?? shares(g)[userId]) || 0;
+    const full = groupFull(g);
+    if (report?.status === "verified") summary.paid += amount;
+    else if (report?.status === "reported") { summary.pending += amount; summary.pendingCount += 1; }
+    else if (full && allApproved(g)) summary.due += amount;
+    else {
+      // Not full or not everyone confirmed yet: my seat price, due once the group is ready.
+      summary.waiting += amount;
+      continue;
+    }
+    summary.entries.push({ group: g, amount, status: report?.status || "due", at: report?.reported_at });
+  }
+  summary.entries.sort((x, y) => Date.parse(y.at || 0) - Date.parse(x.at || 0));
+  return summary;
+}
+function moneyEntryRow(entry) {
+  const labels = { due: "ต้องโอน", reported: "รอตรวจสลิป", verified: "ชำระแล้ว", rejected: "สลิปไม่ผ่าน", received: "ได้รับเงินแล้ว" };
+  const tone = { due: "warn", reported: "info", verified: "ok", rejected: "bad", received: "ok" }[entry.status] || "info";
+  return a(
+    `/groups/${entry.group.id}`,
+    `<span class="account-pay-name"><b>${escape(entry.group.name)}</b><small>${entry.cycle ? t("รอบที่ {number}", { number: entry.cycle }) : entry.at ? shortDate(entry.at) : t("รอชำระ")}</small></span><span class="account-pay-amount"><b>${entry.status === "received" ? "+" : ""}${money(entry.amount)}</b><span class="account-pay-chip ${tone}">${t(labels[entry.status] || entry.status)}</span></span>`,
+    "account-pay-row",
+  );
+}
 function profile() {
   if (!requireAuth("/profile"))
     return authRequiredView(
@@ -2860,13 +3670,14 @@ function profile() {
     );
   const unpaidAmount = sumPayments(unpaid);
   const verifiedAmount = sumPayments(verified);
+  const mySums = myMoneySummary();
   const avatar = profileAvatarMarkup(state.user);
   const stat = (iconName, label, value, sub, tone) =>
     `<div class="account-stat"><span class="account-stat-icon ${tone}">${icon(iconName, 22)}</span><div><small>${label}</small><strong>${value}</strong><span>${sub}</span></div></div>`;
   const shortcut = (href, iconName, label, sub, tone) =>
     a(
       href,
-      `<span class="account-shortcut-icon ${tone}">${icon(iconName, 21)}</span><span><strong>${label}</strong><small>${sub}</small></span>${icon("arrow", 18)}`,
+      `<span class="account-shortcut-icon ${tone}">${icon(iconName, 22)}</span><strong title="${escape(sub)}">${label}</strong>`,
       "account-shortcut",
     );
   return `<div class="account-page account-dashboard">
@@ -2877,10 +3688,10 @@ function profile() {
     <div class="account-layout">
       <div class="account-main">
         <section class="account-card account-overview" aria-labelledby="account-name">
-          <div class="account-profile-line"><span class="avatar large">${avatar}</span><div class="account-profile-identity"><h2 id="account-name">${escape(state.user.name)}</h2><p>${sellerRole ? t("บัญชีผู้ขายเดโม") : t(supabaseConfigured ? "สมาชิก" : "สมาชิกเดโม")}</p><div class="account-profile-actions"><button class="button outline" data-action="edit-profile">${icon("settings", 17)} ${t("ตั้งค่าบัญชี")}</button>${supabaseConfigured && ADMIN_ACCOUNT_EMAILS.includes(state.user.email?.trim().toLowerCase()) ? a("/admin", "Admin", "button outline") : ""}${supabaseConfigured ? `<button class="button subtle" data-action="logout">${t("ออกจากระบบ")}</button>` : ""}</div></div></div>
+          <div class="account-profile-line"><span class="avatar large">${avatar}</span><div class="account-profile-identity"><h2 id="account-name">${escape(state.user.name)}</h2><p>${sellerRole ? t("บัญชีผู้ขายเดโม") : t(supabaseConfigured ? "สมาชิก" : "สมาชิกเดโม")}</p><div class="account-profile-actions"><button class="button outline" data-action="edit-profile">${icon("settings", 17)} ${t("ตั้งค่าบัญชี")}</button>${supabaseConfigured && activeSupabaseSession?.user?.app_metadata?.role === "admin" ? a("/admin", "Admin", "button outline") : ""}${supabaseConfigured ? `<button class="button subtle" data-action="logout">${t("ออกจากระบบ")}</button>` : ""}</div></div></div>
           <div class="account-demo-note">${icon("shield", 21)}<div><strong>${t("ความปลอดภัยของเว็บไซต์")}</strong><p>${t(supabaseConfigured ? "ข้อมูลส่วนตัวและการทำรายการของคุณได้รับการปกป้อง เพื่อให้ใช้งานได้อย่างปลอดภัยและมั่นใจ" : "บัญชีตัวอย่างเก็บข้อมูลไว้ในเบราว์เซอร์นี้เท่านั้น")}</p></div></div>
         </section>
-        <section class="account-card account-summary" aria-labelledby="account-summary-title"><div class="account-card-heading"><div><h2 id="account-summary-title">${t("สรุปข้อมูลของฉัน")}</h2><p>${t("ยอดยืนยันกลุ่มและคำสั่งซื้อโดยรวม")}</p></div>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button subtle")}</div><div class="account-summary-grid"><div class="account-summary-tile blue"><span class="account-summary-icon">${icon("users", 22)}</span><div><span>${t("กลุ่มที่เข้าร่วม")}</span><strong>${mine.length}</strong><small>${t("กลุ่ม")}</small></div></div><div class="account-summary-tile mint"><span class="account-summary-icon">${icon("calc", 22)}</span><div><span>${t("คำสั่งซื้อเดิม")}</span><strong>${orders.length}</strong><small>${t("รายการ")}</small></div></div><div class="account-summary-tile violet"><span class="account-summary-icon">${icon("calc", 22)}</span><div><span>${t("ยอดค้างชำระ")}</span><strong>${money(unpaidAmount)}</strong><small>${t("เดโมเท่านั้น")}</small></div></div><div class="account-summary-tile mint"><span class="account-summary-icon">${icon("check", 22)}</span><div><span>${t("ยอดชำระเสร็จแล้ว")}</span><strong>${money(verifiedAmount)}</strong><small>${t("เดโมเท่านั้น")}</small></div></div></div></section>
+        <section class="account-card account-summary" aria-labelledby="account-summary-title"><div class="account-card-heading"><div><h2 id="account-summary-title">${t("สรุปข้อมูลของฉัน")}</h2><p>${t("ยอดเงินจากทุกกลุ่มที่คุณอยู่")}</p></div>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button subtle")}</div><div class="account-summary-grid"><div class="account-summary-tile blue"><span class="account-summary-icon">${icon("users", 22)}</span><div><span>${t("กลุ่มที่เข้าร่วม")}</span><strong>${mySums.groups}</strong><small>${mySums.owned ? t("เป็นหัวกลุ่ม {count} กลุ่ม", { count: mySums.owned }) : t("กลุ่ม")}</small></div></div><div class="account-summary-tile violet"><span class="account-summary-icon">${icon("calc", 22)}</span><div><span>${t("ต้องโอน")}</span><strong>${money(mySums.due)}</strong><small>${mySums.waiting ? t("อีก {amount} เมื่อกลุ่มครบ", { amount: money(mySums.waiting) }) : t("กลุ่มที่ครบและยืนยันยอดแล้ว")}</small></div></div><div class="account-summary-tile amber"><span class="account-summary-icon">${icon("clock", 22)}</span><div><span>${t("รอตรวจสลิป")}</span><strong>${mySums.pendingCount}</strong><small>${t("สลิป · แอดมินกำลังตรวจ")}</small></div></div><div class="account-summary-tile mint"><span class="account-summary-icon">${icon("check", 22)}</span><div><span>${t("ชำระแล้ว")}</span><strong>${money(mySums.paid)}</strong><small>${mySums.owned ? t("ได้รับจากกลุ่ม {amount}", { amount: money(mySums.received) }) : t("ยืนยันโดยแอดมินแล้ว")}</small></div></div></div></section>
         ${
           supabaseConfigured
             ? ""
@@ -2898,8 +3709,9 @@ function profile() {
         }
       </div>
       <aside class="account-aside">
-        <section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("อัปเดตคำสั่งซื้อ")}</h2>${a("/my-orders", `${t("ดูทั้งหมด")} ${icon("arrow", 17)}`, "account-all-link")}</div>${orders.length ? `<div class="order-updates-grid">${orders.slice(0, 3).map(accountOrderRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีคำสั่งซื้อเดโม")}</strong><p>${t("เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่")}</p>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button outline")}</div>`}</section>
-        <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t("ทางลัด")}</h2><div class="account-shortcut-grid">${shortcut("/my-groups", "users", t("กลุ่มของฉัน"), t("ดูและจัดการกลุ่มที่เข้าร่วม"), "blue")}${shortcut("/notifications", "bell", t("การแจ้งเตือน"), t("อัปเดตยอดและกิจกรรม"), "amber")}${shortcut("/explore", "search", t("สำรวจสินค้า"), t("ค้นหาสินค้าและเข้าร่วมกลุ่ม"), "violet")}${shortcut("/my-orders", "check", t("รายการชำระเดโม"), t("ดูสถานะคำสั่งซื้อของฉัน"), "mint")}</div></section>
+        ${payoutAccountCard()}
+        ${supabaseConfigured ? `<section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("การชำระเงินล่าสุด")}</h2>${a("/my-groups", `${t("ดูกลุ่ม")} ${icon("arrow", 17)}`, "account-all-link")}</div>${mySums.entries.length ? `<div class="account-pay-list">${mySums.entries.slice(0, 5).map(moneyEntryRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีรายการชำระเงิน")}</strong><p>${t("เมื่อกลุ่มครบและทุกคนยืนยันยอด ยอดที่ต้องโอนจะขึ้นที่นี่")}</p>${a("/explore", t("หากลุ่มเข้าร่วม"), "button outline")}</div>`}</section>` : `<section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("อัปเดตคำสั่งซื้อ")}</h2>${a("/my-orders", `${t("ดูทั้งหมด")} ${icon("arrow", 17)}`, "account-all-link")}</div>${orders.length ? `<div class="order-updates-grid">${orders.slice(0, 3).map(accountOrderRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีคำสั่งซื้อเดโม")}</strong><p>${t("เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่")}</p>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button outline")}</div>`}</section>`}
+        <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t("ทางลัด")}</h2><div class="account-shortcut-grid">${shortcut("/my-groups", "users", t("กลุ่มของฉัน"), t("ดูและจัดการกลุ่มที่เข้าร่วม"), "blue")}${shortcut("/notifications", "bell", t("แจ้งเตือน"), t("อัปเดตยอดและกิจกรรม"), "amber")}${shortcut("/explore", "search", t("สำรวจ"), t("ค้นหาสินค้าและเข้าร่วมกลุ่ม"), "violet")}${shortcut("/my-requests", "search", t("ประกาศหากลุ่ม"), t("ประกาศหาของหารและข้อเสนอที่ได้รับ"), "violet")}${shortcut("/my-offers", "users", t("ข้อเสนอของฉัน"), t("ข้อเสนอที่คุณส่งให้คนที่กำลังหากลุ่ม"), "violet")}${shortcut(supabaseConfigured ? "/subscription" : "/my-orders", supabaseConfigured ? "sparkles" : "check", t(supabaseConfigured ? "แพ็กเกจ" : "คำสั่งซื้อ"), t(supabaseConfigured ? "Free หรือ Plus" : "ดูสถานะคำสั่งซื้อของฉัน"), "mint")}<button type="button" class="account-shortcut account-shortcut-report" data-action="report-app-problem"><span class="account-shortcut-icon red">${icon("alert-circle", 22)}</span><strong>${t("รายงานปัญหา")}</strong></button></div></section>
       </aside>
       </div>
     </main>
@@ -3547,10 +4359,10 @@ function orderPage(id) {
   const isPhysical = p ? p.kind === "สินค้า" : true;
   return `${title(t("สรุปคำสั่งซื้อเดโม"), escape(g.name))}<div class="narrow order-detail">
     <div class="info-box">${t("เดโมเท่านั้น: HarnKhong ไม่รับฝาก ถือ โอน หรือคืนเงินจริง ไม่มีการตรวจสอบธนาคาร")}</div>
-    <div class="cost-card"><h2>${t("ค่าใช้จ่าย")}</h2><div><span>${t("สินค้า")}</span><b>${money(costs.product)}</b></div><div><span>${costs.deliveryPerMember === null ? t("ค่าส่ง") : t("ค่าส่ง {amount} × {count} คน", { amount: money(costs.deliveryPerMember), count: model.members.length })}</span><b>${money(costs.delivery)}</b></div><div><span>${costs.deliveryPerMember === null ? t("ค่าบริการ") : t("ค่าธรรมเนียมแอป 2%")}</span><b>${money(costs.service)}</b></div><div class="total"><span>${t("รวม")}</span><b>${money(costs.total)}</b></div><h3>${t("ส่วนแบ่งสมาชิก")}</h3>${model.members.map((memberId) => `<div><span>${escape(actorName(memberId))}</span><b>${money(alloc[memberId])}</b></div>`).join("")}</div>
+    <div class="cost-card"><h2>${t("ค่าใช้จ่าย")}</h2><div><span>${t("สินค้า")}</span><b>${money(costs.product)}</b></div><div><span>${costs.deliveryPerMember === null ? t("ค่าส่ง") : t("ค่าส่ง {amount} × {count} คน", { amount: money(costs.deliveryPerMember), count: model.members.length })}</span><b>${money(costs.delivery)}</b></div>${costs.commissionFromOwner ? "" : `<div><span>${costs.deliveryPerMember === null ? t("ค่าบริการ") : t("ค่าธรรมเนียมแอป 2%")}</span><b>${money(costs.service)}</b></div>`}<div class="total"><span>${t("รวม")}</span><b>${money(costs.total)}</b></div><h3>${t("ส่วนแบ่งสมาชิก")}</h3>${model.members.map((memberId) => `<div><span>${escape(actorName(memberId))}</span><b>${money(alloc[memberId])}</b></div>`).join("")}</div>
     ${
       !order || order.status === "waiting_for_members"
-        ? `<section class="form-panel"><h2>${g.members.length < g.capacity ? orderStatus("waiting_for_members") : t("รอยืนยันยอด")}</h2><p>${ready ? t("สมาชิกครบและยืนยันยอดรอบล่าสุดทุกคนแล้ว") : t("ยังสรุปไม่ได้: ต้องมีสมาชิกครบและยืนยันยอดรอบล่าสุดทุกคน")}</p>
+        ? `<section class="form-panel"><h2>${!groupFull(g) ? orderStatus("waiting_for_members") : t("รอยืนยันยอด")}</h2><p>${ready ? t("สมาชิกครบและยืนยันยอดรอบล่าสุดทุกคนแล้ว") : t("ยังสรุปไม่ได้: ต้องมีสมาชิกครบและยืนยันยอดรอบล่าสุดทุกคน")}</p>
     ${g.ownerId === state.user.id ? `<form id="order-form" data-id="${id}"><label>${t("ระยะตรวจรับเดโม (ชั่วโมง)")}<input name="hours" type="number" min="1" max="720" value="24" required/></label><button class="button primary full" type="submit" ${ready ? "" : "disabled"}>${t("บันทึกคำสั่งซื้อเดโม")}</button></form>` : `<p>${t("หัวหน้ากลุ่มเป็นผู้สร้างคำสั่งซื้อ")}</p>`}</section>`
         : `
     <section class="activity"><h2>${t("สถานะคำสั่งซื้อ")}: ${orderStatus(order.status)}</h2><p>${t("ยืนยันยอดเงินแยกจากการแจ้งชำระและการตรวจยอดเดโม")}</p>
@@ -3622,6 +4434,8 @@ function route() {
   if (path === "/profile") return profile();
   if (/^\/shops\/[^/]+$/.test(path)) return shopPage(path.split("/")[2]);
   if (/^\/orders\/[^/]+$/.test(path)) return orderPage(path.split("/")[2]);
+  const requestPage = requestMarketplace.route(path);
+  if (requestPage !== null) return requestPage;
   return notFound();
 }
 function updateFilterCarousel() {
@@ -3686,21 +4500,21 @@ function render() {
   document.documentElement.dataset.theme = theme;
   document.body.classList.toggle("mobile-menu-open", mobileMenuOpen);
   const headerScrolled = window.scrollY > 10;
-  const unread = state.user
-    ? state.notifications.filter(
-        (n) => n.recipient === state.user.id && !n.read,
-      ).length
-    : 0;
+  const unread = state.user ? unreadNoteCount() : 0;
   const nav = [
     ["/", "home", t("หน้าแรก")],
     ["/explore", "search", t("หารของ")],
+    ["/requests", "tag", t("กำลังหากลุ่ม")],
     ["/my-groups", "users", t("กลุ่มของฉัน")],
     ["/chat", "chat", t("แชต")],
     ["/profile", "user", t("บัญชี")],
     ["/subscription", "sparkles", t("แพ็กเกจ")],
   ];
-  const desktopNav = nav.slice(0, 4);
-  const bottomNav = nav.filter(([href]) => href !== "/subscription");
+  const desktopNav = nav.slice(0, 5);
+  // The phone tab bar keeps five slots; the request pages are reachable from the "หารของ" tabs and the menu.
+  const bottomNav = nav.filter(([href]) => href !== "/subscription" && href !== "/requests");
+  // Request Marketplace pages light up "กำลังหากลุ่ม".
+  const requestArea = /^\/(requests(\/|$)|my-requests$|my-offers$)/.test(location.pathname);
 
   doodleFooterRoot?.unmount();
   doodleFooterRoot = null;
@@ -3713,10 +4527,10 @@ function render() {
       <div class="header-inner">
         ${a("/", `<img class="logo-mark" src="/images/harnkhong-logo.png" alt=""/><span class="logo-text">HarnKhong<small>${t("หารของด้วยกัน")}</small></span>`, "brand")}
         <nav class="desktop-nav" aria-label="${t("เมนูหลัก")}">
-          ${desktopNav.map(([href, , label]) => a(href, label, "nav-link " + (location.pathname === href || (href === "/profile" && location.pathname.startsWith("/profile/")) || (href === "/marketplace/secondhand" && location.pathname.startsWith("/checkout/secondhand/")) ? "active" : ""))).join("")}
+          ${desktopNav.map(([href, , label]) => a(href, label, "nav-link " + (location.pathname === href || (href === "/requests" && requestArea) || (href === "/profile" && location.pathname.startsWith("/profile/")) || (href === "/marketplace/secondhand" && location.pathname.startsWith("/checkout/secondhand/")) ? "active" : ""))).join("")}
         </nav>
         <div class="header-actions">
-          ${/^\/groups\/[^/]+$/.test(location.pathname) ? "" : `<div class="header-create-menu-wrap"><button type="button" class="button primary header-create-btn" data-action="listing-menu-toggle" aria-expanded="${listingMenuOpen}" aria-haspopup="menu">${icon("plus", 18)} ${t("สร้างกลุ่มหารของ")}</button>${listingMenuOpen ? `<div class="header-create-dropdown" role="menu">${a("/groups/create", `<span class="header-create-option-icon">${icon("users", 20)}</span><span><strong>${t("สร้างกลุ่มหารของ")}</strong><small>${t("ชวนคนร่วมซื้อ")}</small></span>`, "header-create-option")}</div>` : ""}</div>`}
+          ${/^\/groups\/[^/]+$/.test(location.pathname) ? "" : `<div class="header-create-menu-wrap"><button type="button" class="button primary header-create-btn" data-action="listing-menu-toggle" aria-expanded="${listingMenuOpen}" aria-haspopup="menu">${icon("plus", 18)} ${t("สร้างกลุ่มหารของ")}</button>${listingMenuOpen ? `<div class="header-create-dropdown" role="menu">${a("/groups/create", `<span class="header-create-option-icon">${icon("users", 20)}</span><span><strong>${t("สร้างกลุ่มหารของ")}</strong><small>${t("ชวนคนร่วมซื้อ")}</small></span>`, "header-create-option")}${a("/requests/new", `<span class="header-create-option-icon">${icon("search", 20)}</span><span><strong>${t("โพสต์หาของหาร")}</strong><small>${t("ให้เจ้าของกลุ่มเสนอ")}</small></span>`, "header-create-option")}</div>` : ""}</div>`}
           ${a("/notifications", `${icon("bell", 22)}<span class="sr-only">${t("การแจ้งเตือน")}</span>${unread ? `<i>${unread}</i>` : ""}`, "icon-button header-notifications-btn")}
           ${state.user ? `<div class="profile-menu-wrap"><button type="button" class="profile-pill" data-action="profile-menu-toggle" aria-expanded="${profileMenuOpen}" aria-haspopup="menu"><span class="avatar tiny">${profileAvatarMarkup(state.user)}</span><span class="header-user-name">${escape(state.user.name)}</span><span class="profile-menu-chevron" aria-hidden="true">⌄</span></button>${profileMenuOpen ? `<div class="profile-dropdown" role="menu"><div class="profile-dropdown-heading"><strong>${escape(state.user.name)}</strong><small>${escape(state.user.email || "")}</small></div>${a("/profile", `${icon("user", 18)}<span>${t("บัญชี")}</span>`, "profile-dropdown-link")}${a("/chat", `${icon("chat", 18)}<span>${t("แชตกลุ่ม")}</span>`, "profile-dropdown-link")}${a("/notifications", `${icon("bell", 18)}<span>${t("การแจ้งเตือน")}</span>${unread ? `<i>${unread}</i>` : ""}`, "profile-dropdown-link")}<button type="button" role="menuitem" class="profile-dropdown-link" data-action="theme-toggle"><span class="profile-dropdown-theme-icon" aria-hidden="true">${theme === "dark" ? "☀" : "☾"}</span><span>${theme === "dark" ? t("โหมดสว่าง") : t("โหมดมืด")}</span><small class="profile-dropdown-state">${theme === "dark" ? t("เปิด") : t("ปิด")}</small></button></div>` : ""}</div>` : `<div class="profile-menu-wrap"><button type="button" class="profile-pill profile-menu-guest" data-action="profile-menu-toggle" aria-label="${t("เมนูบัญชี")}" aria-expanded="${profileMenuOpen}" aria-haspopup="menu">${icon("user", 18)}<span class="profile-menu-chevron" aria-hidden="true">⌄</span></button>${profileMenuOpen ? `<div class="profile-dropdown" role="menu"><div class="profile-dropdown-heading"><strong>${t("บัญชี")}</strong><small>${t("เข้าสู่ระบบเพื่อใช้งานบัญชี แชต และการแจ้งเตือน")}</small></div>${a("/profile", `${icon("user", 18)}<span>${t("บัญชี")}</span>`, "profile-dropdown-link")}${a("/chat", `${icon("chat", 18)}<span>${t("แชตกลุ่ม")}</span>`, "profile-dropdown-link")}${a("/notifications", `${icon("bell", 18)}<span>${t("การแจ้งเตือน")}</span>`, "profile-dropdown-link")}<button type="button" role="menuitem" class="profile-dropdown-link" data-action="theme-toggle"><span class="profile-dropdown-theme-icon" aria-hidden="true">${theme === "dark" ? "☀" : "☾"}</span><span>${theme === "dark" ? t("โหมดสว่าง") : t("โหมดมืด")}</span><small class="profile-dropdown-state">${theme === "dark" ? t("เปิด") : t("ปิด")}</small></button><button type="button" role="menuitem" class="profile-dropdown-link" data-action="open-auth" data-step="1">${icon("user", 18)}<span>${t("เข้าสู่ระบบ")}</span></button></div>` : ""}</div><button type="button" class="button primary header-login-btn" data-action="open-auth" data-step="1">${icon("user", 18)} ${t("เข้าสู่ระบบ")}</button>`}
           <button type="button" class="icon-button mobile-menu-toggle" data-action="mobile-menu-toggle" aria-label="${mobileMenuOpen ? t("ปิดเมนู") : t("เปิดเมนู")}" aria-expanded="${mobileMenuOpen}" aria-controls="mobile-menu"><span></span><span></span></button>
@@ -3724,10 +4538,10 @@ function render() {
       </div>
       <div class="mobile-menu${mobileMenuOpen ? " is-open" : ""}" id="mobile-menu" aria-hidden="${!mobileMenuOpen}">
         <nav aria-label="${t("เมนูหลัก")}">
-          ${nav.map(([href, ic, label]) => a(href, `${icon(ic, 21)}<span>${label}</span>`, location.pathname === href || (href === "/profile" && location.pathname.startsWith("/profile/")) ? "active" : "")).join("")}
+          ${nav.map(([href, ic, label]) => a(href, `${icon(ic, 21)}<span>${label}</span>`, location.pathname === href || (href === "/requests" && requestArea) || (href === "/profile" && location.pathname.startsWith("/profile/")) ? "active" : "")).join("")}
         </nav>
         <div class="mobile-menu-actions">
-          ${/^\/groups\/[^/]+$/.test(location.pathname) ? "" : a("/groups/create", `${icon("plus", 18)} ${t("เปิดกลุ่ม")}`, "button primary")}
+          ${/^\/groups\/[^/]+$/.test(location.pathname) ? "" : a("/groups/create", `${icon("plus", 18)} ${t("เปิดกลุ่ม")}`, "button primary")}${a("/requests/new", `${icon("search", 18)} ${t("โพสต์หาของหาร")}`, "button outline")}
           ${state.user ? a("/profile", `${icon("user", 18)} ${t("บัญชี")}`, "button outline") : `<button type="button" class="button primary" data-action="open-auth" data-step="1">${icon("user", 18)} ${t("เข้าสู่ระบบ")}</button>`}
         </div>
       </div>
@@ -3775,6 +4589,9 @@ function render() {
   initializeSecondhandPendingCountdown();
   void initializeSecondhandPendingQr();
   animatePricing();
+  revealWhySection();
+  revealHomeSections();
+  remindDuePayments();
 
   const footerMount = document.querySelector("#interactive-footer");
   if (footerMount) {
@@ -3843,6 +4660,12 @@ function render() {
           "สร้างกลุ่มหารค่าสินค้าหรือแพ็กเกจ ดูส่วนแบ่งและค่าส่งของสมาชิกก่อนยืนยันยอด",
         ),
         tagline: t("สร้างกลุ่มหารของและตรวจสอบยอดก่อนยืนยัน"),
+        contacts: {
+          email: "harnkhong@gmail.com",
+          phone: "061-545-0471",
+          instagram: "https://www.instagram.com/harnkhong",
+          line: "https://lin.ee/NIsLRq9",
+        },
         columns: [
           { title: t("เมนูด่วน"), links: quickLinks },
           { title: t("หมวดหมู่"), links: categoryLinks },
@@ -3935,6 +4758,8 @@ function render() {
     );
   }
 }
+/** Selling (no split): on in demo/test mode until the database supports it. */
+const SALE_ENABLED = !supabaseConfigured;
 const formCosts = (d) => ({
   product: parseBaht(d.get("product") || "0"),
   delivery: Math.ceil(
@@ -3947,6 +4772,29 @@ window.addEventListener("resize", updateFilterCarousel, { passive: true });
 function updateCreateFormUI() {
   const form = document.querySelector("#create-form");
   if (!form) return;
+  // Monthly groups pick a pay day; one-time groups pick a closing date.
+  const billingMode = form.querySelector('[name="billing"]:checked')?.value === "monthly" ? "monthly" : "one_time";
+  form.querySelectorAll("[data-billing-field]").forEach((field) => {
+    const active = field.dataset.billingField === billingMode;
+    field.hidden = !active;
+    field.querySelectorAll("input, select").forEach((control) => {
+      control.disabled = !active;
+      control.required = active;
+    });
+  });
+  // Split or sale: fields of the other kind are hidden and left out of validation and FormData.
+  const kind = form.querySelector('[name="listingKind"]:checked')?.value === "sale" ? "sale" : "split";
+  form.dataset.kind = kind;
+  form.querySelectorAll("[data-kind-field]").forEach((field) => {
+    const active = field.dataset.kindField === kind;
+    field.hidden = !active;
+    field.querySelectorAll("input, select, textarea").forEach((control) => {
+      if (!active) control.disabled = true;
+      else if (!control.closest("[data-billing-field]")) control.disabled = false;
+    });
+  });
+  const groupNameLabel = form.querySelector('[name="name"]')?.closest("label");
+  if (groupNameLabel?.firstChild) groupNameLabel.firstChild.textContent = kind === "sale" ? t("ชื่อรายการขาย") + " " : t("ชื่อกลุ่ม") + " ";
   const digital = form.querySelector('[name="productType"]:checked')?.value === "digital";
   const digitalFields = form.querySelector("#digital-product-fields");
   const deliverySection = form.querySelector("#physical-delivery-section");
@@ -4008,10 +4856,20 @@ function validateCreatePanel(step) {
   }
   if (step === 2) {
     const data = new FormData(form);
+    if (data.get("listingKind") === "sale") {
+      try {
+        parseBaht(data.get("salePrice"));
+        parseBaht(data.get("saleDelivery") || "0");
+      } catch (error) {
+        alertError(errorMessage(error));
+        return false;
+      }
+      return true;
+    }
     const closesAt = String(data.get("closesAt") || "");
     const today = new Date();
     const todayLocal = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-    if (closesAt < todayLocal) {
+    if (data.get("billing") !== "monthly" && closesAt < todayLocal) {
       const deadline = form.querySelector('[name="closesAt"]');
       deadline.setCustomValidity(t("วันปิดรับสมาชิกต้องไม่ย้อนหลัง"));
       deadline.reportValidity();
@@ -4037,26 +4895,64 @@ function validateCreatePanel(step) {
   }
   return true;
 }
+/** Create-form preview for a sale: price per item, what a buyer pays and what the seller keeps. */
+function updateSalePreview(f, d, box) {
+  const price = parseBaht(d.get("salePrice") || "0"),
+    delivery = parseBaht(d.get("saleDelivery") || "0"),
+    stock = Number(d.get("stock") || 0);
+  if (!price) {
+    box.innerHTML = `<small>${t("ราคาขายต่อชิ้น")}</small><strong>—</strong><p>${t("กรอกราคาขายและจำนวนที่มีขายเพื่อดูยอด")}</p>`;
+    return;
+  }
+  const one = price + delivery;
+  const all = Number.isInteger(stock) && stock > 0 ? ownerPayout([price * stock]) : null; // sold out to one buyer, delivery aside
+  box.innerHTML = `<small>${t("ผู้ซื้อ 1 ชิ้นจ่าย")}</small><strong>${money(one)}</strong><p>${t("ราคา {price} + ค่าส่ง {delivery} (ค่าส่งคิดครั้งเดียวต่อผู้ซื้อ)", { price: money(price), delivery: money(delivery) })}</p>${all ? `<p>${t("ถ้าขายหมด {count} ชิ้น คุณได้ประมาณ {net} หลังหักค่าคอม 2% ({fee})", { count: stock, net: money(all.net), fee: money(all.commission) })}</p>` : ""}`;
+  const put = (selector, value) => { const el = document.querySelector(selector); if (el) el.textContent = value; };
+  put("#summary-product-title", d.get("productTitle") || t("ชื่อสินค้า"));
+  put("#summary-product-category", selectedCreateCategories.map((x) => t(x)).join(" · ") || t("หมวดหมู่สินค้า"));
+  put("#summary-product-price", `${money(price)} / ${t("ชิ้น")}`);
+  put("#summary-shipping", `${money(delivery)} / ${t("คน")}`);
+  put("#summary-fee", all ? money(all.commission) : "—");
+  put("#summary-per-person", `${money(price)} / ${t("ชิ้น")}`);
+  put("#summary-members", stock ? t("มีขาย {count} ชิ้น", { count: stock }) : "—");
+  put("#summary-deadline", t("ขายจนกว่าจะหมด"));
+  const review = f.querySelector("#create-review-summary");
+  if (review) review.innerHTML = `<strong>${escape(d.get("productTitle") || t("ชื่อสินค้า"))}</strong><p>${escape(d.get("name") || "—")} · ${t("ขายของ (ไม่หาร)")}</p><b>${money(price)} / ${t("ชิ้น")}</b>`;
+}
 function updatePreview() {
   const f = document.querySelector("#create-form"),
     box = document.querySelector("#create-preview");
   if (!f || !box) return;
   try {
-    const d = new FormData(f),
-      count = assertCapacity(Number(d.get("capacity"))),
+    const d = new FormData(f);
+    // Until the owner enters a price and a seat count there is nothing to work out yet.
+    if (d.get("listingKind") === "sale") return updateSalePreview(f, d, box);
+    if (!String(d.get("product") || "").trim() || !String(d.get("capacity") || "").trim()) {
+      box.innerHTML = `<small>${t("ราคาต่อที่นั่ง")}</small><strong>—</strong><p>${t("กรอกราคาสินค้าและจำนวนสมาชิกเพื่อดูราคาต่อคน")}</p>`;
+      for (const id of ["#summary-product-price", "#summary-fee", "#summary-per-person"]) {
+        const el = document.querySelector(id);
+        if (el) el.textContent = "—";
+      }
+      const title = document.querySelector("#summary-product-title");
+      if (title) title.textContent = d.get("productTitle") || t("ชื่อสินค้า");
+      return;
+    }
+    const count = assertCapacity(Number(d.get("capacity"))),
       costs = costBreakdown(formCosts(d), count),
       moneyOrZero = (value) => money(Number.isFinite(value) ? value : 0);
     const seat = seatPrice(formCosts(d), count, count - 1);
-    box.innerHTML = `<small>${d.get("billing") === "monthly" ? t("ราคาต่อที่นั่งต่อเดือน") : t("ราคาต่อที่นั่ง")}</small><strong>${moneyOrZero(seat)} ${t("/ คน")}</strong><p>${t("รวมค่าส่งและค่าธรรมเนียมแพลตฟอร์ม 2% แล้ว")}</p>`;
+    box.innerHTML = `<small>${d.get("billing") === "monthly" ? t("ราคาต่อที่นั่งต่อเดือน") : t("ราคาต่อที่นั่ง")}</small><strong>${moneyOrZero(seat)} ${t("/ คน")}</strong><p>${t("รวมค่าส่งแล้ว ค่าคอม 2% หักจากเงินที่คุณได้รับ ไม่บวกเพิ่มให้สมาชิก")}</p>`;
     const put = (selector, value) => { const el = document.querySelector(selector); if (el) el.textContent = value; };
     put("#summary-product-title", d.get("productTitle") || t("ชื่อสินค้า"));
     put("#summary-product-category", selectedCreateCategories.map((x) => t(x)).join(" · ") || t("หมวดหมู่สินค้า"));
     put("#summary-product-price", moneyOrZero(costs.product));
     put("#summary-shipping", moneyOrZero(parseBaht(d.get("shippingTotal") || "0")));
-    put("#summary-fee", moneyOrZero(costs.service));
+    // What the platform keeps when every other seat is filled and paid: 2% of each member payment.
+    const commission = ownerPayout(Array.from({ length: count - 1 }, (_, i) => seatPrice(formCosts(d), count, i + 1))).commission;
+    put("#summary-fee", moneyOrZero(commission));
     put("#summary-per-person", `${moneyOrZero(seat)} / ${t("คน")}`);
     put("#summary-members", `${d.get("minimumMembers") || "2"}–${count} ${t("คน")}`);
-    put("#summary-deadline", d.get("closesAt") || "—");
+    put("#summary-deadline", d.get("billing") === "monthly" ? (d.get("payDay") ? t("จ่ายทุกวันที่ {day}", { day: d.get("payDay") }) : "—") : d.get("closesAt") || "—");
     const deliveryLabels = { ship_to_owner: "จัดส่งรวม", ship_separately: "จัดส่งแยก", pickup: "นัดรับ" };
     put("#summary-delivery", f.dataset.productType === "digital" ? t("ส่งมอบสิทธิ์ดิจิทัล") : t(deliveryLabels[d.get("deliveryMethod")] || "จัดส่งรวม"));
     put("#summary-visibility", t(({ public: "สาธารณะ", link: "เฉพาะผู้มีลิงก์", private: "ส่วนตัว" })[d.get("visibilityMode")] || "สาธารณะ"));
@@ -4407,6 +5303,31 @@ document.addEventListener("change", async (e) => {
     if (submit) submit.disabled = !file;
     return;
   }
+  if (input.matches?.("[data-payout-qr-input]")) {
+    const form = input.closest("#payout-account-form"),
+      status = form?.querySelector("[data-payout-qr-status]"),
+      preview = form?.querySelector("[data-payout-qr-preview]"),
+      file = input.files?.[0];
+    if (file && (!PAYOUT_QR_TYPES.includes(file.type) || file.size > PAYOUT_QR_MAX_BYTES)) {
+      input.value = "";
+      if (status) status.textContent = t("กรุณาเลือกไฟล์ JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB");
+      return;
+    }
+    if (status && file) status.textContent = file.name;
+    if (preview && file) {
+      if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
+      preview.dataset.objectUrl = URL.createObjectURL(file);
+      preview.src = preview.dataset.objectUrl;
+      preview.hidden = false;
+    }
+    const remove = form?.querySelector('[name="removeQr"]');
+    if (remove && file) remove.checked = false;
+    return;
+  }
+  if (input.name === "method" && input.closest("#payout-account-form")) {
+    input.closest("#payout-account-form").dataset.method = input.value;
+    return;
+  }
   if (input.closest("#create-form")) {
     updateCreateFormUI();
     updatePreview();
@@ -4575,6 +5496,23 @@ document.addEventListener("change", (e) => {
   window.scrollTo(0, scrollY);
 });
 document.addEventListener("click", async (e) => {
+  if (requestMarketplace.onClick(e)) return;
+  const unitStep = e.target.closest("[data-unit-step]");
+  if (unitStep) {
+    const card = unitStep.closest("[data-unit-join]");
+    const g = card && group(card.dataset.id);
+    if (!g) return;
+    const open = openUnits(g);
+    const output = card.querySelector("[data-unit-count]");
+    const next = Math.max(1, Math.min(open, (Number(output.textContent) || 1) + Number(unitStep.dataset.unitStep)));
+    output.textContent = String(next);
+    card.querySelector("[data-unit-price]").textContent = money(unitJoinPrice(g, next));
+    card.querySelector('[data-unit-step="-1"]').disabled = next <= 1;
+    card.querySelector('[data-unit-step="1"]').disabled = next >= open;
+    const join = document.querySelector(`[data-action="join"][data-id="${CSS.escape(card.dataset.id)}"]`);
+    if (join) join.dataset.units = String(next);
+    return;
+  }
   const overlay = e.target.closest("#auth-modal-overlay");
   if (overlay && e.target === overlay) {
     const r = overlay.getBoundingClientRect();
@@ -4643,6 +5581,13 @@ document.addEventListener("click", async (e) => {
     if (action === "listing-menu-toggle") {
       listingMenuOpen = !listingMenuOpen;
       render();
+      return;
+    }
+    if (action === "why-tab") {
+      whyTab = btn.dataset.tab || "buyer";
+      const section = btn.closest(".why-section");
+      section?.querySelectorAll('[role="tab"]').forEach((tab) => tab.setAttribute("aria-selected", String(tab === btn)));
+      section?.querySelectorAll(".why-panel").forEach((panel) => { panel.hidden = panel.id !== `why-panel-${whyTab}`; });
       return;
     }
     if (action === "home-group-filter") {
@@ -5042,6 +5987,22 @@ document.addEventListener("click", async (e) => {
       groupMessageLoadState.delete(id);
       groupMessageErrors.delete(id);
       void refreshGroupChatMessages(id, { rerender: true });
+    } else if (["sale-report-paid", "sale-mark-paid", "sale-confirm-receipt"].includes(action)) {
+      // Demo/test flow for a purchase: buyer reports the transfer, the platform confirms it, buyer confirms receipt.
+      const current = group(id);
+      const me = state.user?.id;
+      if (!current || !saleMode(current) || !current.members.includes(me) || current.ownerId === me)
+        throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      const next = { "sale-report-paid": "reported", "sale-mark-paid": "paid", "sale-confirm-receipt": "received" }[action];
+      updateGroup({ ...current, salePayments: { ...current.salePayments, [me]: next } });
+      const notes = {
+        reported: [t("ผู้ซื้อแจ้งโอนแล้ว"), t("{name} แจ้งโอนเงินสำหรับ “{title}”", { name: state.user.name, title: current.name })],
+        paid: [t("ตัวกลางรับเงินแล้ว"), t("ส่งของให้ {name} ได้เลย", { name: state.user.name })],
+        received: [t("ผู้ซื้อได้รับของแล้ว"), t("{name} ยืนยันรับของแล้ว ตัวกลางจะโอนเงินให้คุณ", { name: state.user.name })],
+      }[next];
+      notice(notes[0], notes[1], `/groups/${id}`, current.ownerId);
+      render();
+      alertMessage(next === "reported" ? t("แจ้งโอนแล้ว รอตัวกลางตรวจยอด") : next === "paid" ? t("ตัวกลางยืนยันรับเงินแล้ว (ทดสอบ)") : t("ขอบคุณ! เงินจะถูกโอนให้ผู้ขาย"));
     } else if (action === "join") {
       if (supabaseConfigured) {
         const token = new URLSearchParams(location.search).get("invite");
@@ -5050,8 +6011,16 @@ document.addEventListener("click", async (e) => {
         go(`/groups/${id}`);
         alertMessage(t("เข้าร่วมกลุ่มแล้ว กรุณายืนยันยอดใหม่"));
       } else {
-        const g = joinGroup(group(id), state.user.id);
+        if (requestMarketplace.joinBlockedByReservation(group(id), state.user.id))
+          throw Object.assign(new Error(t("กลุ่มนี้เต็มแล้ว")), { code: "fullGroup" });
+        const g = joinGroup(group(id), state.user.id, Number(btn.dataset.units) || 1);
         updateGroup(g);
+        if (saleMode(g)) {
+          notice(t("มีคำสั่งซื้อใหม่"), t("{name} ซื้อ {count} ชิ้นจาก “{title}”", { name: state.user.name, count: unitsOf(g, state.user.id), title: g.name }), `/groups/${id}`, g.ownerId);
+          go(`/groups/${id}`);
+          alertMessage(t("สั่งซื้อแล้ว กรุณาโอนเงินเข้าตัวกลาง"));
+          return;
+        }
         g.members.forEach((u) =>
           notice(
             t("ยอดกลุ่มเปลี่ยน"),
@@ -5062,7 +6031,7 @@ document.addEventListener("click", async (e) => {
             u,
           ),
         );
-        if (g.members.length === g.capacity)
+        if (groupFull(g))
           g.members.forEach((u) =>
             notice(
               t("กลุ่มครบสมาชิก"),
@@ -5237,6 +6206,150 @@ document.addEventListener("click", async (e) => {
         alertMessage(t("บันทึกการชำระแล้ว (โหมดเดโม)"));
       }
       render();
+    } else if (action === "open-payout-slip") {
+      const path = btn.dataset.path || "";
+      if (!supabaseConfigured || !path.startsWith(`${state.user?.id}/`))
+        throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      const win = window.open("about:blank", "_blank");
+      const url = await openPayoutSlip(path);
+      if (win) win.location.href = url;
+      else location.href = url;
+    } else if (["close-group", "hide-group", "unhide-group", "end-after-cycle"].includes(action)) {
+      const current = group(id);
+      if (!current || !state.user) throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      const me = state.user.id;
+      if (action === "close-group" && !confirm(t("ปิดกลุ่มนี้ใช่ไหม? กลุ่มจะหายจากหน้าสำรวจและรายการกลุ่ม ข้อมูลเงินและสลิปยังเก็บไว้ในประวัติ")))
+        return;
+      const cycleNumber = btn.dataset.cycle ? Number(btn.dataset.cycle) : null;
+      if (action === "end-after-cycle" && cycleNumber && !confirm(t("จบกลุ่มหลังรอบที่ {number} ใช่ไหม? จะไม่มีการเปิดรอบใหม่และไม่เก็บเงินรอบถัดไป สมาชิกจะเห็นว่ารอบนี้เป็นรอบสุดท้าย", { number: cycleNumber })))
+        return;
+      try {
+        if (supabaseConfigured) {
+          if (action === "close-group") await closeSupabaseGroup(id);
+          else if (action === "end-after-cycle") await endSupabaseGroupAfterCycle(id, cycleNumber);
+          else await hideSupabaseGroup(id, action === "hide-group");
+          if (!(await refreshSupabaseGroups(actionSession))) return;
+        } else if (action === "close-group") updateGroup(closeGroup(current, me));
+        else if (action === "end-after-cycle") updateGroup(endAfterCycle(current, me, cycleNumber));
+        else {
+          const list = new Set(state.hiddenGroups?.[me] || []);
+          if (action === "hide-group") list.add(id); else list.delete(id);
+          save({ ...state, hiddenGroups: { ...(state.hiddenGroups || {}), [me]: [...list] } });
+        }
+      } catch (err) {
+        const message = String(err?.message || "");
+        if (message.includes("group_not_finished")) throw new Error(t("ยังปิดไม่ได้: ต้องให้ทุกคนได้รับของ และแอดมินโอนเงินให้คุณครบก่อน"));
+        if (message.includes("group_still_active")) throw new Error(t("ยังซ่อนไม่ได้: รอให้คุณได้รับของก่อน"));
+        throw err;
+      }
+      render();
+      alertMessage({ "close-group": t("ปิดกลุ่มแล้ว ย้ายไปที่ประวัติ"), "hide-group": t("ซ่อนจากรายการของคุณแล้ว ดูได้ในประวัติ"), "unhide-group": t("แสดงในรายการของคุณแล้ว"), "end-after-cycle": cycleNumber ? t("ตั้งให้รอบที่ {number} เป็นรอบสุดท้ายแล้ว", { number: cycleNumber }) : t("ยกเลิกแล้ว กลุ่มต่ออายุตามปกติ") }[action]);
+    } else if (action === "report-app-problem") {
+      document.querySelector("#app-problem-dialog")?.remove();
+      document.body.insertAdjacentHTML("beforeend", appProblemDialog());
+      const dialog = document.querySelector("#app-problem-dialog");
+      dialog.addEventListener("close", () => dialog.remove(), { once: true });
+      dialog.showModal();
+      return;
+    } else if (action === "report-problem") {
+      document.querySelector("#problem-dialog")?.remove();
+      const attrs = [["id", btn.dataset.id], ["cycle", btn.dataset.cycle]].filter(([, v]) => v).map(([k, v]) => `data-${k}="${escape(v)}"`).join(" ");
+      document.body.insertAdjacentHTML("beforeend", problemDialog(attrs));
+      const dialog = document.querySelector("#problem-dialog");
+      dialog.addEventListener("close", () => dialog.remove(), { once: true });
+      dialog.showModal();
+      return;
+    } else if (action === "mark-shipped") {
+      const current = group(id);
+      if (!current || current.ownerId !== state.user?.id) throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      if (!confirm(t("ยืนยันว่าส่งของหรือส่งมอบสิทธิ์ให้สมาชิกที่จ่ายแล้วทุกคนแล้วใช่ไหม? ถ้าไม่มีใครแจ้งปัญหาภายใน {days} วัน ระบบจะยืนยันรับของให้อัตโนมัติ", { days: AUTO_RECEIPT_DAYS })))
+        return;
+      if (!supabaseConfigured) throw new Error(t("ใช้ได้เมื่อเชื่อมต่อระบบชำระเงินจริง"));
+      const cycleNumber = btn.dataset.cycle ? Number(btn.dataset.cycle) : null;
+      await markSupabaseShipped(id, cycleNumber);
+      if (!(await refreshSupabaseGroups(actionSession))) return;
+      render();
+      alertMessage(t("แจ้งส่งของแล้ว ระบบจะยืนยันรับของอัตโนมัติใน {days} วันถ้าไม่มีปัญหา", { days: AUTO_RECEIPT_DAYS }));
+    } else if (action === "sale-mark-shipped" || action === "sale-skip-days" || action === "sale-admin-resolve") {
+      // Demo/test only: seller ships one order; test helpers jump the clock or play the admin.
+      const current = group(id);
+      if (!current || !saleMode(current)) throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      const buyer = btn.dataset.buyer || state.user?.id;
+      const order = { ...(current.saleOrders?.[buyer] || {}) };
+      if (action === "sale-mark-shipped") {
+        if (current.ownerId !== state.user?.id) throw Object.assign(new Error(), { code: "orderUnauthorized" });
+        if (!confirm(t("ยืนยันว่าส่งของให้ {name} แล้วใช่ไหม? ถ้าไม่มีการแจ้งปัญหาภายใน {days} วัน ระบบจะยืนยันรับของให้อัตโนมัติ", { name: name(buyer), days: AUTO_RECEIPT_DAYS }))) return;
+        order.shippedAt ||= new Date().toISOString();
+        notice(t("ผู้ขายส่งของแล้ว"), t("“{title}” ถูกส่งแล้ว ถ้ามีปัญหากดแจ้งปัญหาได้ภายใน {days} วัน", { title: current.name, days: AUTO_RECEIPT_DAYS }), `/groups/${id}`, buyer);
+      } else if (action === "sale-skip-days") {
+        if (!testMode || !order.shippedAt) return;
+        order.shippedAt = new Date(new Date(order.shippedAt).getTime() - AUTO_RECEIPT_DAYS * 86_400_000).toISOString();
+      } else {
+        if (!testMode || !order.dispute) return;
+        order.dispute = { ...order.dispute, status: btn.dataset.outcome === "refunded" ? "refunded" : "released", resolution_note: btn.dataset.outcome === "refunded" ? t("ทดสอบ: คืนเงินผู้ซื้อ") : t("ทดสอบ: ปล่อยเงินให้ผู้ขาย") };
+      }
+      updateGroup({ ...current, saleOrders: { ...current.saleOrders, [buyer]: order } });
+      render();
+      if (action === "sale-mark-shipped") alertMessage(t("แจ้งส่งของแล้ว"));
+    } else if (action === "confirm-receipt") {
+      const current = group(id);
+      if (!current || !current.members.includes(state.user?.id) || current.ownerId === state.user.id)
+        throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      if (!confirm(t("ยืนยันว่าได้รับสินค้าหรือใช้งานได้แล้วใช่ไหม? ยืนยันแล้วเงินของคุณจะถูกโอนให้เจ้าของกลุ่มเมื่อทุกคนยืนยันครบ")))
+        return;
+      if (!supabaseConfigured) throw new Error(t("ยืนยันรับสินค้าได้เมื่อเชื่อมต่อระบบชำระเงินจริง"));
+      await confirmSupabaseReceipt(id);
+      if (!(await refreshSupabaseGroups(actionSession))) return;
+      render();
+      alertMessage(t("ยืนยันรับสินค้าแล้ว ขอบคุณครับ"));
+    } else if (action === "confirm-cycle-receipt") {
+      const current = group(id),
+        number = Number(btn.dataset.cycle);
+      if (!current || !current.members.includes(state.user?.id))
+        throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      if (!confirm(t("ยืนยันว่าได้รับสินค้าหรือใช้งานได้แล้วใช่ไหม? ยืนยันแล้วเงินของคุณจะถูกโอนให้เจ้าของกลุ่มเมื่อทุกคนยืนยันครบ")))
+        return;
+      if (supabaseConfigured) {
+        await confirmSupabaseCycleReceipt(id, number);
+        if (!(await refreshSupabaseGroups(actionSession))) return;
+      } else {
+        updateGroup(confirmCycleReceipt(current, state.user.id, number));
+      }
+      render();
+      alertMessage(t("ยืนยันรับสินค้าแล้ว ขอบคุณครับ"));
+    } else if (action === "redeem-promo") {
+      if (!state.user) throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      const code = String(document.querySelector("#promo-code-input")?.value || "").trim();
+      if (!code) throw new Error(t("กรุณากรอกโค้ดส่วนลด"));
+      if (supabaseConfigured) {
+        btn.disabled = true;
+        try {
+          await redeemSupabasePromo(code);
+          state.remoteSubscription = await loadSupabaseSubscription();
+        } finally {
+          btn.disabled = false; // a wrong code can be fixed and tried again
+        }
+      } else {
+        const promo = redeemPromo(state.promos?.[state.user.id], code);
+        save({ ...state, promos: { ...(state.promos || {}), [state.user.id]: promo } });
+      }
+      render();
+      alertMessage(t("ยินดีด้วย! คุณได้รับโค้ดพิเศษ ไม่เสียค่าธรรมเนียมเว็บ 2% เป็นเวลา 2 เดือน"));
+    } else if (action === "approve-owner") {
+      const current = group(id),
+        revision = Number(btn.dataset.revision);
+      if (!current || current.ownerId !== state.user?.id)
+        throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      if (!confirm(t("ยืนยันยอดกลุ่มรอบนี้ใช่ไหม? คุณไม่ต้องโอนเงิน สมาชิกจะโอนเข้าบัญชีแพลตฟอร์ม")))
+        return;
+      if (supabaseConfigured) {
+        await approveSupabaseGroup(id, revision);
+        if (!(await refreshSupabaseGroups(actionSession))) return;
+      } else {
+        updateGroup(approve(current, state.user.id, revision));
+      }
+      render();
+      alertMessage(t("ยืนยันยอดกลุ่มแล้ว"));
     } else if (action === "approve") {
       const current = group(id);
       if (!current || !current.members.includes(state.user?.id))
@@ -5320,6 +6433,22 @@ document.addEventListener("click", async (e) => {
       }
       if (!copied) throw new Error(t("คัดลอกลิงก์ไม่สำเร็จ"));
       alertMessage(t("คัดลอกลิงก์เชิญแล้ว"));
+    } else if (action === "open-note") {
+      markNotesRead([btn.dataset.id]);
+      const local = btn.dataset.local && state.notifications.find((x) => x.id === btn.dataset.local);
+      if (local) {
+        local.read = true;
+        save();
+      }
+      go(btn.dataset.href || "/notifications");
+    } else if (action === "read-all-notes") {
+      const feed = notificationFeed();
+      markNotesRead(feed.map((n) => n.id));
+      state.notifications.forEach((n) => {
+        if (n.recipient === state.user?.id) n.read = true;
+      });
+      save();
+      render();
     } else if (action === "open-notice") {
       const n = state.notifications.find((x) => x.id === id);
       n.read = true;
@@ -5463,7 +6592,7 @@ document.addEventListener("click", async (e) => {
       if (!g || g.ownerId !== state.user?.id) throw Error(t("เฉพาะหัวหน้ากลุ่มแก้ไขได้"));
       const dialog = document.createElement("dialog");
       dialog.className = "form-dialog edit-group-dialog";
-      dialog.innerHTML = `<form id="edit-group-form" data-id="${escape(id)}"><div class="dialog-heading"><div><h2>${t("แก้ไขกลุ่ม")}</h2><p>${t("แก้ไขข้อมูลที่สมาชิกเห็นในกลุ่ม")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><label>${t("ชื่อกลุ่ม")}<input name="name" required maxlength="70" value="${escape(g.name)}"/></label><label>${t("สมาชิกขั้นต่ำ")}<input name="minimumMembers" type="number" min="2" max="${g.capacity}" required value="${Number(details.minimumMembers || 2)}"/></label><label>${t("วันปิดรับสมาชิก")}<input name="closesAt" type="date" required value="${escape(details.closesAt || "")}"/></label><label>${t("ค่าส่งต่อคน (บาท)")}<input name="delivery" inputmode="decimal" required value="${bahtInput(g.costs.delivery)}"/></label><label>${t("การมองเห็นกลุ่ม")}<select name="visibilityMode"><option value="public" ${details.visibilityMode === "public" || (!details.visibilityMode && g.visibility === "public") ? "selected" : ""}>${t("สาธารณะ")}</option><option value="link" ${details.visibilityMode === "link" || (!details.visibilityMode && g.visibility === "link") ? "selected" : ""}>${t("เฉพาะผู้มีลิงก์")}</option><option value="private" ${details.visibilityMode === "private" ? "selected" : ""}>${t("ส่วนตัว")}</option></select></label><label>${t("หมายเหตุถึงสมาชิก")}<textarea name="memberNote" maxlength="500">${escape(details.memberNote || "")}</textarea></label><div data-dialog-feedback class="dialog-feedback" role="alert" hidden></div><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("บันทึกการแก้ไข")}</button></div></form>`;
+      dialog.innerHTML = `<form id="edit-group-form" data-id="${escape(id)}"><div class="dialog-heading"><div><h2>${t("แก้ไขกลุ่ม")}</h2><p>${t("แก้ไขข้อมูลที่สมาชิกเห็นในกลุ่ม")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><label>${t("ชื่อกลุ่ม")}<input name="name" required maxlength="70" value="${escape(g.name)}"/></label><label>${t("สมาชิกขั้นต่ำ")}<input name="minimumMembers" type="number" min="2" max="${g.capacity}" required value="${Number(details.minimumMembers || 2)}"/></label>${g.billing === "monthly" ? `<p class="field-help">${t("จ่ายทุกวันที่ {day} ของเดือน", { day: g.payDay || "—" })}</p>` : `<label>${t("วันปิดรับสมาชิก")}<input name="closesAt" type="date" required value="${escape(details.closesAt || "")}"/></label>`}<label>${t("ค่าส่งต่อคน (บาท)")}<input name="delivery" inputmode="decimal" required value="${bahtInput(g.costs.delivery)}"/></label><label>${t("การมองเห็นกลุ่ม")}<select name="visibilityMode"><option value="public" ${details.visibilityMode === "public" || (!details.visibilityMode && g.visibility === "public") ? "selected" : ""}>${t("สาธารณะ")}</option><option value="link" ${details.visibilityMode === "link" || (!details.visibilityMode && g.visibility === "link") ? "selected" : ""}>${t("เฉพาะผู้มีลิงก์")}</option><option value="private" ${details.visibilityMode === "private" ? "selected" : ""}>${t("ส่วนตัว")}</option></select></label><label>${t("หมายเหตุถึงสมาชิก")}<textarea name="memberNote" maxlength="500">${escape(details.memberNote || "")}</textarea></label><div data-dialog-feedback class="dialog-feedback" role="alert" hidden></div><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("บันทึกการแก้ไข")}</button></div></form>`;
       document.body.append(dialog);
       dialog.addEventListener("close", () => dialog.remove(), { once: true });
       dialog.showModal();
@@ -5495,6 +6624,9 @@ document.addEventListener("click", async (e) => {
     );
   }
 });
+document.addEventListener("submit", (e) => {
+  requestMarketplace.onSubmit(e);
+});
 document.addEventListener("submit", async (e) => {
   const f = e.target;
   if (f.id !== "edit-group-form") return;
@@ -5512,7 +6644,7 @@ document.addEventListener("submit", async (e) => {
   try {
     if (!g || g.ownerId !== state.user?.id) throw Error(t("เฉพาะหัวหน้ากลุ่มแก้ไขได้"));
     if (!f.reportValidity()) return;
-    if (!name || name.length > 70 || minimumMembers < 2 || minimumMembers > g.capacity || closesAt < todayLocal)
+    if (!name || name.length > 70 || minimumMembers < 2 || minimumMembers > g.capacity || (g.billing !== "monthly" && closesAt < todayLocal))
       throw Error(t("กรุณาตรวจสอบชื่อกลุ่ม จำนวนสมาชิก และวันปิดรับ"));
     if (! ["public", "link", "private"].includes(visibilityMode)) throw Error(t("การมองเห็นกลุ่มไม่ถูกต้อง"));
     const delivery = parseBaht(data.get("delivery"));
@@ -5520,7 +6652,7 @@ document.addEventListener("submit", async (e) => {
     const details = {
       ...(g.details || {}),
       minimumMembers,
-      closesAt,
+      ...(g.billing === "monthly" ? {} : { closesAt }),
       visibilityMode,
       memberNote: String(data.get("memberNote") || "").trim(),
     };
@@ -5674,6 +6806,7 @@ document.addEventListener("submit", async (e) => {
     return;
   }
 });
+document.addEventListener("input", (e) => requestMarketplace.onInput(e));
 document.addEventListener("input", (e) => {
   if (e.target?.matches?.("[data-chat-search]")) {
     const query = e.target.value.trim().toLocaleLowerCase();
@@ -5699,6 +6832,59 @@ document.addEventListener("input", (e) => {
 document.addEventListener("submit", async (e) => {
   const f = e.target,
     actionSession = activeSupabaseSession;
+  if (f.id === "app-problem-form") {
+    e.preventDefault();
+    const d = new FormData(f);
+    const topic = String(d.get("topic") || "อื่น ๆ");
+    const message = String(d.get("message") || "").trim();
+    if (message.length < 5) {
+      alertError(t("กรุณาเล่ารายละเอียดอย่างน้อย 5 ตัวอักษร"));
+      return;
+    }
+    const submit = f.querySelector('[type="submit"]');
+    if (submit) submit.disabled = true;
+    try {
+      if (supabaseConfigured) await submitSupabaseAppProblem(topic, message);
+      f.closest("dialog")?.close();
+      alertMessage(supabaseConfigured ? t("ส่งรายงานแล้ว ทีมงานจะตรวจสอบและติดต่อกลับ") : t("ส่งรายงานแล้ว (เดโม)"));
+    } catch (err) {
+      const msg = String(err?.message || "");
+      alertError(msg.includes("too_many_reports") ? t("วันนี้คุณส่งรายงานครบ 10 ครั้งแล้ว ลองใหม่พรุ่งนี้")
+        : msg.includes("submit_app_problem_report") || err?.code === "PGRST202" ? t("ระบบรายงานปัญหายังไม่พร้อม กรุณาลองใหม่ภายหลัง")
+        : authErrorMessage(err));
+      if (submit) submit.disabled = false;
+    }
+    return;
+  }
+  if (f.id === "problem-form") {
+    e.preventDefault();
+    const d = new FormData(f);
+    const reason = [d.get("reasonType"), String(d.get("reasonDetail") || "").trim()].filter(Boolean).join(" · ");
+    const id = f.dataset.id, cycleNumber = f.dataset.cycle ? Number(f.dataset.cycle) : null;
+    try {
+      const current = group(id);
+      if (!current || !current.members.includes(state.user?.id) || current.ownerId === state.user.id)
+        throw Object.assign(new Error(), { code: "orderUnauthorized" });
+      if (saleMode(current)) {
+        const order = current.saleOrders?.[state.user.id] || {};
+        updateGroup({ ...current, saleOrders: { ...current.saleOrders, [state.user.id]: { ...order, dispute: { status: "open", reason, created_at: new Date().toISOString() } } } });
+        notice(t("ผู้ซื้อแจ้งปัญหา"), t("{name} แจ้งปัญหาคำสั่งซื้อ “{title}”: {reason}", { name: state.user.name, title: current.name, reason }), `/groups/${id}`, current.ownerId);
+      } else {
+        if (!supabaseConfigured) throw new Error(t("ใช้ได้เมื่อเชื่อมต่อระบบชำระเงินจริง"));
+        await reportSupabaseProblem(id, cycleNumber, reason);
+        if (!(await refreshSupabaseGroups(actionSession))) return;
+      }
+      f.closest("dialog")?.close();
+      render();
+      alertMessage(t("ส่งเรื่องแล้ว ตัวกลางพักเงินไว้และทีมงานจะติดต่อกลับ"));
+    } catch (err) {
+      const message = String(err?.message || "");
+      alertError(message.includes("already_received") ? t("ยืนยันรับของไปแล้ว แจ้งปัญหาไม่ได้ ติดต่อทีมงานผ่านแชทแทน")
+        : message.includes("problem_already_reported") ? t("คุณแจ้งปัญหานี้ไปแล้ว ทีมงานกำลังตรวจสอบ")
+        : supabaseConfigured ? authErrorMessage(err) : errorMessage(err));
+    }
+    return;
+  }
   if (
     ["mockup-login-form", "mockup-signup-form", "mockup-address-form", "mockup-reset-password-form"].includes(
       f.id,
@@ -5944,6 +7130,59 @@ document.addEventListener("submit", async (e) => {
         supabaseConfigured ? authErrorMessage(err) : storageError(err),
       );
     }
+  } else if (f.id === "payout-account-form") {
+    e.preventDefault();
+    if (!state.user) throw Object.assign(new Error(), { code: "orderUnauthorized" });
+    const d = new FormData(f),
+      method = d.get("method") === "bank" ? "bank" : "promptpay",
+      digits = (value) => String(value || "").replace(/[^0-9]/g, ""),
+      account = {
+        method,
+        accountName: String(d.get("accountName") || "").trim(),
+        promptpayId: method === "promptpay" ? digits(d.get("promptpayId")) : "",
+        bankName: method === "bank" ? String(d.get("bankName") || "") : "",
+        accountNumber: method === "bank" ? digits(d.get("accountNumber")) : "",
+      };
+    try {
+      if (account.accountName.length < 2) throw new Error(t("กรุณากรอกชื่อบัญชี"));
+      if (method === "promptpay" && !/^(0\d{9}|\d{13})$/.test(account.promptpayId))
+        throw new Error(t("PromptPay ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตรประชาชน 13 หลัก"));
+      if (method === "bank" && !/^\d{10,15}$/.test(account.accountNumber))
+        throw new Error(t("เลขบัญชีต้องเป็นตัวเลข 10–15 หลัก"));
+      const qrFile = d.get("qr") instanceof File && d.get("qr").size ? d.get("qr") : null,
+        removeQr = !qrFile && d.get("removeQr") === "on";
+      if (qrFile && (!PAYOUT_QR_TYPES.includes(qrFile.type) || qrFile.size > PAYOUT_QR_MAX_BYTES))
+        throw new Error(t("กรุณาเลือกไฟล์ JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB"));
+      if (supabaseConfigured) {
+        await saveSupabasePayoutAccount(account);
+        if (qrFile || removeQr) {
+          try {
+            await saveSupabasePayoutQr(state.user.id, qrFile);
+          } catch (err) {
+            state.remotePayoutAccount = await loadSupabasePayoutAccount(state.user.id);
+            render();
+            const missing = err?.code === "PGRST202" || String(err?.message || "").includes("set_my_payout_qr") || /bucket not found/i.test(String(err?.message || ""));
+            alertError(missing ? t("บันทึกบัญชีแล้ว แต่ฐานข้อมูลยังไม่รองรับ QR กรุณารัน migration 20261120200000_payout_account_qr.sql") : t("บันทึกบัญชีแล้ว แต่แนบ QR ไม่สำเร็จ กรุณาลองใหม่"));
+            return;
+          }
+        }
+        state.remotePayoutAccount = await loadSupabasePayoutAccount(state.user.id);
+      } else {
+        const previous = state.payoutAccounts?.[state.user.id] || {};
+        const qrData = qrFile ? await readFileAsDataUrl(qrFile) : removeQr ? null : previous.qr_data || null;
+        save({
+          ...state,
+          payoutAccounts: {
+            ...(state.payoutAccounts || {}),
+            [state.user.id]: { method, promptpay_id: account.promptpayId || null, bank_name: account.bankName || null, account_number: account.accountNumber || null, account_name: account.accountName, qr_data: qrData, updated_at: new Date().toISOString() },
+          },
+        });
+      }
+      render();
+      alertMessage(t("บันทึกบัญชีรับเงินแล้ว"));
+    } catch (err) {
+      alertError(supabaseConfigured ? authErrorMessage(err) : errorMessage(err));
+    }
   } else if (f.id === "profile-form") {
     e.preventDefault();
     try {
@@ -6097,7 +7336,7 @@ document.addEventListener("submit", async (e) => {
         title: String(d.get("productTitle") || "").trim(),
         category,
         kind: productType === "digital" ? "บริการ" : "สินค้า",
-        price: parseBaht(d.get("product")),
+        price: parseBaht(d.get(d.get("listingKind") === "sale" ? "salePrice" : "product")),
         art: "custom",
         mark: productType === "digital" ? "" : "หาร",
         description: String(d.get("productDescription") || "").trim(),
@@ -6121,6 +7360,11 @@ document.addEventListener("submit", async (e) => {
         digitalHandoff: String(d.get("digitalHandoff") || "").trim(),
       };
       const billing = d.get("billing") === "monthly" ? "monthly" : "one_time";
+      const payDay = billing === "monthly" ? Number(d.get("payDay")) : null;
+      if (billing === "monthly") {
+        if (!(Number.isInteger(payDay) && payDay >= 1 && payDay <= 28)) throw new Error(t("กรุณาเลือกวันที่ต้องจ่ายทุกเดือน (1–28)"));
+        delete groupDetails.closesAt;
+      }
       if (!supabaseConfigured) {
         const plan = effectivePlan(state.subscriptions?.[state.user.id]);
         // Seeded demo groups do not count; only groups this person opened with the form.
@@ -6131,7 +7375,7 @@ document.addEventListener("submit", async (e) => {
       if (supabaseConfigured) {
         const groupId = await createSupabaseGroup({
           product,
-          details: { ...groupDetails, billing },
+          details: { ...groupDetails, billing, ...(payDay ? { payDay } : {}) },
           name: d.get("name"),
           categories,
           images: groupImages,
@@ -6158,6 +7402,10 @@ document.addEventListener("submit", async (e) => {
         capacity: Number(d.get("capacity")),
         costs: formCosts(d),
         billing,
+        payDay,
+        ...(d.get("listingKind") === "sale"
+          ? { sale: { price: parseBaht(d.get("salePrice")), stock: Number(d.get("stock")), delivery: parseBaht(d.get("saleDelivery") || "0") } }
+          : {}),
       });
       const groupCategories = categories.includes("อื่น ๆ (ระบุชื่อเอง)")
         ? [...categories.filter((item) => item !== "อื่น ๆ (ระบุชื่อเอง)"), category]
@@ -6541,6 +7789,10 @@ function authErrorMessage(error) {
     return t(
       "ฐานข้อมูลยังใช้กติกาเตะสมาชิกเวอร์ชันเก่า กรุณารัน migration ล่าสุดของ Supabase",
     );
+  if (message.includes("member_has_paid"))
+    return t("สมาชิกคนนี้จ่ายเงินเข้ากองกลางแล้ว เตะออกไม่ได้ ติดต่อแอดมินเพื่อคืนเงินก่อน");
+  if (message.includes("group_closed"))
+    return t("กลุ่มนี้ปิดแล้ว");
   if (
     error?.code === "groupHasMembers" ||
     message.includes("group_has_members")
@@ -6554,6 +7806,16 @@ function authErrorMessage(error) {
   if (message.includes("invite_invalid"))
     return t("คำเชิญไม่ถูกต้องหรือหมดอายุ");
   if (message.includes("full_group")) return t("กลุ่มเต็มแล้ว");
+  if (message.includes("invalid_promptpay")) return t("PromptPay ต้องเป็นเบอร์มือถือ 10 หลัก หรือเลขบัตรประชาชน 13 หลัก");
+  if (message.includes("invalid_account_number")) return t("เลขบัญชีต้องเป็นตัวเลข 10–15 หลัก");
+  if (message.includes("invalid_account_name")) return t("กรุณากรอกชื่อบัญชี");
+  if (message.includes("set_my_payout_account") || message.includes("payout_accounts"))
+    return t("ฐานข้อมูลยังไม่รองรับบัญชีรับเงิน กรุณารัน migration 20261120140000_owner_payout_accounts.sql");
+  if (message.includes("promo_invalid")) return t("โค้ดไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง");
+  if (message.includes("promo_already_used")) return t("คุณใช้โค้ดนี้ไปแล้ว");
+  if (message.includes("promo_sold_out")) return t("โค้ดนี้ครบ 50 สิทธิ์แล้ว");
+  if (message.includes("payment_not_verified")) return t("ยืนยันรับสินค้าได้หลังแอดมินตรวจการชำระของคุณแล้ว");
+  if (message.includes("owner_receives_payout")) return t("เจ้าของกลุ่มไม่ต้องโอน ระบบจะโอนเงินจากสมาชิกให้หลังหักค่าคอม 2%");
   if (message.includes("group_limit_reached"))
     return t("เปิดกลุ่มได้สูงสุดตามแพ็กเกจแล้ว (Free 2 กลุ่ม, Plus 5 กลุ่ม)");
   if (message.includes("already_confirmed")) return t("คุณยืนยันรอบนี้แล้ว");
@@ -6649,6 +7911,7 @@ async function fetchSupabaseState(authUser) {
       snapshot = await loadSupabaseGroups();
     }
     snapshot.subscription = authUser ? await loadSupabaseSubscription().catch(() => null) : null;
+    snapshot.payoutAccount = authUser ? await loadSupabasePayoutAccount(authUser.id).catch(() => null) : null;
   } catch (error) {
     const loadError = new Error(error?.message || t("โหลดข้อมูลกลุ่มไม่สำเร็จ"), {
       cause: error,
@@ -6695,6 +7958,7 @@ async function refreshSupabaseGroups(session = activeSupabaseSession) {
 }
 
 function beginSupabaseSession(session) {
+  requestMarketplace.onSessionChange(session);
   authSessionSync.invalidate();
   activeSupabaseSession = session;
   if ((state.user?.id || null) !== (session?.user?.id || null)) {
@@ -6723,6 +7987,7 @@ if (supabaseConfigured) {
         remoteListings: result.snapshot.listings,
         remoteSellers: result.snapshot.sellers,
         remoteSubscription: result.snapshot.subscription || null,
+        remotePayoutAccount: result.snapshot.payoutAccount || null,
       };
       groupsLoading = false;
       groupsError = null;
@@ -6803,6 +8068,23 @@ if (typeof document !== "undefined") {
     { passive: true },
   );
   window.addEventListener("popstate", render);
+}
+if (testMode) {
+  requestMarketplace.seedTestData(TEST_USERS);
+  document.body.insertAdjacentHTML("beforeend", testBanner());
+  document.body.classList.add("has-test-banner");
+  document.addEventListener("change", (e) => {
+    if (!e.target.matches?.("[data-test-user]")) return;
+    switchTestUser(e.target.value);
+    render();
+    alertMessage(t("ตอนนี้ใช้งานเป็น {name}", { name: state.user.name }));
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest?.("[data-test-reset]")) return;
+    if (!confirm(t("ล้างข้อมูลทดสอบทั้งหมดในเบราว์เซอร์นี้ใช่ไหม?"))) return;
+    localStorage.removeItem(KEY);
+    location.href = "/";
+  });
 }
 render();
 if (supabaseConfigured) {

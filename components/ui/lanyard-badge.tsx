@@ -479,6 +479,14 @@ export default function LanyardBadge({
       card.style.transform =
         "translate3d(" + (T.x - cw / 2).toFixed(2) + "px," + (T.y + ringR).toFixed(2) + "px,0) rotate(" + (-swing).toFixed(4) + "rad)"
       inner.style.transform = "perspective(1100px) rotateY(" + spin.a.toFixed(4) + "rad)"
+      // iPad and iPhone Safari do not always honour backface-visibility on these faces, so the
+      // mirrored back showed through the front. Hide whichever face is turned away ourselves.
+      const frontShowing = Math.cos(spin.a) >= 0
+      const [frontFace, backFace] = inner.children as unknown as HTMLElement[]
+      if (frontFace && backFace) {
+        frontFace.style.visibility = frontShowing ? "visible" : "hidden"
+        backFace.style.visibility = frontShowing ? "hidden" : "visible"
+      }
       const edge = 1 - Math.abs(Math.cos(spin.a))
       inner.style.setProperty("--lyd-dim", (edge * 0.5).toFixed(3))
       inner.style.setProperty("--lyd-shine", (50 + Math.sin(spin.a) * 70 + swing * 90).toFixed(1) + "%")
@@ -697,12 +705,12 @@ export default function LanyardBadge({
           ref={innerRef}
           style={{ position: "absolute", left: 0, right: 0, top: ringR + clipH * 0.6, height: ch, transformStyle: "preserve-3d" }}
         >
-          <div style={face}>
+          <div style={{ ...face, transform: "rotateY(0deg) translateZ(0.1px)" }}>
             {front ?? defaultFront}
             {slot}
             {shade}
           </div>
-          <div style={{ ...face, transform: "rotateY(180deg)" }}>
+          <div style={{ ...face, transform: "rotateY(180deg) translateZ(0.1px)", visibility: "hidden" }}>
             {back ?? defaultBack}
             {slot}
             {shade}

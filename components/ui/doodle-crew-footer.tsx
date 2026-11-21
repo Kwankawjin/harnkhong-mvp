@@ -254,6 +254,14 @@ export interface FooterLink {
   onClick?: () => void;
 }
 
+export interface FooterContacts {
+  email?: string;
+  /** Shown as written; dialled with the digits only. */
+  phone?: string;
+  instagram?: string;
+  line?: string;
+}
+
 export interface FooterColumn {
   title: string;
   links: FooterLink[];
@@ -283,6 +291,8 @@ export interface DoodleCrewFooterProps {
   copyright?: string;
   legal?: FooterLink[];
   socials?: FooterLink[];
+  /** Email, phone and social links shown under the blurb. */
+  contacts?: FooterContacts;
   /** Shows a back-to-top button in the bottom bar. Defaults to true. */
   backToTop?: boolean;
   crew?: CrewMember[];
@@ -895,6 +905,36 @@ const Link = ({ link, className }: { link: FooterLink; className?: string }) =>
     <span className={className}>{link.label}</span>
   );
 
+function ContactIcon({ kind }: { kind: "mail" | "phone" | "instagram" | "line" }) {
+  const common = { width: 18, height: 18, viewBox: "0 0 24 24", "aria-hidden": true } as const;
+  if (kind === "mail")
+    return (
+      <svg {...common} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="m3 7 9 6 9-6" />
+      </svg>
+    );
+  if (kind === "phone")
+    return (
+      <svg {...common} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
+      </svg>
+    );
+  if (kind === "instagram")
+    return (
+      <svg {...common} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="5" />
+        <circle cx="12" cy="12" r="4" />
+        <circle cx="17.5" cy="6.5" r="0.8" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  return (
+    <svg {...common} fill="currentColor">
+      <path d="M12 3C6.5 3 2 6.6 2 11c0 3.9 3.5 7.2 8.3 7.9.3.1.8.2.9.5.1.3.1.7 0 1l-.1.9c0 .3-.2 1 .9.5 1.1-.4 5.9-3.5 8-6C21.4 14.3 22 12.7 22 11c0-4.4-4.5-8-10-8zm-3.6 10.6H6.4a.5.5 0 0 1-.5-.5V9a.5.5 0 0 1 1 0v3.6h1.5a.5.5 0 0 1 0 1zm2-.5a.5.5 0 0 1-1 0V9a.5.5 0 0 1 1 0zm4.8 0a.5.5 0 0 1-.9.3l-2-2.8v2.5a.5.5 0 0 1-1 0V9a.5.5 0 0 1 .9-.3l2 2.8V9a.5.5 0 0 1 1 0zm3.3-2.6a.5.5 0 0 1 0 1h-1.5v1h1.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1-.5-.5V9c0-.3.2-.5.5-.5h2a.5.5 0 0 1 0 1h-1.5v1z" />
+    </svg>
+  );
+}
+
 export default function DoodleCrewFooter({
   wordmark = "MISCHIEF",
   brand = "mischief",
@@ -908,6 +948,7 @@ export default function DoodleCrewFooter({
     { label: "Terms", href: "#" },
     { label: "Cookies", href: "#" },
   ],
+  contacts,
   socials = [
     { label: "Discord", href: "#" },
     { label: "YouTube", href: "#" },
@@ -1501,6 +1542,40 @@ export default function DoodleCrewFooter({
           <span className="dcf-brandname">{brand}</span>
         </div>
         {blurb && <p className="dcf-blurb">{blurb}</p>}
+        {contacts && (
+          <div className="dcf-contact">
+            {(contacts.email || contacts.phone) && (
+              <div className="dcf-contact-pills">
+                {contacts.email && (
+                  <a className="dcf-pill" href={"mailto:" + contacts.email}>
+                    <ContactIcon kind="mail" />
+                    <span>{contacts.email}</span>
+                  </a>
+                )}
+                {contacts.phone && (
+                  <a className="dcf-pill" href={"tel:" + contacts.phone.replace(/[^0-9+]/g, "")}>
+                    <ContactIcon kind="phone" />
+                    <span>{contacts.phone}</span>
+                  </a>
+                )}
+              </div>
+            )}
+            {(contacts.instagram || contacts.line) && (
+              <div className="dcf-contact-socials">
+                {contacts.instagram && (
+                  <a className="dcf-social" href={contacts.instagram} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                    <ContactIcon kind="instagram" />
+                  </a>
+                )}
+                {contacts.line && (
+                  <a className="dcf-social" href={contacts.line} target="_blank" rel="noopener noreferrer" aria-label="LINE">
+                    <ContactIcon kind="line" />
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         {columns.length > 0 && (
           <nav className="dcf-cols" aria-label="Footer">
             {columns.map((col) => (
@@ -1913,13 +1988,22 @@ const CSS =
   ".dcf :focus-visible{outline:2px dashed var(--dcf-ink);outline-offset:4px;border-radius:6px}" +
   ".dcf-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}" +
   // top band
-  ".dcf-top{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,2fr);grid-template-rows:auto 1fr;column-gap:clamp(24px,5vw,80px);row-gap:14px;padding:clamp(28px,4.5vw,56px) var(--dcf-pad) 0;max-width:1360px;width:100%;margin:0 auto;position:relative;z-index:3}" +
+  ".dcf-top{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,2fr);grid-template-rows:auto auto 1fr;column-gap:clamp(24px,5vw,80px);row-gap:14px;padding:clamp(28px,4.5vw,56px) var(--dcf-pad) 0;max-width:1360px;width:100%;margin:0 auto;position:relative;z-index:3}" +
   ".dcf-brand{display:flex;align-items:center;gap:10px;grid-column:1;grid-row:1}" +
   ".dcf-logo{display:block;width:40px;height:40px;object-fit:contain;transform:rotate(-3deg);transition:transform .35s cubic-bezier(.3,1.6,.5,1)}" +
   ".dcf-brand:hover .dcf-logo{transform:rotate(3deg) scale(1.06)}" +
   ".dcf-brandname{font-weight:800;font-size:19px;letter-spacing:-.02em}" +
   ".dcf-blurb{grid-column:1;grid-row:2;font-family:var(--dcf-serif);font-size:15px;line-height:1.55;color:var(--dcf-soft);max-width:34ch}" +
-  ".dcf-cols{grid-column:2;grid-row:1/span 2;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}" +
+  ".dcf-contact{grid-column:1;grid-row:3;display:grid;gap:12px;align-content:start}" +
+  ".dcf-contact-pills{display:flex;flex-wrap:wrap;gap:8px}" +
+  ".dcf-pill{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 16px;border-radius:999px;background:color-mix(in srgb,var(--dcf-accent) 10%,transparent);color:var(--dcf-ink);font-size:14px;font-weight:700;text-decoration:none;transition:background-color .2s,transform .2s}" +
+  ".dcf-pill svg{color:var(--dcf-accent);flex:none}" +
+  ".dcf-pill:hover{background:color-mix(in srgb,var(--dcf-accent) 18%,transparent);transform:translateY(-1px)}" +
+  ".dcf-contact-socials{display:flex;gap:8px}" +
+  ".dcf-social{display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--dcf-accent);color:#fff;transition:transform .25s cubic-bezier(.3,1.6,.5,1)}" +
+  ".dcf-social:hover{transform:translateY(-2px) rotate(-6deg)}" +
+  ".dcf-pill:focus-visible,.dcf-social:focus-visible{outline:2px solid var(--dcf-accent);outline-offset:2px}" +
+  ".dcf-cols{grid-column:2;grid-row:1/span 3;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}" +
   ".dcf-coltitle{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px}" +
   ".dcf-col li{margin:0 0 7px}" +
   ".dcf-link{position:relative;display:inline-block;font-size:14px;font-weight:550;color:var(--dcf-soft);padding:2px 0;transition:color .2s}" +
@@ -2024,6 +2108,6 @@ const CSS =
   "@keyframes dcf-bubble{from{opacity:0;scale:.6}to{opacity:1;scale:1}}" +
   "@keyframes dcf-wiggle{0%,100%{transform:none}30%{transform:rotate(-14deg) scale(1.15)}60%{transform:rotate(10deg)}}" +
   "@keyframes dcf-up{0%,100%{transform:none}50%{transform:translateY(-3px)}}" +
-  "@media (max-width:860px){.dcf-top{grid-template-columns:1fr;grid-template-rows:auto}.dcf-brand,.dcf-blurb,.dcf-cols{grid-column:1;grid-row:auto}.dcf-cols{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px;row-gap:22px}.dcf-copy{width:100%;margin-right:0}}" +
+  "@media (max-width:860px){.dcf-top{grid-template-columns:1fr;grid-template-rows:auto}.dcf-brand,.dcf-blurb,.dcf-contact,.dcf-cols{grid-column:1;grid-row:auto}.dcf-cols{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px;row-gap:22px}.dcf-copy{width:100%;margin-right:0}}" +
   "@media (max-width:480px){.dcf-btn{height:42px;font-size:13.5px;padding:0 16px 0 13px}.dcf-bubble{font-size:12px;padding:6px 10px}.dcf-totop span{display:none}}" +
   "@media (prefers-reduced-motion:reduce){.dcf *,.dcf *::before,.dcf *::after{animation:none!important;transition:none!important}.dcf .dcf-letter,.dcf .dcf-arrive,.dcf .dcf-word,.dcf .dcf-pop,.dcf .dcf-rise,.dcf .dcf-fade,.dcf .dcf-doodle-in{opacity:1!important}.dcf .dcf-draw{stroke-dashoffset:0!important}.dcf .dcf-dust{opacity:0!important}}";
