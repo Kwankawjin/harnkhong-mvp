@@ -236,33 +236,51 @@ a.hk-request-card:hover {
 .hk-request-summary strong {
   overflow-wrap: anywhere;
 }
-.hk-preview .hk-request-card {
-  max-width: 360px;
-}
-.hk-preview-desc p {
-  margin: 4px 0 0;
-  color: var(--hk-muted);
-  white-space: pre-line;
-}
-.hk-checklist {
+.hk-review {
   display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.hk-review-preview {
+  display: grid;
+  gap: 10px;
+}
+.hk-review-preview .hk-request-card {
+  box-shadow: var(--hk-shadow-md);
+}
+.hk-review-desc {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--hk-sky-50);
+}
+.hk-review-desc small {
   color: var(--hk-muted);
+  font-weight: 600;
 }
-.hk-checklist li {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
+.hk-review-desc p {
+  margin: 2px 0 0;
+  color: var(--hk-ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
-.hk-checklist svg {
-  flex: none;
-  margin-top: 3px;
-  color: var(--hk-blue);
+.hk-review-next {
+  height: 100%;
+  padding: 18px;
+  border-radius: var(--hk-radius-card);
+  background: var(--hk-sky-50);
+  border: 1px solid var(--hk-line);
 }
-
+.hk-review-next h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--hk-navy);
+}
+@media (max-width: 720px) {
+  .hk-review {
+    grid-template-columns: 1fr;
+  }
+}
 /* ---------- Detail (group-page layout) ---------- */
 .hk-detail-page .group-heading-line h1 {
   overflow-wrap: anywhere;
@@ -350,7 +368,13 @@ a.hk-request-card:hover {
   .hk-detail-page .group-detail {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
     gap: 18px;
+  }
+  .hk-detail-page .group-detail > *,
+  .hk-detail-page .group-detail-main > section {
+    width: 100%;
+    max-width: none;
   }
   .hk-detail-page .group-detail-main {
     display: contents;
