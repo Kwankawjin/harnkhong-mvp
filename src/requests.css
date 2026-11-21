@@ -772,3 +772,18 @@ a.hk-request-card:hover {
     padding: 18px;
   }
 }
+
+/* ---------- Header: five links ("กำลังหากลุ่ม" added) still fit on small laptops ---------- */
+@media (min-width: 960px) and (max-width: 1099px) {
+  .header-inner {
+    padding: 0 20px;
+    gap: 12px;
+  }
+  .desktop-nav {
+    gap: 2px;
+    margin-left: 12px;
+  }
+  .desktop-nav .nav-link {
+    padding: 10px 10px;
+  }
+}

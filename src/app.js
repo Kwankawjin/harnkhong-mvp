@@ -4512,13 +4512,17 @@ function render() {
   const nav = [
     ["/", "home", t("หน้าแรก")],
     ["/explore", "search", t("หารของ")],
+    ["/requests", "tag", t("กำลังหากลุ่ม")],
     ["/my-groups", "users", t("กลุ่มของฉัน")],
     ["/chat", "chat", t("แชต")],
     ["/profile", "user", t("บัญชี")],
     ["/subscription", "sparkles", t("แพ็กเกจ")],
   ];
-  const desktopNav = nav.slice(0, 4);
-  const bottomNav = nav.filter(([href]) => href !== "/subscription");
+  const desktopNav = nav.slice(0, 5);
+  // The phone tab bar keeps five slots; the request pages are reachable from the "หารของ" tabs and the menu.
+  const bottomNav = nav.filter(([href]) => href !== "/subscription" && href !== "/requests");
+  // Request Marketplace pages light up "กำลังหากลุ่ม".
+  const requestArea = /^\/(requests(\/|$)|my-requests$|my-offers$)/.test(location.pathname);
 
   doodleFooterRoot?.unmount();
   doodleFooterRoot = null;
@@ -4531,7 +4535,7 @@ function render() {
       <div class="header-inner">
         ${a("/", `<img class="logo-mark" src="/images/harnkhong-logo.png" alt=""/><span class="logo-text">HarnKhong<small>${t("หารของด้วยกัน")}</small></span>`, "brand")}
         <nav class="desktop-nav" aria-label="${t("เมนูหลัก")}">
-          ${desktopNav.map(([href, , label]) => a(href, label, "nav-link " + (location.pathname === href || (href === "/profile" && location.pathname.startsWith("/profile/")) || (href === "/marketplace/secondhand" && location.pathname.startsWith("/checkout/secondhand/")) ? "active" : ""))).join("")}
+          ${desktopNav.map(([href, , label]) => a(href, label, "nav-link " + (location.pathname === href || (href === "/requests" && requestArea) || (href === "/profile" && location.pathname.startsWith("/profile/")) || (href === "/marketplace/secondhand" && location.pathname.startsWith("/checkout/secondhand/")) ? "active" : ""))).join("")}
         </nav>
         <div class="header-actions">
           ${/^\/groups\/[^/]+$/.test(location.pathname) ? "" : `<div class="header-create-menu-wrap"><button type="button" class="button primary header-create-btn" data-action="listing-menu-toggle" aria-expanded="${listingMenuOpen}" aria-haspopup="menu">${icon("plus", 18)} ${t("สร้างกลุ่มหารของ")}</button>${listingMenuOpen ? `<div class="header-create-dropdown" role="menu">${a("/groups/create", `<span class="header-create-option-icon">${icon("users", 20)}</span><span><strong>${t("สร้างกลุ่มหารของ")}</strong><small>${t("ชวนคนร่วมซื้อ")}</small></span>`, "header-create-option")}${a("/requests/new", `<span class="header-create-option-icon">${icon("search", 20)}</span><span><strong>${t("โพสต์หาของหาร")}</strong><small>${t("ให้เจ้าของกลุ่มเสนอ")}</small></span>`, "header-create-option")}</div>` : ""}</div>`}
@@ -4542,7 +4546,7 @@ function render() {
       </div>
       <div class="mobile-menu${mobileMenuOpen ? " is-open" : ""}" id="mobile-menu" aria-hidden="${!mobileMenuOpen}">
         <nav aria-label="${t("เมนูหลัก")}">
-          ${nav.map(([href, ic, label]) => a(href, `${icon(ic, 21)}<span>${label}</span>`, location.pathname === href || (href === "/profile" && location.pathname.startsWith("/profile/")) ? "active" : "")).join("")}
+          ${nav.map(([href, ic, label]) => a(href, `${icon(ic, 21)}<span>${label}</span>`, location.pathname === href || (href === "/requests" && requestArea) || (href === "/profile" && location.pathname.startsWith("/profile/")) ? "active" : "")).join("")}
         </nav>
         <div class="mobile-menu-actions">
           ${/^\/groups\/[^/]+$/.test(location.pathname) ? "" : a("/groups/create", `${icon("plus", 18)} ${t("เปิดกลุ่ม")}`, "button primary")}${a("/requests/new", `${icon("search", 18)} ${t("โพสต์หาของหาร")}`, "button outline")}
