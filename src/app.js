@@ -1753,7 +1753,9 @@ function whyFees() {
 const revealedKinds = new Set();
 let revealObserver = null;
 function revealHomeSections() {
-  const pending = [...document.querySelectorAll("[data-reveal-kind]:not([data-reveal])")];
+  // A render can replace the home sections before they enter the viewport.
+  // Re-observe sections left pending so an interrupted render cannot strand them invisible.
+  const pending = [...document.querySelectorAll('[data-reveal-kind]:not([data-reveal="done"])')];
   if (!pending.length) return;
   const still = !("IntersectionObserver" in window) || matchMedia("(prefers-reduced-motion: reduce)").matches;
   revealObserver?.disconnect();
