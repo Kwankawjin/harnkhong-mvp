@@ -397,22 +397,33 @@ export function createRequestMarketplace(ctx) {
       ? `${editable ? a(`/requests/${encodeURIComponent(id)}/edit`, action("", `${icon("edit", 18)} <span>${t("แก้ไขประกาศ")}</span>`), "button outline full summary-action-btn") : ""}${cancellable ? `<button type="button" class="button danger-soft full summary-action-btn" data-action="hk-cancel-request" data-id="${escape(id)}">${action("", `${icon("trash", 18)} <span>${t("ยกเลิกประกาศ")}</span>`)}</button>` : ""}${!editable && phase === "has_offers" ? `<p class="field-help">${t("มีข้อเสนอแล้ว จึงแก้ไขประกาศไม่ได้ เพื่อให้ข้อเสนอตรงกับสิ่งที่ประกาศไว้")}</p>` : ""}`
       : open
         ? user
-          ? `${a(`/requests/${encodeURIComponent(id)}/offer`, action("", `${icon("users", 18)} <span>${t("เสนอกลุ่มของคุณ")}</span>`), "button primary full summary-action-btn")}<p class="field-help">${t("เลือกกลุ่มที่คุณเปิดอยู่ แล้วส่งข้อเสนอให้ผู้หากลุ่มได้เลย")}</p>`
+          ? a(`/requests/${encodeURIComponent(id)}/offer`, action("", `${icon("users", 18)} <span>${t("เสนอกลุ่มของคุณ")}</span>`), "button primary full summary-action-btn")
           : `<button type="button" class="button primary full summary-action-btn" data-action="open-auth" data-step="1">${action("", `${icon("user", 18)} <span>${t("เข้าสู่ระบบเพื่อส่งข้อเสนอ")}</span>`)}</button>`
         : "";
+    const date = (iso) => new Date(iso).toLocaleDateString(ctx.locale(), { day: "numeric", month: "short" });
+    const fact = (iconName, label, value, sub = "") => `<div class="hk-fact"><span class="hk-fact-icon">${icon(iconName, 18)}</span><div><dt>${label}</dt><dd>${value}</dd>${sub ? `<small>${sub}</small>` : ""}</div></div>`;
+    const howTo = !mine && open
+      ? `<section class="members-card hk-howto" aria-labelledby="hk-howto-heading"><div class="group-section-head"><div><h2 id="hk-howto-heading">${t("มีกลุ่มที่ตรงกับประกาศนี้?")}</h2><p>${t("เสนอกลุ่มที่คุณเปิดอยู่ได้ใน 3 ขั้น")}</p></div></div><ol class="hk-steps-list"><li><span>1</span><div><strong>${t("เลือกกลุ่มของคุณ")}</strong><small>${t("หมวดและรอบชำระต้องตรง มีที่ว่าง และราคาต่อที่นั่งไม่เกินงบ")}</small></div></li><li><span>2</span><div><strong>${t("ส่งข้อเสนอ")}</strong><small>${t("ราคาคิดจากราคาต่อที่นั่งของกลุ่ม แนบข้อความได้")}</small></div></li><li><span>3</span><div><strong>${t("รอผู้หากลุ่มตอบ")}</strong><small>${t("ถ้ายอมรับ ระบบจะจองที่นั่งไว้ 24 ชั่วโมงให้เขาเข้ากลุ่ม")}</small></div></li></ol></section>`
+      : "";
+    const offerTotal = mine ? offers.length : request.offerCount || 0;
     return `<div class="group-page hk-detail-page">
       <nav class="breadcrumb product-breadcrumb" aria-label="${t("เส้นทางนำทาง")}">${a(mine ? "/my-requests" : "/requests", mine ? t("ประกาศของฉัน") : t("คนที่กำลังหากลุ่ม"))}<span aria-hidden="true">/</span><span aria-current="page">${escape(request.title)}</span></nav>
       <div class="group-detail">
         <main class="group-detail-main">
           ${mine ? matchPanel(request, offers, reservation) : ""}
-          <section class="group-identity-card" aria-labelledby="hk-request-title">
-            <div class="group-heading-line"><div><h1 id="hk-request-title">${escape(request.title)}</h1><p>${t("หมวดหมู่")}: ${escape(t(request.category))} · ${t("ประกาศ {id}", { id: shortId(id) })}</p></div>${phaseBadge(phase)}</div>
-            ${request.description ? `<p class="hk-description">${escape(request.description)}</p>` : `<p class="hk-description muted">${t("ผู้โพสต์ไม่ได้ใส่รายละเอียดเพิ่มเติม")}</p>`}
-            <div class="group-created-details"><span>${t("ผู้โพสต์")}: <strong>${escape(request.requesterName)}</strong></span><span>${t("ต้องการ")}: <strong>${t("{count} ที่นั่ง", { count: request.seatsNeeded || 1 })}</strong></span><span>${t("รอบการชำระเงิน")}: <strong>${billingLabel(request.billingCycle)}</strong></span><span>${t("ปิดรับข้อเสนอ")}: <strong>${leftLabel(request.expiresAt)}</strong></span></div>
+          <section class="group-identity-card hk-identity" aria-labelledby="hk-request-title">
+            <div class="group-heading-line"><div><h1 id="hk-request-title">${escape(request.title)}</h1><p>${escape(t(request.category))} · ${t("ประกาศ {id}", { id: shortId(id) })}</p></div>${phaseBadge(phase)}</div>
+            <dl class="hk-facts">
+              ${fact("user", t("ผู้โพสต์"), escape(request.requesterName), t("โพสต์เมื่อ {date}", { date: date(request.createdAt) }))}
+              ${fact("users", t("ต้องการ"), t("{count} ที่นั่ง", { count: request.seatsNeeded || 1 }), billingLabel(request.billingCycle))}
+              ${fact("clock", t("ปิดรับข้อเสนอ"), phase === "expired" ? t("หมดเวลาแล้ว") : shortLeft(request.expiresAt), date(request.expiresAt))}
+            </dl>
+            ${request.description ? `<div class="hk-description-block"><h2>${t("รายละเอียดจากผู้โพสต์")}</h2><p class="hk-description">${escape(request.description)}</p></div>` : ""}
           </section>
           ${offersSection}
+          ${howTo}
         </main>
-        <aside class="group-detail-aside"><div class="summary-card"><small>${t("งบสูงสุดต่อที่นั่ง")}</small><strong>${money(request.budgetMax)}</strong><div class="summary-future-price"><span>${t("รอบการชำระเงิน")}</span><b>${billingLabel(request.billingCycle)}</b></div>${request.budgetMin ? `<div class="summary-future-price"><span>${t("งบขั้นต่ำ")}</span><b>${money(request.budgetMin)}</b></div>` : ""}<p>${mine ? t("เจ้าของกลุ่มจะเสนอราคาต่อที่นั่งของกลุ่มตัวเอง ไม่เกินงบนี้") : t("เสนอได้เฉพาะกลุ่มที่ราคาต่อที่นั่งไม่เกินงบนี้ และหมวดกับรอบชำระตรงกัน")}</p>${asideActions}</div></aside>
+        <aside class="group-detail-aside"><div class="summary-card hk-budget-card"><small>${t("งบสูงสุดต่อที่นั่ง")}</small><strong>${money(request.budgetMax)} <span>${perUnit(request.billingCycle)}</span></strong><div class="summary-future-price"><span>${t("รอบการชำระเงิน")}</span><b>${billingLabel(request.billingCycle)}</b></div>${request.budgetMin ? `<div class="summary-future-price"><span>${t("งบขั้นต่ำ")}</span><b>${money(request.budgetMin)}</b></div>` : ""}<div class="summary-future-price"><span>${t("ข้อเสนอตอนนี้")}</span><b>${t("{count} ข้อเสนอ", { count: offerTotal })}</b></div><p>${mine ? t("เจ้าของกลุ่มจะเสนอราคาต่อที่นั่งของกลุ่มตัวเอง ไม่เกินงบนี้") : t("เสนอได้เฉพาะกลุ่มที่ราคาต่อที่นั่งไม่เกินงบนี้ และหมวดกับรอบชำระตรงกัน")}</p><div class="hk-aside-actions">${asideActions}</div></div></aside>
       </div>
     </div>`;
   }
