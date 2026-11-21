@@ -4511,8 +4511,8 @@ function render() {
     ["/subscription", "sparkles", t("แพ็กเกจ")],
   ];
   const desktopNav = nav.slice(0, 5);
-  // Keep every primary destination available from the phone tab bar.
-  const bottomNav = nav;
+  // Keep the phone tab bar focused on the five primary destinations.
+  const bottomNav = nav.slice(0, 5);
   // Request Marketplace pages light up "กำลังหากลุ่ม".
   const requestArea = /^\/(requests(\/|$)|my-requests$|my-offers$)/.test(location.pathname);
 
@@ -4550,7 +4550,7 @@ function render() {
     <main class="main-wrap${location.pathname === "/" ? " home-main" : ""}" id="main">${groupsLoading && !createGroupRoute ? groupsLoadingSkeleton() : groupsError && !createGroupRoute ? `<div class="empty"><h2>${t("โหลดกลุ่มไม่สำเร็จ")}</h2><p>${escape(authErrorMessage(groupsError))}</p><details class="load-error-details"><summary>${t("รายละเอียดข้อผิดพลาด")}</summary><code>${escape(`${groupsError?.code || groupsError?.name || "Error"}: ${groupsError?.message || "ไม่มีรายละเอียด"}`)}</code></details><button class="button primary" data-action="refresh-groups">${t("ลองอีกครั้ง")}</button></div>` : `${groupsLoading ? `<section class="create-load-warning" role="status"><strong>${t("กำลังโหลดกลุ่มจาก Supabase")}</strong></section>` : ""}${groupsError ? `<section class="create-load-warning" role="alert"><div><strong>${t("โหลดข้อมูลกลุ่มไม่สำเร็จ")}</strong><p>${escape(authErrorMessage(groupsError))}</p><details class="load-error-details"><summary>${t("รายละเอียดข้อผิดพลาด")}</summary><code>${escape(`${groupsError?.code || groupsError?.name || "Error"}: ${groupsError?.message || "ไม่มีรายละเอียด"}`)}</code></details></div><button class="button outline" data-action="refresh-groups">${t("ลองอีกครั้ง")}</button></section>` : ""}${route()}`}</main>
 
     <nav class="bottom-nav" aria-label="${t("เมนูด้านล่าง")}">
-      ${bottomNav.map(([href, ic, label]) => a(href, `${icon(ic, 20)}<span>${label}</span>`, location.pathname === href || (href === "/requests" && requestArea) || (href === "/profile" && location.pathname.startsWith("/profile/")) ? "active" : "")).join("")}
+      ${bottomNav.map(([href, ic, label]) => a(href, `${icon(ic, 22)}<span>${label}</span>`, location.pathname === href || (href === "/requests" && requestArea) || (href === "/profile" && location.pathname.startsWith("/profile/")) ? "active" : "")).join("")}
     </nav>
 
 

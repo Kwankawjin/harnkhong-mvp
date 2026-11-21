@@ -2232,7 +2232,7 @@ body.mobile-menu-open {
    ======================================================== */
 .bottom-nav {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(5, 1fr);
   position: fixed;
   left: 0;
   right: 0;
@@ -2254,18 +2254,11 @@ body.mobile-menu-open {
   color: #64748b;
   min-width: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   transition: color 0.15s;
 }
 .bottom-nav a.active {
   color: var(--blue);
   font-weight: 700;
-}
-.bottom-nav a span {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* ========================================================
@@ -5517,7 +5510,7 @@ body.mobile-menu-open {
     min-height: 48px;
     padding: 4px 2px;
     gap: 3px;
-    font-size: 0.58rem;
+    font-size: 0.66rem;
     -webkit-tap-highlight-color: transparent;
   }
   .bottom-nav a.active svg {
