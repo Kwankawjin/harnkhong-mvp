@@ -243,6 +243,49 @@ begin
   assert (select status = 'cancelled' from public.hk_request_offers where id = o), 'cancel request cancels offers';
   assert n > 0 and not exists (select 1 from public.hk_request_notifications where user_id = req_user and not is_read),
     'notifications marked read';
+  -- ------------------------------------------------------------ more permission checks
+  -- Guests cannot call any write RPC.
+  perform set_config('request.jwt.claim.sub', '', true);
+  set local role anon;
+  begin
+    perform public.hk_create_request('guest request', cat, 1000, 'one_time');
+    raise exception 'anon must not create requests';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform public.hk_accept_offer(o);
+    raise exception 'anon must not accept offers';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform 1 from public.hk_group_reservations;
+    raise exception 'anon must not read reservations';
+  exception when insufficient_privilege then null; end;
+  reset role;
+
+  -- Marking notifications read only ever touches your own.
+  insert into public.hk_request_notifications(user_id, request_id, type) values (host, r, 'request_cancelled');
+  perform set_config('request.jwt.claim.sub', other::text, true);
+  set local role authenticated;
+  perform public.hk_mark_notifications_read((select array_agg(id) from public.hk_request_notifications));
+  assert (select count(*) = 0 from public.hk_group_reservations where requester_id <> other
+          and not exists (select 1 from public.hk_request_offers x where x.id = offer_id and x.host_id = other)),
+    'outsiders see no one else''s reservations';
+  reset role;
+  assert exists (select 1 from public.hk_request_notifications where user_id = host and not is_read),
+    'someone else cannot mark my notifications read';
+
+  -- Nobody can write the event log or notifications directly.
+  perform set_config('request.jwt.claim.sub', host::text, true);
+  set local role authenticated;
+  begin
+    insert into public.hk_request_events(request_id, event_type) values (r, 'request_created');
+    raise exception 'events are append-only through RPCs';
+  exception when insufficient_privilege then null; end;
+  begin
+    update public.hk_request_notifications set is_read = true where user_id = host;
+    raise exception 'notifications are read-only for clients';
+  exception when insufficient_privilege then null; end;
+  reset role;
+
   raise notice 'request marketplace: all checks passed';
 end $$;
 rollback;

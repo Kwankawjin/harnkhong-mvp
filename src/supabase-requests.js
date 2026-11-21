@@ -225,3 +225,48 @@ export async function joinSupabaseReservedGroup(reservationId) {
   rethrow(error);
   return data;
 }
+
+// ------------------------------------------------------------------ notifications (Phase 5)
+const NOTIFICATION_FIELDS =
+  "id,type,is_read,created_at,request_id,offer_id,request:hk_requests(title),offer:hk_request_offers(host_name,group_snapshot)";
+
+export async function fetchRequestNotifications(userId) {
+  const { data, error } = await supabase
+    .from("hk_request_notifications")
+    .select(NOTIFICATION_FIELDS)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(60);
+  rethrow(error);
+  return (data || []).map((row) => ({
+    id: row.id,
+    type: row.type,
+    read: row.is_read,
+    at: row.created_at,
+    requestId: row.request_id,
+    offerId: row.offer_id,
+    requestTitle: row.request?.title || "",
+    hostName: row.offer?.host_name || "",
+    groupName: row.offer?.group_snapshot?.group_name || "",
+  }));
+}
+
+export async function markRequestNotificationsRead(ids) {
+  const { error } = await supabase.rpc("hk_mark_notifications_read", { p_ids: ids?.length ? ids : null });
+  rethrow(error);
+}
+
+/** Calls onInsert for every new notification row for this user; returns an unsubscribe function. */
+export function subscribeRequestNotifications(userId, onInsert) {
+  const channel = supabase
+    .channel(`hk-notifications-${userId}`)
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "hk_request_notifications", filter: `user_id=eq.${userId}` },
+      (payload) => onInsert(payload.new),
+    )
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+}

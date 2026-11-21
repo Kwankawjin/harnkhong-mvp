@@ -2171,6 +2171,60 @@ Object.assign(errors, {
   ]
 });
 
+
+// Request Marketplace, design pass and notifications
+Object.assign(labels, {
+  "ตลาดหารของ": "Marketplace",
+  "งบสูงสุดต่อที่นั่ง": "Max budget per seat",
+  "งบขั้นต่ำ": "Min budget",
+  "ปิดรับข้อเสนอ": "Offers close in",
+  "{hours} ชม.": "{hours}h",
+  "คนที่กำลังหากลุ่ม": "People looking for a group",
+  "ค้นหาประกาศ": "Search requests",
+  "เจ้าของกลุ่มเลือกประกาศที่ตรงกับกลุ่มของตัวเอง แล้วส่งข้อเสนอได้เลย": "Group owners pick a request that fits their group and send an offer.",
+  "สรุปประกาศ": "Request summary",
+  "เจ้าของกลุ่มจะเสนอกลุ่มที่มีอยู่จริง ราคาคิดจากราคาต่อที่นั่งของกลุ่มนั้น": "Group owners offer a group that already exists, at that group's seat price.",
+  "ต้องการหาอะไร": "What are you looking for",
+  "บริการหรือหมวดหมู่": "Service or category",
+  "งบและรอบการชำระเงิน": "Budget and billing",
+  "จ่ายทุกเดือน เช่น แอปหรือบริการ": "Paid every month, like an app or service",
+  "จ่ายรอบเดียวจบ เช่น สินค้า": "Paid once, like a product",
+  "งบสูงสุดต่อที่นั่ง (บาท)": "Max budget per seat (THB)",
+  "เปิดรับข้อเสนอนาน": "Open for offers for",
+  "ต้องการเร็ว": "Need it soon",
+  "แนะนำ": "Recommended",
+  "ไม่รีบ": "No rush",
+  "ตรวจสอบก่อนโพสต์": "Check before posting",
+  "ต่อไป": "Next",
+  "โพสต์ประกาศ": "Post request",
+  "บอกว่าต้องการอะไร งบเท่าไหร่ แล้วรอให้เจ้าของกลุ่มเข้ามาเสนอ": "Say what you need and your budget, then wait for group owners to offer.",
+  "กดเข้าร่วมกลุ่มก่อนหมดเวลา ถ้าไม่ทัน ที่นั่งจะถูกปล่อยและประกาศจะกลับมารับข้อเสนอใหม่": "Join before time runs out, or the seat is released and your request reopens for offers.",
+  "เลือกได้ 1 ข้อเสนอ ระบบจะจองที่นั่งให้ 24 ชั่วโมง": "Pick one offer; a seat is held for you for 24 hours.",
+  "ประกาศนี้ไม่รับข้อเสนอเพิ่มแล้ว": "This request takes no more offers.",
+  "ผู้หากลุ่มเห็นข้อเสนอนี้แล้ว": "The requester can see this offer.",
+  "เสนอกลุ่มของคุณ": "Offer your group",
+  "ประกาศ {id}": "Request {id}",
+  "ผู้โพสต์ไม่ได้ใส่รายละเอียดเพิ่มเติม": "No extra details from the requester.",
+  "ผู้โพสต์": "Posted by",
+  "ต้องการ": "Needs",
+  "เจ้าของกลุ่มจะเสนอราคาต่อที่นั่งของกลุ่มตัวเอง ไม่เกินงบนี้": "Group owners offer their own group's seat price, within this budget.",
+  "เสนอได้เฉพาะกลุ่มที่ราคาต่อที่นั่งไม่เกินงบนี้ และหมวดกับรอบชำระตรงกัน": "Only groups within this budget, in the same category and billing, can be offered.",
+  "รายละเอียดประกาศ": "Request details",
+  "ประกาศนี้": "This request",
+  "ราคาที่คุณเสนอ": "Your offered price",
+  "เลือกกลุ่มของคุณ": "Choose your group",
+  "กลุ่มที่จะเสนอ": "Group to offer",
+  "ผู้หากลุ่มจะเห็นกลุ่มและราคาต่อที่นั่งที่คุณเสนอ": "The requester sees your group and its seat price.",
+  "{host} เสนอกลุ่ม “{group}” สำหรับ “{title}”": "{host} offered “{group}” for “{title}”",
+  "ผู้หากลุ่มยอมรับข้อเสนอสำหรับ “{title}” ที่นั่งถูกจองไว้ 24 ชั่วโมง": "Your offer for “{title}” was accepted. The seat is held for 24 hours.",
+  "ผู้หากลุ่มไม่ได้เลือกข้อเสนอของคุณสำหรับ “{title}”": "Your offer for “{title}” wasn't chosen",
+  "{host} ถอนข้อเสนอสำหรับ “{title}”": "{host} withdrew their offer for “{title}”",
+  "ข้อเสนอถูกยกเลิก": "Offer cancelled",
+  "กลุ่ม “{group}” ไม่ได้เปิดรับแล้ว ข้อเสนอสำหรับ “{title}” จึงถูกยกเลิก": "“{group}” is no longer open, so its offer for “{title}” was cancelled.",
+  "ที่นั่งที่จองไว้สำหรับ “{title}” ถูกปล่อยแล้ว": "The seat held for “{title}” was released",
+  "ผู้หากลุ่มเข้าร่วมกลุ่ม “{group}” จากประกาศ “{title}” แล้ว": "The requester joined “{group}” from “{title}”"
+});
+
 export const messages = {
   th: {
     ...Object.fromEntries(Object.keys(labels).map((key) => [key, key])),

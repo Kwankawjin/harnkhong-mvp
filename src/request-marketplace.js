@@ -44,6 +44,9 @@ import {
   acceptSupabaseOffer,
   joinSupabaseReservedGroup,
   rejectSupabaseOffer,
+  fetchRequestNotifications,
+  markRequestNotificationsRead,
+  subscribeRequestNotifications,
 } from "./supabase-requests.js";
 
 const PHASE_LABEL = {
@@ -65,6 +68,18 @@ const OFFER_LABEL = {
 };
 const TAB_LABEL = { all: "ทั้งหมด", waiting: "รอข้อเสนอ", offers: "มีข้อเสนอ", done: "เสร็จสิ้น" };
 const BILLING_LABEL = { monthly: "รายเดือน", one_time: "ครั้งเดียว" };
+// Copy for hk_request_notifications rows: [title, body]. Body values: {title} {host} {group}.
+const NOTE_COPY = {
+  offer_received: ["มีข้อเสนอใหม่!", "{host} เสนอกลุ่ม “{group}” สำหรับ “{title}”"],
+  offer_accepted: ["ข้อเสนอได้รับการยอมรับ", "ผู้หากลุ่มยอมรับข้อเสนอสำหรับ “{title}” ที่นั่งถูกจองไว้ 24 ชั่วโมง"],
+  offer_rejected: ["ข้อเสนอไม่ได้รับเลือก", "ผู้หากลุ่มไม่ได้เลือกข้อเสนอของคุณสำหรับ “{title}”"],
+  offer_withdrawn: ["Host ถอนข้อเสนอ", "{host} ถอนข้อเสนอสำหรับ “{title}”"],
+  offer_cancelled: ["ข้อเสนอถูกยกเลิก", "กลุ่ม “{group}” ไม่ได้เปิดรับแล้ว ข้อเสนอสำหรับ “{title}” จึงถูกยกเลิก"],
+  request_cancelled: ["ประกาศถูกยกเลิก", "ผู้หากลุ่มยกเลิกประกาศ “{title}” แล้ว"],
+  request_expired: ["ประกาศหมดอายุ", "ประกาศ “{title}” หมดอายุแล้ว"],
+  reservation_expired: ["การจองที่นั่งหมดเวลา", "ที่นั่งที่จองไว้สำหรับ “{title}” ถูกปล่อยแล้ว"],
+  join_completed: ["ผู้หากลุ่มเข้าร่วมแล้ว", "ผู้หากลุ่มเข้าร่วมกลุ่ม “{group}” จากประกาศ “{title}” แล้ว"],
+};
 const OFFER_TAB_LABEL = { all: "ทั้งหมด", pending: "รอพิจารณา", accepted: "ยอมรับแล้ว", closed: "ปิดแล้ว" };
 // Why a group can't be offered (codes from hk_my_offerable_groups and src/requests.js).
 const BLOCKER_LABEL = {
@@ -84,6 +99,8 @@ export function createRequestMarketplace(ctx) {
 
   // ------------------------------------------------------------------ data
   // Test mode (and the plain demo) keeps requests in app state; Supabase mode keeps a small cache.
+  // Supabase notifications for the bell, kept live with Realtime.
+  const notes = { userId: null, items: [], unsubscribe: null };
   const remote = { open: null, mine: null, myOffers: null, detail: new Map(), offerable: new Map(), loading: new Set(), errors: new Map() };
   const blankDraft = () => ({ step: 1, category: "", title: "", description: "", budgetMax: "", budgetMin: "", billingCycle: "monthly", expiresInDays: 7 });
   let draft = blankDraft();
@@ -187,6 +204,11 @@ export function createRequestMarketplace(ctx) {
     if (left.expired) return t("หมดเวลาแล้ว");
     return left.hours >= 48 ? t("เหลือเวลา {days} วัน", { days: left.days }) : t("เหลือเวลา {hours} ชม.", { hours: left.hours });
   };
+  const shortLeft = (expiresAt) => {
+    const left = timeLeft(expiresAt);
+    if (left.expired) return t("หมดเวลาแล้ว");
+    return left.hours >= 48 ? t("{days} วัน", { days: left.days }) : t("{hours} ชม.", { hours: left.hours });
+  };
   const budgetText = (request) =>
     request.budgetMin != null && request.budgetMin > 0
       ? `${money(request.budgetMin)} – ${money(request.budgetMax)}`
@@ -201,21 +223,18 @@ export function createRequestMarketplace(ctx) {
 
   /** The two Marketplace tabs, shared with the existing /explore page. */
   function marketTabs(active) {
-    return `<div class="hk-market-head"><div><span class="hk-eyebrow">Marketplace</span><p>${t("ค้นหากลุ่มที่ต้องการ หรือประกาศหาสิ่งที่กำลังมองหา")}</p></div><nav class="hk-market-tabs" aria-label="Marketplace">${a("/explore", `${icon("users", 18)} ${t("กลุ่มที่เปิดหาร")}`, `hk-market-tab${active === "groups" ? " active" : ""}`)}${a("/requests", `${icon("search", 18)} ${t("กำลังหากลุ่ม")}`, `hk-market-tab${active === "requests" ? " active" : ""}`)}</nav></div>`;
+    return `<nav class="hk-market-tabs" aria-label="${t("ตลาดหารของ")}">${a("/explore", `${icon("users", 18)} ${t("กลุ่มที่เปิดหาร")}`, `hk-market-tab${active === "groups" ? " active" : ""}`)}${a("/requests", `${icon("search", 18)} ${t("กำลังหากลุ่ม")}`, `hk-market-tab${active === "requests" ? " active" : ""}`)}</nav>`;
   }
 
-  function requestCard(request, offers, { mine = false } = {}) {
+  function requestCard(request, offers, { mine = false, preview = false } = {}) {
     const phase = requestPhase(request, offers);
     const offerCount = mine ? offers.filter((offer) => offer.requestId === request.id && offer.status === "pending").length : request.offerCount;
-    return a(
-      `/requests/${encodeURIComponent(request.id)}`,
-      `<div class="hk-card-top"><span class="hk-card-category">${escape(t(request.category))}</span>${phaseBadge(phase)}</div>
+    const body = `<div class="hk-card-top"><span class="hk-card-category">${escape(t(request.category))}</span>${phaseBadge(phase)}</div>
        <h3>${escape(request.title)}</h3>
        <p class="hk-card-need">${t("ต้องการ {count} ที่นั่ง", { count: request.seatsNeeded || 1 })} · ${billingLabel(request.billingCycle)}</p>
-       <div class="hk-card-budget"><strong>${budgetText(request)}</strong><small>${t("งบสูงสุด")} ${perUnit(request.billingCycle)}</small></div>
-       <div class="hk-card-foot"><span>${icon("user", 15)} ${escape(request.requesterName)}</span><span>${icon("clock", 15)} ${leftLabel(request.expiresAt)}</span>${offerCount ? `<span class="hk-card-offers">${t("{count} ข้อเสนอ", { count: offerCount })}</span>` : ""}</div>`,
-      "hk-request-card",
-    );
+       <div class="opportunity-price hk-card-price"><div><small>${t("งบสูงสุดต่อที่นั่ง")}</small><strong>${money(request.budgetMax)} <span>${perUnit(request.billingCycle)}</span></strong></div><div><small>${request.budgetMin ? t("งบขั้นต่ำ") : t("ปิดรับข้อเสนอ")}</small><b>${request.budgetMin ? money(request.budgetMin) : shortLeft(request.expiresAt)}</b></div></div>
+       <div class="hk-card-foot"><span>${icon("user", 15)} ${escape(request.requesterName)}</span>${request.budgetMin ? `<span>${icon("clock", 15)} ${leftLabel(request.expiresAt)}</span>` : ""}${offerCount ? `<span class="hk-card-offers">${t("{count} ข้อเสนอ", { count: offerCount })}</span>` : ""}</div>`;
+    return preview ? `<div class="hk-request-card is-preview">${body}</div>` : a(`/requests/${encodeURIComponent(request.id)}`, body, "hk-request-card");
   }
 
   /** One offer. `host` adds the host's own controls; `withRequest` links back to the request. */
@@ -251,6 +270,7 @@ export function createRequestMarketplace(ctx) {
     const category = params.get("category") || "ทั้งหมด";
     const data = source("open");
     const list = data.ready ? browseRequests(data.requests, { q, category }) : [];
+    const user = ctx.getState().user;
     const href = (next) => {
       const search = new URLSearchParams();
       if (q) search.set("q", q);
@@ -258,53 +278,63 @@ export function createRequestMarketplace(ctx) {
       const query = search.toString();
       return `/requests${query ? `?${query}` : ""}`;
     };
-    const filters = `<nav class="filter-row hk-filter-row" aria-label="${t("หมวดหมู่")}">${["ทั้งหมด", ...ctx.categories].map((name) => a(href(name), escape(t(name)), `filter ${category === name ? "active" : ""}`)).join("")}</nav>`;
+    const filters = `<div class="filter-carousel"><button type="button" class="filter-scroll-button filter-scroll-prev" data-action="scroll-filter" data-direction="prev" aria-label="${t("เลื่อนหมวดหมู่ไปซ้าย")}" hidden><span aria-hidden="true">‹</span></button><nav class="filter-row" aria-label="${t("หมวดหมู่")}">${["ทั้งหมด", ...ctx.categories].map((name) => a(href(name), escape(t(name)), `filter ${category === name ? "active" : ""}`)).join("")}</nav><button type="button" class="filter-scroll-button filter-scroll-next" data-action="scroll-filter" data-direction="next" aria-label="${t("เลื่อนหมวดหมู่ไปขวา")}" hidden><span aria-hidden="true">›</span></button></div>`;
     const body = data.error
       ? errorBlock(data.error)
       : !data.ready
         ? loadingBlock()
         : list.length
           ? `<div class="hk-request-grid">${list.map((request) => requestCard(request, data.offers)).join("")}</div>`
-          : `<div class="empty hk-empty"><h2>${q || category !== "ทั้งหมด" ? t("ไม่พบประกาศที่ตรงกับการค้นหา") : t("ยังไม่มีคนประกาศหากลุ่ม")}</h2><p>${t("โพสต์สิ่งที่คุณต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ")}</p>${a("/requests/new", `${icon("plus", 18)} ${t("โพสต์หาของหาร")}`, "button primary")}</div>`;
-    return `<div class="hk-page hk-list-page">
+          : `<div class="empty"><h3>${q || category !== "ทั้งหมด" ? t("ไม่พบประกาศที่ตรงกับการค้นหา") : t("ยังไม่มีคนประกาศหากลุ่ม")}</h3><p>${t("โพสต์สิ่งที่คุณต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ")}</p>${a("/requests/new", `${icon("plus", 18)} ${t("โพสต์หาของหาร")}`, "button primary")}</div>`;
+    return `<div class="explore-page hk-list-page">
       ${marketTabs("requests")}
-      <section class="hk-hero"><div><span class="hk-new-badge">NEW FEATURE</span><h1>Request Marketplace</h1><p><strong>Post what you need. Find what you want.</strong></p><p>${t("โพสต์สิ่งที่ต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอได้เลย ไม่ต้องเปิดกลุ่มเอง")}</p></div><div class="hk-hero-actions">${a("/requests/new", `${icon("plus", 18)} ${t("โพสต์หาของหาร")}`, "button primary")}${ctx.getState().user ? `${a("/my-requests", t("ประกาศของฉัน"), "button outline")}${a("/my-offers", t("ข้อเสนอของฉัน"), "button outline")}` : ""}</div></section>
-      <form class="search-bar" id="hk-request-search"><span>${icon("search")}</span><input type="hidden" name="category" value="${escape(category)}"/><input name="q" value="${escape(q)}" placeholder="${t("ค้นหาบริการที่ต้องการ...")}" aria-label="${t("ค้นหา")}"/><button type="submit">${t("ค้นหา")}</button></form>
+      ${title(t("คนที่กำลังหากลุ่ม"), t("ไม่อยากเปิดกลุ่มเอง? โพสต์สิ่งที่ต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ"))}
+      <form class="search-bar" id="hk-request-search"><span>${icon("search")}</span><input type="hidden" name="category" value="${escape(category)}"/><input name="q" value="${escape(q)}" placeholder="${t("ค้นหาบริการที่ต้องการ...")}" aria-label="${t("ค้นหา")}"/><button type="submit">${t("ค้นหาประกาศ")}</button></form>
       ${filters}
-      <div class="hk-section-head"><h2>${t("ประกาศหากลุ่มล่าสุด")}</h2>${data.ready && !data.error ? `<span>${t("{count} ประกาศ", { count: list.length })}</span>` : ""}</div>
-      ${body}
+      <section aria-labelledby="hk-requests-heading"><div class="section-header hk-section-header"><div><h2 id="hk-requests-heading">${t("ประกาศหากลุ่มล่าสุด")}${data.ready && !data.error ? ` <small>${t("{count} ประกาศ", { count: list.length })}</small>` : ""}</h2><p>${t("เจ้าของกลุ่มเลือกประกาศที่ตรงกับกลุ่มของตัวเอง แล้วส่งข้อเสนอได้เลย")}</p></div><div class="hk-section-actions">${user ? `${a("/my-requests", t("ประกาศของฉัน"), "button outline")}${a("/my-offers", t("ข้อเสนอของฉัน"), "button outline")}` : ""}${a("/requests/new", `${icon("plus", 18)} ${t("โพสต์หาของหาร")}`, "button primary")}</div></div>
+      ${body}</section>
     </div>`;
   }
 
   // ------------------------------------------------------------------ /requests/new
+  /** Right-hand summary, the same panel the create-group page uses. Fields update live (onInput). */
+  function requestSummary(values) {
+    const row = (key, label, value, cls = "") => `<div${cls ? ` class="${cls}"` : ""}><dt>${label}</dt><dd data-hk-sum="${key}">${value}</dd></div>`;
+    return `<aside class="create-group-summary hk-request-summary" aria-live="polite"><div class="create-summary-heading"><h2>${t("สรุปประกาศ")}</h2>${icon("search", 28)}</div><div class="create-summary-product"><div>${icon("search", 30)}</div><div><strong data-hk-sum="title">${values.title ? escape(values.title) : t("ชื่อประกาศ")}</strong><small data-hk-sum="category">${values.category ? escape(t(values.category)) : "—"}</small></div></div><dl>${row("billing", t("รอบการชำระเงิน"), values.billingCycle ? billingLabel(values.billingCycle) : "—")}${row("budgetMax", t("งบสูงสุดต่อที่นั่ง"), values.budgetMax || "—", "summary-per-person")}${row("budgetMin", t("งบขั้นต่ำ"), values.budgetMin || "—")}${row("seats", t("จำนวนที่นั่ง"), t("1 ที่นั่ง"))}${row("expiry", t("ระยะเวลาประกาศ"), values.expiresInDays ? t("{days} วัน", { days: values.expiresInDays }) : "—")}</dl><p>${t("เจ้าของกลุ่มจะเสนอกลุ่มที่มีอยู่จริง ราคาคิดจากราคาต่อที่นั่งของกลุ่มนั้น")}</p></aside>`;
+  }
+  const moneyText = (value) => {
+    try {
+      return value ? money(ctx.parseBaht(String(value).trim())) : "";
+    } catch {
+      return "";
+    }
+  };
+
   function wizardPage() {
     const user = ctx.getState().user;
-    if (!user) return `<div class="hk-page">${signInBlock(t("เข้าสู่ระบบเพื่อโพสต์ประกาศหากลุ่ม"))}</div>`;
+    if (!user) return `<div class="hk-page">${title(t("โพสต์หาของหาร"))}${signInBlock(t("เข้าสู่ระบบเพื่อโพสต์ประกาศหากลุ่ม"))}</div>`;
     const step = draft.step;
-    const steps = [t("ต้องการหาอะไร?"), t("ระบุความต้องการ"), t("ตรวจสอบประกาศ")];
-    const progress = `<ol class="hk-steps" aria-label="${t("ขั้นตอน")}">${steps.map((label, index) => `<li class="${index + 1 === step ? "active" : index + 1 < step ? "done" : ""}" ${index + 1 === step ? 'aria-current="step"' : ""}><span>${index + 1 < step ? icon("check", 14) : index + 1}</span>${label}</li>`).join("")}</ol>`;
+    const steps = [[1, "ต้องการอะไร"], [2, "งบและรอบชำระ"], [3, "ตรวจสอบ"]];
+    const stepper = `<nav class="create-stepper" aria-label="${t("ขั้นตอน")}">${steps.map(([n, label]) => `<button type="button" data-action="hk-wizard-step" data-step="${n}" aria-current="${step === n ? "step" : "false"}" class="${step === n ? "active" : ""}" ${n < step ? "" : n === step ? "" : "disabled"}><span>${n < step ? icon("check", 14) : n}</span>${t(label)}</button>`).join("")}</nav>`;
     let body = "";
     if (step === 1) {
-      body = `<h2>${t("ขั้นตอนที่ 1: ต้องการหาอะไร?")}</h2><p class="hk-help">${t("เลือกบริการหรือหมวดหมู่ที่ต้องการหาร")}</p>
-        <label class="hk-field"><span class="sr-only">${t("ค้นหาบริการ...")}</span><input type="search" data-hk-category-filter placeholder="${t("ค้นหาบริการ...")}" autocomplete="off"/></label>
-        <fieldset class="hk-category-grid"><legend class="sr-only">${t("หมวดหมู่")}</legend>${ctx.categories.map((name) => `<label class="hk-category-option" data-name="${escape(`${name} ${t(name)}`.toLowerCase())}"><input type="radio" name="category" value="${escape(name)}" ${draft.category === name ? "checked" : ""} required/><span>${ctx.categorySymbol(name)} ${escape(t(name))}</span></label>`).join("")}</fieldset>
-        <p class="hk-help small">${t("ไม่เจอบริการที่ต้องการ? เลือก “อื่น ๆ (ระบุชื่อเอง)” แล้วใส่ชื่อบริการในชื่อประกาศ")}</p>
-        <h3>${t("รายละเอียดที่ต้องการ")}</h3>
-        <label class="hk-field">${t("ชื่อประกาศ")}<input name="title" required minlength="3" maxlength="80" value="${escape(draft.title)}" placeholder="${t("หาเพื่อนหาร YouTube Premium")}"/></label>
-        <label class="hk-field">${t("รายละเอียดเพิ่มเติม")} <small>(${t("ไม่บังคับ")})</small><textarea name="description" maxlength="600" rows="4" placeholder="${t("ต้องการเข้าร่วมกลุ่มระยะยาว...")}">${escape(draft.description)}</textarea></label>`;
+      body = `<div class="create-form-section"><h2>${icon("search", 20)} ${t("ต้องการหาอะไร")}</h2>
+        <fieldset class="category-picker"><legend>${t("บริการหรือหมวดหมู่")} <b>*</b></legend><div class="category-options">${ctx.categories.map((name) => `<label class="category-option hk-category-option${draft.category === name ? " selected" : ""}"><input type="radio" name="category" value="${escape(name)}" ${draft.category === name ? "checked" : ""}/>${escape(t(name))}</label>`).join("")}</div></fieldset>
+        <p class="field-help">${t("ไม่เจอบริการที่ต้องการ? เลือก “อื่น ๆ (ระบุชื่อเอง)” แล้วใส่ชื่อบริการในชื่อประกาศ")}</p>
+        <label>${t("ชื่อประกาศ")} <b>*</b><input name="title" required minlength="3" maxlength="80" value="${escape(draft.title)}" placeholder="${t("หาเพื่อนหาร YouTube Premium")}"/></label>
+        <label>${t("รายละเอียดเพิ่มเติม")} <small>(${t("ไม่บังคับ")})</small><textarea name="description" maxlength="600" rows="4" placeholder="${t("ต้องการเข้าร่วมกลุ่มระยะยาว...")}">${escape(draft.description)}</textarea></label></div>`;
     } else if (step === 2) {
-      body = `<h2>${t("ขั้นตอนที่ 2: ระบุความต้องการ")}</h2>
-        <div class="hk-field"><span>${t("จำนวนที่นั่ง")}</span><div class="hk-fixed-value"><strong>${t("1 ที่นั่ง")}</strong><small>${t("1 บัญชีเข้าร่วมกลุ่มได้ 1 ที่นั่ง")}</small></div></div>
-        <fieldset class="hk-segment"><legend>${t("รอบการชำระเงิน")}</legend>${Object.keys(BILLING_LABEL).map((cycle) => `<label><input type="radio" name="billingCycle" value="${cycle}" ${draft.billingCycle === cycle ? "checked" : ""}/><span>${billingLabel(cycle)}</span></label>`).join("")}</fieldset>
-        <div class="hk-field-row"><label class="hk-field">${t("งบสูงสุด (บาท)")}<input name="budgetMax" inputmode="decimal" required value="${escape(draft.budgetMax)}" placeholder="50"/></label><label class="hk-field">${t("งบขั้นต่ำ (บาท)")} <small>(${t("ไม่บังคับ")})</small><input name="budgetMin" inputmode="decimal" value="${escape(draft.budgetMin)}" placeholder="0"/></label></div>
-        <p class="hk-help small">${t("งบต่อ 1 ที่นั่ง ตามรอบการชำระเงินที่เลือก")}</p>
-        <fieldset class="hk-segment"><legend>${t("ระยะเวลาประกาศ")}</legend>${REQUEST_EXPIRY_DAYS.map((days) => `<label><input type="radio" name="expiresInDays" value="${days}" ${Number(draft.expiresInDays) === days ? "checked" : ""}/><span>${t("{days} วัน", { days })}</span></label>`).join("")}</fieldset>`;
+      body = `<div class="create-form-section"><h2>${icon("calc", 20)} ${t("งบและรอบการชำระเงิน")}</h2>
+        <fieldset class="product-type-picker"><legend>${t("รอบการชำระเงิน")} <b>*</b></legend><label><input type="radio" name="billingCycle" value="monthly" ${draft.billingCycle === "monthly" ? "checked" : ""}/><span>${icon("clock", 20)}<strong>${t("รายเดือน")}</strong><small>${t("จ่ายทุกเดือน เช่น แอปหรือบริการ")}</small></span></label><label><input type="radio" name="billingCycle" value="one_time" ${draft.billingCycle === "one_time" ? "checked" : ""}/><span>${icon("package", 20)}<strong>${t("ครั้งเดียว")}</strong><small>${t("จ่ายรอบเดียวจบ เช่น สินค้า")}</small></span></label></fieldset>
+        <div class="hk-field-row"><label>${t("งบสูงสุดต่อที่นั่ง (บาท)")} <b>*</b><input name="budgetMax" inputmode="decimal" required value="${escape(draft.budgetMax)}" placeholder="50"/></label><label>${t("งบขั้นต่ำ (บาท)")} <small>(${t("ไม่บังคับ")})</small><input name="budgetMin" inputmode="decimal" value="${escape(draft.budgetMin)}" placeholder="0"/></label></div>
+        <p class="field-help">${t("1 บัญชีเข้าร่วมกลุ่มได้ 1 ที่นั่ง")}</p></div>
+        <div class="create-form-section"><h2>${icon("clock", 20)} ${t("ระยะเวลาประกาศ")}</h2>
+        <fieldset class="product-type-picker hk-expiry-picker"><legend>${t("เปิดรับข้อเสนอนาน")} <b>*</b></legend>${REQUEST_EXPIRY_DAYS.map((days) => `<label><input type="radio" name="expiresInDays" value="${days}" ${Number(draft.expiresInDays) === days ? "checked" : ""}/><span>${icon("clock", 20)}<strong>${t("{days} วัน", { days })}</strong><small>${days === 3 ? t("ต้องการเร็ว") : days === 7 ? t("แนะนำ") : t("ไม่รีบ")}</small></span></label>`).join("")}</fieldset></div>`;
     } else {
       const preview = {
         id: "preview",
         title: draft.title,
         category: draft.category,
-        description: draft.description,
         budgetMax: ctx.parseBaht(draft.budgetMax),
         budgetMin: draft.budgetMin ? ctx.parseBaht(draft.budgetMin) : null,
         billingCycle: draft.billingCycle,
@@ -314,18 +344,17 @@ export function createRequestMarketplace(ctx) {
         offerCount: 0,
         expiresAt: new Date(Date.now() + Number(draft.expiresInDays) * 86_400_000).toISOString(),
       };
-      body = `<h2>${t("ขั้นตอนที่ 3: ตรวจสอบประกาศ")}</h2><p class="hk-help">${t("ประกาศจะแสดงแบบนี้ในหน้ารวมประกาศ")}</p>
-        <div class="hk-preview">${requestCard(preview, []).replace(/<a [^>]*>/, '<div class="hk-request-card is-preview">').replace(/<\/a>$/, "</div>")}</div>
+      body = `<div class="create-form-section"><h2>${icon("check", 20)} ${t("ตรวจสอบก่อนโพสต์")}</h2><p class="field-help">${t("ประกาศจะแสดงแบบนี้ในหน้ารวมประกาศ")}</p>
+        <div class="hk-preview">${requestCard(preview, [], { preview: true })}</div>
         ${draft.description ? `<div class="hk-preview-desc"><strong>${t("รายละเอียดเพิ่มเติม")}</strong><p>${escape(draft.description)}</p></div>` : ""}
-        <ul class="hk-checklist"><li>${icon("check", 16)} ${t("เจ้าของกลุ่มจะเห็นประกาศและส่งข้อเสนอพร้อมกลุ่มที่มีอยู่จริง")}</li><li>${icon("check", 16)} ${t("คุณเลือกข้อเสนอได้ 1 รายการ แล้วเข้าร่วมกลุ่มตามขั้นตอนเดิม")}</li><li>${icon("check", 16)} ${t("ประกาศหมดอายุใน {days} วัน", { days: draft.expiresInDays })}</li></ul>`;
+        <ul class="hk-checklist"><li>${icon("check", 16)} ${t("เจ้าของกลุ่มจะเห็นประกาศและส่งข้อเสนอพร้อมกลุ่มที่มีอยู่จริง")}</li><li>${icon("check", 16)} ${t("คุณเลือกข้อเสนอได้ 1 รายการ แล้วเข้าร่วมกลุ่มตามขั้นตอนเดิม")}</li><li>${icon("check", 16)} ${t("ประกาศหมดอายุใน {days} วัน", { days: draft.expiresInDays })}</li></ul></div>`;
     }
     const back = step > 1 ? `<button type="button" class="button outline" data-action="hk-wizard-back">${t("ย้อนกลับ")}</button>` : a("/requests", t("ยกเลิก"), "button outline");
-    const next = step < 3 ? `<button type="submit" class="button primary">${t("ถัดไป")} ${icon("arrow", 18)}</button>` : `<button type="submit" class="button primary">${icon("check", 18)} Publish Request</button>`;
-    return `<div class="hk-page hk-wizard-page">
-      ${a("/requests", `← ${t("กลับไปหน้าประกาศ")}`, "listing-back-link")}
-      <div class="hk-wizard-head"><h1>${t("สร้างประกาศหากลุ่ม")}</h1><span>Step ${step} / 3</span></div>
-      ${progress}
-      <form id="hk-request-wizard" class="hk-panel hk-wizard" data-step="${step}" novalidate>${body}<div class="hk-feedback" role="alert" hidden></div><div class="hk-actions">${back}${next}</div></form>
+    const next = step < 3 ? `<button type="submit" class="button primary">${t("ต่อไป")} ${icon("arrow", 18)}</button>` : `<button type="submit" class="button primary">${icon("check", 18)} ${t("โพสต์ประกาศ")}</button>`;
+    return `<div class="hk-page">
+      ${title(t("โพสต์หาของหาร"), t("บอกว่าต้องการอะไร งบเท่าไหร่ แล้วรอให้เจ้าของกลุ่มเข้ามาเสนอ"))}
+      <div class="create-group-layout"><form id="hk-request-wizard" class="form-panel create-group-form hk-request-form" data-step="${step}" novalidate>${stepper}${body}<div class="hk-feedback" role="alert" hidden></div><div class="create-step-actions">${back}${next}</div></form>
+      ${requestSummary({ ...draft, budgetMax: moneyText(draft.budgetMax), budgetMin: moneyText(draft.budgetMin) })}</div>
     </div>`;
   }
 
@@ -336,9 +365,9 @@ export function createRequestMarketplace(ctx) {
     if (!reservation || !offer) return "";
     const groupLink = reservation.groupId ? `/groups/${encodeURIComponent(reservation.groupId)}` : null;
     if (reservation.status === "confirmed" || request.status === "completed")
-      return `<section class="hk-panel hk-match-panel done"><span class="hk-match-icon">${icon("check", 26)}</span><div><h2>${t("เข้าร่วมกลุ่มแล้ว")}</h2><p>${t("คุณเป็นสมาชิกกลุ่ม “{name}” แล้ว ขั้นต่อไปคือยืนยันยอดและชำระเงินตามขั้นตอนของกลุ่ม แอดมินจะตรวจสลิปก่อนยืนยัน", { name: escape(offer.snapshot.group_name || "") })}</p>${groupLink ? a(groupLink, `${t("ไปที่กลุ่ม")} ${icon("arrow", 18)}`, "button primary") : ""}</div></section>`;
+      return `<section class="hk-match-panel done"><span class="hk-match-icon">${icon("check", 24)}</span><div><h2>${t("เข้าร่วมกลุ่มแล้ว")}</h2><p>${t("คุณเป็นสมาชิกกลุ่ม “{name}” แล้ว ขั้นต่อไปคือยืนยันยอดและชำระเงินตามขั้นตอนของกลุ่ม แอดมินจะตรวจสลิปก่อนยืนยัน", { name: escape(offer.snapshot.group_name || "") })}</p>${groupLink ? `<div class="hk-actions">${a(groupLink, `${t("ไปที่กลุ่ม")} ${icon("arrow", 18)}`, "button primary")}</div>` : ""}</div></section>`;
     if (reservation.status !== "reserved" || request.status !== "matched") return "";
-    return `<section class="hk-panel hk-match-panel"><span class="hk-match-icon">${icon("clock", 26)}</span><div><span class="hk-eyebrow">${t("จองที่นั่งไว้ให้คุณแล้ว")}</span><h2>${escape(offer.snapshot.group_name || t("กลุ่ม"))} · ${money(offer.offered)} ${perUnit(request.billingCycle)}</h2><p>${t("ที่นั่งนี้ถูกจองไว้ให้คุณ {left} กดเข้าร่วมกลุ่มก่อนหมดเวลา ถ้าไม่ทัน ที่นั่งจะถูกปล่อยและประกาศจะกลับมารับข้อเสนอใหม่", { left: leftLabel(reservation.expiresAt) })}</p><p class="hk-help small">${t("หลังเข้าร่วม คุณจะยืนยันยอดและชำระเงินตามขั้นตอนเดิมของกลุ่ม การเข้าร่วมยังไม่ใช่การชำระเงิน")}</p><div class="hk-actions"><button type="button" class="button primary" data-action="hk-join-reserved" data-id="${escape(reservation.id)}">${icon("users", 18)} ${t("เข้าร่วมกลุ่ม")}</button>${groupLink ? a(groupLink, t("ดูกลุ่มก่อน"), "button outline") : ""}</div></div></section>`;
+    return `<section class="hk-match-panel"><span class="hk-match-icon">${icon("clock", 24)}</span><div><small>${t("จองที่นั่งไว้ให้คุณแล้ว")} · ${leftLabel(reservation.expiresAt)}</small><h2>${escape(offer.snapshot.group_name || t("กลุ่ม"))} · ${money(offer.offered)} ${perUnit(request.billingCycle)}</h2><p>${t("กดเข้าร่วมกลุ่มก่อนหมดเวลา ถ้าไม่ทัน ที่นั่งจะถูกปล่อยและประกาศจะกลับมารับข้อเสนอใหม่")}</p><p class="field-help">${t("หลังเข้าร่วม คุณจะยืนยันยอดและชำระเงินตามขั้นตอนเดิมของกลุ่ม การเข้าร่วมยังไม่ใช่การชำระเงิน")}</p><div class="hk-actions"><button type="button" class="button primary" data-action="hk-join-reserved" data-id="${escape(reservation.id)}">${icon("users", 18)} ${t("เข้าร่วมกลุ่ม")}</button>${groupLink ? a(groupLink, t("ดูกลุ่มก่อน"), "button outline") : ""}</div></div></section>`;
   }
 
   function detailPage(id) {
@@ -346,81 +375,92 @@ export function createRequestMarketplace(ctx) {
     if (data.error) return `<div class="hk-page">${errorBlock(data.error)}</div>`;
     if (!data.ready) return `<div class="hk-page">${loadingBlock()}</div>`;
     const request = data.requests.find((item) => item.id === id);
-    if (!request) return `<div class="hk-page"><div class="empty hk-empty"><h2>${t("ไม่พบประกาศนี้")}</h2><p>${t("ประกาศอาจหมดอายุหรือถูกยกเลิกแล้ว")}</p>${a("/requests", t("ดูประกาศทั้งหมด"), "button primary")}</div></div>`;
+    if (!request) return `<div class="hk-page"><div class="empty"><h3>${t("ไม่พบประกาศนี้")}</h3><p>${t("ประกาศอาจหมดอายุหรือถูกยกเลิกแล้ว")}</p>${a("/requests", t("ดูประกาศทั้งหมด"), "button primary")}</div></div>`;
     const user = ctx.getState().user;
     const mine = user?.id === request.requesterId;
     const offers = data.offers.filter((offer) => offer.requestId === id);
     const phase = requestPhase(request, offers);
     const pendingCount = offers.filter((offer) => offer.status === "pending").length;
     const reservation = reservationFor((data.reservations || []).filter((r) => r.requestId === id), id);
-    const ownerActions = mine
-      ? `<div class="hk-owner-actions">${canEditRequest(request, offers) ? a(`/requests/${encodeURIComponent(id)}/edit`, `${icon("edit", 17)} ${t("แก้ไขประกาศ")}`, "button outline") : ""}${["open", "matched"].includes(request.status) && phase !== "expired" ? `<button type="button" class="button danger-soft" data-action="hk-cancel-request" data-id="${escape(id)}">${icon("trash", 17)} ${t("ยกเลิกประกาศ")}</button>` : ""}</div>${!canEditRequest(request, offers) && phase === "has_offers" ? `<p class="hk-help small">${t("มีข้อเสนอแล้ว จึงแก้ไขประกาศไม่ได้ เพื่อให้ข้อเสนอตรงกับสิ่งที่ประกาศไว้")}</p>` : ""}`
-      : "";
-    const offerList = offers.length
-      ? `<div class="hk-offer-list">${[...offers].sort((x, y) => Number(y.status === "accepted" || y.status === "completed") - Number(x.status === "accepted" || x.status === "completed")).map((offer) => offerCard(offer, request, { canDecide: request.status === "open" && phase !== "expired" })).join("")}</div>`
-      : `<div class="hk-offer-empty">${icon("clock", 22)}<div><strong>${t("ยังไม่มีข้อเสนอ")}</strong><p>${t("เมื่อเจ้าของกลุ่มส่งข้อเสนอ จะแสดงที่นี่")}</p></div></div>`;
-    // Hosts see only their own offers here (RLS does the same in Supabase).
+    const open = request.status === "open" && phase !== "expired";
+    const editable = mine && canEditRequest(request, offers);
+    const cancellable = mine && ["open", "matched"].includes(request.status) && phase !== "expired";
+    const sorted = [...offers].sort((x, y) => Number(["accepted", "completed"].includes(y.status)) - Number(["accepted", "completed"].includes(x.status)));
     const myOffers = user ? offers.filter((offer) => offer.hostId === user.id) : [];
-    const canOffer = request.status === "open" && phase !== "expired";
-    const hostCta = mine
-      ? ""
-      : `${myOffers.length ? `<section class="hk-panel"><div class="hk-section-head"><h2>${t("ข้อเสนอของคุณ")}</h2><span>${t("{count} ข้อเสนอ", { count: myOffers.length })}</span></div><div class="hk-offer-list">${myOffers.map((offer) => offerCard(offer, request, { host: true, reservation })).join("")}</div></section>` : ""}${canOffer ? `<section class="hk-panel hk-host-cta"><div><span class="hk-eyebrow">${t("สำหรับเจ้าของกลุ่ม")}</span><h2>${t("มีกลุ่มที่ตรงกับประกาศนี้?")}</h2><p>${t("เลือกกลุ่มที่คุณเปิดอยู่ แล้วส่งข้อเสนอให้ผู้หากลุ่มได้เลย")}</p></div>${user ? a(`/requests/${encodeURIComponent(id)}/offer`, `${icon("users", 18)} Make an Offer`, "button primary") : `<button type="button" class="button primary" data-action="open-auth" data-step="1">${icon("user", 18)} ${t("เข้าสู่ระบบเพื่อส่งข้อเสนอ")}</button>`}</section>` : ""}`;
-    return `<div class="hk-page hk-detail-page">
-      ${a(mine ? "/my-requests" : "/requests", `← ${mine ? t("ประกาศของฉัน") : t("กลับไปหน้าประกาศ")}`, "listing-back-link")}
-      <section class="hk-panel hk-detail-head">
-        <div class="hk-detail-meta">${phaseBadge(phase)}<span>Request ${shortId(id)}</span><span class="hk-card-category">${escape(t(request.category))}</span></div>
-        <h1>${escape(request.title)}</h1>
-        <p class="hk-detail-sub">${t("ต้องการเข้าร่วมกลุ่ม{cycle} จำนวน {count} ที่นั่ง", { cycle: billingLabel(request.billingCycle), count: request.seatsNeeded || 1 })}</p>
-        <div class="hk-detail-stats"><div><small>${t("งบประมาณสูงสุด")}</small><strong>${money(request.budgetMax)}</strong><span>${perUnit(request.billingCycle)}${request.budgetMin ? ` · ${t("ขั้นต่ำ {amount}", { amount: money(request.budgetMin) })}` : ""}</span></div><div><small>${t("จำนวนที่ต้องการ")}</small><strong>${t("{count} ที่นั่ง", { count: request.seatsNeeded || 1 })}</strong><span>${billingLabel(request.billingCycle)}</span></div><div><small>${t("ระยะเวลา")}</small><strong>${leftLabel(request.expiresAt)}</strong><span>${t("ผู้โพสต์: {name}", { name: escape(request.requesterName) })}</span></div></div>
-        ${ownerActions}
-      </section>
-      ${request.description ? `<section class="hk-panel"><h2>${t("รายละเอียดเพิ่มเติม")}</h2><p class="hk-description">${escape(request.description)}</p></section>` : ""}
-      ${mine ? matchPanel(request, offers, reservation) : ""}
-      ${mine ? `<section class="hk-panel"><div class="hk-section-head"><h2>${t("ข้อเสนอที่ได้รับ")}</h2><span>${t("{count} ข้อเสนอ", { count: offers.length })}${pendingCount ? ` · ${t("รอพิจารณา {count}", { count: pendingCount })}` : ""}</span></div>${offerList}</section>` : hostCta}
+    const offersSection = mine
+      ? `<section class="members-card hk-offers-card" aria-labelledby="hk-offers-heading"><div class="group-section-head"><div><h2 id="hk-offers-heading">${t("ข้อเสนอที่ได้รับ")}</h2><p>${open ? t("เลือกได้ 1 ข้อเสนอ ระบบจะจองที่นั่งให้ 24 ชั่วโมง") : t("ประกาศนี้ไม่รับข้อเสนอเพิ่มแล้ว")}</p></div><strong>${pendingCount ? t("รอพิจารณา {count}", { count: pendingCount }) : t("{count} ข้อเสนอ", { count: offers.length })}</strong></div>${offers.length ? `<div class="hk-offer-list">${sorted.map((offer) => offerCard(offer, request, { canDecide: open })).join("")}</div>` : `<div class="group-open-row hk-offer-empty"><span>${icon("clock", 20)}</span><div><strong>${t("ยังไม่มีข้อเสนอ")}</strong><small>${t("เมื่อเจ้าของกลุ่มส่งข้อเสนอ จะแสดงที่นี่")}</small></div></div>`}</section>`
+      : myOffers.length
+        ? `<section class="members-card hk-offers-card" aria-labelledby="hk-offers-heading"><div class="group-section-head"><div><h2 id="hk-offers-heading">${t("ข้อเสนอของคุณ")}</h2><p>${t("ผู้หากลุ่มเห็นข้อเสนอนี้แล้ว")}</p></div><strong>${t("{count} ข้อเสนอ", { count: myOffers.length })}</strong></div><div class="hk-offer-list">${myOffers.map((offer) => offerCard(offer, request, { host: true, reservation })).join("")}</div></section>`
+        : "";
+    const action = (cls, inner) => `<span class="summary-btn-left">${inner}</span><span class="btn-arrow">${icon("arrow", 18)}</span>`;
+    const asideActions = mine
+      ? `${editable ? a(`/requests/${encodeURIComponent(id)}/edit`, action("", `${icon("edit", 18)} <span>${t("แก้ไขประกาศ")}</span>`), "button outline full summary-action-btn") : ""}${cancellable ? `<button type="button" class="button danger-soft full summary-action-btn" data-action="hk-cancel-request" data-id="${escape(id)}">${action("", `${icon("trash", 18)} <span>${t("ยกเลิกประกาศ")}</span>`)}</button>` : ""}${!editable && phase === "has_offers" ? `<p class="field-help">${t("มีข้อเสนอแล้ว จึงแก้ไขประกาศไม่ได้ เพื่อให้ข้อเสนอตรงกับสิ่งที่ประกาศไว้")}</p>` : ""}`
+      : open
+        ? user
+          ? `${a(`/requests/${encodeURIComponent(id)}/offer`, action("", `${icon("users", 18)} <span>${t("เสนอกลุ่มของคุณ")}</span>`), "button primary full summary-action-btn")}<p class="field-help">${t("เลือกกลุ่มที่คุณเปิดอยู่ แล้วส่งข้อเสนอให้ผู้หากลุ่มได้เลย")}</p>`
+          : `<button type="button" class="button primary full summary-action-btn" data-action="open-auth" data-step="1">${action("", `${icon("user", 18)} <span>${t("เข้าสู่ระบบเพื่อส่งข้อเสนอ")}</span>`)}</button>`
+        : "";
+    return `<div class="group-page hk-detail-page">
+      <nav class="breadcrumb product-breadcrumb" aria-label="${t("เส้นทางนำทาง")}">${a(mine ? "/my-requests" : "/requests", mine ? t("ประกาศของฉัน") : t("คนที่กำลังหากลุ่ม"))}<span aria-hidden="true">/</span><span aria-current="page">${escape(request.title)}</span></nav>
+      <div class="group-detail">
+        <main class="group-detail-main">
+          ${mine ? matchPanel(request, offers, reservation) : ""}
+          <section class="group-identity-card" aria-labelledby="hk-request-title">
+            <div class="group-heading-line"><div><h1 id="hk-request-title">${escape(request.title)}</h1><p>${t("หมวดหมู่")}: ${escape(t(request.category))} · ${t("ประกาศ {id}", { id: shortId(id) })}</p></div>${phaseBadge(phase)}</div>
+            ${request.description ? `<p class="hk-description">${escape(request.description)}</p>` : `<p class="hk-description muted">${t("ผู้โพสต์ไม่ได้ใส่รายละเอียดเพิ่มเติม")}</p>`}
+            <div class="group-created-details"><span>${t("ผู้โพสต์")}: <strong>${escape(request.requesterName)}</strong></span><span>${t("ต้องการ")}: <strong>${t("{count} ที่นั่ง", { count: request.seatsNeeded || 1 })}</strong></span><span>${t("รอบการชำระเงิน")}: <strong>${billingLabel(request.billingCycle)}</strong></span><span>${t("ปิดรับข้อเสนอ")}: <strong>${leftLabel(request.expiresAt)}</strong></span></div>
+          </section>
+          ${offersSection}
+        </main>
+        <aside class="group-detail-aside"><div class="summary-card"><small>${t("งบสูงสุดต่อที่นั่ง")}</small><strong>${money(request.budgetMax)}</strong><div class="summary-future-price"><span>${t("รอบการชำระเงิน")}</span><b>${billingLabel(request.billingCycle)}</b></div>${request.budgetMin ? `<div class="summary-future-price"><span>${t("งบขั้นต่ำ")}</span><b>${money(request.budgetMin)}</b></div>` : ""}<p>${mine ? t("เจ้าของกลุ่มจะเสนอราคาต่อที่นั่งของกลุ่มตัวเอง ไม่เกินงบนี้") : t("เสนอได้เฉพาะกลุ่มที่ราคาต่อที่นั่งไม่เกินงบนี้ และหมวดกับรอบชำระตรงกัน")}</p>${asideActions}</div></aside>
+      </div>
     </div>`;
   }
 
   // ------------------------------------------------------------------ /requests/:id/edit
   function editPage(id) {
     const user = ctx.getState().user;
-    if (!user) return `<div class="hk-page">${signInBlock(t("เข้าสู่ระบบเพื่อแก้ไขประกาศ"))}</div>`;
+    if (!user) return `<div class="hk-page">${title(t("แก้ไขประกาศ"))}${signInBlock(t("เข้าสู่ระบบเพื่อแก้ไขประกาศ"))}</div>`;
     const data = source("detail", id);
     if (data.error) return `<div class="hk-page">${errorBlock(data.error)}</div>`;
     if (!data.ready) return `<div class="hk-page">${loadingBlock()}</div>`;
     const request = data.requests.find((item) => item.id === id);
-    if (!request || request.requesterId !== user.id) return `<div class="hk-page"><div class="empty hk-empty"><h2>${t("ไม่พบประกาศนี้")}</h2>${a("/my-requests", t("ประกาศของฉัน"), "button primary")}</div></div>`;
-    if (!canEditRequest(request, data.offers)) return `<div class="hk-page"><div class="empty hk-empty"><h2>${t("แก้ไขประกาศนี้ไม่ได้")}</h2><p>${t("แก้ไขได้เฉพาะประกาศที่เปิดอยู่และยังไม่มีข้อเสนอ")}</p>${a(`/requests/${encodeURIComponent(id)}`, t("กลับไปที่ประกาศ"), "button primary")}</div></div>`;
-    return `<div class="hk-page hk-wizard-page">
-      ${a(`/requests/${encodeURIComponent(id)}`, `← ${t("กลับไปที่ประกาศ")}`, "listing-back-link")}
-      <div class="hk-wizard-head"><h1>${t("แก้ไขประกาศ")}</h1><span>${escape(t(request.category))} · ${billingLabel(request.billingCycle)}</span></div>
-      <form id="hk-request-edit" class="hk-panel hk-wizard" data-id="${escape(id)}" novalidate>
-        <label class="hk-field">${t("ชื่อประกาศ")}<input name="title" required minlength="3" maxlength="80" value="${escape(request.title)}"/></label>
-        <label class="hk-field">${t("รายละเอียดเพิ่มเติม")} <small>(${t("ไม่บังคับ")})</small><textarea name="description" maxlength="600" rows="4">${escape(request.description)}</textarea></label>
-        <div class="hk-field-row"><label class="hk-field">${t("งบสูงสุด (บาท)")}<input name="budgetMax" inputmode="decimal" required value="${escape(ctx.bahtInput(request.budgetMax))}"/></label><label class="hk-field">${t("งบขั้นต่ำ (บาท)")} <small>(${t("ไม่บังคับ")})</small><input name="budgetMin" inputmode="decimal" value="${request.budgetMin ? escape(ctx.bahtInput(request.budgetMin)) : ""}"/></label></div>
-        <p class="hk-help small">${t("บริการ รอบการชำระเงิน และวันหมดอายุเปลี่ยนไม่ได้ ถ้าต้องการเปลี่ยน ให้ยกเลิกแล้วโพสต์ใหม่")}</p>
+    if (!request || request.requesterId !== user.id) return `<div class="hk-page"><div class="empty"><h3>${t("ไม่พบประกาศนี้")}</h3>${a("/my-requests", t("ประกาศของฉัน"), "button primary")}</div></div>`;
+    if (!canEditRequest(request, data.offers)) return `<div class="hk-page"><div class="empty"><h3>${t("แก้ไขประกาศนี้ไม่ได้")}</h3><p>${t("แก้ไขได้เฉพาะประกาศที่เปิดอยู่และยังไม่มีข้อเสนอ")}</p>${a(`/requests/${encodeURIComponent(id)}`, t("กลับไปที่ประกาศ"), "button primary")}</div></div>`;
+    return `<div class="hk-page">
+      ${title(t("แก้ไขประกาศ"), escape(request.title))}
+      <div class="create-group-layout"><form id="hk-request-edit" class="form-panel create-group-form hk-request-form" data-id="${escape(id)}" novalidate>
+        <div class="create-form-section"><h2>${icon("edit", 20)} ${t("รายละเอียดประกาศ")}</h2>
+        <label>${t("ชื่อประกาศ")} <b>*</b><input name="title" required minlength="3" maxlength="80" value="${escape(request.title)}"/></label>
+        <label>${t("รายละเอียดเพิ่มเติม")} <small>(${t("ไม่บังคับ")})</small><textarea name="description" maxlength="600" rows="4">${escape(request.description)}</textarea></label>
+        <div class="hk-field-row"><label>${t("งบสูงสุดต่อที่นั่ง (บาท)")} <b>*</b><input name="budgetMax" inputmode="decimal" required value="${escape(ctx.bahtInput(request.budgetMax))}"/></label><label>${t("งบขั้นต่ำ (บาท)")} <small>(${t("ไม่บังคับ")})</small><input name="budgetMin" inputmode="decimal" value="${request.budgetMin ? escape(ctx.bahtInput(request.budgetMin)) : ""}"/></label></div>
+        <p class="field-help">${t("บริการ รอบการชำระเงิน และวันหมดอายุเปลี่ยนไม่ได้ ถ้าต้องการเปลี่ยน ให้ยกเลิกแล้วโพสต์ใหม่")}</p></div>
         <div class="hk-feedback" role="alert" hidden></div>
-        <div class="hk-actions">${a(`/requests/${encodeURIComponent(id)}`, t("ยกเลิก"), "button outline")}<button type="submit" class="button primary">${t("บันทึกการแก้ไข")}</button></div>
+        <div class="create-step-actions">${a(`/requests/${encodeURIComponent(id)}`, t("ยกเลิก"), "button outline")}<button type="submit" class="button primary">${t("บันทึกการแก้ไข")}</button></div>
       </form>
+      ${requestSummary({ title: request.title, category: request.category, billingCycle: request.billingCycle, budgetMax: money(request.budgetMax), budgetMin: request.budgetMin ? money(request.budgetMin) : "", expiresInDays: null }).replace(`data-hk-sum="expiry">—`, `data-hk-sum="expiry">${leftLabel(request.expiresAt)}`)}</div>
     </div>`;
   }
+
+  /** Pill tabs in the notification-page style; counts are plain numbers, not alerts. */
+  const pillTabs = (label, tabs) => `<nav class="note-tabs hk-tabs" aria-label="${label}">${tabs.map(([href, text, count, active]) => `<a href="${href}" data-link class="note-tab${active ? " active" : ""}"${active ? ' aria-current="page"' : ""}>${text}${count === null ? "" : ` <span class="hk-tab-count">${count}</span>`}</a>`).join("")}</nav>`;
 
   // ------------------------------------------------------------------ /my-requests
   function myRequestsPage() {
     const user = ctx.getState().user;
-    if (!user) return `<div class="hk-page">${signInBlock(t("เข้าสู่ระบบเพื่อดูประกาศหากลุ่มของคุณ"))}</div>`;
+    if (!user) return `<div class="hk-page">${title(t("ประกาศหากลุ่มของฉัน"))}${signInBlock(t("เข้าสู่ระบบเพื่อดูประกาศหากลุ่มของคุณ"))}</div>`;
     const tab = MY_REQUEST_TABS.includes(new URLSearchParams(location.search).get("tab")) ? new URLSearchParams(location.search).get("tab") : "all";
     const data = source("mine");
     const mine = data.requests.filter((request) => request.requesterId === user.id);
-    const counts = Object.fromEntries(MY_REQUEST_TABS.map((key) => [key, filterMyRequests(mine, data.offers, key).length]));
     const list = filterMyRequests(mine, data.offers, tab);
-    const tabs = `<nav class="hk-tabs" aria-label="${t("ประกาศของฉัน")}">${MY_REQUEST_TABS.map((key) => a(key === "all" ? "/my-requests" : `/my-requests?tab=${key}`, `${t(TAB_LABEL[key])}${data.ready ? ` <span>${counts[key]}</span>` : ""}`, `hk-tab${tab === key ? " active" : ""}`)).join("")}</nav>`;
+    const tabs = pillTabs(t("ประกาศของฉัน"), MY_REQUEST_TABS.map((key) => [key === "all" ? "/my-requests" : `/my-requests?tab=${key}`, t(TAB_LABEL[key]), data.ready ? filterMyRequests(mine, data.offers, key).length : null, tab === key]));
     const body = data.error
       ? errorBlock(data.error)
       : !data.ready
         ? loadingBlock()
         : list.length
           ? `<div class="hk-request-grid">${list.map((request) => requestCard(request, data.offers, { mine: true })).join("")}</div>`
-          : `<div class="empty hk-empty"><h2>${tab === "all" ? t("คุณยังไม่มีประกาศหากลุ่ม") : t("ไม่มีประกาศในแท็บนี้")}</h2><p>${t("โพสต์สิ่งที่คุณต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ")}</p>${a("/requests/new", `${icon("plus", 18)} ${t("โพสต์หาของหาร")}`, "button primary")}</div>`;
+          : `<div class="empty"><h3>${tab === "all" ? t("คุณยังไม่มีประกาศหากลุ่ม") : t("ไม่มีประกาศในแท็บนี้")}</h3><p>${t("โพสต์สิ่งที่คุณต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ")}</p>${a("/requests/new", `${icon("plus", 18)} ${t("โพสต์หาของหาร")}`, "button primary")}</div>`;
     return `<div class="hk-page">
       ${title(t("ประกาศหากลุ่มของฉัน"), t("ติดตามประกาศและข้อเสนอที่ได้รับ"))}
       <div class="hk-toolbar">${tabs}${a("/requests/new", `${icon("plus", 18)} ${t("โพสต์หาของหาร")}`, "button primary")}</div>
@@ -431,60 +471,59 @@ export function createRequestMarketplace(ctx) {
   // ------------------------------------------------------------------ /requests/:id/offer
   function offerPage(id) {
     const user = ctx.getState().user;
-    if (!user) return `<div class="hk-page">${signInBlock(t("เข้าสู่ระบบเพื่อส่งข้อเสนอ"))}</div>`;
+    if (!user) return `<div class="hk-page">${title(t("เสนอกลุ่มของคุณ"))}${signInBlock(t("เข้าสู่ระบบเพื่อส่งข้อเสนอ"))}</div>`;
     const data = source("detail", id);
     if (data.error) return `<div class="hk-page">${errorBlock(data.error)}</div>`;
     if (!data.ready) return `<div class="hk-page">${loadingBlock()}</div>`;
     const request = data.requests.find((item) => item.id === id);
-    const back = a(`/requests/${encodeURIComponent(id)}`, `← ${t("กลับไปที่ประกาศ")}`, "listing-back-link");
-    if (!request) return `<div class="hk-page"><div class="empty hk-empty"><h2>${t("ไม่พบประกาศนี้")}</h2>${a("/requests", t("ดูประกาศทั้งหมด"), "button primary")}</div></div>`;
+    const back = a(`/requests/${encodeURIComponent(id)}`, t("กลับไปที่ประกาศ"), "button outline");
+    if (!request) return `<div class="hk-page"><div class="empty"><h3>${t("ไม่พบประกาศนี้")}</h3>${a("/requests", t("ดูประกาศทั้งหมด"), "button primary")}</div></div>`;
     if (request.requesterId === user.id)
-      return `<div class="hk-page hk-wizard-page">${back}<div class="empty hk-empty"><h2>${t("นี่คือประกาศของคุณ")}</h2><p>${t("ส่งข้อเสนอให้ประกาศของตัวเองไม่ได้")}</p></div></div>`;
+      return `<div class="hk-page"><div class="empty"><h3>${t("นี่คือประกาศของคุณ")}</h3><p>${t("ส่งข้อเสนอให้ประกาศของตัวเองไม่ได้")}</p>${back}</div></div>`;
     if (request.status !== "open" || requestPhase(request, []) === "expired")
-      return `<div class="hk-page hk-wizard-page">${back}<div class="empty hk-empty"><h2>${t("ประกาศนี้ปิดรับข้อเสนอแล้ว")}</h2>${a("/requests", t("ดูประกาศอื่น"), "button primary")}</div></div>`;
+      return `<div class="hk-page"><div class="empty"><h3>${t("ประกาศนี้ปิดรับข้อเสนอแล้ว")}</h3>${a("/requests", t("ดูประกาศอื่น"), "button primary")}</div></div>`;
     const list = offerable(request);
-    const summary = `<section class="hk-panel hk-offer-summary"><div class="hk-detail-meta"><span class="hk-card-category">${escape(t(request.category))}</span><span>${billingLabel(request.billingCycle)}</span><span>${leftLabel(request.expiresAt)}</span></div><h2>${escape(request.title)}</h2><p>${t("ผู้โพสต์: {name}", { name: escape(request.requesterName) })} · ${t("ต้องการ {count} ที่นั่ง", { count: request.seatsNeeded || 1 })} · ${t("งบสูงสุด")} <strong>${money(request.budgetMax)}</strong> ${perUnit(request.billingCycle)}</p></section>`;
+    const first = list.ready ? list.groups.find((group) => group.matches) : null;
+    const summary = `<aside class="create-group-summary hk-request-summary" aria-live="polite"><div class="create-summary-heading"><h2>${t("ประกาศนี้")}</h2>${icon("search", 28)}</div><div class="create-summary-product"><div>${icon("search", 30)}</div><div><strong>${escape(request.title)}</strong><small>${escape(t(request.category))}</small></div></div><dl><div><dt>${t("ผู้โพสต์")}</dt><dd>${escape(request.requesterName)}</dd></div><div><dt>${t("ต้องการ")}</dt><dd>${t("{count} ที่นั่ง", { count: request.seatsNeeded || 1 })} · ${billingLabel(request.billingCycle)}</dd></div><div><dt>${t("งบสูงสุดต่อที่นั่ง")}</dt><dd>${money(request.budgetMax)}</dd></div><div><dt>${t("ปิดรับข้อเสนอ")}</dt><dd>${leftLabel(request.expiresAt)}</dd></div><div class="summary-per-person"><dt>${t("ราคาที่คุณเสนอ")}</dt><dd data-hk-offer-price>${first ? money(first.seatPrice) : "—"}</dd></div></dl><p>${t("ราคาคิดจากราคาต่อที่นั่งของกลุ่ม ซึ่งเป็นยอดที่ผู้หากลุ่มจะจ่ายจริงเมื่อเข้าร่วม และจะล็อกไว้ตอนส่ง")}</p></aside>`;
     let body;
     if (list.error) body = errorBlock(list.error);
     else if (!list.ready) body = loadingBlock();
     else if (!list.groups.length)
-      body = `<div class="empty hk-empty"><h2>${t("คุณยังไม่มีกลุ่มที่เปิดอยู่")}</h2><p>${t("เปิดกลุ่มก่อน แล้วกลับมาส่งข้อเสนอด้วยกลุ่มนั้น")}</p>${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่มหารของ")}`, "button primary")}</div>`;
+      body = `<div class="form-panel"><div class="empty"><h3>${t("คุณยังไม่มีกลุ่มที่เปิดอยู่")}</h3><p>${t("เปิดกลุ่มก่อน แล้วกลับมาส่งข้อเสนอด้วยกลุ่มนั้น")}</p>${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่มหารของ")}`, "button primary")}</div></div>`;
     else {
-      const first = list.groups.find((group) => group.matches);
-      const options = list.groups.map((group) => `<label class="hk-group-option${group.matches ? "" : " is-disabled"}"><input type="radio" name="groupId" value="${escape(group.groupId)}" data-price="${group.seatPrice ?? ""}" ${group.matches ? "" : "disabled"} ${first && first.groupId === group.groupId ? "checked" : ""}/><span class="hk-group-option-body"><span class="hk-group-option-head"><strong>${escape(group.name)}</strong>${group.matches ? `<span class="hk-status hk-status-open">${t("เลือกได้")}</span>` : `<span class="hk-status hk-status-expired">${t("เลือกไม่ได้")}</span>`}</span><span class="hk-group-option-stats"><span><small>${t("ที่นั่งว่าง")}</small><b>${t("{count} ที่", { count: group.freeSeats })}</b></span><span><small>${t("ราคาต่อที่นั่ง")}</small><b>${group.seatPrice == null ? "—" : `${money(group.seatPrice)} ${perUnit(group.billing)}`}</b></span><span><small>${t("รอบการชำระเงิน")}</small><b>${billingLabel(group.billing)}</b></span></span>${group.reason ? `<small class="hk-group-option-reason">${icon("info", 14)} ${t(BLOCKER_LABEL[group.reason] || group.reason)}</small>` : ""}</span></label>`).join("");
-      body = `<form id="hk-offer-form" class="hk-panel hk-wizard" data-id="${escape(id)}" novalidate>
-        <h2>${t("กลุ่มของฉัน")}</h2><p class="hk-help">${t("เลือกกลุ่มที่ต้องการนำมาเสนอให้ผู้หากลุ่ม")}</p>
-        <fieldset class="hk-group-options"><legend class="sr-only">${t("กลุ่มของฉัน")}</legend>${options}</fieldset>
-        ${first ? "" : `<p class="hk-help small">${t("ยังไม่มีกลุ่มที่ตรงกับประกาศนี้ กลุ่มต้องอยู่หมวดเดียวกัน รอบการชำระเงินเดียวกัน มีที่ว่าง และราคาไม่เกินงบ")}</p>`}
-        <div class="hk-offer-price-box"><small>${t("ราคาที่เสนอ")}</small><strong data-hk-offer-price>${first ? money(first.seatPrice) : "—"}</strong><span>${perUnit(request.billingCycle)}</span><p class="hk-help small">${t("ราคาคิดจากราคาต่อที่นั่งของกลุ่ม ซึ่งเป็นยอดที่ผู้หากลุ่มจะจ่ายจริงเมื่อเข้าร่วม และจะล็อกไว้ตอนส่ง")}</p></div>
-        <label class="hk-field">${t("ข้อความถึงผู้หาของ")} <small>(${t("ไม่บังคับ")})</small><textarea name="message" maxlength="400" rows="3" placeholder="${t("สามารถเข้าร่วมได้ 1 ที่นั่ง รายละเอียดตามเงื่อนไขกลุ่ม...")}"></textarea></label>
+      const options = list.groups.map((group) => `<label class="${group.matches ? "" : "is-disabled"}"><input type="radio" name="groupId" value="${escape(group.groupId)}" data-price="${group.seatPrice ?? ""}" ${group.matches ? "" : "disabled"} ${first && first.groupId === group.groupId ? "checked" : ""}/><span>${icon("users", 20)}<strong>${escape(group.name)}</strong><small>${group.matches ? `${t("ว่าง {count} ที่", { count: group.freeSeats })} · ${money(group.seatPrice)} ${perUnit(group.billing)}` : `${icon("info", 14)} ${t(BLOCKER_LABEL[group.reason] || group.reason)}`}</small></span></label>`).join("");
+      body = `<form id="hk-offer-form" class="form-panel create-group-form hk-request-form" data-id="${escape(id)}" novalidate>
+        <div class="create-form-section"><h2>${icon("users", 20)} ${t("เลือกกลุ่มของคุณ")}</h2>
+        <fieldset class="product-type-picker hk-group-picker"><legend>${t("กลุ่มที่จะเสนอ")} <b>*</b></legend>${options}</fieldset>
+        ${first ? "" : `<p class="field-help">${t("ยังไม่มีกลุ่มที่ตรงกับประกาศนี้ กลุ่มต้องอยู่หมวดเดียวกัน รอบการชำระเงินเดียวกัน มีที่ว่าง และราคาไม่เกินงบ")}</p>`}</div>
+        <div class="create-form-section"><h2>${icon("chat", 20)} ${t("ข้อความถึงผู้หาของ")}</h2>
+        <label>${t("ข้อความ")} <small>(${t("ไม่บังคับ")})</small><textarea name="message" maxlength="400" rows="3" placeholder="${t("สามารถเข้าร่วมได้ 1 ที่นั่ง รายละเอียดตามเงื่อนไขกลุ่ม...")}"></textarea></label></div>
         <div class="hk-feedback" role="alert" hidden></div>
-        <div class="hk-actions">${a(`/requests/${encodeURIComponent(id)}`, t("ยกเลิก"), "button outline")}<button type="submit" class="button primary" ${first ? "" : "disabled"}>${icon("check", 18)} ${t("ส่งข้อเสนอ")}</button></div>
+        <div class="create-step-actions">${back}<button type="submit" class="button primary" ${first ? "" : "disabled"}>${icon("check", 18)} ${t("ส่งข้อเสนอ")}</button></div>
       </form>`;
     }
-    return `<div class="hk-page hk-wizard-page">${back}<div class="hk-wizard-head"><h1>${t("ส่งข้อเสนอ")}</h1><span>Make an Offer</span></div>${summary}${body}</div>`;
+    return `<div class="hk-page">${title(t("เสนอกลุ่มของคุณ"), t("ผู้หากลุ่มจะเห็นกลุ่มและราคาต่อที่นั่งที่คุณเสนอ"))}<div class="create-group-layout">${body}${summary}</div></div>`;
   }
 
   // ------------------------------------------------------------------ /my-offers
   function myOffersPage() {
     const user = ctx.getState().user;
-    if (!user) return `<div class="hk-page">${signInBlock(t("เข้าสู่ระบบเพื่อดูข้อเสนอที่คุณส่ง"))}</div>`;
+    if (!user) return `<div class="hk-page">${title(t("ข้อเสนอของฉัน"))}${signInBlock(t("เข้าสู่ระบบเพื่อดูข้อเสนอที่คุณส่ง"))}</div>`;
     const params = new URLSearchParams(location.search);
     const tab = MY_OFFER_TABS.includes(params.get("tab")) ? params.get("tab") : "all";
     const data = source("myOffers");
     const mine = data.offers.filter((offer) => offer.hostId === user.id).sort((x, y) => String(y.createdAt).localeCompare(String(x.createdAt)));
-    const counts = Object.fromEntries(MY_OFFER_TABS.map((key) => [key, filterMyOffers(mine, key).length]));
     const list = filterMyOffers(mine, tab);
     const requestOf = (offer) => data.requests.find((request) => request.id === offer.requestId);
     const reservationOf = (offer) => (data.reservations || []).find((r) => r.offerId === offer.id && ["reserved", "confirmed"].includes(r.status)) || null;
-    const tabs = `<nav class="hk-tabs" aria-label="${t("ข้อเสนอของฉัน")}">${MY_OFFER_TABS.map((key) => a(key === "all" ? "/my-offers" : `/my-offers?tab=${key}`, `${t(OFFER_TAB_LABEL[key])}${data.ready ? ` <span>${counts[key]}</span>` : ""}`, `hk-tab${tab === key ? " active" : ""}`)).join("")}</nav>`;
+    const tabs = pillTabs(t("ข้อเสนอของฉัน"), MY_OFFER_TABS.map((key) => [key === "all" ? "/my-offers" : `/my-offers?tab=${key}`, t(OFFER_TAB_LABEL[key]), data.ready ? filterMyOffers(mine, key).length : null, tab === key]));
     const body = data.error
       ? errorBlock(data.error)
       : !data.ready
         ? loadingBlock()
         : list.length
           ? `<div class="hk-offer-list hk-my-offers">${list.map((offer) => offerCard(offer, requestOf(offer), { host: true, withRequest: true, reservation: reservationOf(offer) })).join("")}</div>`
-          : `<div class="empty hk-empty"><h2>${tab === "all" ? t("คุณยังไม่ได้ส่งข้อเสนอ") : t("ไม่มีข้อเสนอในแท็บนี้")}</h2><p>${t("ดูประกาศของคนที่กำลังหากลุ่ม แล้วเสนอกลุ่มที่คุณเปิดอยู่")}</p>${a("/requests", `${icon("search", 18)} ${t("ดูประกาศหากลุ่ม")}`, "button primary")}</div>`;
+          : `<div class="empty"><h3>${tab === "all" ? t("คุณยังไม่ได้ส่งข้อเสนอ") : t("ไม่มีข้อเสนอในแท็บนี้")}</h3><p>${t("ดูประกาศของคนที่กำลังหากลุ่ม แล้วเสนอกลุ่มที่คุณเปิดอยู่")}</p>${a("/requests", `${icon("search", 18)} ${t("ดูประกาศหากลุ่ม")}`, "button primary")}</div>`;
     return `<div class="hk-page">
       ${title(t("ข้อเสนอของฉัน"), t("ติดตามข้อเสนอที่คุณส่งให้คนที่กำลังหากลุ่ม"))}
       <div class="hk-toolbar">${tabs}${a("/requests", `${icon("search", 18)} ${t("ดูประกาศหากลุ่ม")}`, "button outline")}</div>
@@ -800,6 +839,14 @@ export function createRequestMarketplace(ctx) {
     const target = e.target.closest?.("[data-action]");
     if (!target) return false;
     const action = target.dataset.action;
+    if (action === "hk-wizard-step") {
+      const goal = Number(target.dataset.step);
+      if (!(goal < draft.step)) return true;
+      keepDraft(target.closest("form"));
+      draft.step = goal;
+      ctx.render();
+      return true;
+    }
     if (action === "hk-wizard-back") {
       const form = target.closest("form");
       if (form) {
@@ -873,7 +920,36 @@ export function createRequestMarketplace(ctx) {
     return false;
   }
 
+  /** Keep what was typed on the current step (used when moving back). */
+  function keepDraft(form) {
+    if (!form) return;
+    const data = new FormData(form);
+    for (const key of ["title", "description", "budgetMax", "budgetMin", "billingCycle", "category"])
+      if (data.has(key)) draft[key] = String(data.get(key));
+    if (data.has("expiresInDays")) draft.expiresInDays = Number(data.get("expiresInDays"));
+  }
+
+  /** Live summary next to the create/edit forms. */
+  function updateSummary(form) {
+    const data = new FormData(form);
+    const set = (key, text) => {
+      const el = document.querySelector(`[data-hk-sum="${key}"]`);
+      if (el) el.textContent = text;
+    };
+    if (data.has("title")) set("title", String(data.get("title")).trim() || t("ชื่อประกาศ"));
+    if (data.has("category")) set("category", t(String(data.get("category"))));
+    if (data.has("billingCycle")) set("billing", billingLabel(String(data.get("billingCycle"))));
+    if (data.has("budgetMax")) set("budgetMax", moneyText(data.get("budgetMax")) || "—");
+    if (data.has("budgetMin")) set("budgetMin", moneyText(data.get("budgetMin")) || "—");
+    if (data.has("expiresInDays")) set("expiry", t("{days} วัน", { days: Number(data.get("expiresInDays")) }));
+  }
+
   function onInput(e) {
+    const form = e.target.closest?.("#hk-request-wizard, #hk-request-edit");
+    if (form) {
+      updateSummary(form);
+      return true;
+    }
     if (e.target.matches?.('#hk-offer-form input[name="groupId"]')) {
       const price = Number(e.target.dataset.price);
       const box = document.querySelector("[data-hk-offer-price]");
@@ -891,9 +967,62 @@ export function createRequestMarketplace(ctx) {
   function onNavigate(path) {
     if (path !== "/requests/new") draft = blankDraft();
   }
-  function onSessionChange() {
+  function onSessionChange(session) {
     invalidate();
     remote.errors.clear();
+    const userId = ctx.supabaseConfigured() ? session?.user?.id || null : null;
+    if (userId === notes.userId) return;
+    notes.unsubscribe?.();
+    notes.unsubscribe = null;
+    notes.items = [];
+    notes.userId = userId;
+    if (!userId) return;
+    const reload = () =>
+      fetchRequestNotifications(userId)
+        .then((items) => {
+          if (notes.userId !== userId) return;
+          notes.items = items;
+          ctx.render();
+        })
+        .catch(() => {
+          /* the bell just shows nothing from here; the pages still load their own data */
+        });
+    void reload();
+    try {
+      notes.unsubscribe = subscribeRequestNotifications(userId, (row) => {
+        // Something changed for this person: drop cached pages so they reload, then refresh the bell.
+        invalidate();
+        const copy = NOTE_COPY[row?.type];
+        if (copy) ctx.alertMessage(t(copy[0]));
+        void reload();
+      });
+    } catch {
+      /* Realtime unavailable: notifications still load on each sign-in */
+    }
+  }
+
+  /** Items for the existing notification page and bell (Supabase mode; test mode uses ctx.notice). */
+  function feedItems() {
+    return notes.items.map((note) => {
+      const copy = NOTE_COPY[note.type] || ["ประกาศหากลุ่ม", "{title}"];
+      return {
+        id: `hk:${note.id}`,
+        kind: "request",
+        title: t(copy[0]),
+        body: t(copy[1], { title: note.requestTitle, host: note.hostName, group: note.groupName }),
+        href: note.requestId ? `/requests/${note.requestId}` : "/my-requests",
+        at: note.at,
+        read: note.read,
+      };
+    });
+  }
+
+  /** Mirrors read marks to the server for hk notifications (best effort). */
+  function markRead(ids) {
+    const hk = ids.filter((id) => String(id).startsWith("hk:")).map((id) => String(id).slice(3));
+    if (!hk.length || !ctx.supabaseConfigured()) return;
+    notes.items = notes.items.map((note) => (hk.includes(note.id) ? { ...note, read: true } : note));
+    void markRequestNotificationsRead(hk).catch(() => {});
   }
 
   /**
@@ -942,5 +1071,5 @@ export function createRequestMarketplace(ctx) {
     state.hkSeeded = 1;
   }
 
-  return { route, marketTabs, homeSection, joinBlockedByReservation, onClick, onSubmit, onInput, onNavigate, onSessionChange, seedTestData };
+  return { route, marketTabs, homeSection, joinBlockedByReservation, feedItems, markRead, onClick, onSubmit, onInput, onNavigate, onSessionChange, seedTestData };
 }

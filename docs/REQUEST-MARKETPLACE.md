@@ -147,3 +147,42 @@ Request → Offer → **Accept → Reservation → Join (flow กลุ่มเ
 - `tests/requests.test.js` เพิ่ม 7 ข้อ (รวม 20): ยอมรับ/จอง/ปฏิเสธอันอื่น, ตรวจกลุ่มซ้ำตอนยอมรับ (เต็ม, ปิด, ราคาขึ้น, เป็นสมาชิกแล้ว), ที่นั่งสุดท้ายจองซ้ำไม่ได้ + join ปกติโดนกัน, ปฏิเสธ, เข้าร่วมแล้ว completed, จองหมดเวลา, Host ถอนหลังยอมรับ
 - SQL `supabase/tests/request_marketplace.sql` ยังผ่าน (รวมการกดยอมรับพร้อมกันจาก 2 session ใน Phase 1)
 - Playwright มือถือ + เดสก์ท็อป: A โพสต์ → B เสนอ → A ยอมรับ (เห็นแผงจองที่นั่ง) → B เห็น “ที่นั่งถูกจองไว้” → A เข้าร่วม → ไปหน้ากลุ่มและเป็นสมาชิก → ประกาศ “เข้าร่วมสำเร็จ” → B ได้แจ้งเตือน, B ปฏิเสธข้อเสนอ, Host ถอนหลังยอมรับ, จองหมดเวลาแล้วประกาศเปิดใหม่ ไม่มี console error
+
+---
+
+# Phase 5 — Polish & Testing
+
+## แจ้งเตือน
+
+- โหมด Supabase: `hk_request_notifications` ขึ้นที่กระดิ่งและหน้า `/notifications` ในแท็บใหม่ **ประกาศหากลุ่ม** (test mode ใช้แจ้งเตือนเดิมของแอปและเข้าแท็บเดียวกัน)
+- Realtime: subscribe `postgres_changes` (INSERT, `user_id=eq.<ฉัน>`) ตอนล็อกอิน → มี toast, รีเฟรชกระดิ่ง และล้าง cache หน้าประกาศให้โหลดใหม่ ยกเลิกตอนออกจากระบบ
+- กด “อ่านแล้ว” ส่ง `hk_mark_notifications_read` ไปที่เซิร์ฟเวอร์ด้วย
+
+## UI ให้เข้าธีมเว็บ
+
+หน้าใหม่ทั้งหมดเปลี่ยนมาใช้ชิ้นส่วนเดิมของเว็บแทนของที่ทำขึ้นเอง:
+
+| หน้า | ใช้ของเดิม |
+| --- | --- |
+| `/requests` | `page-heading`, `search-bar`, `filter-carousel`, `section-header` แบบหน้า `/explore` |
+| `/requests/new`, `/edit`, `/offer` | `create-group-layout`, `form-panel`, `create-stepper`, `create-form-section`, `category-option`, `product-type-picker`, `create-group-summary` (สรุปด้านขวาอัปเดตตามที่พิมพ์) แบบหน้าสร้างกลุ่ม |
+| `/requests/:id` | `breadcrumb`, `group-detail`, `group-identity-card`, `members-card`, `summary-card` แบบหน้ากลุ่ม |
+| `/my-requests`, `/my-offers` | `note-tabs` แบบหน้าแจ้งเตือน |
+| การ์ดประกาศ | กล่องราคา `opportunity-price` แบบการ์ดกลุ่ม |
+
+เอาออก: hero “NEW FEATURE”, หัวข้อ “MARKETPLACE”, “Step 1 / 3”, ชิปหมวดหมู่ที่มีอีโมจิ, ปุ่มภาษาอังกฤษ (“Publish Request” → “โพสต์ประกาศ”, “Make an Offer” → “เสนอกลุ่มของคุณ”)
+
+## ทดสอบแล้ว
+
+- SQL: เพิ่มเช็คสิทธิ์ (guest เรียก RPC/อ่านการจองไม่ได้, อ่านแจ้งเตือนของคนอื่นไม่ได้, เขียน event/แจ้งเตือนตรงไม่ได้)
+- Playwright ทุก flow (Phase 2–4) บน iPhone 13 + เดสก์ท็อปผ่านหลังเปลี่ยน UI, ไม่มี console error
+- ไม่มีจอเลื่อนซ้ายขวาในทุกหน้าใหม่บน iPhone SE / iPhone 13 / Pixel 7
+- โหมดมืดใช้ token เดิมของธีม
+
+# ก่อนขึ้น production
+
+1. ตรวจ migration drift: ฐานข้อมูลจริงบันทึกไว้ 16 migration แต่ repo มี 49 ต้องเทียบ schema จริงก่อน
+2. Apply `20261121120000_safe_image_sources.sql` และ `20261121130000_request_marketplace.sql`
+3. เปิด Realtime ให้ตาราง `hk_request_notifications` (migration เพิ่มให้ถ้ามี publication `supabase_realtime`)
+4. ลองครบ flow ด้วย 2 บัญชีจริงบน preview ที่ต่อ Supabase จริง
+5. ถ้าไม่ apply migration ก่อน merge หน้าประกาศจะขึ้นว่า “ระบบประกาศหากลุ่มยังไม่ได้เปิดในฐานข้อมูลนี้” (ส่วนอื่นของเว็บใช้ได้ปกติ)
