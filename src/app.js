@@ -1595,7 +1595,20 @@ const requestMarketplace = createRequestMarketplace({
   errorMessage: (error) => errorMessage(error),
   supabaseConfigured: () => supabaseConfigured,
   locale: () => (locale === "en" ? "en-GB" : "th-TH"),
+  refreshGroups: () => refreshSupabaseGroups(activeSupabaseSession),
+  joinGroupLocally: (groupId) => joinGroupLocally(groupId),
 });
+/** Test mode join used by the Request Marketplace: the same steps as the group page's join button. */
+function joinGroupLocally(id) {
+  const g = joinGroup(group(id), state.user.id, 1);
+  updateGroup(g);
+  g.members.forEach((u) =>
+    notice(t("ยอดกลุ่มเปลี่ยน"), t("มีสมาชิกใหม่ กรุณายืนยันยอดรอบ {revision}", { revision: g.revision }), `/groups/${id}`, u),
+  );
+  if (groupFull(g))
+    g.members.forEach((u) => notice(t("กลุ่มครบสมาชิก"), t("รอทุกคนยืนยันยอดก่อนสรุปคำสั่งซื้อ"), `/groups/${id}`, u));
+  return g;
+}
 function home() {
   const activeGroups = state.groups.filter(
     (g) =>
@@ -5990,6 +6003,8 @@ document.addEventListener("click", async (e) => {
         go(`/groups/${id}`);
         alertMessage(t("เข้าร่วมกลุ่มแล้ว กรุณายืนยันยอดใหม่"));
       } else {
+        if (requestMarketplace.joinBlockedByReservation(group(id), state.user.id))
+          throw Object.assign(new Error(t("กลุ่มนี้เต็มแล้ว")), { code: "fullGroup" });
         const g = joinGroup(group(id), state.user.id, Number(btn.dataset.units) || 1);
         updateGroup(g);
         if (saleMode(g)) {

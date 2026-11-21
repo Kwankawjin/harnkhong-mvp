@@ -13,7 +13,8 @@ const KNOWN = new Set([
   "too_many_open_requests", "request_not_found", "request_not_open", "request_has_offers",
   "own_request", "group_not_owned", "group_unavailable", "billing_mismatch", "product_mismatch",
   "category_mismatch", "requester_already_member", "full_group", "over_budget", "duplicate_offer",
-  "offer_not_found", "offer_not_pending",
+  "offer_not_found", "offer_not_pending", "offer_price_changed", "reservation_not_found",
+  "reservation_not_active", "group_closed", "invite_invalid",
 ]);
 function rethrow(error) {
   if (!error) return;
@@ -59,6 +60,19 @@ export const mapOffer = (row) => ({
   createdAt: row.created_at,
 });
 
+const RESERVATION_FIELDS = "id,offer_id,request_id,group_id,requester_id,seats_reserved,status,expires_at,created_at,updated_at";
+export const mapReservation = (row) => ({
+  id: row.id,
+  offerId: row.offer_id,
+  requestId: row.request_id,
+  groupId: row.group_id,
+  requesterId: row.requester_id,
+  seatsReserved: row.seats_reserved,
+  status: row.status,
+  expiresAt: row.expires_at,
+  createdAt: row.created_at,
+});
+
 async function sync() {
   const { error } = await supabase.rpc("hk_sync");
   rethrow(error);
@@ -93,14 +107,20 @@ export async function fetchMyRequests(userId) {
 /** One request with the offers this viewer may see (RLS: the requester and each offer's host). */
 export async function fetchRequest(id) {
   await sync();
-  const [request, offers] = await Promise.all([
+  const [request, offers, reservations] = await Promise.all([
     supabase.from("hk_requests").select(REQUEST_FIELDS).eq("id", id).maybeSingle(),
     supabase.from("hk_request_offers").select(OFFER_FIELDS).eq("request_id", id).order("created_at"),
+    supabase.from("hk_group_reservations").select(RESERVATION_FIELDS).eq("request_id", id).order("created_at"),
   ]);
   rethrow(request.error);
-  // Guests have no access to offers at all; that is not an error for the page.
+  // Guests have no access to offers or reservations at all; that is not an error for the page.
   const offerRows = offers.error ? [] : offers.data || [];
-  return { request: request.data ? mapRequest(request.data) : null, offers: offerRows.map(mapOffer) };
+  const reservationRows = reservations.error ? [] : reservations.data || [];
+  return {
+    request: request.data ? mapRequest(request.data) : null,
+    offers: offerRows.map(mapOffer),
+    reservations: reservationRows.map(mapReservation),
+  };
 }
 
 export async function createSupabaseRequest(input) {
@@ -171,7 +191,7 @@ export async function fetchMyOffers(userId) {
   await sync();
   const { data, error } = await supabase
     .from("hk_request_offers")
-    .select(`${OFFER_FIELDS},request:hk_requests(${REQUEST_FIELDS})`)
+    .select(`${OFFER_FIELDS},request:hk_requests(${REQUEST_FIELDS}),reservations:hk_group_reservations(${RESERVATION_FIELDS})`)
     .eq("host_id", userId)
     .order("created_at", { ascending: false })
     .limit(200);
@@ -180,5 +200,28 @@ export async function fetchMyOffers(userId) {
   return {
     offers: rows.map(mapOffer),
     requests: rows.filter((row) => row.request).map((row) => mapRequest(row.request)),
+    reservations: rows.flatMap((row) => [].concat(row.reservations || [])).map(mapReservation),
   };
+}
+
+// ------------------------------------------------------------------ matching (Phase 4)
+export async function acceptSupabaseOffer(offerId) {
+  const { data, error } = await supabase.rpc("hk_accept_offer", { p_offer: offerId });
+  rethrow(error);
+  return data; // reservation id
+}
+
+export async function rejectSupabaseOffer(offerId) {
+  const { error } = await supabase.rpc("hk_reject_offer", { p_offer: offerId });
+  rethrow(error);
+}
+
+/** Joins through private.join_group; returns the group id. */
+export async function joinSupabaseReservedGroup(reservationId) {
+  const { data, error } = await supabase.rpc("hk_join_reserved_group", {
+    p_reservation: reservationId,
+    p_request_key: crypto.randomUUID(),
+  });
+  rethrow(error);
+  return data;
 }
