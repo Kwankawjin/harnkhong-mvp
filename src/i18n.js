@@ -2243,6 +2243,16 @@ Object.assign(labels, {
   "กรุณาระบุชื่อหมวดหมู่": "Please enter the category name"
 });
 
+
+Object.assign(labels, {
+  "หลังโพสต์": "After you post",
+  "เจ้าของกลุ่มเห็นประกาศ": "Group owners see your request",
+  "แล้วส่งข้อเสนอพร้อมกลุ่มที่มีอยู่จริง": "and offer a group that already exists",
+  "คุณเลือกได้ 1 ข้อเสนอ": "You pick one offer",
+  "ระบบจองที่นั่งให้ 24 ชั่วโมง แล้วเข้าร่วมกลุ่มตามขั้นตอนเดิม": "A seat is held for 24 hours, then you join the usual way",
+  "ยกเลิกหรือแก้ไขได้ก่อนมีข้อเสนอ": "You can edit or cancel it until offers arrive"
+});
+
 export const messages = {
   th: {
     ...Object.fromEntries(Object.keys(labels).map((key) => [key, key])),

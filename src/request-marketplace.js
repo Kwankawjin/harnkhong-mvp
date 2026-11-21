@@ -379,10 +379,12 @@ export function createRequestMarketplace(ctx) {
         offerCount: 0,
         expiresAt: new Date(Date.now() + Number(draft.expiresInDays) * 86_400_000).toISOString(),
       };
+      const step3 = (n, title, text) => `<li><span>${n}</span><div><strong>${title}</strong><small>${text}</small></div></li>`;
       body = `<div class="create-form-section"><h2>${icon("check", 20)} ${t("ตรวจสอบก่อนโพสต์")}</h2><p class="field-help">${t("ประกาศจะแสดงแบบนี้ในหน้ารวมประกาศ")}</p>
-        <div class="hk-preview">${requestCard(preview, [], { preview: true })}</div>
-        ${draft.description ? `<div class="hk-preview-desc"><strong>${t("รายละเอียดเพิ่มเติม")}</strong><p>${escape(draft.description)}</p></div>` : ""}
-        <ul class="hk-checklist"><li>${icon("check", 16)} ${t("เจ้าของกลุ่มจะเห็นประกาศและส่งข้อเสนอพร้อมกลุ่มที่มีอยู่จริง")}</li><li>${icon("check", 16)} ${t("คุณเลือกข้อเสนอได้ 1 รายการ แล้วเข้าร่วมกลุ่มตามขั้นตอนเดิม")}</li><li>${icon("check", 16)} ${t("ประกาศหมดอายุใน {days} วัน", { days: draft.expiresInDays })}</li></ul></div>`;
+        <div class="hk-review">
+          <div class="hk-review-preview">${requestCard(preview, [], { preview: true })}${draft.description ? `<div class="hk-review-desc"><small>${t("รายละเอียดเพิ่มเติม")}</small><p>${escape(draft.description)}</p></div>` : ""}</div>
+          <div class="hk-review-next"><h3>${t("หลังโพสต์")}</h3><ol class="hk-steps-list">${step3(1, t("เจ้าของกลุ่มเห็นประกาศ"), t("แล้วส่งข้อเสนอพร้อมกลุ่มที่มีอยู่จริง"))}${step3(2, t("คุณเลือกได้ 1 ข้อเสนอ"), t("ระบบจองที่นั่งให้ 24 ชั่วโมง แล้วเข้าร่วมกลุ่มตามขั้นตอนเดิม"))}${step3(3, t("ประกาศหมดอายุใน {days} วัน", { days: draft.expiresInDays }), t("ยกเลิกหรือแก้ไขได้ก่อนมีข้อเสนอ"))}</ol></div>
+        </div></div>`;
     }
     const back = step > 1 ? `<button type="button" class="button outline" data-action="hk-wizard-back">${t("ย้อนกลับ")}</button>` : a("/requests", t("ยกเลิก"), "button outline");
     const next = step < 3 ? `<button type="submit" class="button primary">${t("ต่อไป")} ${icon("arrow", 18)}</button>` : `<button type="submit" class="button primary">${icon("check", 18)} ${t("โพสต์ประกาศ")}</button>`;
