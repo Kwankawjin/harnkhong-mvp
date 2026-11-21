@@ -2225,6 +2225,18 @@ Object.assign(labels, {
   "ผู้หากลุ่มเข้าร่วมกลุ่ม “{group}” จากประกาศ “{title}” แล้ว": "The requester joined “{group}” from “{title}”"
 });
 
+
+Object.assign(labels, {
+  "เสนอกลุ่มที่คุณเปิดอยู่ได้ใน 3 ขั้น": "Offer one of your open groups in 3 steps",
+  "หมวดและรอบชำระต้องตรง มีที่ว่าง และราคาต่อที่นั่งไม่เกินงบ": "Same category and billing, a free seat, and a seat price within budget",
+  "ราคาคิดจากราคาต่อที่นั่งของกลุ่ม แนบข้อความได้": "The price is the group's seat price; you can add a message",
+  "รอผู้หากลุ่มตอบ": "Wait for the requester",
+  "ถ้ายอมรับ ระบบจะจองที่นั่งไว้ 24 ชั่วโมงให้เขาเข้ากลุ่ม": "If they accept, a seat is held for 24 hours for them to join",
+  "โพสต์เมื่อ {date}": "Posted {date}",
+  "รายละเอียดจากผู้โพสต์": "Details from the requester",
+  "ข้อเสนอตอนนี้": "Offers so far"
+});
+
 export const messages = {
   th: {
     ...Object.fromEntries(Object.keys(labels).map((key) => [key, key])),

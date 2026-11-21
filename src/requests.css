@@ -288,27 +288,160 @@ a.hk-request-card:hover {
 }
 
 /* ---------- Detail (group-page layout) ---------- */
+.hk-detail-page .group-heading-line h1 {
+  overflow-wrap: anywhere;
+}
+.hk-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--hk-line);
+}
+.hk-fact {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--hk-sky-50);
+}
+.hk-fact > div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.hk-fact-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--hk-paper);
+  color: var(--hk-blue);
+}
+.hk-fact dt {
+  color: var(--hk-muted);
+  font-size: 0.78rem;
+}
+.hk-fact dd {
+  margin: 0;
+  color: var(--hk-navy);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.hk-fact small {
+  color: var(--hk-muted);
+  font-size: 0.78rem;
+}
+.hk-description-block {
+  margin-top: 18px;
+}
+.hk-description-block h2 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  color: var(--hk-navy);
+}
 .hk-description {
-  margin: 14px 0 0;
+  margin: 0;
   color: var(--hk-ink);
   line-height: 1.65;
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
-.hk-description.muted {
+.hk-budget-card > strong span {
+  font-size: 1rem;
+  font-weight: 600;
   color: var(--hk-muted);
 }
-.hk-detail-page .group-heading-line h1 {
-  overflow-wrap: anywhere;
+.group-page .summary-card.hk-budget-card .summary-future-price {
+  margin: 0;
+  border-top: 0;
+  border-bottom: 1px solid var(--line);
 }
-.hk-detail-page .group-created-details {
-  margin-top: 16px;
+.group-page .summary-card.hk-budget-card > strong + .summary-future-price {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
 }
-.hk-detail-page .summary-card .field-help {
+.hk-budget-card > p {
+  margin-top: 14px;
+}
+/* Phones: the budget card and its button come right after the request, before offers/how-to. */
+@media (max-width: 959px) {
+  .hk-detail-page .group-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .hk-detail-page .group-detail-main {
+    display: contents;
+  }
+  .hk-detail-page .group-detail-main > section {
+    margin-bottom: 0;
+  }
+  .hk-detail-page .hk-match-panel {
+    order: 1;
+  }
+  .hk-detail-page .hk-identity {
+    order: 2;
+  }
+  .hk-detail-page .group-detail-aside {
+    order: 3;
+  }
+  .hk-detail-page .hk-offers-card,
+  .hk-detail-page .hk-howto {
+    order: 4;
+  }
+}
+.hk-aside-actions {
+  display: grid;
+  gap: 10px;
+}
+.hk-aside-actions:empty {
+  display: none;
+}
+.hk-aside-actions .field-help {
   margin: 0;
 }
 .hk-offers-card .hk-offer-list {
   margin-top: 14px;
+}
+.hk-steps-list {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.hk-steps-list li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.hk-steps-list li > span {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--hk-sky-100);
+  color: var(--hk-blue);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.hk-steps-list li > div {
+  display: grid;
+  gap: 2px;
+}
+.hk-steps-list strong {
+  color: var(--hk-navy);
+}
+.hk-steps-list small {
+  color: var(--hk-muted);
 }
 
 /* ---------- Offer cards ---------- */
@@ -605,6 +738,18 @@ a.hk-request-card:hover {
     flex: 1;
     justify-content: center;
     padding: 0 10px;
+  }
+  .hk-facts {
+    gap: 8px;
+  }
+  .hk-fact {
+    padding: 10px;
+  }
+  .hk-fact-icon {
+    display: none;
+  }
+  .hk-fact small {
+    display: none;
   }
   .hk-field-row,
   .hk-home-sides,
