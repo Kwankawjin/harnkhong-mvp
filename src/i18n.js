@@ -2124,6 +2124,53 @@ Object.assign(errors, {
   ]
 });
 
+
+// Request Marketplace, matching
+Object.assign(labels, {
+  "การจองที่นั่งหมดเวลา": "Seat hold expired",
+  "ที่นั่งที่จองไว้สำหรับ “{title}” หมดเวลาแล้ว ประกาศกลับมารับข้อเสนอได้": "The seat held for “{title}” has expired. Your request is open for offers again.",
+  "ผู้หากลุ่มไม่ได้เข้าร่วมกลุ่มภายในเวลา ที่นั่งกลับมาว่างแล้ว": "The requester didn't join in time. The seat is free again.",
+  "ยอมรับข้อเสนอ": "Accept offer",
+  "ปฏิเสธ": "Decline",
+  "ผู้หากลุ่มยอมรับแล้ว ที่นั่งถูกจองไว้ {left}": "Accepted. The seat is held: {left}",
+  "ผู้หากลุ่มยอมรับแล้ว รอเข้าร่วมกลุ่ม": "Accepted. Waiting for them to join",
+  "ผู้หากลุ่มเข้าร่วมกลุ่มแล้ว": "The requester joined your group",
+  "เข้าร่วมกลุ่มแล้ว": "You joined the group",
+  "คุณเป็นสมาชิกกลุ่ม “{name}” แล้ว ขั้นต่อไปคือยืนยันยอดและชำระเงินตามขั้นตอนของกลุ่ม แอดมินจะตรวจสลิปก่อนยืนยัน": "You're a member of “{name}”. Next, confirm the amount and pay through the group's usual steps; an admin checks the slip before confirming.",
+  "ไปที่กลุ่ม": "Go to the group",
+  "จองที่นั่งไว้ให้คุณแล้ว": "A seat is held for you",
+  "ที่นั่งนี้ถูกจองไว้ให้คุณ {left} กดเข้าร่วมกลุ่มก่อนหมดเวลา ถ้าไม่ทัน ที่นั่งจะถูกปล่อยและประกาศจะกลับมารับข้อเสนอใหม่": "This seat is held for you ({left}). Join before it runs out, or the seat is released and your request reopens for offers.",
+  "หลังเข้าร่วม คุณจะยืนยันยอดและชำระเงินตามขั้นตอนเดิมของกลุ่ม การเข้าร่วมยังไม่ใช่การชำระเงิน": "After joining you confirm and pay through the group's usual steps. Joining is not a payment.",
+  "ดูกลุ่มก่อน": "See the group first",
+  "ผู้หากลุ่มยอมรับข้อเสนอนี้แล้ว ถ้าถอน ที่นั่งที่จองไว้จะถูกปล่อย และประกาศจะกลับมารับข้อเสนอใหม่ ถอนใช่ไหม?": "The requester accepted this offer. Withdrawing releases the held seat and reopens their request. Withdraw?",
+  "ยอมรับข้อเสนอนี้ใช่ไหม? ระบบจะจองที่นั่งไว้ให้ {hours} ชั่วโมง และข้อเสนออื่นของประกาศนี้จะถูกปฏิเสธ": "Accept this offer? A seat is held for you for {hours} hours and the other offers on this request are declined.",
+  "ข้อเสนอได้รับการยอมรับ": "Offer accepted",
+  "{name} ยอมรับข้อเสนอจากกลุ่ม “{group}” แล้ว ที่นั่งถูกจองไว้ {hours} ชั่วโมง": "{name} accepted your offer with “{group}”. The seat is held for {hours} hours.",
+  "ข้อเสนอไม่ได้รับเลือก": "Offer not chosen",
+  "ผู้หากลุ่มเลือกข้อเสนออื่นสำหรับ “{title}”": "The requester chose another offer for “{title}”",
+  "ยอมรับข้อเสนอแล้ว จองที่นั่งไว้ให้คุณ {hours} ชั่วโมง": "Offer accepted. A seat is held for you for {hours} hours.",
+  "ปฏิเสธข้อเสนอนี้ใช่ไหม?": "Decline this offer?",
+  "ผู้หากลุ่มปฏิเสธข้อเสนอสำหรับ “{title}”": "The requester declined your offer for “{title}”",
+  "ปฏิเสธข้อเสนอแล้ว": "Offer declined",
+  "ผู้หากลุ่มเข้าร่วมแล้ว": "Requester joined",
+  "{name} เข้าร่วมกลุ่ม “{group}” จากประกาศหากลุ่มแล้ว": "{name} joined “{group}” from their request",
+  "ราคากลุ่มเปลี่ยนไปจากที่เสนอ ขอให้ Host ส่งข้อเสนอใหม่": "The group's price changed since the offer. Ask the host for a new offer."
+});
+Object.assign(errors, {
+  "offer_price_changed": [
+    "ราคากลุ่มเปลี่ยนไปจากที่เสนอ",
+    "The group's price changed since the offer"
+  ],
+  "reservation_not_found": [
+    "ไม่พบการจองที่นั่งนี้",
+    "Seat hold not found"
+  ],
+  "reservation_not_active": [
+    "การจองที่นั่งหมดเวลาหรือถูกยกเลิกแล้ว",
+    "This seat hold has expired or was cancelled"
+  ]
+});
+
 export const messages = {
   th: {
     ...Object.fromEntries(Object.keys(labels).map((key) => [key, key])),

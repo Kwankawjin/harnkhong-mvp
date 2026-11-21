@@ -21,6 +21,14 @@ import {
   offerableGroups,
   submitOffer,
   withdrawOffer,
+  RESERVATION_HOURS,
+  acceptOffer,
+  activeReservation,
+  completeReservation,
+  expireReservations,
+  rejectOffer,
+  reservationFor,
+  reservedSeatBlocks,
 } from "./requests.js";
 import {
   cancelSupabaseRequest,
@@ -33,6 +41,9 @@ import {
   fetchOfferableGroups,
   submitSupabaseOffer,
   withdrawSupabaseOffer,
+  acceptSupabaseOffer,
+  joinSupabaseReservedGroup,
+  rejectSupabaseOffer,
 } from "./supabase-requests.js";
 
 const PHASE_LABEL = {
@@ -65,6 +76,7 @@ const BLOCKER_LABEL = {
   full_group: "ที่นั่งเต็มแล้ว",
   over_budget: "ราคาต่อที่นั่งเกินงบของประกาศ",
   duplicate_offer: "ส่งข้อเสนอด้วยกลุ่มนี้แล้ว",
+  offer_price_changed: "ราคากลุ่มเปลี่ยนไปจากที่เสนอ ขอให้ Host ส่งข้อเสนอใหม่",
 };
 
 export function createRequestMarketplace(ctx) {
@@ -78,8 +90,22 @@ export function createRequestMarketplace(ctx) {
 
   const local = () => {
     const state = ctx.getState();
+    const held = expireReservations(state.hkRequests || [], state.hkOffers || [], state.hkReservations || []);
+    if (held.changed) {
+      state.hkReservations = held.reservations;
+      state.hkOffers = held.offers;
+      state.hkRequests = held.requests;
+      for (const r of held.lapsed) {
+        const request = held.requests.find((item) => item.id === r.requestId);
+        const offer = held.offers.find((item) => item.id === r.offerId);
+        const title = request?.title || "";
+        ctx.notice(t("การจองที่นั่งหมดเวลา"), t("ที่นั่งที่จองไว้สำหรับ “{title}” หมดเวลาแล้ว ประกาศกลับมารับข้อเสนอได้", { title }), `/requests/${r.requestId}`, r.requesterId);
+        if (offer) ctx.notice(t("การจองที่นั่งหมดเวลา"), t("ผู้หากลุ่มไม่ได้เข้าร่วมกลุ่มภายในเวลา ที่นั่งกลับมาว่างแล้ว"), `/requests/${r.requestId}`, offer.hostId);
+      }
+    }
     const result = expireRequests(state.hkRequests || [], state.hkOffers || []);
-    if (result.changed || !state.hkRequests) {
+    if (held.changed || result.changed || !state.hkRequests || !state.hkReservations) {
+      state.hkReservations = state.hkReservations || [];
       state.hkRequests = result.requests;
       state.hkOffers = result.offers;
       for (const id of result.expired) {
@@ -88,7 +114,7 @@ export function createRequestMarketplace(ctx) {
       }
       ctx.save();
     }
-    return { requests: state.hkRequests, offers: state.hkOffers };
+    return { requests: state.hkRequests, offers: state.hkOffers, reservations: state.hkReservations };
   };
 
   function load(key, loader, apply) {
@@ -135,15 +161,15 @@ export function createRequestMarketplace(ctx) {
     const key = `detail:${id}`;
     if (!remote.detail.has(id) && !remote.errors.has(key)) load(key, () => fetchRequest(id), (data) => remote.detail.set(id, data));
     const data = remote.detail.get(id);
-    return { ready: Boolean(data), error: remote.errors.get(key), requests: data?.request ? [data.request] : [], offers: data?.offers || [] };
+    return { ready: Boolean(data), error: remote.errors.get(key), requests: data?.request ? [data.request] : [], offers: data?.offers || [], reservations: data?.reservations || [] };
   }
 
   /** The signed-in host's groups for a request: { ready, error, groups }. */
   function offerable(request) {
     const user = ctx.getState().user;
     if (!ctx.supabaseConfigured()) {
-      const { offers } = local();
-      return { ready: true, groups: offerableGroups(ctx.getState().groups || [], request, user, offers) };
+      const { offers, reservations } = local();
+      return { ready: true, groups: offerableGroups(ctx.getState().groups || [], request, user, offers, Date.now(), reservations) };
     }
     const key = `offerable:${request.id}`;
     if (!remote.offerable.has(request.id) && !remote.errors.has(key))
@@ -159,7 +185,7 @@ export function createRequestMarketplace(ctx) {
   const leftLabel = (expiresAt) => {
     const left = timeLeft(expiresAt);
     if (left.expired) return t("หมดเวลาแล้ว");
-    return left.days >= 1 ? t("เหลือเวลา {days} วัน", { days: left.days }) : t("เหลือเวลา {hours} ชม.", { hours: left.hours });
+    return left.hours >= 48 ? t("เหลือเวลา {days} วัน", { days: left.days }) : t("เหลือเวลา {hours} ชม.", { hours: left.hours });
   };
   const budgetText = (request) =>
     request.budgetMin != null && request.budgetMin > 0
@@ -193,7 +219,7 @@ export function createRequestMarketplace(ctx) {
   }
 
   /** One offer. `host` adds the host's own controls; `withRequest` links back to the request. */
-  function offerCard(offer, request, { host = false, withRequest = false } = {}) {
+  function offerCard(offer, request, { host = false, withRequest = false, canDecide = false, reservation = null } = {}) {
     const cycle = request?.billingCycle || offer.snapshot.billing_cycle;
     const status = offer.status === "pending" && Date.parse(offer.expiresAt) <= Date.now() ? "expired" : offer.status;
     const head = withRequest && request
@@ -202,11 +228,20 @@ export function createRequestMarketplace(ctx) {
     const who = host
       ? `<span class="avatar small">${icon("users", 16)}</span><div><strong>${escape(offer.snapshot.group_name || t("กลุ่ม"))}</strong><small>${t("{count} ที่นั่ง", { count: offer.seatsOffered || 1 })} · ${status === "pending" ? leftLabel(offer.expiresAt) : t("ส่งเมื่อ {date}", { date: new Date(offer.createdAt).toLocaleDateString(ctx.locale()) })}</small></div>`
       : `<span class="avatar small">${escape(String(offer.hostName || "H").slice(0, 1))}</span><div><strong>${escape(offer.hostName)}</strong><small>${escape(offer.snapshot.group_name || t("กลุ่ม"))} · ${t("{count} ที่นั่ง", { count: offer.seatsOffered || 1 })}</small></div>`;
+    const decide = canDecide && status === "pending";
     const actions = [
+      decide ? `<button type="button" class="button primary" data-action="hk-accept-offer" data-id="${escape(offer.id)}">${icon("check", 17)} ${t("ยอมรับข้อเสนอ")}</button>` : "",
       offer.groupId ? a(`/groups/${encodeURIComponent(offer.groupId)}`, t("ดูกลุ่ม"), "button outline") : "",
-      host && status === "pending" ? `<button type="button" class="button danger-soft" data-action="hk-withdraw-offer" data-id="${escape(offer.id)}">${t("ถอนข้อเสนอ")}</button>` : "",
+      decide ? `<button type="button" class="button danger-soft" data-action="hk-reject-offer" data-id="${escape(offer.id)}">${t("ปฏิเสธ")}</button>` : "",
+      host && (status === "pending" || status === "accepted") ? `<button type="button" class="button danger-soft" data-action="hk-withdraw-offer" data-id="${escape(offer.id)}" data-accepted="${status === "accepted"}">${t("ถอนข้อเสนอ")}</button>` : "",
     ].join("");
-    return `<article class="hk-offer-card">${head}<div class="hk-offer-top">${who}<span class="hk-offer-status hk-offer-${escape(status)}">${t(OFFER_LABEL[status] || status)}</span></div><div class="hk-offer-price"><strong>${money(offer.offered)}</strong> <small>${perUnit(cycle)}</small></div>${offer.message ? `<p>${escape(offer.message)}</p>` : ""}${actions ? `<div class="hk-offer-actions">${actions}</div>` : ""}</article>`;
+    const held = reservation && reservation.offerId === offer.id ? reservation : null;
+    const note = host && status === "accepted"
+      ? `<p class="hk-offer-note">${icon("clock", 15)} ${held?.status === "reserved" ? t("ผู้หากลุ่มยอมรับแล้ว ที่นั่งถูกจองไว้ {left}", { left: leftLabel(held.expiresAt) }) : t("ผู้หากลุ่มยอมรับแล้ว รอเข้าร่วมกลุ่ม")}</p>`
+      : host && status === "completed"
+        ? `<p class="hk-offer-note ok">${icon("check", 15)} ${t("ผู้หากลุ่มเข้าร่วมกลุ่มแล้ว")}</p>`
+        : "";
+    return `<article class="hk-offer-card">${head}<div class="hk-offer-top">${who}<span class="hk-offer-status hk-offer-${escape(status)}">${t(OFFER_LABEL[status] || status)}</span></div><div class="hk-offer-price"><strong>${money(offer.offered)}</strong> <small>${perUnit(cycle)}</small></div>${offer.message ? `<p>${escape(offer.message)}</p>` : ""}${note}${actions ? `<div class="hk-offer-actions">${actions}</div>` : ""}</article>`;
   }
 
   // ------------------------------------------------------------------ /requests
@@ -295,6 +330,17 @@ export function createRequestMarketplace(ctx) {
   }
 
   // ------------------------------------------------------------------ /requests/:id
+  /** The requester's next step once an offer is accepted: join the held seat, then the group's own flow. */
+  function matchPanel(request, offers, reservation) {
+    const offer = offers.find((item) => item.id === reservation?.offerId);
+    if (!reservation || !offer) return "";
+    const groupLink = reservation.groupId ? `/groups/${encodeURIComponent(reservation.groupId)}` : null;
+    if (reservation.status === "confirmed" || request.status === "completed")
+      return `<section class="hk-panel hk-match-panel done"><span class="hk-match-icon">${icon("check", 26)}</span><div><h2>${t("เข้าร่วมกลุ่มแล้ว")}</h2><p>${t("คุณเป็นสมาชิกกลุ่ม “{name}” แล้ว ขั้นต่อไปคือยืนยันยอดและชำระเงินตามขั้นตอนของกลุ่ม แอดมินจะตรวจสลิปก่อนยืนยัน", { name: escape(offer.snapshot.group_name || "") })}</p>${groupLink ? a(groupLink, `${t("ไปที่กลุ่ม")} ${icon("arrow", 18)}`, "button primary") : ""}</div></section>`;
+    if (reservation.status !== "reserved" || request.status !== "matched") return "";
+    return `<section class="hk-panel hk-match-panel"><span class="hk-match-icon">${icon("clock", 26)}</span><div><span class="hk-eyebrow">${t("จองที่นั่งไว้ให้คุณแล้ว")}</span><h2>${escape(offer.snapshot.group_name || t("กลุ่ม"))} · ${money(offer.offered)} ${perUnit(request.billingCycle)}</h2><p>${t("ที่นั่งนี้ถูกจองไว้ให้คุณ {left} กดเข้าร่วมกลุ่มก่อนหมดเวลา ถ้าไม่ทัน ที่นั่งจะถูกปล่อยและประกาศจะกลับมารับข้อเสนอใหม่", { left: leftLabel(reservation.expiresAt) })}</p><p class="hk-help small">${t("หลังเข้าร่วม คุณจะยืนยันยอดและชำระเงินตามขั้นตอนเดิมของกลุ่ม การเข้าร่วมยังไม่ใช่การชำระเงิน")}</p><div class="hk-actions"><button type="button" class="button primary" data-action="hk-join-reserved" data-id="${escape(reservation.id)}">${icon("users", 18)} ${t("เข้าร่วมกลุ่ม")}</button>${groupLink ? a(groupLink, t("ดูกลุ่มก่อน"), "button outline") : ""}</div></div></section>`;
+  }
+
   function detailPage(id) {
     const data = source("detail", id);
     if (data.error) return `<div class="hk-page">${errorBlock(data.error)}</div>`;
@@ -306,18 +352,19 @@ export function createRequestMarketplace(ctx) {
     const offers = data.offers.filter((offer) => offer.requestId === id);
     const phase = requestPhase(request, offers);
     const pendingCount = offers.filter((offer) => offer.status === "pending").length;
+    const reservation = reservationFor((data.reservations || []).filter((r) => r.requestId === id), id);
     const ownerActions = mine
       ? `<div class="hk-owner-actions">${canEditRequest(request, offers) ? a(`/requests/${encodeURIComponent(id)}/edit`, `${icon("edit", 17)} ${t("แก้ไขประกาศ")}`, "button outline") : ""}${["open", "matched"].includes(request.status) && phase !== "expired" ? `<button type="button" class="button danger-soft" data-action="hk-cancel-request" data-id="${escape(id)}">${icon("trash", 17)} ${t("ยกเลิกประกาศ")}</button>` : ""}</div>${!canEditRequest(request, offers) && phase === "has_offers" ? `<p class="hk-help small">${t("มีข้อเสนอแล้ว จึงแก้ไขประกาศไม่ได้ เพื่อให้ข้อเสนอตรงกับสิ่งที่ประกาศไว้")}</p>` : ""}`
       : "";
     const offerList = offers.length
-      ? `<div class="hk-offer-list">${offers.map((offer) => offerCard(offer, request)).join("")}</div>`
+      ? `<div class="hk-offer-list">${[...offers].sort((x, y) => Number(y.status === "accepted" || y.status === "completed") - Number(x.status === "accepted" || x.status === "completed")).map((offer) => offerCard(offer, request, { canDecide: request.status === "open" && phase !== "expired" })).join("")}</div>`
       : `<div class="hk-offer-empty">${icon("clock", 22)}<div><strong>${t("ยังไม่มีข้อเสนอ")}</strong><p>${t("เมื่อเจ้าของกลุ่มส่งข้อเสนอ จะแสดงที่นี่")}</p></div></div>`;
     // Hosts see only their own offers here (RLS does the same in Supabase).
     const myOffers = user ? offers.filter((offer) => offer.hostId === user.id) : [];
     const canOffer = request.status === "open" && phase !== "expired";
     const hostCta = mine
       ? ""
-      : `${myOffers.length ? `<section class="hk-panel"><div class="hk-section-head"><h2>${t("ข้อเสนอของคุณ")}</h2><span>${t("{count} ข้อเสนอ", { count: myOffers.length })}</span></div><div class="hk-offer-list">${myOffers.map((offer) => offerCard(offer, request, { host: true })).join("")}</div></section>` : ""}${canOffer ? `<section class="hk-panel hk-host-cta"><div><span class="hk-eyebrow">${t("สำหรับเจ้าของกลุ่ม")}</span><h2>${t("มีกลุ่มที่ตรงกับประกาศนี้?")}</h2><p>${t("เลือกกลุ่มที่คุณเปิดอยู่ แล้วส่งข้อเสนอให้ผู้หากลุ่มได้เลย")}</p></div>${user ? a(`/requests/${encodeURIComponent(id)}/offer`, `${icon("users", 18)} Make an Offer`, "button primary") : `<button type="button" class="button primary" data-action="open-auth" data-step="1">${icon("user", 18)} ${t("เข้าสู่ระบบเพื่อส่งข้อเสนอ")}</button>`}</section>` : ""}`;
+      : `${myOffers.length ? `<section class="hk-panel"><div class="hk-section-head"><h2>${t("ข้อเสนอของคุณ")}</h2><span>${t("{count} ข้อเสนอ", { count: myOffers.length })}</span></div><div class="hk-offer-list">${myOffers.map((offer) => offerCard(offer, request, { host: true, reservation })).join("")}</div></section>` : ""}${canOffer ? `<section class="hk-panel hk-host-cta"><div><span class="hk-eyebrow">${t("สำหรับเจ้าของกลุ่ม")}</span><h2>${t("มีกลุ่มที่ตรงกับประกาศนี้?")}</h2><p>${t("เลือกกลุ่มที่คุณเปิดอยู่ แล้วส่งข้อเสนอให้ผู้หากลุ่มได้เลย")}</p></div>${user ? a(`/requests/${encodeURIComponent(id)}/offer`, `${icon("users", 18)} Make an Offer`, "button primary") : `<button type="button" class="button primary" data-action="open-auth" data-step="1">${icon("user", 18)} ${t("เข้าสู่ระบบเพื่อส่งข้อเสนอ")}</button>`}</section>` : ""}`;
     return `<div class="hk-page hk-detail-page">
       ${a(mine ? "/my-requests" : "/requests", `← ${mine ? t("ประกาศของฉัน") : t("กลับไปหน้าประกาศ")}`, "listing-back-link")}
       <section class="hk-panel hk-detail-head">
@@ -328,6 +375,7 @@ export function createRequestMarketplace(ctx) {
         ${ownerActions}
       </section>
       ${request.description ? `<section class="hk-panel"><h2>${t("รายละเอียดเพิ่มเติม")}</h2><p class="hk-description">${escape(request.description)}</p></section>` : ""}
+      ${mine ? matchPanel(request, offers, reservation) : ""}
       ${mine ? `<section class="hk-panel"><div class="hk-section-head"><h2>${t("ข้อเสนอที่ได้รับ")}</h2><span>${t("{count} ข้อเสนอ", { count: offers.length })}${pendingCount ? ` · ${t("รอพิจารณา {count}", { count: pendingCount })}` : ""}</span></div>${offerList}</section>` : hostCta}
     </div>`;
   }
@@ -428,13 +476,14 @@ export function createRequestMarketplace(ctx) {
     const counts = Object.fromEntries(MY_OFFER_TABS.map((key) => [key, filterMyOffers(mine, key).length]));
     const list = filterMyOffers(mine, tab);
     const requestOf = (offer) => data.requests.find((request) => request.id === offer.requestId);
+    const reservationOf = (offer) => (data.reservations || []).find((r) => r.offerId === offer.id && ["reserved", "confirmed"].includes(r.status)) || null;
     const tabs = `<nav class="hk-tabs" aria-label="${t("ข้อเสนอของฉัน")}">${MY_OFFER_TABS.map((key) => a(key === "all" ? "/my-offers" : `/my-offers?tab=${key}`, `${t(OFFER_TAB_LABEL[key])}${data.ready ? ` <span>${counts[key]}</span>` : ""}`, `hk-tab${tab === key ? " active" : ""}`)).join("")}</nav>`;
     const body = data.error
       ? errorBlock(data.error)
       : !data.ready
         ? loadingBlock()
         : list.length
-          ? `<div class="hk-offer-list hk-my-offers">${list.map((offer) => offerCard(offer, requestOf(offer), { host: true, withRequest: true })).join("")}</div>`
+          ? `<div class="hk-offer-list hk-my-offers">${list.map((offer) => offerCard(offer, requestOf(offer), { host: true, withRequest: true, reservation: reservationOf(offer) })).join("")}</div>`
           : `<div class="empty hk-empty"><h2>${tab === "all" ? t("คุณยังไม่ได้ส่งข้อเสนอ") : t("ไม่มีข้อเสนอในแท็บนี้")}</h2><p>${t("ดูประกาศของคนที่กำลังหากลุ่ม แล้วเสนอกลุ่มที่คุณเปิดอยู่")}</p>${a("/requests", `${icon("search", 18)} ${t("ดูประกาศหากลุ่ม")}`, "button primary")}</div>`;
     return `<div class="hk-page">
       ${title(t("ข้อเสนอของฉัน"), t("ติดตามข้อเสนอที่คุณส่งให้คนที่กำลังหากลุ่ม"))}
@@ -584,6 +633,7 @@ export function createRequestMarketplace(ctx) {
           const state = ctx.getState();
           const { requests, offers } = local();
           const result = cancelRequest(requests, offers, id, state.user);
+          state.hkReservations = result.releaseReservations(state.hkReservations || []);
           state.hkRequests = result.requests;
           state.hkOffers = result.offers;
           for (const offer of result.cancelledOffers)
@@ -611,8 +661,8 @@ export function createRequestMarketplace(ctx) {
           invalidate();
         } else {
           const state = ctx.getState();
-          const { requests, offers } = local();
-          const result = submitOffer(requests, offers, state.groups || [], requestId, groupId, message, state.user);
+          const { requests, offers, reservations } = local();
+          const result = submitOffer(requests, offers, state.groups || [], requestId, groupId, message, state.user, { reservations });
           state.hkRequests = result.requests;
           state.hkOffers = result.offers;
           ctx.notice(t("มีข้อเสนอใหม่!"), t("{name} ส่งข้อเสนอสำหรับประกาศ “{title}” ของคุณ", { name: state.user.name, title: result.request.title }), `/requests/${requestId}`, result.request.requesterId);
@@ -627,7 +677,8 @@ export function createRequestMarketplace(ctx) {
   }
 
   async function withdraw(button) {
-    if (!confirm(t("ถอนข้อเสนอนี้ใช่ไหม? ผู้หากลุ่มจะได้รับแจ้ง"))) return;
+    const accepted = button.dataset.accepted === "true";
+    if (!confirm(accepted ? t("ผู้หากลุ่มยอมรับข้อเสนอนี้แล้ว ถ้าถอน ที่นั่งที่จองไว้จะถูกปล่อย และประกาศจะกลับมารับข้อเสนอใหม่ ถอนใช่ไหม?") : t("ถอนข้อเสนอนี้ใช่ไหม? ผู้หากลุ่มจะได้รับแจ้ง"))) return;
     await withBusy(button, async () => {
       try {
         if (ctx.supabaseConfigured()) {
@@ -635,9 +686,11 @@ export function createRequestMarketplace(ctx) {
           invalidate();
         } else {
           const state = ctx.getState();
-          const { requests, offers } = local();
-          const result = withdrawOffer(offers, button.dataset.id, state.user);
+          const { requests, offers, reservations } = local();
+          const result = withdrawOffer(offers, button.dataset.id, state.user, { requests, reservations });
           state.hkOffers = result.offers;
+          state.hkRequests = result.requests;
+          state.hkReservations = result.reservations;
           const request = requests.find((item) => item.id === result.offer.requestId);
           if (request)
             ctx.notice(t("Host ถอนข้อเสนอ"), t("{name} ถอนข้อเสนอสำหรับประกาศ “{title}”", { name: state.user.name, title: request.title }), `/requests/${request.id}`, request.requesterId);
@@ -649,6 +702,97 @@ export function createRequestMarketplace(ctx) {
         ctx.alertError(ctx.errorMessage(error));
       }
     });
+  }
+
+  async function accept(button) {
+    if (!confirm(t("ยอมรับข้อเสนอนี้ใช่ไหม? ระบบจะจองที่นั่งไว้ให้ {hours} ชั่วโมง และข้อเสนออื่นของประกาศนี้จะถูกปฏิเสธ", { hours: RESERVATION_HOURS }))) return;
+    await withBusy(button, async () => {
+      try {
+        if (ctx.supabaseConfigured()) {
+          await acceptSupabaseOffer(button.dataset.id);
+          invalidate();
+        } else {
+          const state = ctx.getState();
+          const { requests, offers, reservations } = local();
+          const result = acceptOffer(requests, offers, reservations, state.groups || [], button.dataset.id, state.user);
+          state.hkRequests = result.requests;
+          state.hkOffers = result.offers;
+          state.hkReservations = result.reservations;
+          ctx.notice(t("ข้อเสนอได้รับการยอมรับ"), t("{name} ยอมรับข้อเสนอจากกลุ่ม “{group}” แล้ว ที่นั่งถูกจองไว้ {hours} ชั่วโมง", { name: state.user.name, group: result.offer.snapshot.group_name, hours: RESERVATION_HOURS }), `/requests/${result.request.id}`, result.offer.hostId);
+          for (const offer of result.turnedDown)
+            ctx.notice(t("ข้อเสนอไม่ได้รับเลือก"), t("ผู้หากลุ่มเลือกข้อเสนออื่นสำหรับ “{title}”", { title: result.request.title }), `/requests/${result.request.id}`, offer.hostId);
+          ctx.save();
+        }
+        ctx.render();
+        ctx.alertMessage(t("ยอมรับข้อเสนอแล้ว จองที่นั่งไว้ให้คุณ {hours} ชั่วโมง", { hours: RESERVATION_HOURS }));
+      } catch (error) {
+        ctx.alertError(BLOCKER_LABEL[error.code] ? t(BLOCKER_LABEL[error.code]) : ctx.errorMessage(error));
+        if (ctx.supabaseConfigured()) invalidate();
+        ctx.render();
+      }
+    });
+  }
+
+  async function reject(button) {
+    if (!confirm(t("ปฏิเสธข้อเสนอนี้ใช่ไหม?"))) return;
+    await withBusy(button, async () => {
+      try {
+        if (ctx.supabaseConfigured()) {
+          await rejectSupabaseOffer(button.dataset.id);
+          invalidate();
+        } else {
+          const state = ctx.getState();
+          const { requests, offers } = local();
+          const result = rejectOffer(requests, offers, button.dataset.id, state.user);
+          state.hkOffers = result.offers;
+          ctx.notice(t("ข้อเสนอไม่ได้รับเลือก"), t("ผู้หากลุ่มปฏิเสธข้อเสนอสำหรับ “{title}”", { title: result.request.title }), `/requests/${result.request.id}`, result.offer.hostId);
+          ctx.save();
+        }
+        ctx.render();
+        ctx.alertMessage(t("ปฏิเสธข้อเสนอแล้ว"));
+      } catch (error) {
+        ctx.alertError(ctx.errorMessage(error));
+      }
+    });
+  }
+
+  /** Take the held seat through the group's normal join; payment then follows the group's own flow. */
+  async function joinReserved(button) {
+    await withBusy(button, async () => {
+      try {
+        let groupId;
+        if (ctx.supabaseConfigured()) {
+          groupId = await joinSupabaseReservedGroup(button.dataset.id);
+          invalidate();
+          await ctx.refreshGroups();
+        } else {
+          const state = ctx.getState();
+          const { requests, offers, reservations } = local();
+          const reservation = activeReservation(reservations, button.dataset.id, state.user);
+          groupId = reservation.groupId;
+          ctx.joinGroupLocally(groupId);
+          const result = completeReservation(requests, offers, reservations, reservation.id);
+          state.hkRequests = result.requests;
+          state.hkOffers = result.offers;
+          state.hkReservations = result.reservations;
+          const offer = result.offers.find((item) => item.id === reservation.offerId);
+          ctx.notice(t("ผู้หากลุ่มเข้าร่วมแล้ว"), t("{name} เข้าร่วมกลุ่ม “{group}” จากประกาศหากลุ่มแล้ว", { name: state.user.name, group: offer?.snapshot.group_name || "" }), `/groups/${groupId}`, offer?.hostId);
+          ctx.save();
+        }
+        ctx.go(`/groups/${groupId}`);
+        ctx.alertMessage(t("เข้าร่วมกลุ่มแล้ว กรุณายืนยันยอดใหม่"));
+      } catch (error) {
+        ctx.alertError(BLOCKER_LABEL[error.code] ? t(BLOCKER_LABEL[error.code]) : ctx.errorMessage(error));
+        if (ctx.supabaseConfigured()) invalidate();
+        ctx.render();
+      }
+    });
+  }
+
+  /** Test mode: the normal join path must not take a seat someone is holding (the DB trigger does this in Supabase). */
+  function joinBlockedByReservation(group, userId) {
+    if (ctx.supabaseConfigured() || !group) return false;
+    return reservedSeatBlocks(group, local().reservations || [], userId);
   }
 
   /** Returns true when the event was handled here. */
@@ -671,6 +815,18 @@ export function createRequestMarketplace(ctx) {
     }
     if (action === "hk-cancel-request") {
       void cancel(target);
+      return true;
+    }
+    if (action === "hk-accept-offer") {
+      void accept(target);
+      return true;
+    }
+    if (action === "hk-reject-offer") {
+      void reject(target);
+      return true;
+    }
+    if (action === "hk-join-reserved") {
+      void joinReserved(target);
       return true;
     }
     if (action === "hk-withdraw-offer") {
@@ -786,5 +942,5 @@ export function createRequestMarketplace(ctx) {
     state.hkSeeded = 1;
   }
 
-  return { route, marketTabs, homeSection, onClick, onSubmit, onInput, onNavigate, onSessionChange, seedTestData };
+  return { route, marketTabs, homeSection, joinBlockedByReservation, onClick, onSubmit, onInput, onNavigate, onSessionChange, seedTestData };
 }

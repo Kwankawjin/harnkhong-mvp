@@ -139,6 +139,8 @@ export function cancelRequest(requests, offers, id, user, { now = Date.now() } =
   return {
     request: next,
     cancelledOffers,
+    releaseReservations: (reservations = []) =>
+      reservations.map((r) => (r.requestId === id && r.status === "reserved" ? { ...r, status: "cancelled", updatedAt: at } : r)),
     requests: requests.map((item) => (item.id === id ? next : item)),
     offers: nextOffers,
   };
@@ -206,7 +208,19 @@ export function groupOpenForOffers(group, now = Date.now()) {
   return !(closesAt && closesAt < new Date(now).toISOString().slice(0, 10));
 }
 
-export const freeSeats = (group) => openUnits(group);
+export const RESERVATION_HOURS = 24;
+const liveReservation = (reservation, now) => reservation.status === "reserved" && Date.parse(reservation.expiresAt) > now;
+
+/** Seats nobody holds: open seats minus live reservations by anyone but `exceptUser` (hk_free_seats). */
+export const freeSeats = (group, reservations = [], exceptUser = null, now = Date.now()) =>
+  openUnits(group) -
+  reservations
+    .filter((r) => r.groupId === group.id && liveReservation(r, now) && r.requesterId !== exceptUser)
+    .reduce((sum, r) => sum + (r.seatsReserved || 1), 0);
+
+/** Would joining this group take a seat someone else is holding? (the group_members trigger) */
+export const reservedSeatBlocks = (group, reservations, userId, now = Date.now()) =>
+  reservations.some((r) => r.groupId === group.id && liveReservation(r, now)) && freeSeats(group, reservations, userId, now) <= 0;
 
 /** What the next member pays for one seat; null when nobody can join. */
 export function nextSeatPrice(group) {
@@ -217,13 +231,13 @@ export function nextSeatPrice(group) {
 }
 
 /** Why a group can't be offered for a request (null when it can). */
-export function offerBlocker(group, request, offers = [], now = Date.now()) {
+export function offerBlocker(group, request, offers = [], now = Date.now(), reservations = []) {
   if (!groupOpenForOffers(group, now)) return "group_unavailable";
   if (groupBilling(group) !== request.billingCycle) return "billing_mismatch";
   if (request.productId && group.listingId !== request.productId) return "product_mismatch";
   if (!groupCategories(group).includes(request.category)) return "category_mismatch";
   if (group.members.includes(request.requesterId)) return "requester_already_member";
-  if (freeSeats(group) < (request.seatsNeeded || 1)) return "full_group";
+  if (freeSeats(group, reservations, null, now) < (request.seatsNeeded || 1)) return "full_group";
   const price = nextSeatPrice(group);
   if (price === null) return "group_unavailable";
   if (price > request.budgetMax) return "over_budget";
@@ -233,16 +247,16 @@ export function offerBlocker(group, request, offers = [], now = Date.now()) {
 }
 
 /** The host's own groups, offerable ones first, with free seats and the seat price. */
-export function offerableGroups(groups, request, user, offers = [], now = Date.now()) {
+export function offerableGroups(groups, request, user, offers = [], now = Date.now(), reservations = []) {
   return groups
     .filter((group) => group.ownerId === user?.id && group.status !== "cancelled" && !group.closedAt)
     .map((group) => {
-      const reason = offerBlocker(group, request, offers, now);
+      const reason = offerBlocker(group, request, offers, now, reservations);
       return {
         groupId: group.id,
         name: group.name,
         capacity: group.capacity,
-        freeSeats: freeSeats(group),
+        freeSeats: freeSeats(group, reservations, null, now),
         seatPrice: groupOpenForOffers(group, now) ? nextSeatPrice(group) : null,
         billing: groupBilling(group),
         matches: reason === null,
@@ -252,7 +266,7 @@ export function offerableGroups(groups, request, user, offers = [], now = Date.n
     .sort((a, b) => Number(b.matches) - Number(a.matches));
 }
 
-export function submitOffer(requests, offers, groups, requestId, groupId, message, user, { now = Date.now(), id = crypto.randomUUID() } = {}) {
+export function submitOffer(requests, offers, groups, requestId, groupId, message, user, { now = Date.now(), id = crypto.randomUUID(), reservations = [] } = {}) {
   if (!user?.id) fail("authentication_required", "กรุณาเข้าสู่ระบบก่อน");
   const request = requests.find((item) => item.id === requestId);
   if (!request) fail("request_not_found", "ไม่พบประกาศนี้");
@@ -262,7 +276,7 @@ export function submitOffer(requests, offers, groups, requestId, groupId, messag
   if (!group || group.ownerId !== user.id) fail("group_not_owned", "เลือกได้เฉพาะกลุ่มที่คุณเป็นเจ้าของ");
   const text = String(message ?? "").trim();
   if (text.length > 400) fail("hk_invalid_message", "ข้อความยาวได้ไม่เกิน 400 ตัวอักษร");
-  const blocker = offerBlocker(group, request, offers, now);
+  const blocker = offerBlocker(group, request, offers, now, reservations);
   if (blocker) fail(blocker, blocker);
   const price = nextSeatPrice(group);
   const at = new Date(now).toISOString();
@@ -283,7 +297,7 @@ export function submitOffer(requests, offers, groups, requestId, groupId, messag
       pay_day: group.payDay ?? null,
       offered_satang: price,
       seats_offered: 1,
-      free_seats: freeSeats(group),
+      free_seats: freeSeats(group, reservations, null, now),
       captured_at: at,
     },
     status: "pending",
@@ -300,13 +314,25 @@ export function submitOffer(requests, offers, groups, requestId, groupId, messag
   };
 }
 
-export function withdrawOffer(offers, offerId, user, { now = Date.now() } = {}) {
+/**
+ * Hosts withdraw their own pending offer, or back out of an accepted one: that releases the held
+ * seat and reopens the request (hk_withdraw_offer).
+ */
+export function withdrawOffer(offers, offerId, user, { now = Date.now(), requests = [], reservations = [] } = {}) {
   const offer = offers.find((item) => item.id === offerId);
   if (!offer || offer.hostId !== user?.id) fail("offer_not_found", "ไม่พบข้อเสนอนี้");
-  // Accepted offers hold a seat; backing out of those comes with the matching step (Phase 4).
-  if (offer.status !== "pending") fail("offer_not_pending", "ข้อเสนอนี้ไม่ได้รอพิจารณาแล้ว");
-  const next = { ...offer, status: "withdrawn", updatedAt: new Date(now).toISOString() };
-  return { offer: next, offers: offers.map((item) => (item.id === offerId ? next : item)) };
+  if (!["pending", "accepted"].includes(offer.status)) fail("offer_not_pending", "ข้อเสนอนี้ไม่ได้รอพิจารณาแล้ว");
+  const at = new Date(now).toISOString();
+  const next = { ...offer, status: "withdrawn", updatedAt: at };
+  let nextRequests = requests;
+  let nextReservations = reservations;
+  if (offer.status === "accepted") {
+    nextReservations = reservations.map((r) => (r.offerId === offerId && r.status === "reserved" ? { ...r, status: "cancelled", updatedAt: at } : r));
+    nextRequests = requests.map((r) =>
+      r.id === offer.requestId && r.status === "matched" ? { ...r, status: Date.parse(r.expiresAt) > now ? "open" : "expired", updatedAt: at } : r,
+    );
+  }
+  return { offer: next, offers: offers.map((item) => (item.id === offerId ? next : item)), requests: nextRequests, reservations: nextReservations };
 }
 
 /** My Offers tabs: all, pending, accepted (accepted or joined), closed (everything else). */
@@ -319,3 +345,109 @@ export function filterMyOffers(offers, tab, now = Date.now()) {
     return true;
   });
 }
+
+// ------------------------------------------------------------------ Matching (Phase 4)
+// Local mirror of hk_reject_offer / hk_accept_offer / hk_join_reserved_group and the reservation
+// part of private.hk_expire. Joining itself goes through the group's normal join (domain.joinGroup).
+
+export function rejectOffer(requests, offers, offerId, user, { now = Date.now() } = {}) {
+  const offer = offers.find((item) => item.id === offerId);
+  const request = offer && requests.find((item) => item.id === offer.requestId);
+  if (!offer || !request || request.requesterId !== user?.id) fail("offer_not_found", "ไม่พบข้อเสนอนี้");
+  if (offer.status !== "pending" || Date.parse(offer.expiresAt) <= now) fail("offer_not_pending", "ข้อเสนอนี้ไม่ได้รอพิจารณาแล้ว");
+  const next = { ...offer, status: "rejected", updatedAt: new Date(now).toISOString() };
+  return { offer: next, request, offers: offers.map((item) => (item.id === offerId ? next : item)) };
+}
+
+/**
+ * Accept one offer: re-check the group now (owner, open, not already a member, a free seat that
+ * nobody else holds, price not above what was offered), hold the seat for 24 hours, turn the other
+ * pending offers down and mark the request matched.
+ */
+export function acceptOffer(requests, offers, reservations, groups, offerId, user, { now = Date.now(), id = crypto.randomUUID() } = {}) {
+  const offer = offers.find((item) => item.id === offerId);
+  const request = offer && requests.find((item) => item.id === offer.requestId);
+  if (!offer || !request || request.requesterId !== user?.id) fail("offer_not_found", "ไม่พบข้อเสนอนี้");
+  if (request.status !== "open" || Date.parse(request.expiresAt) <= now) fail("request_not_open", "ประกาศนี้ไม่ได้เปิดรับข้อเสนอแล้ว");
+  if (offer.status !== "pending" || Date.parse(offer.expiresAt) <= now) fail("offer_not_pending", "ข้อเสนอนี้ไม่ได้รอพิจารณาแล้ว");
+  const group = groups.find((item) => item.id === offer.groupId);
+  if (!group || group.ownerId !== offer.hostId || !groupOpenForOffers(group, now)) fail("group_unavailable", "กลุ่มนี้ไม่ได้เปิดรับสมาชิกแล้ว");
+  if (group.members.includes(user.id)) fail("requester_already_member", "คุณอยู่ในกลุ่มนี้แล้ว");
+  if (freeSeats(group, reservations, null, now) < (request.seatsNeeded || 1)) fail("full_group", "ที่นั่งเต็มแล้ว");
+  const price = nextSeatPrice(group);
+  if (price === null || price > offer.offered) fail("offer_price_changed", "ราคากลุ่มเปลี่ยนไปจากที่เสนอ");
+  const at = new Date(now).toISOString();
+  const reservation = {
+    id,
+    offerId,
+    requestId: request.id,
+    groupId: group.id,
+    requesterId: user.id,
+    seatsReserved: request.seatsNeeded || 1,
+    status: "reserved",
+    expiresAt: new Date(now + RESERVATION_HOURS * 3_600_000).toISOString(),
+    createdAt: at,
+    updatedAt: at,
+  };
+  const turnedDown = [];
+  const nextOffers = offers.map((item) => {
+    if (item.id === offerId) return { ...item, status: "accepted", updatedAt: at };
+    if (item.requestId === request.id && item.status === "pending") {
+      turnedDown.push(item);
+      return { ...item, status: "rejected", updatedAt: at };
+    }
+    return item;
+  });
+  const nextRequest = { ...request, status: "matched", updatedAt: at };
+  return {
+    reservation,
+    request: nextRequest,
+    offer: nextOffers.find((item) => item.id === offerId),
+    turnedDown,
+    offers: nextOffers,
+    requests: requests.map((item) => (item.id === request.id ? nextRequest : item)),
+    reservations: [...reservations, reservation],
+  };
+}
+
+/** Checks a reservation can be used to join now. The caller joins the group, then calls completeReservation. */
+export function activeReservation(reservations, reservationId, user, now = Date.now()) {
+  const reservation = reservations.find((item) => item.id === reservationId);
+  if (!reservation || reservation.requesterId !== user?.id) fail("reservation_not_found", "ไม่พบการจองที่นั่งนี้");
+  if (reservation.status !== "reserved" || Date.parse(reservation.expiresAt) <= now || !reservation.groupId)
+    fail("reservation_not_active", "การจองที่นั่งหมดเวลาหรือถูกยกเลิกแล้ว");
+  return reservation;
+}
+
+/** After the join succeeded: reservation confirmed, offer and request completed. */
+export function completeReservation(requests, offers, reservations, reservationId, { now = Date.now() } = {}) {
+  const at = new Date(now).toISOString();
+  const reservation = reservations.find((item) => item.id === reservationId);
+  return {
+    reservations: reservations.map((item) => (item.id === reservationId ? { ...item, status: "confirmed", updatedAt: at } : item)),
+    offers: offers.map((item) => (item.id === reservation.offerId ? { ...item, status: "completed", updatedAt: at } : item)),
+    requests: requests.map((item) => (item.id === reservation.requestId ? { ...item, status: "completed", updatedAt: at } : item)),
+  };
+}
+
+/** Held seats that timed out go back; their offer is cancelled and the request reopens if it can. */
+export function expireReservations(requests = [], offers = [], reservations = [], now = Date.now()) {
+  const at = new Date(now).toISOString();
+  const lapsed = reservations.filter((r) => r.status === "reserved" && Date.parse(r.expiresAt) <= now);
+  if (!lapsed.length) return { changed: false, lapsed, requests, offers, reservations };
+  const offerIds = new Set(lapsed.map((r) => r.offerId));
+  const requestIds = new Set(lapsed.map((r) => r.requestId));
+  return {
+    changed: true,
+    lapsed,
+    reservations: reservations.map((r) => (lapsed.includes(r) ? { ...r, status: "expired", updatedAt: at } : r)),
+    offers: offers.map((o) => (offerIds.has(o.id) && o.status === "accepted" ? { ...o, status: "cancelled", updatedAt: at } : o)),
+    requests: requests.map((r) =>
+      requestIds.has(r.id) && r.status === "matched" ? { ...r, status: Date.parse(r.expiresAt) > now ? "open" : "expired", updatedAt: at } : r,
+    ),
+  };
+}
+
+/** The live (or last) reservation for a request, if any. */
+export const reservationFor = (reservations, requestId) =>
+  [...reservations].reverse().find((r) => r.requestId === requestId && ["reserved", "confirmed"].includes(r.status)) || null;

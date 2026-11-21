@@ -17,6 +17,13 @@ import {
   offerableGroups,
   submitOffer,
   withdrawOffer,
+  acceptOffer,
+  activeReservation,
+  completeReservation,
+  expireReservations,
+  freeSeats,
+  rejectOffer,
+  reservedSeatBlocks,
 } from "../src/requests.js";
 import { createGroup } from "../src/domain.js";
 
@@ -200,4 +207,92 @@ test("hosts withdraw their own pending offers, and may offer again", () => {
   assert.deepEqual(filterMyOffers(offers, "closed", now).map((o) => o.id), ["o1"]);
   assert.deepEqual(filterMyOffers(sent.offers, "pending", now).map((o) => o.id), ["o1"]);
   assert.deepEqual(filterMyOffers(sent.offers, "closed", Date.parse(sent.offer.expiresAt) + 1).map((o) => o.id), ["o1"], "a lapsed pending offer counts as closed");
+});
+
+// ------------------------------------------------------------------ matching
+function matchSetup() {
+  let requests = createRequest([], input, jin, { now, id: "r1" }).requests;
+  requests = createRequest(requests, input, other, { now, id: "r2" }).requests;
+  const groups = [ytGroup(), { ...ytGroup(), id: "g-2", ownerId: "host2" }];
+  let offers = submitOffer(requests, [], groups, "r1", "g-yt", "", host, { now, id: "o1" }).offers;
+  offers = submitOffer(requests, offers, groups, "r1", "g-2", "", { id: "host2", name: "Host B" }, { now, id: "o2" }).offers;
+  return { requests, offers, groups };
+}
+
+test("accepting holds a seat, declines the other offers and matches the request", () => {
+  const { requests, offers, groups } = matchSetup();
+  assert.throws(() => acceptOffer(requests, offers, [], groups, "o1", other, { now }), { code: "offer_not_found" });
+  const result = acceptOffer(requests, offers, [], groups, "o1", jin, { now, id: "res1" });
+  assert.equal(result.request.status, "matched");
+  assert.equal(result.offer.status, "accepted");
+  assert.deepEqual(result.turnedDown.map((o) => o.id), ["o2"]);
+  assert.equal(result.offers.find((o) => o.id === "o2").status, "rejected");
+  assert.equal(result.reservation.status, "reserved");
+  assert.equal(Date.parse(result.reservation.expiresAt) - now, 24 * 3_600_000);
+  assert.equal(freeSeats(groups[0], result.reservations, null, now), 4, "the held seat is taken");
+  assert.equal(freeSeats(groups[0], result.reservations, "jin", now), 5, "but not for the person holding it");
+  assert.throws(() => acceptOffer(result.requests, result.offers, result.reservations, groups, "o2", jin, { now }), { code: "request_not_open" });
+});
+
+test("accepting re-checks the group: full, closed or more expensive than offered", () => {
+  const { requests, offers, groups } = matchSetup();
+  const full = [{ ...groups[0], members: ["host", "a", "b", "c", "d", "e"] }];
+  assert.throws(() => acceptOffer(requests, offers, [], full, "o1", jin, { now }), { code: "full_group" });
+  const closed = [{ ...groups[0], status: "cancelled" }];
+  assert.throws(() => acceptOffer(requests, offers, [], closed, "o1", jin, { now }), { code: "group_unavailable" });
+  const pricier = [{ ...groups[0], costs: { ...groups[0].costs, product: 29900 } }];
+  assert.throws(() => acceptOffer(requests, offers, [], pricier, "o1", jin, { now }), { code: "offer_price_changed" });
+  const already = [{ ...groups[0], members: ["host", "jin"] }];
+  assert.throws(() => acceptOffer(requests, offers, [], already, "o1", jin, { now }), { code: "requester_already_member" });
+});
+
+test("the last seat cannot be held twice", () => {
+  let { requests, offers, groups } = matchSetup();
+  const nearlyFull = [{ ...groups[0], members: ["host", "a", "b", "c", "d"] }, groups[1]];
+  offers = submitOffer(requests, offers, nearlyFull, "r2", "g-yt", "", host, { now, id: "o3" }).offers;
+  const first = acceptOffer(requests, offers, [], nearlyFull, "o1", jin, { now });
+  assert.throws(() => acceptOffer(first.requests, first.offers, first.reservations, nearlyFull, "o3", other, { now }), { code: "full_group" });
+  assert.equal(reservedSeatBlocks(nearlyFull[0], first.reservations, "someone-else", now), true, "normal join is blocked too");
+  assert.equal(reservedSeatBlocks(nearlyFull[0], first.reservations, "jin", now), false, "the holder may join");
+});
+
+test("declining an offer leaves the request open", () => {
+  const { requests, offers } = matchSetup();
+  assert.throws(() => rejectOffer(requests, offers, "o1", other, { now }), { code: "offer_not_found" });
+  const result = rejectOffer(requests, offers, "o1", jin, { now });
+  assert.equal(result.offer.status, "rejected");
+  assert.equal(requests[0].status, "open");
+});
+
+test("joining completes the reservation, offer and request", () => {
+  const { requests, offers, groups } = matchSetup();
+  const accepted = acceptOffer(requests, offers, [], groups, "o1", jin, { now, id: "res1" });
+  assert.throws(() => activeReservation(accepted.reservations, "res1", other, now), { code: "reservation_not_found" });
+  assert.equal(activeReservation(accepted.reservations, "res1", jin, now).groupId, "g-yt");
+  const done = completeReservation(accepted.requests, accepted.offers, accepted.reservations, "res1", { now });
+  assert.equal(done.reservations[0].status, "confirmed");
+  assert.equal(done.offers.find((o) => o.id === "o1").status, "completed");
+  assert.equal(done.requests.find((r) => r.id === "r1").status, "completed");
+  assert.throws(() => activeReservation(done.reservations, "res1", jin, now), { code: "reservation_not_active" });
+});
+
+test("a lapsed hold releases the seat and reopens the request", () => {
+  const { requests, offers, groups } = matchSetup();
+  const accepted = acceptOffer(requests, offers, [], groups, "o1", jin, { now, id: "res1" });
+  assert.equal(expireReservations(accepted.requests, accepted.offers, accepted.reservations, now).changed, false);
+  const later = now + 25 * 3_600_000;
+  const result = expireReservations(accepted.requests, accepted.offers, accepted.reservations, later);
+  assert.equal(result.reservations[0].status, "expired");
+  assert.equal(result.offers.find((o) => o.id === "o1").status, "cancelled");
+  assert.equal(result.requests.find((r) => r.id === "r1").status, "open");
+  assert.throws(() => activeReservation(accepted.reservations, "res1", jin, later), { code: "reservation_not_active" });
+});
+
+test("a host backing out of an accepted offer releases the seat", () => {
+  const { requests, offers, groups } = matchSetup();
+  const accepted = acceptOffer(requests, offers, [], groups, "o1", jin, { now, id: "res1" });
+  const result = withdrawOffer(accepted.offers, "o1", host, { now, requests: accepted.requests, reservations: accepted.reservations });
+  assert.equal(result.offer.status, "withdrawn");
+  assert.equal(result.reservations[0].status, "cancelled");
+  assert.equal(result.requests.find((r) => r.id === "r1").status, "open");
 });
