@@ -11,7 +11,14 @@ import {
   timeLeft,
   updateRequest,
   validateRequestInput,
+  filterMyOffers,
+  nextSeatPrice,
+  offerBlocker,
+  offerableGroups,
+  submitOffer,
+  withdrawOffer,
 } from "../src/requests.js";
+import { createGroup } from "../src/domain.js";
 
 const jin = { id: "jin", name: "Jin" };
 const other = { id: "other", name: "Other" };
@@ -116,4 +123,81 @@ test("time left", () => {
   assert.deepEqual(timeLeft(new Date(now + 2.5 * 86_400_000).toISOString(), now), { expired: false, days: 2, hours: 60 });
   assert.deepEqual(timeLeft(new Date(now + 3_000_000).toISOString(), now), { expired: false, days: 0, hours: 1 });
   assert.equal(timeLeft(new Date(now - 1).toISOString(), now).expired, true);
+});
+
+// ------------------------------------------------------------------ host side
+const host = { id: "host", name: "Host A" };
+const ytGroup = () => ({
+  ...createGroup({ id: "g-yt", listingId: "l1", name: "YouTube Family", ownerId: "host", visibility: "public", capacity: 6, costs: { product: 25900, delivery: 0 }, billing: "monthly", payDay: 5 }),
+  category: input.category,
+  categories: [input.category],
+});
+const openRequest = () => createRequest([], input, jin, { now, id: "r1" });
+
+test("next seat price follows the group's own seat pricing", () => {
+  const group = ytGroup();
+  assert.equal(nextSeatPrice(group), 4317, "25900 over 6 seats, seat 1 carries a remainder satang");
+  assert.equal(nextSeatPrice({ ...group, members: ["host", "a", "b", "c", "d", "e"] }), null, "full");
+});
+
+test("lists the host's groups with the reason a group can't be offered", () => {
+  const { request } = openRequest();
+  const groups = [
+    ytGroup(),
+    { ...ytGroup(), id: "g-other", category: "สินค้าดิจิทัล", categories: ["สินค้าดิจิทัล"] },
+    { ...ytGroup(), id: "g-onetime", billing: "one_time" },
+    { ...ytGroup(), id: "g-pricey", costs: { product: 90000, delivery: 0, mode: "seat_v3" } },
+    { ...ytGroup(), id: "g-not-mine", ownerId: "someone" },
+    { ...ytGroup(), id: "g-closed", closedAt: "2026-11-01T00:00:00Z" },
+  ];
+  const list = offerableGroups(groups, request, host, [], now);
+  assert.deepEqual(list.map((g) => [g.groupId, g.reason]), [
+    ["g-yt", null],
+    ["g-other", "category_mismatch"],
+    ["g-onetime", "billing_mismatch"],
+    ["g-pricey", "over_budget"],
+  ]);
+  assert.equal(list[0].seatPrice, 4317);
+  assert.equal(list[0].freeSeats, 5);
+  assert.equal(offerBlocker({ ...ytGroup(), members: ["host", "jin"] }, request, [], now), "requester_already_member");
+  assert.equal(offerBlocker({ ...ytGroup(), status: "cancelled" }, request, [], now), "group_unavailable");
+});
+
+test("submitting an offer freezes the seat price and counts it on the request", () => {
+  const { requests } = openRequest();
+  const groups = [ytGroup()];
+  const result = submitOffer(requests, [], groups, "r1", "g-yt", " ว่าง 1 ที่ ", host, { now, id: "o1" });
+  assert.equal(result.offer.offered, 4317);
+  assert.equal(result.offer.status, "pending");
+  assert.equal(result.offer.message, "ว่าง 1 ที่");
+  assert.equal(result.offer.snapshot.group_name, "YouTube Family");
+  assert.equal(result.offer.snapshot.offered_satang, 4317);
+  assert.equal(Date.parse(result.offer.expiresAt) - now, 72 * 3_600_000);
+  assert.equal(result.request.offerCount, 1);
+  assert.throws(() => submitOffer(result.requests, result.offers, groups, "r1", "g-yt", "", host, { now }), { code: "duplicate_offer" });
+  assert.throws(() => submitOffer(requests, [], groups, "r1", "g-yt", "", jin, { now }), { code: "own_request" });
+  assert.throws(() => submitOffer(requests, [], groups, "r1", "g-yt", "", other, { now }), { code: "group_not_owned" });
+  assert.throws(() => submitOffer(requests, [], groups, "r1", "g-yt", "x".repeat(401), host, { now }), { code: "hk_invalid_message" });
+  const cancelled = cancelRequest(requests, [], "r1", jin, { now }).requests;
+  assert.throws(() => submitOffer(cancelled, [], groups, "r1", "g-yt", "", host, { now }), { code: "request_not_open" });
+});
+
+test("an offer never outlives its request", () => {
+  const { requests } = createRequest([], { ...input, expiresInDays: 1 }, jin, { now, id: "r1" });
+  const { offer } = submitOffer(requests, [], [ytGroup()], "r1", "g-yt", "", host, { now });
+  assert.equal(offer.expiresAt, requests[0].expiresAt);
+});
+
+test("hosts withdraw their own pending offers, and may offer again", () => {
+  const { requests } = openRequest();
+  const groups = [ytGroup()];
+  const sent = submitOffer(requests, [], groups, "r1", "g-yt", "", host, { now, id: "o1" });
+  assert.throws(() => withdrawOffer(sent.offers, "o1", other, { now }), { code: "offer_not_found" });
+  const { offers } = withdrawOffer(sent.offers, "o1", host, { now });
+  assert.equal(offers[0].status, "withdrawn");
+  assert.throws(() => withdrawOffer(offers, "o1", host, { now }), { code: "offer_not_pending" });
+  assert.doesNotThrow(() => submitOffer(sent.requests, offers, groups, "r1", "g-yt", "", host, { now }));
+  assert.deepEqual(filterMyOffers(offers, "closed", now).map((o) => o.id), ["o1"]);
+  assert.deepEqual(filterMyOffers(sent.offers, "pending", now).map((o) => o.id), ["o1"]);
+  assert.deepEqual(filterMyOffers(sent.offers, "closed", Date.parse(sent.offer.expiresAt) + 1).map((o) => o.id), ["o1"], "a lapsed pending offer counts as closed");
 });

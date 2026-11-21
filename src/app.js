@@ -1602,6 +1602,7 @@ const requestMarketplace = createRequestMarketplace({
   alertError: (message) => alertError(message),
   errorMessage: (error) => errorMessage(error),
   supabaseConfigured: () => supabaseConfigured,
+  locale: () => (locale === "en" ? "en-GB" : "th-TH"),
 });
 function home() {
   const activeGroups = state.groups.filter(
@@ -1697,6 +1698,8 @@ function home() {
       ${filterPills(groupFilters, "/explore", "group")}
       ${filteredGroups.length ? `<div class="group-grid home-open-groups-grid">${filteredGroups.slice(0, 3).map(groupCard).join("")}</div>` : `<div class="empty home-section-empty"><h3>${selectedHomeGroupCategory === "ทั้งหมด" ? t("ยังไม่มีกลุ่มที่เปิดรับ") : t("หมวดหมู่นี้ยังไม่มีกลุ่มที่เปิดรับ")}</h3>${selectedHomeGroupCategory !== "ทั้งหมด" ? `<button type="button" class="button outline" data-action="home-group-filter" data-category="ทั้งหมด">${t("ดูกลุ่มทั้งหมด")}</button>` : a("/explore", t("ดูกลุ่มทั้งหมด"), "button outline")}</div>`}
     </section>
+
+    ${requestMarketplace.homeSection()}
 
     <a class="home-promo-strip group" href="/groups/create" data-reveal-kind="sweep"><span class="home-promo-icon">${icon("users", 42)}</span><span class="home-promo-copy"><strong>${t("เริ่มหารของกับเพื่อน")}</strong><small>${t("เปิดกลุ่มและแบ่งค่าใช้จ่ายกัน")}</small></span><span class="home-promo-art" aria-hidden="true">🛍️</span><span class="home-promo-button">${t("สร้างกลุ่มหารของ")} ${icon("arrow", 18)}</span></a>
 
@@ -3699,7 +3702,7 @@ function profile() {
       <aside class="account-aside">
         ${payoutAccountCard()}
         ${supabaseConfigured ? `<section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("การชำระเงินล่าสุด")}</h2>${a("/my-groups", `${t("ดูกลุ่ม")} ${icon("arrow", 17)}`, "account-all-link")}</div>${mySums.entries.length ? `<div class="account-pay-list">${mySums.entries.slice(0, 5).map(moneyEntryRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีรายการชำระเงิน")}</strong><p>${t("เมื่อกลุ่มครบและทุกคนยืนยันยอด ยอดที่ต้องโอนจะขึ้นที่นี่")}</p>${a("/explore", t("หากลุ่มเข้าร่วม"), "button outline")}</div>`}</section>` : `<section class="account-card account-orders" id="account-orders" aria-labelledby="account-orders-title"><div class="account-card-heading"><h2 id="account-orders-title">${t("อัปเดตคำสั่งซื้อ")}</h2>${a("/my-orders", `${t("ดูทั้งหมด")} ${icon("arrow", 17)}`, "account-all-link")}</div>${orders.length ? `<div class="order-updates-grid">${orders.slice(0, 3).map(accountOrderRow).join("")}</div>` : `<div class="account-empty"><span>${icon("calc", 26)}</span><strong>${t("ยังไม่มีคำสั่งซื้อเดโม")}</strong><p>${t("เมื่อกลุ่มครบและสรุปคำสั่งซื้อ รายการจะปรากฏที่นี่")}</p>${a("/my-groups", t("ดูกลุ่มของฉัน"), "button outline")}</div>`}</section>`}
-        <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t("ทางลัด")}</h2><div class="account-shortcut-grid">${shortcut("/my-groups", "users", t("กลุ่มของฉัน"), t("ดูและจัดการกลุ่มที่เข้าร่วม"), "blue")}${shortcut("/notifications", "bell", t("แจ้งเตือน"), t("อัปเดตยอดและกิจกรรม"), "amber")}${shortcut("/explore", "search", t("สำรวจ"), t("ค้นหาสินค้าและเข้าร่วมกลุ่ม"), "violet")}${shortcut("/my-requests", "search", t("ประกาศหากลุ่ม"), t("ประกาศหาของหารและข้อเสนอที่ได้รับ"), "violet")}${shortcut(supabaseConfigured ? "/subscription" : "/my-orders", supabaseConfigured ? "sparkles" : "check", t(supabaseConfigured ? "แพ็กเกจ" : "คำสั่งซื้อ"), t(supabaseConfigured ? "Free หรือ Plus" : "ดูสถานะคำสั่งซื้อของฉัน"), "mint")}<button type="button" class="account-shortcut account-shortcut-report" data-action="report-app-problem"><span class="account-shortcut-icon red">${icon("alert-circle", 22)}</span><strong>${t("รายงานปัญหา")}</strong></button></div></section>
+        <section class="account-card account-shortcuts" aria-labelledby="account-shortcuts-title"><h2 id="account-shortcuts-title">${t("ทางลัด")}</h2><div class="account-shortcut-grid">${shortcut("/my-groups", "users", t("กลุ่มของฉัน"), t("ดูและจัดการกลุ่มที่เข้าร่วม"), "blue")}${shortcut("/notifications", "bell", t("แจ้งเตือน"), t("อัปเดตยอดและกิจกรรม"), "amber")}${shortcut("/explore", "search", t("สำรวจ"), t("ค้นหาสินค้าและเข้าร่วมกลุ่ม"), "violet")}${shortcut("/my-requests", "search", t("ประกาศหากลุ่ม"), t("ประกาศหาของหารและข้อเสนอที่ได้รับ"), "violet")}${shortcut("/my-offers", "users", t("ข้อเสนอของฉัน"), t("ข้อเสนอที่คุณส่งให้คนที่กำลังหากลุ่ม"), "violet")}${shortcut(supabaseConfigured ? "/subscription" : "/my-orders", supabaseConfigured ? "sparkles" : "check", t(supabaseConfigured ? "แพ็กเกจ" : "คำสั่งซื้อ"), t(supabaseConfigured ? "Free หรือ Plus" : "ดูสถานะคำสั่งซื้อของฉัน"), "mint")}<button type="button" class="account-shortcut account-shortcut-report" data-action="report-app-problem"><span class="account-shortcut-icon red">${icon("alert-circle", 22)}</span><strong>${t("รายงานปัญหา")}</strong></button></div></section>
       </aside>
       </div>
     </main>

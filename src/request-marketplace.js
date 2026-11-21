@@ -2,6 +2,7 @@
 // Routes: /requests, /requests/new, /requests/:id, /requests/:id/edit, /my-requests.
 // The page shell, helpers and state live in app.js and are passed in through `ctx`.
 import "./requests.css";
+import { createGroup } from "./domain.js";
 import {
   REQUEST_EXPIRY_DAYS,
   MY_REQUEST_TABS,
@@ -15,6 +16,11 @@ import {
   timeLeft,
   updateRequest,
   validateRequestInput,
+  MY_OFFER_TABS,
+  filterMyOffers,
+  offerableGroups,
+  submitOffer,
+  withdrawOffer,
 } from "./requests.js";
 import {
   cancelSupabaseRequest,
@@ -23,6 +29,10 @@ import {
   fetchOpenRequests,
   fetchRequest,
   updateSupabaseRequest,
+  fetchMyOffers,
+  fetchOfferableGroups,
+  submitSupabaseOffer,
+  withdrawSupabaseOffer,
 } from "./supabase-requests.js";
 
 const PHASE_LABEL = {
@@ -44,13 +54,25 @@ const OFFER_LABEL = {
 };
 const TAB_LABEL = { all: "ทั้งหมด", waiting: "รอข้อเสนอ", offers: "มีข้อเสนอ", done: "เสร็จสิ้น" };
 const BILLING_LABEL = { monthly: "รายเดือน", one_time: "ครั้งเดียว" };
+const OFFER_TAB_LABEL = { all: "ทั้งหมด", pending: "รอพิจารณา", accepted: "ยอมรับแล้ว", closed: "ปิดแล้ว" };
+// Why a group can't be offered (codes from hk_my_offerable_groups and src/requests.js).
+const BLOCKER_LABEL = {
+  group_unavailable: "กลุ่มนี้ไม่ได้เปิดรับสมาชิก",
+  billing_mismatch: "รอบการชำระเงินไม่ตรงกับประกาศ",
+  product_mismatch: "บริการไม่ตรงกับประกาศ",
+  category_mismatch: "หมวดหมู่ไม่ตรงกับประกาศ",
+  requester_already_member: "ผู้หากลุ่มอยู่ในกลุ่มนี้แล้ว",
+  full_group: "ที่นั่งเต็มแล้ว",
+  over_budget: "ราคาต่อที่นั่งเกินงบของประกาศ",
+  duplicate_offer: "ส่งข้อเสนอด้วยกลุ่มนี้แล้ว",
+};
 
 export function createRequestMarketplace(ctx) {
   const { t, escape, icon, a, title, money } = ctx;
 
   // ------------------------------------------------------------------ data
   // Test mode (and the plain demo) keeps requests in app state; Supabase mode keeps a small cache.
-  const remote = { open: null, mine: null, detail: new Map(), loading: new Set(), errors: new Map() };
+  const remote = { open: null, mine: null, myOffers: null, detail: new Map(), offerable: new Map(), loading: new Set(), errors: new Map() };
   const blankDraft = () => ({ step: 1, category: "", title: "", description: "", budgetMax: "", budgetMin: "", billingCycle: "monthly", expiresInDays: 7 });
   let draft = blankDraft();
 
@@ -85,7 +107,9 @@ export function createRequestMarketplace(ctx) {
   const invalidate = () => {
     remote.open = null;
     remote.mine = null;
+    remote.myOffers = null;
     remote.detail.clear();
+    remote.offerable.clear();
   };
 
   /** Returns { ready, error, requests, offers } for the given view. */
@@ -101,10 +125,30 @@ export function createRequestMarketplace(ctx) {
       if (!remote.mine && !remote.errors.has("mine")) load("mine", () => fetchMyRequests(user.id), (data) => (remote.mine = data));
       return { ready: Boolean(remote.mine), error: remote.errors.get("mine"), ...(remote.mine || { requests: [], offers: [] }) };
     }
+    if (view === "myOffers") {
+      if (!user) return { ready: true, requests: [], offers: [] };
+      if (ctx.supabaseConfigured()) {
+        if (!remote.myOffers && !remote.errors.has("myOffers")) load("myOffers", () => fetchMyOffers(user.id), (data) => (remote.myOffers = data));
+        return { ready: Boolean(remote.myOffers), error: remote.errors.get("myOffers"), ...(remote.myOffers || { requests: [], offers: [] }) };
+      }
+    }
     const key = `detail:${id}`;
     if (!remote.detail.has(id) && !remote.errors.has(key)) load(key, () => fetchRequest(id), (data) => remote.detail.set(id, data));
     const data = remote.detail.get(id);
     return { ready: Boolean(data), error: remote.errors.get(key), requests: data?.request ? [data.request] : [], offers: data?.offers || [] };
+  }
+
+  /** The signed-in host's groups for a request: { ready, error, groups }. */
+  function offerable(request) {
+    const user = ctx.getState().user;
+    if (!ctx.supabaseConfigured()) {
+      const { offers } = local();
+      return { ready: true, groups: offerableGroups(ctx.getState().groups || [], request, user, offers) };
+    }
+    const key = `offerable:${request.id}`;
+    if (!remote.offerable.has(request.id) && !remote.errors.has(key))
+      load(key, () => fetchOfferableGroups(request.id), (rows) => remote.offerable.set(request.id, rows));
+    return { ready: remote.offerable.has(request.id), error: remote.errors.get(key), groups: remote.offerable.get(request.id) || [] };
   }
 
   // ------------------------------------------------------------------ pieces
@@ -148,6 +192,23 @@ export function createRequestMarketplace(ctx) {
     );
   }
 
+  /** One offer. `host` adds the host's own controls; `withRequest` links back to the request. */
+  function offerCard(offer, request, { host = false, withRequest = false } = {}) {
+    const cycle = request?.billingCycle || offer.snapshot.billing_cycle;
+    const status = offer.status === "pending" && Date.parse(offer.expiresAt) <= Date.now() ? "expired" : offer.status;
+    const head = withRequest && request
+      ? `<div class="hk-offer-request">${a(`/requests/${encodeURIComponent(request.id)}`, escape(request.title), "hk-offer-request-link")}<small>${t("ผู้โพสต์: {name}", { name: escape(request.requesterName) })} · ${t("งบสูงสุด")} ${money(request.budgetMax)}</small></div>`
+      : "";
+    const who = host
+      ? `<span class="avatar small">${icon("users", 16)}</span><div><strong>${escape(offer.snapshot.group_name || t("กลุ่ม"))}</strong><small>${t("{count} ที่นั่ง", { count: offer.seatsOffered || 1 })} · ${status === "pending" ? leftLabel(offer.expiresAt) : t("ส่งเมื่อ {date}", { date: new Date(offer.createdAt).toLocaleDateString(ctx.locale()) })}</small></div>`
+      : `<span class="avatar small">${escape(String(offer.hostName || "H").slice(0, 1))}</span><div><strong>${escape(offer.hostName)}</strong><small>${escape(offer.snapshot.group_name || t("กลุ่ม"))} · ${t("{count} ที่นั่ง", { count: offer.seatsOffered || 1 })}</small></div>`;
+    const actions = [
+      offer.groupId ? a(`/groups/${encodeURIComponent(offer.groupId)}`, t("ดูกลุ่ม"), "button outline") : "",
+      host && status === "pending" ? `<button type="button" class="button danger-soft" data-action="hk-withdraw-offer" data-id="${escape(offer.id)}">${t("ถอนข้อเสนอ")}</button>` : "",
+    ].join("");
+    return `<article class="hk-offer-card">${head}<div class="hk-offer-top">${who}<span class="hk-offer-status hk-offer-${escape(status)}">${t(OFFER_LABEL[status] || status)}</span></div><div class="hk-offer-price"><strong>${money(offer.offered)}</strong> <small>${perUnit(cycle)}</small></div>${offer.message ? `<p>${escape(offer.message)}</p>` : ""}${actions ? `<div class="hk-offer-actions">${actions}</div>` : ""}</article>`;
+  }
+
   // ------------------------------------------------------------------ /requests
   function listPage() {
     const params = new URLSearchParams(location.search);
@@ -172,7 +233,7 @@ export function createRequestMarketplace(ctx) {
           : `<div class="empty hk-empty"><h2>${q || category !== "ทั้งหมด" ? t("ไม่พบประกาศที่ตรงกับการค้นหา") : t("ยังไม่มีคนประกาศหากลุ่ม")}</h2><p>${t("โพสต์สิ่งที่คุณต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ")}</p>${a("/requests/new", `${icon("plus", 18)} ${t("โพสต์หาของหาร")}`, "button primary")}</div>`;
     return `<div class="hk-page hk-list-page">
       ${marketTabs("requests")}
-      <section class="hk-hero"><div><span class="hk-new-badge">NEW FEATURE</span><h1>Request Marketplace</h1><p><strong>Post what you need. Find what you want.</strong></p><p>${t("โพสต์สิ่งที่ต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอได้เลย ไม่ต้องเปิดกลุ่มเอง")}</p></div><div class="hk-hero-actions">${a("/requests/new", `${icon("plus", 18)} ${t("โพสต์หาของหาร")}`, "button primary")}${ctx.getState().user ? a("/my-requests", t("ประกาศของฉัน"), "button outline") : ""}</div></section>
+      <section class="hk-hero"><div><span class="hk-new-badge">NEW FEATURE</span><h1>Request Marketplace</h1><p><strong>Post what you need. Find what you want.</strong></p><p>${t("โพสต์สิ่งที่ต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอได้เลย ไม่ต้องเปิดกลุ่มเอง")}</p></div><div class="hk-hero-actions">${a("/requests/new", `${icon("plus", 18)} ${t("โพสต์หาของหาร")}`, "button primary")}${ctx.getState().user ? `${a("/my-requests", t("ประกาศของฉัน"), "button outline")}${a("/my-offers", t("ข้อเสนอของฉัน"), "button outline")}` : ""}</div></section>
       <form class="search-bar" id="hk-request-search"><span>${icon("search")}</span><input type="hidden" name="category" value="${escape(category)}"/><input name="q" value="${escape(q)}" placeholder="${t("ค้นหาบริการที่ต้องการ...")}" aria-label="${t("ค้นหา")}"/><button type="submit">${t("ค้นหา")}</button></form>
       ${filters}
       <div class="hk-section-head"><h2>${t("ประกาศหากลุ่มล่าสุด")}</h2>${data.ready && !data.error ? `<span>${t("{count} ประกาศ", { count: list.length })}</span>` : ""}</div>
@@ -249,11 +310,14 @@ export function createRequestMarketplace(ctx) {
       ? `<div class="hk-owner-actions">${canEditRequest(request, offers) ? a(`/requests/${encodeURIComponent(id)}/edit`, `${icon("edit", 17)} ${t("แก้ไขประกาศ")}`, "button outline") : ""}${["open", "matched"].includes(request.status) && phase !== "expired" ? `<button type="button" class="button danger-soft" data-action="hk-cancel-request" data-id="${escape(id)}">${icon("trash", 17)} ${t("ยกเลิกประกาศ")}</button>` : ""}</div>${!canEditRequest(request, offers) && phase === "has_offers" ? `<p class="hk-help small">${t("มีข้อเสนอแล้ว จึงแก้ไขประกาศไม่ได้ เพื่อให้ข้อเสนอตรงกับสิ่งที่ประกาศไว้")}</p>` : ""}`
       : "";
     const offerList = offers.length
-      ? `<div class="hk-offer-list">${offers.map((offer) => `<article class="hk-offer-card"><div class="hk-offer-top"><span class="avatar small">${escape(String(offer.hostName || "H").slice(0, 1))}</span><div><strong>${escape(offer.hostName)}</strong><small>${escape(offer.snapshot.group_name || t("กลุ่ม"))} · ${t("{count} ที่นั่ง", { count: offer.seatsOffered || 1 })}</small></div><span class="hk-offer-status hk-offer-${escape(offer.status)}">${t(OFFER_LABEL[offer.status] || offer.status)}</span></div><div class="hk-offer-price"><strong>${money(offer.offered)}</strong> <small>${perUnit(request.billingCycle)}</small></div>${offer.message ? `<p>${escape(offer.message)}</p>` : ""}${offer.groupId ? a(`/groups/${encodeURIComponent(offer.groupId)}`, t("ดูกลุ่ม"), "button outline") : ""}</article>`).join("")}</div>`
-      : `<div class="hk-offer-empty">${icon("clock", 22)}<div><strong>${t("ยังไม่มีข้อเสนอ")}</strong><p>${mine ? t("เมื่อเจ้าของกลุ่มส่งข้อเสนอ จะแสดงที่นี่") : t("ข้อเสนอจะเห็นได้เฉพาะเจ้าของประกาศ")}</p></div></div>`;
-    const hostCta = !mine && request.status === "open" && phase !== "expired"
-      ? `<section class="hk-panel hk-host-cta"><div><h2>${t("มีกลุ่มที่ตรงกับประกาศนี้?")}</h2><p>${t("เจ้าของกลุ่มจะส่งข้อเสนอพร้อมแนบกลุ่มที่มีอยู่ได้ เร็ว ๆ นี้")}</p></div><button type="button" class="button primary" disabled>Make an Offer · ${t("เร็ว ๆ นี้")}</button></section>`
-      : "";
+      ? `<div class="hk-offer-list">${offers.map((offer) => offerCard(offer, request)).join("")}</div>`
+      : `<div class="hk-offer-empty">${icon("clock", 22)}<div><strong>${t("ยังไม่มีข้อเสนอ")}</strong><p>${t("เมื่อเจ้าของกลุ่มส่งข้อเสนอ จะแสดงที่นี่")}</p></div></div>`;
+    // Hosts see only their own offers here (RLS does the same in Supabase).
+    const myOffers = user ? offers.filter((offer) => offer.hostId === user.id) : [];
+    const canOffer = request.status === "open" && phase !== "expired";
+    const hostCta = mine
+      ? ""
+      : `${myOffers.length ? `<section class="hk-panel"><div class="hk-section-head"><h2>${t("ข้อเสนอของคุณ")}</h2><span>${t("{count} ข้อเสนอ", { count: myOffers.length })}</span></div><div class="hk-offer-list">${myOffers.map((offer) => offerCard(offer, request, { host: true })).join("")}</div></section>` : ""}${canOffer ? `<section class="hk-panel hk-host-cta"><div><span class="hk-eyebrow">${t("สำหรับเจ้าของกลุ่ม")}</span><h2>${t("มีกลุ่มที่ตรงกับประกาศนี้?")}</h2><p>${t("เลือกกลุ่มที่คุณเปิดอยู่ แล้วส่งข้อเสนอให้ผู้หากลุ่มได้เลย")}</p></div>${user ? a(`/requests/${encodeURIComponent(id)}/offer`, `${icon("users", 18)} Make an Offer`, "button primary") : `<button type="button" class="button primary" data-action="open-auth" data-step="1">${icon("user", 18)} ${t("เข้าสู่ระบบเพื่อส่งข้อเสนอ")}</button>`}</section>` : ""}`;
     return `<div class="hk-page hk-detail-page">
       ${a(mine ? "/my-requests" : "/requests", `← ${mine ? t("ประกาศของฉัน") : t("กลับไปหน้าประกาศ")}`, "listing-back-link")}
       <section class="hk-panel hk-detail-head">
@@ -316,13 +380,101 @@ export function createRequestMarketplace(ctx) {
     </div>`;
   }
 
+  // ------------------------------------------------------------------ /requests/:id/offer
+  function offerPage(id) {
+    const user = ctx.getState().user;
+    if (!user) return `<div class="hk-page">${signInBlock(t("เข้าสู่ระบบเพื่อส่งข้อเสนอ"))}</div>`;
+    const data = source("detail", id);
+    if (data.error) return `<div class="hk-page">${errorBlock(data.error)}</div>`;
+    if (!data.ready) return `<div class="hk-page">${loadingBlock()}</div>`;
+    const request = data.requests.find((item) => item.id === id);
+    const back = a(`/requests/${encodeURIComponent(id)}`, `← ${t("กลับไปที่ประกาศ")}`, "listing-back-link");
+    if (!request) return `<div class="hk-page"><div class="empty hk-empty"><h2>${t("ไม่พบประกาศนี้")}</h2>${a("/requests", t("ดูประกาศทั้งหมด"), "button primary")}</div></div>`;
+    if (request.requesterId === user.id)
+      return `<div class="hk-page hk-wizard-page">${back}<div class="empty hk-empty"><h2>${t("นี่คือประกาศของคุณ")}</h2><p>${t("ส่งข้อเสนอให้ประกาศของตัวเองไม่ได้")}</p></div></div>`;
+    if (request.status !== "open" || requestPhase(request, []) === "expired")
+      return `<div class="hk-page hk-wizard-page">${back}<div class="empty hk-empty"><h2>${t("ประกาศนี้ปิดรับข้อเสนอแล้ว")}</h2>${a("/requests", t("ดูประกาศอื่น"), "button primary")}</div></div>`;
+    const list = offerable(request);
+    const summary = `<section class="hk-panel hk-offer-summary"><div class="hk-detail-meta"><span class="hk-card-category">${escape(t(request.category))}</span><span>${billingLabel(request.billingCycle)}</span><span>${leftLabel(request.expiresAt)}</span></div><h2>${escape(request.title)}</h2><p>${t("ผู้โพสต์: {name}", { name: escape(request.requesterName) })} · ${t("ต้องการ {count} ที่นั่ง", { count: request.seatsNeeded || 1 })} · ${t("งบสูงสุด")} <strong>${money(request.budgetMax)}</strong> ${perUnit(request.billingCycle)}</p></section>`;
+    let body;
+    if (list.error) body = errorBlock(list.error);
+    else if (!list.ready) body = loadingBlock();
+    else if (!list.groups.length)
+      body = `<div class="empty hk-empty"><h2>${t("คุณยังไม่มีกลุ่มที่เปิดอยู่")}</h2><p>${t("เปิดกลุ่มก่อน แล้วกลับมาส่งข้อเสนอด้วยกลุ่มนั้น")}</p>${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่มหารของ")}`, "button primary")}</div>`;
+    else {
+      const first = list.groups.find((group) => group.matches);
+      const options = list.groups.map((group) => `<label class="hk-group-option${group.matches ? "" : " is-disabled"}"><input type="radio" name="groupId" value="${escape(group.groupId)}" data-price="${group.seatPrice ?? ""}" ${group.matches ? "" : "disabled"} ${first && first.groupId === group.groupId ? "checked" : ""}/><span class="hk-group-option-body"><span class="hk-group-option-head"><strong>${escape(group.name)}</strong>${group.matches ? `<span class="hk-status hk-status-open">${t("เลือกได้")}</span>` : `<span class="hk-status hk-status-expired">${t("เลือกไม่ได้")}</span>`}</span><span class="hk-group-option-stats"><span><small>${t("ที่นั่งว่าง")}</small><b>${t("{count} ที่", { count: group.freeSeats })}</b></span><span><small>${t("ราคาต่อที่นั่ง")}</small><b>${group.seatPrice == null ? "—" : `${money(group.seatPrice)} ${perUnit(group.billing)}`}</b></span><span><small>${t("รอบการชำระเงิน")}</small><b>${billingLabel(group.billing)}</b></span></span>${group.reason ? `<small class="hk-group-option-reason">${icon("info", 14)} ${t(BLOCKER_LABEL[group.reason] || group.reason)}</small>` : ""}</span></label>`).join("");
+      body = `<form id="hk-offer-form" class="hk-panel hk-wizard" data-id="${escape(id)}" novalidate>
+        <h2>${t("กลุ่มของฉัน")}</h2><p class="hk-help">${t("เลือกกลุ่มที่ต้องการนำมาเสนอให้ผู้หากลุ่ม")}</p>
+        <fieldset class="hk-group-options"><legend class="sr-only">${t("กลุ่มของฉัน")}</legend>${options}</fieldset>
+        ${first ? "" : `<p class="hk-help small">${t("ยังไม่มีกลุ่มที่ตรงกับประกาศนี้ กลุ่มต้องอยู่หมวดเดียวกัน รอบการชำระเงินเดียวกัน มีที่ว่าง และราคาไม่เกินงบ")}</p>`}
+        <div class="hk-offer-price-box"><small>${t("ราคาที่เสนอ")}</small><strong data-hk-offer-price>${first ? money(first.seatPrice) : "—"}</strong><span>${perUnit(request.billingCycle)}</span><p class="hk-help small">${t("ราคาคิดจากราคาต่อที่นั่งของกลุ่ม ซึ่งเป็นยอดที่ผู้หากลุ่มจะจ่ายจริงเมื่อเข้าร่วม และจะล็อกไว้ตอนส่ง")}</p></div>
+        <label class="hk-field">${t("ข้อความถึงผู้หาของ")} <small>(${t("ไม่บังคับ")})</small><textarea name="message" maxlength="400" rows="3" placeholder="${t("สามารถเข้าร่วมได้ 1 ที่นั่ง รายละเอียดตามเงื่อนไขกลุ่ม...")}"></textarea></label>
+        <div class="hk-feedback" role="alert" hidden></div>
+        <div class="hk-actions">${a(`/requests/${encodeURIComponent(id)}`, t("ยกเลิก"), "button outline")}<button type="submit" class="button primary" ${first ? "" : "disabled"}>${icon("check", 18)} ${t("ส่งข้อเสนอ")}</button></div>
+      </form>`;
+    }
+    return `<div class="hk-page hk-wizard-page">${back}<div class="hk-wizard-head"><h1>${t("ส่งข้อเสนอ")}</h1><span>Make an Offer</span></div>${summary}${body}</div>`;
+  }
+
+  // ------------------------------------------------------------------ /my-offers
+  function myOffersPage() {
+    const user = ctx.getState().user;
+    if (!user) return `<div class="hk-page">${signInBlock(t("เข้าสู่ระบบเพื่อดูข้อเสนอที่คุณส่ง"))}</div>`;
+    const params = new URLSearchParams(location.search);
+    const tab = MY_OFFER_TABS.includes(params.get("tab")) ? params.get("tab") : "all";
+    const data = source("myOffers");
+    const mine = data.offers.filter((offer) => offer.hostId === user.id).sort((x, y) => String(y.createdAt).localeCompare(String(x.createdAt)));
+    const counts = Object.fromEntries(MY_OFFER_TABS.map((key) => [key, filterMyOffers(mine, key).length]));
+    const list = filterMyOffers(mine, tab);
+    const requestOf = (offer) => data.requests.find((request) => request.id === offer.requestId);
+    const tabs = `<nav class="hk-tabs" aria-label="${t("ข้อเสนอของฉัน")}">${MY_OFFER_TABS.map((key) => a(key === "all" ? "/my-offers" : `/my-offers?tab=${key}`, `${t(OFFER_TAB_LABEL[key])}${data.ready ? ` <span>${counts[key]}</span>` : ""}`, `hk-tab${tab === key ? " active" : ""}`)).join("")}</nav>`;
+    const body = data.error
+      ? errorBlock(data.error)
+      : !data.ready
+        ? loadingBlock()
+        : list.length
+          ? `<div class="hk-offer-list hk-my-offers">${list.map((offer) => offerCard(offer, requestOf(offer), { host: true, withRequest: true })).join("")}</div>`
+          : `<div class="empty hk-empty"><h2>${tab === "all" ? t("คุณยังไม่ได้ส่งข้อเสนอ") : t("ไม่มีข้อเสนอในแท็บนี้")}</h2><p>${t("ดูประกาศของคนที่กำลังหากลุ่ม แล้วเสนอกลุ่มที่คุณเปิดอยู่")}</p>${a("/requests", `${icon("search", 18)} ${t("ดูประกาศหากลุ่ม")}`, "button primary")}</div>`;
+    return `<div class="hk-page">
+      ${title(t("ข้อเสนอของฉัน"), t("ติดตามข้อเสนอที่คุณส่งให้คนที่กำลังหากลุ่ม"))}
+      <div class="hk-toolbar">${tabs}${a("/requests", `${icon("search", 18)} ${t("ดูประกาศหากลุ่ม")}`, "button outline")}</div>
+      ${body}
+    </div>`;
+  }
+
+  // ------------------------------------------------------------------ home page section
+  function homeSection() {
+    const data = source("open");
+    const latest = data.ready && !data.error ? browseRequests(data.requests).slice(0, 3) : [];
+    const cards = data.error
+      ? ""
+      : !data.ready
+        ? `<div class="hk-request-grid hk-home-grid" aria-hidden="true"><span class="hk-skeleton"></span><span class="hk-skeleton"></span><span class="hk-skeleton"></span></div>`
+        : latest.length
+          ? `<div class="hk-request-grid hk-home-grid">${latest.map((request) => requestCard(request, [])).join("")}</div>`
+          : `<div class="hk-offer-empty">${icon("search", 22)}<div><strong>${t("ยังไม่มีคนประกาศหากลุ่ม")}</strong><p>${t("เป็นคนแรกที่โพสต์ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ")}</p></div></div>`;
+    return `<section class="home-discovery-section hk-home-section" data-reveal-kind="deal">
+      <div class="home-section-banner"><span class="home-section-icon hk-home-icon">${icon("search", 40)}</span><div><h2>${t("กำลังหากลุ่ม")} <small>(Request Marketplace)</small></h2><p>${t("ไม่อยากเปิดกลุ่มเอง? โพสต์สิ่งที่ต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ")}</p></div>${a("/requests", `${t("ดูทั้งหมด")} ${icon("arrow", 18)}`, "home-view-all")}</div>
+      <div class="hk-home-sides">
+        ${a("/requests/new", `<span class="hk-home-side-icon">${icon("search", 24)}</span><span><small>${t("สำหรับคนหาของ")}</small><strong>Find a Group</strong><span>${t("โพสต์ว่าต้องการอะไร งบเท่าไหร่ แล้วรอข้อเสนอ")}</span></span>${icon("arrow", 18)}`, "hk-home-side requester")}
+        ${a("/requests", `<span class="hk-home-side-icon">${icon("users", 24)}</span><span><small>${t("สำหรับเจ้าของกลุ่ม (Host)")}</small><strong>Make an Offer</strong><span>${t("มีกลุ่มที่ยังมีที่ว่าง? เสนอให้คนที่กำลังหาได้เลย")}</span></span>${icon("arrow", 18)}`, "hk-home-side host")}
+      </div>
+      ${latest.length || !data.ready ? `<div class="hk-section-head"><h3>${t("ประกาศหากลุ่มล่าสุด")}</h3></div>` : ""}
+      ${cards}
+    </section>`;
+  }
+
   // ------------------------------------------------------------------ routing
   function route(path) {
     if (path === "/requests") return listPage();
     if (path === "/requests/new") return wizardPage();
     if (path === "/my-requests") return myRequestsPage();
+    if (path === "/my-offers") return myOffersPage();
     let match = path.match(/^\/requests\/([^/]+)\/edit$/);
     if (match) return editPage(match[1]);
+    match = path.match(/^\/requests\/([^/]+)\/offer$/);
+    if (match) return offerPage(match[1]);
     match = path.match(/^\/requests\/([^/]+)$/);
     if (match) return detailPage(match[1]);
     return null;
@@ -446,6 +598,59 @@ export function createRequestMarketplace(ctx) {
     });
   }
 
+  async function submitOfferForm(form) {
+    const data = new FormData(form);
+    const requestId = form.dataset.id;
+    const groupId = String(data.get("groupId") || "");
+    const message = String(data.get("message") || "").trim();
+    if (!groupId) return feedback(form, t("กรุณาเลือกกลุ่มที่จะเสนอ"));
+    await withBusy(form.querySelector('[type="submit"]'), async () => {
+      try {
+        if (ctx.supabaseConfigured()) {
+          await submitSupabaseOffer(requestId, groupId, message);
+          invalidate();
+        } else {
+          const state = ctx.getState();
+          const { requests, offers } = local();
+          const result = submitOffer(requests, offers, state.groups || [], requestId, groupId, message, state.user);
+          state.hkRequests = result.requests;
+          state.hkOffers = result.offers;
+          ctx.notice(t("มีข้อเสนอใหม่!"), t("{name} ส่งข้อเสนอสำหรับประกาศ “{title}” ของคุณ", { name: state.user.name, title: result.request.title }), `/requests/${requestId}`, result.request.requesterId);
+          ctx.save();
+        }
+        ctx.go(`/requests/${requestId}`);
+        ctx.alertMessage(t("ส่งข้อเสนอแล้ว รอผู้หากลุ่มพิจารณา"));
+      } catch (error) {
+        feedback(form, BLOCKER_LABEL[error.code] ? t(BLOCKER_LABEL[error.code]) : ctx.errorMessage(error));
+      }
+    });
+  }
+
+  async function withdraw(button) {
+    if (!confirm(t("ถอนข้อเสนอนี้ใช่ไหม? ผู้หากลุ่มจะได้รับแจ้ง"))) return;
+    await withBusy(button, async () => {
+      try {
+        if (ctx.supabaseConfigured()) {
+          await withdrawSupabaseOffer(button.dataset.id);
+          invalidate();
+        } else {
+          const state = ctx.getState();
+          const { requests, offers } = local();
+          const result = withdrawOffer(offers, button.dataset.id, state.user);
+          state.hkOffers = result.offers;
+          const request = requests.find((item) => item.id === result.offer.requestId);
+          if (request)
+            ctx.notice(t("Host ถอนข้อเสนอ"), t("{name} ถอนข้อเสนอสำหรับประกาศ “{title}”", { name: state.user.name, title: request.title }), `/requests/${request.id}`, request.requesterId);
+          ctx.save();
+        }
+        ctx.render();
+        ctx.alertMessage(t("ถอนข้อเสนอแล้ว"));
+      } catch (error) {
+        ctx.alertError(ctx.errorMessage(error));
+      }
+    });
+  }
+
   /** Returns true when the event was handled here. */
   function onClick(e) {
     const target = e.target.closest?.("[data-action]");
@@ -466,6 +671,10 @@ export function createRequestMarketplace(ctx) {
     }
     if (action === "hk-cancel-request") {
       void cancel(target);
+      return true;
+    }
+    if (action === "hk-withdraw-offer") {
+      void withdraw(target);
       return true;
     }
     if (action === "hk-retry") {
@@ -495,6 +704,11 @@ export function createRequestMarketplace(ctx) {
       void submitWizard(form);
       return true;
     }
+    if (form.id === "hk-offer-form") {
+      e.preventDefault();
+      void submitOfferForm(form);
+      return true;
+    }
     if (form.id === "hk-request-edit") {
       e.preventDefault();
       void submitEdit(form);
@@ -504,6 +718,12 @@ export function createRequestMarketplace(ctx) {
   }
 
   function onInput(e) {
+    if (e.target.matches?.('#hk-offer-form input[name="groupId"]')) {
+      const price = Number(e.target.dataset.price);
+      const box = document.querySelector("[data-hk-offer-price]");
+      if (box) box.textContent = Number.isSafeInteger(price) ? money(price) : "—";
+      return true;
+    }
     if (!e.target.matches?.("[data-hk-category-filter]")) return false;
     const query = e.target.value.trim().toLowerCase();
     for (const option of document.querySelectorAll(".hk-category-option"))
@@ -520,10 +740,38 @@ export function createRequestMarketplace(ctx) {
     remote.errors.clear();
   }
 
-  /** Sample requests for the browser-only test mode, from the other test people. */
+  /**
+   * Browser-only test mode: sample requests from B and C, and one open group each for A and B
+   * so they can try Make an Offer. Runs once per step (hkSeeded counts the steps done).
+   */
   function seedTestData(users) {
     const state = ctx.getState();
-    if (state.hkSeeded) return;
+    if (state.hkSeeded === true) state.hkSeeded = 1;
+    if ((state.hkSeeded || 0) < 1) seedRequests(state, users);
+    if ((state.hkSeeded || 0) < 2) seedHostGroups(state, users);
+    ctx.save();
+  }
+
+  function seedHostGroups(state, users) {
+    const samples = [
+      [users[0], "hk-test-yt", "YouTube Premium Family", "แอปพลิเคชันและเว็บไซต์", 6, 25900, 5, "บัญชี Family แชร์ได้ 6 คน"],
+      [users[1], "hk-test-cloud", "Google One 2TB ครอบครัว", "สินค้าดิจิทัล", 5, 30000, 10, "พื้นที่ 2TB แชร์ในครอบครัว"],
+    ];
+    for (const [user, id, name, category, capacity, product, payDay, description] of samples) {
+      if (state.groups.some((group) => group.id === id)) continue;
+      const listingId = `custom-${id}`;
+      const group = createGroup({ id, listingId, name, ownerId: user.id, visibility: "public", capacity, costs: { product, delivery: 0 }, billing: "monthly", payDay });
+      Object.assign(group, { category, categories: [category], images: [], details: { minimumMembers: 2, memberNote: "", visibilityMode: "public" } });
+      state.customListings = [
+        { id: listingId, sellerId: user.id, sellerName: user.name, title: name, category, kind: "บริการ", price: product, art: "custom", mark: "", description, terms: "", images: [], productDetails: { type: "digital" } },
+        ...(state.customListings || []),
+      ];
+      state.groups = [group, ...state.groups];
+    }
+    state.hkSeeded = 2;
+  }
+
+  function seedRequests(state, users) {
     let requests = state.hkRequests || [];
     const samples = [
       [users[1], { title: "หาเพื่อนหาร YouTube Premium", category: "แอปพลิเคชันและเว็บไซต์", description: "ต้องการเข้าร่วมกลุ่มระยะยาว ใช้งานตามเงื่อนไขของผู้ให้บริการ", budgetMax: 5000, billingCycle: "monthly", expiresInDays: 2 }],
@@ -535,9 +783,8 @@ export function createRequestMarketplace(ctx) {
     });
     state.hkRequests = requests;
     state.hkOffers = state.hkOffers || [];
-    state.hkSeeded = true;
-    ctx.save();
+    state.hkSeeded = 1;
   }
 
-  return { route, marketTabs, onClick, onSubmit, onInput, onNavigate, onSessionChange, seedTestData };
+  return { route, marketTabs, homeSection, onClick, onSubmit, onInput, onNavigate, onSessionChange, seedTestData };
 }

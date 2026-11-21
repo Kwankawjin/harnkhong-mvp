@@ -1,4 +1,6 @@
-// Request Marketplace, requester side (Phase 2).
+import { SEAT_MODE, UNIT_MODE, openUnits, saleMode, seatPrice, unitJoinPrice, unitMode } from "./domain.js";
+
+// Request Marketplace: requester side (Phase 2) and host side (Phase 3).
 // Pure functions over plain arrays: the browser-only test mode keeps its data with them, and the
 // Supabase mode uses the same validation before calling the RPCs in supabase-requests.js.
 // The rules mirror supabase/migrations/20261121130000_request_marketplace.sql.
@@ -182,4 +184,138 @@ export function timeLeft(expiresAt, now = Date.now()) {
   if (!(ms > 0)) return { expired: true, days: 0, hours: 0 };
   const hours = Math.ceil(ms / 3_600_000);
   return { expired: false, days: Math.floor(hours / 24), hours };
+}
+
+// ------------------------------------------------------------------ Host side (Phase 3)
+// Local mirror of hk_my_offerable_groups / hk_submit_offer / hk_withdraw_offer. The group helpers
+// come from domain.js so prices and free seats match what joining the group really costs.
+
+export const OFFER_HOURS = 72;
+export const MY_OFFER_TABS = Object.freeze(["all", "pending", "accepted", "closed"]);
+const LIVE_OFFER = ["pending", "accepted", "completed"];
+
+export const groupCategories = (group) =>
+  group?.categories?.length ? group.categories : group?.category ? [group.category] : [];
+export const groupBilling = (group) => (group?.billing === "monthly" ? "monthly" : "one_time");
+
+/** Can this group take a new member at all (seats aside)? Same idea as private.hk_group_open. */
+export function groupOpenForOffers(group, now = Date.now()) {
+  if (!group || group.status === "cancelled" || group.closedAt || group.orderId || saleMode(group)) return false;
+  if (![SEAT_MODE, UNIT_MODE].includes(group.costs?.mode)) return false;
+  const closesAt = group.details?.closesAt || group.closesAt;
+  return !(closesAt && closesAt < new Date(now).toISOString().slice(0, 10));
+}
+
+export const freeSeats = (group) => openUnits(group);
+
+/** What the next member pays for one seat; null when nobody can join. */
+export function nextSeatPrice(group) {
+  if (!group || freeSeats(group) < 1) return null;
+  if (unitMode(group)) return unitJoinPrice(group, 1);
+  if (group.costs?.mode !== SEAT_MODE) return null;
+  return seatPrice(group.costs, group.capacity, group.members.length);
+}
+
+/** Why a group can't be offered for a request (null when it can). */
+export function offerBlocker(group, request, offers = [], now = Date.now()) {
+  if (!groupOpenForOffers(group, now)) return "group_unavailable";
+  if (groupBilling(group) !== request.billingCycle) return "billing_mismatch";
+  if (request.productId && group.listingId !== request.productId) return "product_mismatch";
+  if (!groupCategories(group).includes(request.category)) return "category_mismatch";
+  if (group.members.includes(request.requesterId)) return "requester_already_member";
+  if (freeSeats(group) < (request.seatsNeeded || 1)) return "full_group";
+  const price = nextSeatPrice(group);
+  if (price === null) return "group_unavailable";
+  if (price > request.budgetMax) return "over_budget";
+  if (offers.some((offer) => offer.requestId === request.id && offer.groupId === group.id && LIVE_OFFER.includes(offer.status)))
+    return "duplicate_offer";
+  return null;
+}
+
+/** The host's own groups, offerable ones first, with free seats and the seat price. */
+export function offerableGroups(groups, request, user, offers = [], now = Date.now()) {
+  return groups
+    .filter((group) => group.ownerId === user?.id && group.status !== "cancelled" && !group.closedAt)
+    .map((group) => {
+      const reason = offerBlocker(group, request, offers, now);
+      return {
+        groupId: group.id,
+        name: group.name,
+        capacity: group.capacity,
+        freeSeats: freeSeats(group),
+        seatPrice: groupOpenForOffers(group, now) ? nextSeatPrice(group) : null,
+        billing: groupBilling(group),
+        matches: reason === null,
+        reason,
+      };
+    })
+    .sort((a, b) => Number(b.matches) - Number(a.matches));
+}
+
+export function submitOffer(requests, offers, groups, requestId, groupId, message, user, { now = Date.now(), id = crypto.randomUUID() } = {}) {
+  if (!user?.id) fail("authentication_required", "กรุณาเข้าสู่ระบบก่อน");
+  const request = requests.find((item) => item.id === requestId);
+  if (!request) fail("request_not_found", "ไม่พบประกาศนี้");
+  if (request.status !== "open" || Date.parse(request.expiresAt) <= now) fail("request_not_open", "ประกาศนี้ไม่ได้เปิดรับข้อเสนอแล้ว");
+  if (request.requesterId === user.id) fail("own_request", "เสนอให้ประกาศของตัวเองไม่ได้");
+  const group = groups.find((item) => item.id === groupId);
+  if (!group || group.ownerId !== user.id) fail("group_not_owned", "เลือกได้เฉพาะกลุ่มที่คุณเป็นเจ้าของ");
+  const text = String(message ?? "").trim();
+  if (text.length > 400) fail("hk_invalid_message", "ข้อความยาวได้ไม่เกิน 400 ตัวอักษร");
+  const blocker = offerBlocker(group, request, offers, now);
+  if (blocker) fail(blocker, blocker);
+  const price = nextSeatPrice(group);
+  const at = new Date(now).toISOString();
+  const offer = {
+    id,
+    requestId,
+    hostId: user.id,
+    hostName: String(user.name || "สมาชิก").slice(0, 70),
+    groupId,
+    offered: price,
+    seatsOffered: 1,
+    message: text,
+    snapshot: {
+      group_name: group.name,
+      categories: groupCategories(group),
+      capacity: group.capacity,
+      billing_cycle: groupBilling(group),
+      pay_day: group.payDay ?? null,
+      offered_satang: price,
+      seats_offered: 1,
+      free_seats: freeSeats(group),
+      captured_at: at,
+    },
+    status: "pending",
+    expiresAt: new Date(Math.min(now + OFFER_HOURS * 3_600_000, Date.parse(request.expiresAt))).toISOString(),
+    createdAt: at,
+    updatedAt: at,
+  };
+  const nextRequest = { ...request, offerCount: (request.offerCount || 0) + 1, updatedAt: at };
+  return {
+    offer,
+    request: nextRequest,
+    offers: [...offers, offer],
+    requests: requests.map((item) => (item.id === requestId ? nextRequest : item)),
+  };
+}
+
+export function withdrawOffer(offers, offerId, user, { now = Date.now() } = {}) {
+  const offer = offers.find((item) => item.id === offerId);
+  if (!offer || offer.hostId !== user?.id) fail("offer_not_found", "ไม่พบข้อเสนอนี้");
+  // Accepted offers hold a seat; backing out of those comes with the matching step (Phase 4).
+  if (offer.status !== "pending") fail("offer_not_pending", "ข้อเสนอนี้ไม่ได้รอพิจารณาแล้ว");
+  const next = { ...offer, status: "withdrawn", updatedAt: new Date(now).toISOString() };
+  return { offer: next, offers: offers.map((item) => (item.id === offerId ? next : item)) };
+}
+
+/** My Offers tabs: all, pending, accepted (accepted or joined), closed (everything else). */
+export function filterMyOffers(offers, tab, now = Date.now()) {
+  return offers.filter((offer) => {
+    const status = offer.status === "pending" && Date.parse(offer.expiresAt) <= now ? "expired" : offer.status;
+    if (tab === "pending") return status === "pending";
+    if (tab === "accepted") return status === "accepted" || status === "completed";
+    if (tab === "closed") return ["rejected", "withdrawn", "expired", "cancelled"].includes(status);
+    return true;
+  });
 }

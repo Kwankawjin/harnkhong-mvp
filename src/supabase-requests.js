@@ -11,6 +11,9 @@ const OFFER_FIELDS =
 const KNOWN = new Set([
   "authentication_required", "profile_required", "invalid_request_expiry", "product_unavailable",
   "too_many_open_requests", "request_not_found", "request_not_open", "request_has_offers",
+  "own_request", "group_not_owned", "group_unavailable", "billing_mismatch", "product_mismatch",
+  "category_mismatch", "requester_already_member", "full_group", "over_budget", "duplicate_offer",
+  "offer_not_found", "offer_not_pending",
 ]);
 function rethrow(error) {
   if (!error) return;
@@ -129,4 +132,53 @@ export async function updateSupabaseRequest(id, input) {
 export async function cancelSupabaseRequest(id) {
   const { error } = await supabase.rpc("hk_cancel_request", { p_request: id });
   rethrow(error);
+}
+
+// ------------------------------------------------------------------ host side (Phase 3)
+/** The signed-in host's groups for this request, with free seats, seat price and why not. */
+export async function fetchOfferableGroups(requestId) {
+  const { data, error } = await supabase.rpc("hk_my_offerable_groups", { p_request: requestId });
+  rethrow(error);
+  return (data || []).map((row) => ({
+    groupId: row.group_id,
+    name: row.name,
+    capacity: row.capacity,
+    freeSeats: row.free_seats,
+    seatPrice: row.seat_satang == null ? null : Number(row.seat_satang),
+    billing: row.billing_mode,
+    matches: row.matches,
+    reason: row.reason,
+  }));
+}
+
+export async function submitSupabaseOffer(requestId, groupId, message) {
+  const { data, error } = await supabase.rpc("hk_submit_offer", {
+    p_request: requestId,
+    p_group: groupId,
+    p_message: message,
+  });
+  rethrow(error);
+  return data;
+}
+
+export async function withdrawSupabaseOffer(offerId) {
+  const { error } = await supabase.rpc("hk_withdraw_offer", { p_offer: offerId });
+  rethrow(error);
+}
+
+/** Offers this user sent, each with the request it answers. */
+export async function fetchMyOffers(userId) {
+  await sync();
+  const { data, error } = await supabase
+    .from("hk_request_offers")
+    .select(`${OFFER_FIELDS},request:hk_requests(${REQUEST_FIELDS})`)
+    .eq("host_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  rethrow(error);
+  const rows = data || [];
+  return {
+    offers: rows.map(mapOffer),
+    requests: rows.filter((row) => row.request).map((row) => mapRequest(row.request)),
+  };
 }
