@@ -2044,6 +2044,86 @@ Object.assign(errors, {
   ]
 });
 
+
+// Request Marketplace, host side
+Object.assign(labels, {
+  "ส่งเมื่อ {date}": "Sent {date}",
+  "ถอนข้อเสนอ": "Withdraw offer",
+  "ข้อเสนอของฉัน": "My offers",
+  "ข้อเสนอของคุณ": "Your offers",
+  "สำหรับเจ้าของกลุ่ม": "For group owners",
+  "เลือกกลุ่มที่คุณเปิดอยู่ แล้วส่งข้อเสนอให้ผู้หากลุ่มได้เลย": "Pick one of your open groups and send an offer.",
+  "เข้าสู่ระบบเพื่อส่งข้อเสนอ": "Sign in to make an offer",
+  "นี่คือประกาศของคุณ": "This is your request",
+  "ส่งข้อเสนอให้ประกาศของตัวเองไม่ได้": "You can't make an offer on your own request.",
+  "ประกาศนี้ปิดรับข้อเสนอแล้ว": "This request is closed to offers",
+  "ดูประกาศอื่น": "See other requests",
+  "คุณยังไม่มีกลุ่มที่เปิดอยู่": "You don't have an open group yet",
+  "เปิดกลุ่มก่อน แล้วกลับมาส่งข้อเสนอด้วยกลุ่มนั้น": "Start a group first, then come back and offer it.",
+  "เลือกได้": "Available",
+  "เลือกไม่ได้": "Not available",
+  "ที่นั่งว่าง": "Free seats",
+  "{count} ที่": "{count}",
+  "เลือกกลุ่มที่ต้องการนำมาเสนอให้ผู้หากลุ่ม": "Choose the group to offer.",
+  "ยังไม่มีกลุ่มที่ตรงกับประกาศนี้ กลุ่มต้องอยู่หมวดเดียวกัน รอบการชำระเงินเดียวกัน มีที่ว่าง และราคาไม่เกินงบ": "None of your groups fit yet: it needs the same category and billing, a free seat, and a price within budget.",
+  "ราคาที่เสนอ": "Offered price",
+  "ราคาคิดจากราคาต่อที่นั่งของกลุ่ม ซึ่งเป็นยอดที่ผู้หากลุ่มจะจ่ายจริงเมื่อเข้าร่วม และจะล็อกไว้ตอนส่ง": "The price is the group's seat price, what the requester will really pay on joining. It is locked when you send.",
+  "ข้อความถึงผู้หาของ": "Message to the requester",
+  "สามารถเข้าร่วมได้ 1 ที่นั่ง รายละเอียดตามเงื่อนไขกลุ่ม...": "1 seat available, terms as in the group...",
+  "ส่งข้อเสนอ": "Send offer",
+  "เข้าสู่ระบบเพื่อดูข้อเสนอที่คุณส่ง": "Sign in to see the offers you sent.",
+  "คุณยังไม่ได้ส่งข้อเสนอ": "You haven't sent any offers",
+  "ไม่มีข้อเสนอในแท็บนี้": "No offers in this tab",
+  "ดูประกาศของคนที่กำลังหากลุ่ม แล้วเสนอกลุ่มที่คุณเปิดอยู่": "Browse requests and offer one of your groups.",
+  "ดูประกาศหากลุ่ม": "Browse requests",
+  "ติดตามข้อเสนอที่คุณส่งให้คนที่กำลังหากลุ่ม": "Track the offers you sent",
+  "เป็นคนแรกที่โพสต์ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ": "Be the first to post and let group owners make offers.",
+  "ไม่อยากเปิดกลุ่มเอง? โพสต์สิ่งที่ต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ": "Don't want to start a group? Post what you need and let group owners make an offer.",
+  "สำหรับคนหาของ": "For people looking",
+  "โพสต์ว่าต้องการอะไร งบเท่าไหร่ แล้วรอข้อเสนอ": "Say what you need and your budget, then wait for offers.",
+  "สำหรับเจ้าของกลุ่ม (Host)": "For group owners (Host)",
+  "มีกลุ่มที่ยังมีที่ว่าง? เสนอให้คนที่กำลังหาได้เลย": "Have a group with free seats? Offer it to people looking.",
+  "กรุณาเลือกกลุ่มที่จะเสนอ": "Please choose a group to offer",
+  "มีข้อเสนอใหม่!": "New offer!",
+  "{name} ส่งข้อเสนอสำหรับประกาศ “{title}” ของคุณ": "{name} made an offer on your request “{title}”",
+  "ส่งข้อเสนอแล้ว รอผู้หากลุ่มพิจารณา": "Offer sent. Waiting for the requester.",
+  "ถอนข้อเสนอนี้ใช่ไหม? ผู้หากลุ่มจะได้รับแจ้ง": "Withdraw this offer? The requester will be told.",
+  "{name} ถอนข้อเสนอสำหรับประกาศ “{title}”": "{name} withdrew their offer on “{title}”",
+  "ถอนข้อเสนอแล้ว": "Offer withdrawn",
+  "กลุ่มนี้ไม่ได้เปิดรับสมาชิก": "This group isn't taking members",
+  "รอบการชำระเงินไม่ตรงกับประกาศ": "Billing doesn't match the request",
+  "บริการไม่ตรงกับประกาศ": "Service doesn't match the request",
+  "หมวดหมู่ไม่ตรงกับประกาศ": "Category doesn't match the request",
+  "ผู้หากลุ่มอยู่ในกลุ่มนี้แล้ว": "The requester is already in this group",
+  "ที่นั่งเต็มแล้ว": "No free seats",
+  "ราคาต่อที่นั่งเกินงบของประกาศ": "Seat price is over the request's budget",
+  "ส่งข้อเสนอด้วยกลุ่มนี้แล้ว": "Already offered with this group",
+  "ปิดแล้ว": "Closed",
+  "ข้อเสนอที่คุณส่งให้คนที่กำลังหากลุ่ม": "Offers you sent to people looking for a group"
+});
+Object.assign(errors, {
+  "own_request": [
+    "ส่งข้อเสนอให้ประกาศของตัวเองไม่ได้",
+    "You can't make an offer on your own request"
+  ],
+  "group_not_owned": [
+    "เลือกได้เฉพาะกลุ่มที่คุณเป็นเจ้าของ",
+    "You can only offer groups you own"
+  ],
+  "offer_not_found": [
+    "ไม่พบข้อเสนอนี้",
+    "Offer not found"
+  ],
+  "offer_not_pending": [
+    "ข้อเสนอนี้ไม่ได้รอพิจารณาแล้ว",
+    "This offer is no longer pending"
+  ],
+  "hk_invalid_message": [
+    "ข้อความยาวได้ไม่เกิน 400 ตัวอักษร",
+    "The message can be up to 400 characters"
+  ]
+});
+
 export const messages = {
   th: {
     ...Object.fromEntries(Object.keys(labels).map((key) => [key, key])),
