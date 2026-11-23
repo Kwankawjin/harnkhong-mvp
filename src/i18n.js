@@ -1313,8 +1313,6 @@ const labels = {
   รีเซ็ตข้อมูลเดโม: "Reset demo data",
   "© 2026 HarnKhong — แพลตฟอร์มหารของด้วยกัน":
     "© 2026 HarnKhong — Share the cost",
-  "💡 โหมดต้นแบบจำลอง (MVP Demo) เพื่อการทดสอบ UX":
-    "💡 MVP demo for UX testing",
   ยอดจริงจัดสรรเป็นสตางค์เมื่อสมาชิกเข้าร่วม:
     "Actual shares are allocated in satang as members join.",
   "กรอกข้อมูลตัวอย่างใน Mockup เรียบร้อยแล้ว": "Sample details filled in.",

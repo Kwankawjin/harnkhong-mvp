@@ -4697,7 +4697,7 @@ function render() {
           },
         ],
         copyright: t("© 2026 HarnKhong"),
-        legal: [{ label: t("💡 โหมดต้นแบบจำลอง (MVP Demo) เพื่อการทดสอบ UX") }],
+        legal: [],
         socials: [],
         preset: "auto",
         palette: {
