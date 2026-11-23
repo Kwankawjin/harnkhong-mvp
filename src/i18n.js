@@ -2083,6 +2083,8 @@ Object.assign(labels, {
   "โพสต์ว่าต้องการอะไร งบเท่าไหร่ แล้วรอข้อเสนอ": "Say what you need and your budget, then wait for offers.",
   "สำหรับเจ้าของกลุ่ม (Host)": "For group owners (Host)",
   "มีกลุ่มที่ยังมีที่ว่าง? เสนอให้คนที่กำลังหาได้เลย": "Have a group with free seats? Offer it to people looking.",
+  "โพสต์สิ่งที่หา แล้วรอข้อเสนอ": "Post what you need, get offers",
+  "มีที่ว่าง? เสนอให้คนที่หาอยู่": "Free seats? Offer them",
   "กรุณาเลือกกลุ่มที่จะเสนอ": "Please choose a group to offer",
   "มีข้อเสนอใหม่!": "New offer!",
   "{name} ส่งข้อเสนอสำหรับประกาศ “{title}” ของคุณ": "{name} made an offer on your request “{title}”",

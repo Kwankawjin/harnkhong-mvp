@@ -593,8 +593,8 @@ export function createRequestMarketplace(ctx) {
     return `<section class="home-discovery-section hk-home-section" data-reveal-kind="deal">
       <div class="home-section-banner"><span class="home-section-icon hk-home-icon">${icon("search", 40)}</span><div><h2>${t("กำลังหากลุ่ม")} <small>(Request Marketplace)</small></h2><p>${t("ไม่อยากเปิดกลุ่มเอง? โพสต์สิ่งที่ต้องการ แล้วให้เจ้าของกลุ่มเข้ามาเสนอ")}</p></div>${a("/requests", `${t("ดูทั้งหมด")} ${icon("arrow", 18)}`, "home-view-all")}</div>
       <div class="hk-home-sides">
-        ${a("/requests/new", `<span class="hk-home-side-icon">${icon("search", 24)}</span><span><small>${t("สำหรับคนหาของ")}</small><strong>Find a Group</strong><span>${t("โพสต์ว่าต้องการอะไร งบเท่าไหร่ แล้วรอข้อเสนอ")}</span></span>${icon("arrow", 18)}`, "hk-home-side requester")}
-        ${a("/requests", `<span class="hk-home-side-icon">${icon("users", 24)}</span><span><small>${t("สำหรับเจ้าของกลุ่ม (Host)")}</small><strong>Make an Offer</strong><span>${t("มีกลุ่มที่ยังมีที่ว่าง? เสนอให้คนที่กำลังหาได้เลย")}</span></span>${icon("arrow", 18)}`, "hk-home-side host")}
+        ${a("/requests/new", `<span class="hk-home-side-icon">${icon("search", 24)}</span><span><small>${t("สำหรับคนหาของ")}</small><strong>Find a Group</strong><span class="hk-side-long">${t("โพสต์ว่าต้องการอะไร งบเท่าไหร่ แล้วรอข้อเสนอ")}</span><span class="hk-side-short">${t("โพสต์สิ่งที่หา แล้วรอข้อเสนอ")}</span></span>${icon("arrow", 18)}`, "hk-home-side requester")}
+        ${a("/requests", `<span class="hk-home-side-icon">${icon("users", 24)}</span><span><small>${t("สำหรับเจ้าของกลุ่ม (Host)")}</small><strong>Make an Offer</strong><span class="hk-side-long">${t("มีกลุ่มที่ยังมีที่ว่าง? เสนอให้คนที่กำลังหาได้เลย")}</span><span class="hk-side-short">${t("มีที่ว่าง? เสนอให้คนที่หาอยู่")}</span></span>${icon("arrow", 18)}`, "hk-home-side host")}
       </div>
       ${latest.length || !data.ready ? `<div class="hk-section-head"><h3>${t("ประกาศหากลุ่มล่าสุด")}</h3></div>` : ""}
       ${cards}

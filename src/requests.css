@@ -667,6 +667,9 @@ a.hk-request-card:hover {
   color: var(--hk-muted);
   font-size: 0.9rem;
 }
+.hk-home-side .hk-side-short {
+  display: none;
+}
 .hk-home-side-icon {
   display: grid;
   place-items: center;
@@ -752,7 +755,6 @@ a.hk-request-card:hover {
     display: none;
   }
   .hk-field-row,
-  .hk-home-sides,
   .hk-expiry-picker {
     grid-template-columns: 1fr;
   }
@@ -770,6 +772,35 @@ a.hk-request-card:hover {
   .hk-match-panel {
     flex-direction: column;
     padding: 18px;
+  }
+  /* Find a Group / Make an Offer: two compact tiles side by side */
+  .hk-home-sides {
+    gap: 10px;
+  }
+  .hk-home-side {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px;
+  }
+  .hk-home-side > svg,
+  .hk-home-side small,
+  .hk-home-side .hk-side-long {
+    display: none;
+  }
+  .hk-home-side .hk-side-short {
+    display: block;
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+  .hk-home-side strong {
+    font-size: 1rem;
+    line-height: 1.2;
+  }
+  .hk-home-side-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
   }
 }
 
