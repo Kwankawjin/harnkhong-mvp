@@ -35,6 +35,18 @@ function app() {
     createAuthSessionSync,
     URLSearchParams,
     supabaseConfigured: true,
+    testMode: false,
+    passwordRecoveryPending: false,
+    secondhandConversationRows: [],
+    secondhandConversationListLoadingFor: null,
+    secondhandConversationListLoadedFor: null,
+    t: (text) => text,
+    currentCycle: () => null,
+    syncSupabaseCycles: async () => {},
+    loadSupabaseSubscription: async () => null,
+    loadSupabasePayoutAccount: async () => null,
+    console: { error() {} },
+    requestMarketplace: { onSessionChange() {}, seedTestData() {} },
     activeSupabaseSession: null,
     state: { user: null, groups: [], profiles: {} },
     groupsError: null,
@@ -65,6 +77,7 @@ function app() {
     },
     authErrorMessage: (error) => error.message,
     alertMessage: (error) => errors.push(error),
+    alertError: (error) => errors.push(error),
   });
   vm.runInContext(sessionSource, context);
   return {
@@ -147,7 +160,10 @@ test("retry recovers the authenticated account after a failed group load", async
   const refresh = c.refreshSupabaseGroups();
   pending.reject(new Error("offline"));
   await assert.rejects(refresh, /offline/);
-  assert.equal(c.state.user, null);
+  // A failed group load keeps the signed-in account but clears its groups.
+  assert.equal(c.state.user.id, "A");
+  assert.equal(c.state.groups.length, 0);
+  assert.ok(c.groupsError);
   requests.push(Promise.resolve(snapshot("recovered")));
   await c.refreshSupabaseGroups();
   assert.equal(c.state.user.id, "A");
