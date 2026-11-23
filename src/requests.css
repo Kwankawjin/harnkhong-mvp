@@ -802,6 +802,84 @@ a.hk-request-card:hover {
     height: 40px;
     border-radius: 12px;
   }
+  /* Request cards: compact rows like the group cards above (no image) */
+  .hk-request-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .hk-request-grid > .hk-request-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "top top"
+      "title price"
+      "need price";
+    align-items: center;
+    gap: 4px 10px;
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-top {
+    grid-area: top;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-category {
+    min-width: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--hk-sky-100);
+    font-size: 0.68rem;
+  }
+  .hk-request-grid > .hk-request-card .hk-status {
+    flex: none;
+    padding: 2px 8px;
+    font-size: 0.66rem;
+  }
+  .hk-request-grid > .hk-request-card h3 {
+    grid-area: title;
+    align-self: end;
+    overflow: hidden;
+    font-size: 0.95rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-need {
+    grid-area: need;
+    align-self: start;
+    font-size: 0.72rem;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-price {
+    grid-area: price;
+    display: grid;
+    grid-template-columns: auto;
+    gap: 2px;
+    margin: 0;
+    padding: 0 0 0 10px;
+    border: 0;
+    border-left: 1px solid var(--hk-line);
+    border-radius: 0;
+    background: none;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-price > div + div {
+    padding: 0;
+    border: 0;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-price > div:first-child small {
+    display: none;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-price strong {
+    font-size: 1rem;
+    white-space: nowrap;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-price small {
+    font-size: 0.62rem;
+    white-space: nowrap;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-price b {
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-foot {
+    display: none;
+  }
 }
 
 /* ---------- Header: five links ("กำลังหากลุ่ม" added) still fit on small laptops ---------- */
