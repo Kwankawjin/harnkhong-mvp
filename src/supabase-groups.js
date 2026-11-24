@@ -13,11 +13,11 @@ function mapBundle({ group, members = [], approvals = [], events = [] }) {
   return { group: mapDatabaseGroup(group, memberIds, approved, events), names };
 }
 
-function selectGroups(client, withReceipts) {
+function selectGroups(client, withReceipts, withClosing = true) {
   return client
     .from("groups")
     .select(
-      `id,listing_id,owner_id,name,category,categories,images,details,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,admin_approved_revision,pricing_mode,billing_mode,cycle_anchor,pay_day,created_at,cycles:group_cycles(cycle_number,starts_at,ends_at,status,closed_from,total_satang,shares:group_cycle_members(user_id,seat_index,amount_satang,confirmed_at,payment_status,rejection_note${withReceipts ? ",received_at" : ""})),members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)`,
+      `id,listing_id,owner_id,name,category,categories,images,details,visibility,capacity,product_satang,delivery_per_member_satang,service_satang,total_satang,revision,status,${withClosing ? "closed_at,last_cycle_number," : ""}admin_approved_revision,pricing_mode,billing_mode,cycle_anchor,pay_day,created_at,cycles:group_cycles(cycle_number,starts_at,ends_at,status,closed_from,total_satang,shares:group_cycle_members(user_id,seat_index,amount_satang,confirmed_at,payment_status,rejection_note${withReceipts ? ",received_at" : ""})),members:group_members(user_id,display_name,joined_at,approvals:group_approvals(revision)),events:group_events(revision,event_type,created_at)`,
     )
     .order("created_at", { ascending: false })
     .order("joined_at", { referencedTable: "members" })
@@ -27,10 +27,13 @@ export async function loadSupabaseGroups(client = supabase) {
   const [groupResult, productResult, shopResult] = await Promise.all([
       // Embed related rows so totals and membership come from one database snapshot.
       (async () => {
-        const result = await selectGroups(client, true);
+        let result = await selectGroups(client, true);
+        // Before migration 20261120220000 there are no closing columns: load without them.
+        if (result?.error && /closed_at|last_cycle_number/.test(String(result.error.message || "")))
+          result = await selectGroups(client, true, false);
         // Before migration 20261120130000 there is no received_at column: load without it.
         return result?.error && String(result.error.message || "").includes("received_at")
-          ? selectGroups(client, false)
+          ? selectGroups(client, false, false)
           : result;
       })(),
       client
@@ -61,6 +64,10 @@ export async function loadSupabaseGroups(client = supabase) {
   const myReceipts = new Set();
   const myPayouts = new Map();
   const cycleHistory = new Map();
+  // Shipping and problem reports (migration 20261120210000). Keys: "one" or the cycle number.
+  const shipments = new Map();
+  const disputes = new Map();
+  const hidden = new Set();
   if (memberIds.length && client.auth?.getSession) {
     const { data: sessionData, error: sessionError } =
       await client.auth.getSession();
@@ -90,6 +97,28 @@ export async function loadSupabaseGroups(client = supabase) {
         }
       } catch {
         /* no payouts table yet */
+      }
+      try {
+        const [shipResult, disputeResult] = await Promise.all([
+          client.from("group_shipments").select("group_id,cycle_number,shipped_at,note"),
+          client.from("group_disputes").select("id,group_id,cycle_number,user_id,reason,status,created_at,resolution_note"),
+        ]);
+        for (const row of shipResult?.error ? [] : shipResult?.data || []) {
+          if (!shipments.has(row.group_id)) shipments.set(row.group_id, {});
+          shipments.get(row.group_id)[row.cycle_number ?? "one"] = { at: row.shipped_at, note: row.note || "" };
+        }
+        for (const row of disputeResult?.error ? [] : disputeResult?.data || []) {
+          if (!disputes.has(row.group_id)) disputes.set(row.group_id, []);
+          disputes.get(row.group_id).push({ ...row, cycle: row.cycle_number ?? "one" });
+        }
+      } catch {
+        /* tables arrive with migration 20261120210000 */
+      }
+      try {
+        const hiddenResult = await client.from("group_hidden").select("group_id").eq("user_id", userId);
+        for (const row of hiddenResult?.error ? [] : hiddenResult?.data || []) hidden.add(row.group_id);
+      } catch {
+        /* table arrives with migration 20261120220000 */
       }
       // Cycle history (migration 20261120170000): the last 3 days, members only via RLS.
       try {
@@ -134,6 +163,9 @@ export async function loadSupabaseGroups(client = supabase) {
       myReceipt: myReceipts.has(bundle.group.id),
       payoutsReceived: myPayouts.get(bundle.group.id) || [],
       cycleHistory: cycleHistory.get(bundle.group.id) || [],
+      shipments: shipments.get(bundle.group.id) || {},
+      disputes: disputes.get(bundle.group.id) || [],
+      hiddenForMe: hidden.has(bundle.group.id),
     })),
     names,
     listings: [
@@ -361,6 +393,47 @@ export async function confirmSupabaseReceipt(groupId) {
   if (error) throw error;
   return data;
 }
+/** Owner: close a finished group (kept for records, gone from lists). */
+export async function closeSupabaseGroup(groupId) {
+  const { data, error } = await supabase.rpc("close_group", { p_group: groupId });
+  if (error) throw error;
+  return data;
+}
+/** Member: hide (or show again) a finished group in my list. */
+export async function hideSupabaseGroup(groupId, hidden = true) {
+  const { data, error } = await supabase.rpc("hide_group_for_me", { p_group: groupId, p_hidden: hidden });
+  if (error) throw error;
+  return data;
+}
+/** Owner of a monthly group: last cycle to run (null keeps going). */
+export async function endSupabaseGroupAfterCycle(groupId, cycleNumber) {
+  const { data, error } = await supabase.rpc("end_group_after_cycle", { p_group: groupId, p_cycle_number: cycleNumber });
+  if (error) throw error;
+  return data;
+}
+/** Owner: the goods were shipped / handed over. Starts the 7-day automatic receipt. */
+export async function markSupabaseShipped(groupId, cycleNumber = null, note = "") {
+  const { data, error } = await supabase.rpc("mark_group_shipped", { p_group: groupId, p_cycle_number: cycleNumber, p_note: note || null });
+  if (error) throw error;
+  return data;
+}
+/** Member: something is wrong with the order. Freezes the payout until an admin settles it. */
+export async function reportSupabaseProblem(groupId, cycleNumber, reason) {
+  const { data, error } = await supabase.rpc("report_group_problem", { p_group: groupId, p_cycle_number: cycleNumber, p_reason: reason });
+  if (error) throw error;
+  return data;
+}
+/** "รายงานปัญหา" from the account page; goes to the admin queue. */
+export async function submitSupabaseAppProblem(topic, message) {
+  const { data, error } = await supabase.rpc("submit_app_problem_report", {
+    p_topic: topic,
+    p_message: message,
+    p_page: typeof location === "undefined" ? null : location.pathname,
+    p_user_agent: typeof navigator === "undefined" ? null : navigator.userAgent,
+  });
+  if (error) throw error;
+  return data;
+}
 export async function confirmSupabaseCycleReceipt(groupId, cycleNumber) {
   const { data, error } = await supabase.rpc("confirm_cycle_receipt", { p_group: groupId, p_cycle_number: cycleNumber });
   if (error) throw error;
@@ -374,10 +447,36 @@ export async function redeemSupabasePromo(code) {
 
 // ---------------------------------------------------------------- owner payout account
 export async function loadSupabasePayoutAccount(userId) {
-  const { data, error } = await supabase.from("payout_accounts")
-    .select("method,promptpay_id,bank_name,account_number,account_name,updated_at")
-    .eq("user_id", userId).maybeSingle();
-  if (error) return null; // table arrives with migration 20261120140000
+  const columns = "method,promptpay_id,bank_name,account_number,account_name,updated_at";
+  let { data, error } = await supabase.from("payout_accounts")
+    .select(`${columns},qr_path`).eq("user_id", userId).maybeSingle();
+  // qr_path arrives with migration 20261120200000; still show the account without it.
+  if (error) ({ data, error } = await supabase.from("payout_accounts").select(columns).eq("user_id", userId).maybeSingle());
+  if (error || !data) return null; // table arrives with migration 20261120140000
+  if (data.qr_path) {
+    const { data: signed } = await supabase.storage.from("payout-qr").createSignedUrl(data.qr_path, 3600);
+    data.qr_url = signed?.signedUrl || null;
+  }
+  return data;
+}
+/** Upload a new QR image for my payout account (or remove it with file = null) and drop the old one. */
+export async function saveSupabasePayoutQr(userId, file) {
+  let path = null;
+  if (file) {
+    const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" })[file.type];
+    if (!extension) throw new Error("invalid_payout_qr_type");
+    path = `${userId}/${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from("payout-qr").upload(path, file, {
+      cacheControl: "3600", upsert: false, contentType: file.type,
+    });
+    if (uploadError) throw uploadError;
+  }
+  const { data, error } = await supabase.rpc("set_my_payout_qr", { p_qr_path: path });
+  if (error) {
+    if (path) await supabase.storage.from("payout-qr").remove([path]);
+    throw error;
+  }
+  if (data?.previous && data.previous !== path) await supabase.storage.from("payout-qr").remove([data.previous]);
   return data;
 }
 export async function saveSupabasePayoutAccount({ method, accountName, promptpayId, bankName, accountNumber }) {

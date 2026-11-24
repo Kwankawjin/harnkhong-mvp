@@ -12642,6 +12642,20 @@ dialog:not([open]),
     ),
     linear-gradient(100deg, #e7f2ff, #dceaff);
 }
+.hk-home-section .home-section-banner {
+  background:
+    radial-gradient(
+      ellipse at 75% 110%,
+      rgba(255, 194, 48, 0.28),
+      transparent 45%
+    ),
+    linear-gradient(100deg, #fff3c9, #ffe39a 58%, #fff0bd);
+}
+.hk-home-section .hk-home-icon {
+  color: #8a5a00;
+  background: rgba(255, 255, 255, 0.62);
+  filter: drop-shadow(0 5px 9px rgba(190, 132, 0, 0.18));
+}
 .home-used-section .home-section-banner {
   background:
     radial-gradient(

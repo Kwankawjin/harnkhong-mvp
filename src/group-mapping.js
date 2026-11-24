@@ -18,6 +18,18 @@ const asSafeSatang = (value) => {
   return amount;
 };
 
+function matchesPerMember(row, product, delivery, memberCount) {
+  try {
+    const costs = { product, delivery, mode: "per_member_v2" };
+    return (
+      Number(row.total_satang) === totalCost(costs, memberCount) &&
+      Number(row.service_satang) === costBreakdown(costs, memberCount).service
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function mapDatabaseGroup(
   row,
   members = [],
@@ -26,7 +38,9 @@ export function mapDatabaseGroup(
 ) {
   const product = asSafeSatang(row.product_satang),
     delivery = asSafeSatang(row.delivery_per_member_satang);
-  const seatPriced = row.pricing_mode === SEAT_MODE;
+  // Older resolve_group_invite (before 20261124080000) omits pricing_mode: infer it from the totals.
+  const seatPriced =
+    row.pricing_mode == null ? !matchesPerMember(row, product, delivery, members.length) : row.pricing_mode === SEAT_MODE;
   const costs = { product, delivery, mode: seatPriced ? SEAT_MODE : "per_member_v2" };
   // Seat-priced totals cover every seat; legacy totals cover the people present.
   const units = seatPriced ? Number(row.capacity) : members.length;
@@ -74,6 +88,8 @@ export function mapDatabaseGroup(
       : Number(row.admin_approved_revision),
     approvals,
     status: row.status,
+    closedAt: row.closed_at || null,
+    lastCycle: row.last_cycle_number == null ? null : Number(row.last_cycle_number),
     orderId: null,
     history: history.map((event) => ({
       revision: Number(event.revision),

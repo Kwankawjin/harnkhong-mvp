@@ -1,0 +1,898 @@
+/* Request Marketplace. Pages are built from the site's own components (page-heading, search-bar,
+   filter-carousel, form-panel, create-stepper, product-type-picker, category-option,
+   create-group-summary, group-detail, summary-card, members-card, note-tabs, empty). This file only
+   adds the request/offer cards and a few small pieces, using the HarnKhong theme tokens. */
+
+.hk-page {
+  display: grid;
+  gap: 18px;
+}
+.hk-page > * {
+  min-width: 0;
+}
+.hk-page > .page-heading {
+  margin-bottom: 0;
+}
+.hk-toolbar > .hk-tabs {
+  max-width: 100%;
+}
+
+/* ---------- Marketplace tabs (also on /explore) ---------- */
+.hk-market-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--hk-paper);
+  border: 1px solid var(--hk-line);
+  box-shadow: var(--hk-shadow-sm);
+}
+.hk-market-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: 999px;
+  color: var(--hk-muted);
+  font-weight: 600;
+  font-size: 0.92rem;
+  text-decoration: none;
+  transition: background var(--hk-fast) var(--hk-ease), color var(--hk-fast) var(--hk-ease);
+}
+.hk-market-tab:hover {
+  color: var(--hk-ink);
+}
+.hk-market-tab.active {
+  background: var(--hk-blue);
+  color: #fff;
+}
+:root[data-theme="dark"] .hk-market-tab.active {
+  color: #08121f;
+}
+
+/* ---------- List page ---------- */
+.hk-section-header {
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.hk-section-actions,
+.hk-actions,
+.hk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.hk-toolbar {
+  align-items: center;
+  justify-content: space-between;
+}
+.hk-request-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* ---------- Request card (same shell as the group cards) ---------- */
+.hk-request-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 18px 20px 16px;
+  border-radius: var(--hk-radius-card);
+  background: var(--hk-paper);
+  border: 1px solid var(--hk-line);
+  box-shadow: var(--hk-shadow-sm);
+  color: var(--hk-ink);
+  text-decoration: none;
+  transition: transform var(--hk-base) var(--hk-ease), box-shadow var(--hk-base) var(--hk-ease);
+}
+a.hk-request-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--hk-shadow-md);
+}
+.hk-request-card h3 {
+  margin: 0;
+  font-size: 1.08rem;
+  line-height: 1.35;
+  color: var(--hk-navy);
+  overflow-wrap: anywhere;
+}
+.hk-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.hk-card-category {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--hk-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.hk-card-need {
+  margin: 0;
+  color: var(--hk-muted);
+  font-size: 0.88rem;
+}
+.hk-request-card .hk-card-price {
+  margin: 4px 0 2px;
+}
+.hk-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: var(--hk-muted);
+  font-size: 0.84rem;
+}
+.hk-card-foot span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.hk-card-offers {
+  margin-left: auto;
+  color: var(--hk-blue);
+  font-weight: 700;
+}
+
+/* ---------- Status pills (sized like the site's group-state pill) ---------- */
+.hk-status,
+.hk-offer-status {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.hk-status-open,
+.hk-offer-pending {
+  background: #e3f5ee;
+  color: #11734f;
+}
+.hk-status-has_offers,
+.hk-offer-accepted {
+  background: var(--hk-sky-100);
+  color: var(--hk-blue);
+}
+.hk-status-matched {
+  background: var(--hk-sun-soft);
+  color: var(--hk-sun-ink);
+}
+.hk-status-completed,
+.hk-offer-completed {
+  background: #def4ee;
+  color: #0e5f4d;
+}
+.hk-status-cancelled,
+.hk-status-expired,
+.hk-offer-rejected,
+.hk-offer-withdrawn,
+.hk-offer-expired,
+.hk-offer-cancelled {
+  background: var(--hk-sky-50);
+  color: var(--hk-muted);
+  box-shadow: inset 0 0 0 1px var(--hk-line);
+}
+:root[data-theme="dark"] .hk-status-open,
+:root[data-theme="dark"] .hk-offer-pending {
+  background: #123a2c;
+  color: #8fe0be;
+}
+:root[data-theme="dark"] .hk-status-completed,
+:root[data-theme="dark"] .hk-offer-completed {
+  background: #0f3a31;
+  color: #86dcc4;
+}
+
+/* ---------- Forms (create-group layout) ---------- */
+.hk-request-form .create-step-actions {
+  justify-content: space-between;
+}
+.hk-field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.hk-request-form label small {
+  font-weight: 400;
+  color: var(--hk-muted);
+}
+.hk-expiry-picker {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.hk-group-picker label.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+.hk-group-picker small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.hk-feedback {
+  padding: 10px 14px;
+  border-radius: var(--hk-radius-control);
+  background: #fdecec;
+  color: #9b1c1c;
+  font-weight: 600;
+}
+:root[data-theme="dark"] .hk-feedback {
+  background: #3a1616;
+  color: #ffb4b4;
+}
+.hk-request-summary .create-summary-product > div:first-child {
+  display: grid;
+  place-items: center;
+  color: var(--hk-blue);
+}
+.hk-request-summary strong {
+  overflow-wrap: anywhere;
+}
+.hk-review {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.hk-review-preview {
+  display: grid;
+  gap: 10px;
+}
+.hk-review-preview .hk-request-card {
+  box-shadow: var(--hk-shadow-md);
+}
+.hk-review-desc {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--hk-sky-50);
+}
+.hk-review-desc small {
+  color: var(--hk-muted);
+  font-weight: 600;
+}
+.hk-review-desc p {
+  margin: 2px 0 0;
+  color: var(--hk-ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.hk-review-next {
+  height: 100%;
+  padding: 18px;
+  border-radius: var(--hk-radius-card);
+  background: var(--hk-sky-50);
+  border: 1px solid var(--hk-line);
+}
+.hk-review-next h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--hk-navy);
+}
+@media (max-width: 720px) {
+  .hk-review {
+    grid-template-columns: 1fr;
+  }
+}
+/* ---------- Detail (group-page layout) ---------- */
+.hk-detail-page .group-heading-line h1 {
+  overflow-wrap: anywhere;
+}
+.hk-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--hk-line);
+}
+.hk-fact {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--hk-sky-50);
+}
+.hk-fact > div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.hk-fact-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--hk-paper);
+  color: var(--hk-blue);
+}
+.hk-fact dt {
+  color: var(--hk-muted);
+  font-size: 0.78rem;
+}
+.hk-fact dd {
+  margin: 0;
+  color: var(--hk-navy);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.hk-fact small {
+  color: var(--hk-muted);
+  font-size: 0.78rem;
+}
+.hk-description-block {
+  margin-top: 18px;
+}
+.hk-description-block h2 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  color: var(--hk-navy);
+}
+.hk-description {
+  margin: 0;
+  color: var(--hk-ink);
+  line-height: 1.65;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.hk-budget-card > strong span {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--hk-muted);
+}
+.group-page .summary-card.hk-budget-card .summary-future-price {
+  margin: 0;
+  border-top: 0;
+  border-bottom: 1px solid var(--line);
+}
+.group-page .summary-card.hk-budget-card > strong + .summary-future-price {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.hk-budget-card > p {
+  margin-top: 14px;
+}
+/* Phones: the budget card and its button come right after the request, before offers/how-to. */
+@media (max-width: 959px) {
+  .hk-detail-page .group-detail {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 18px;
+  }
+  .hk-detail-page .group-detail > *,
+  .hk-detail-page .group-detail-main > section {
+    width: 100%;
+    max-width: none;
+  }
+  .hk-detail-page .group-detail-main {
+    display: contents;
+  }
+  .hk-detail-page .group-detail-main > section {
+    margin-bottom: 0;
+  }
+  .hk-detail-page .hk-match-panel {
+    order: 1;
+  }
+  .hk-detail-page .hk-identity {
+    order: 2;
+  }
+  .hk-detail-page .group-detail-aside {
+    order: 3;
+  }
+  .hk-detail-page .hk-offers-card,
+  .hk-detail-page .hk-howto {
+    order: 4;
+  }
+}
+.hk-aside-actions {
+  display: grid;
+  gap: 10px;
+}
+.hk-aside-actions:empty {
+  display: none;
+}
+.hk-aside-actions .field-help {
+  margin: 0;
+}
+.hk-offers-card .hk-offer-list {
+  margin-top: 14px;
+}
+.hk-steps-list {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.hk-steps-list li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.hk-steps-list li > span {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--hk-sky-100);
+  color: var(--hk-blue);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.hk-steps-list li > div {
+  display: grid;
+  gap: 2px;
+}
+.hk-steps-list strong {
+  color: var(--hk-navy);
+}
+.hk-steps-list small {
+  color: var(--hk-muted);
+}
+
+/* ---------- Offer cards ---------- */
+.hk-offer-list {
+  display: grid;
+  gap: 10px;
+}
+.hk-offer-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--hk-sky-50);
+  border: 1px solid var(--hk-line);
+}
+.hk-my-offers .hk-offer-card {
+  background: var(--hk-paper);
+  box-shadow: var(--hk-shadow-sm);
+}
+.hk-offer-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hk-offer-top > div {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.hk-offer-top strong {
+  color: var(--hk-navy);
+  overflow-wrap: anywhere;
+}
+.hk-offer-top small,
+.hk-offer-card > p {
+  margin: 0;
+  color: var(--hk-muted);
+}
+.hk-offer-price strong {
+  font: 800 1.35rem/1.2 var(--font-heading);
+  color: var(--hk-blue);
+  font-variant-numeric: tabular-nums;
+}
+.hk-offer-price small {
+  color: var(--hk-muted);
+}
+.hk-offer-request {
+  display: grid;
+  gap: 2px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--hk-line);
+}
+.hk-offer-request-link {
+  font-weight: 700;
+  color: var(--hk-navy);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.hk-offer-request-link:hover {
+  color: var(--hk-blue);
+}
+.hk-offer-request small {
+  color: var(--hk-muted);
+}
+.hk-offer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hk-offer-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--hk-radius-control);
+  background: var(--hk-sun-soft);
+  color: var(--hk-sun-ink) !important;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.hk-offer-note.ok {
+  background: #e3f5ee;
+  color: #11734f !important;
+}
+:root[data-theme="dark"] .hk-offer-note.ok {
+  background: #123a2c;
+  color: #8fe0be !important;
+}
+.hk-offer-empty {
+  margin-top: 14px;
+}
+
+/* ---------- Seat-hold panel (like the site's payment notice) ---------- */
+.hk-match-panel {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 20px 22px;
+  border-radius: var(--hk-radius-card);
+  border: 1px solid #f0cf7a;
+  background: var(--hk-sun-soft);
+  box-shadow: var(--hk-shadow-sm);
+}
+.hk-match-panel.done {
+  border-color: #9fdcc4;
+  background: #ecf8f3;
+}
+:root[data-theme="dark"] .hk-match-panel {
+  border-color: #5a4613;
+}
+:root[data-theme="dark"] .hk-match-panel.done {
+  border-color: #1f5a46;
+  background: #0f2a22;
+}
+.hk-match-panel > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.hk-match-panel small {
+  color: var(--hk-sun-ink);
+  font-weight: 700;
+}
+.hk-match-panel h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--hk-navy);
+  overflow-wrap: anywhere;
+}
+.hk-match-panel p {
+  margin: 0;
+  color: var(--hk-ink);
+}
+.hk-match-panel .hk-actions {
+  margin-top: 6px;
+}
+.hk-match-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: var(--hk-paper);
+  color: var(--hk-sun-ink);
+}
+.hk-match-panel.done .hk-match-icon {
+  color: #11734f;
+}
+:root[data-theme="dark"] .hk-match-panel.done .hk-match-icon {
+  color: #8fe0be;
+}
+
+/* ---------- My requests / My offers tabs ---------- */
+.hk-tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.hk-tab-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--hk-sky-100);
+  color: var(--hk-muted);
+  font-size: 0.74rem;
+}
+.note-tab.active .hk-tab-count {
+  background: rgb(255 255 255 / 0.22);
+  color: inherit;
+}
+
+/* ---------- Home page section ---------- */
+.hk-home-section {
+  display: grid;
+  gap: 16px;
+}
+.hk-home-icon {
+  background: var(--hk-sky-100);
+  color: var(--hk-blue);
+}
+.hk-home-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.hk-home-side {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: var(--hk-radius-card);
+  border: 1px solid var(--hk-line);
+  background: var(--hk-paper);
+  box-shadow: var(--hk-shadow-sm);
+  color: var(--hk-ink);
+  text-decoration: none;
+  transition: transform var(--hk-base) var(--hk-ease), box-shadow var(--hk-base) var(--hk-ease);
+}
+.hk-home-side:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--hk-shadow-md);
+}
+.hk-home-side > span:nth-child(2) {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.hk-home-side small {
+  color: var(--hk-muted);
+  font-weight: 600;
+}
+.hk-home-side strong {
+  font-size: 1.1rem;
+  color: var(--hk-navy);
+}
+.hk-home-side > span:nth-child(2) > span {
+  color: var(--hk-muted);
+  font-size: 0.9rem;
+}
+.hk-home-side .hk-side-short {
+  display: none;
+}
+.hk-home-side-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+}
+.hk-home-side.requester .hk-home-side-icon {
+  background: var(--hk-sky-100);
+  color: var(--hk-blue);
+}
+.hk-home-side.host .hk-home-side-icon {
+  background: var(--hk-sun-soft);
+  color: var(--hk-sun-ink);
+}
+.hk-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.hk-section-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--hk-navy);
+}
+
+/* ---------- Loading ---------- */
+.hk-loading,
+.hk-home-grid {
+  display: grid;
+  gap: 14px;
+}
+.hk-skeleton {
+  display: block;
+  height: 150px;
+  border-radius: var(--hk-radius-card);
+  background: linear-gradient(90deg, var(--hk-sky-100), var(--hk-sky-50), var(--hk-sky-100));
+  background-size: 200% 100%;
+  animation: hk-shimmer 1.4s linear infinite;
+}
+.hk-skeleton.short {
+  height: 60px;
+  width: 60%;
+}
+@keyframes hk-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hk-skeleton {
+    animation: none;
+  }
+  .hk-request-card,
+  .hk-home-side {
+    transition: none;
+  }
+}
+
+/* ---------- Phone ---------- */
+@media (max-width: 640px) {
+  .hk-market-tabs {
+    display: flex;
+    width: 100%;
+  }
+  .hk-market-tab {
+    flex: 1;
+    justify-content: center;
+    padding: 0 10px;
+  }
+  .hk-facts {
+    gap: 8px;
+  }
+  .hk-fact {
+    padding: 10px;
+  }
+  .hk-fact-icon {
+    display: none;
+  }
+  .hk-fact small {
+    display: none;
+  }
+  .hk-field-row,
+  .hk-expiry-picker {
+    grid-template-columns: 1fr;
+  }
+  .hk-section-actions,
+  .hk-toolbar > .button,
+  .hk-actions .button,
+  .hk-offer-actions .button {
+    flex: 1;
+    justify-content: center;
+  }
+  .hk-section-actions .button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .hk-match-panel {
+    flex-direction: column;
+    padding: 18px;
+  }
+  /* Find a Group / Make an Offer: two compact tiles side by side */
+  .hk-home-sides {
+    gap: 10px;
+  }
+  .hk-home-side {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px;
+  }
+  .hk-home-side > svg,
+  .hk-home-side small,
+  .hk-home-side .hk-side-long {
+    display: none;
+  }
+  .hk-home-side .hk-side-short {
+    display: block;
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+  .hk-home-side strong {
+    font-size: 1rem;
+    line-height: 1.2;
+  }
+  .hk-home-side-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+  /* Request cards: compact rows like the group cards above (no image) */
+  .hk-request-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .hk-request-grid > .hk-request-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "top top"
+      "title price"
+      "need price";
+    align-items: center;
+    gap: 4px 10px;
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-top {
+    grid-area: top;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-category {
+    min-width: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--hk-sky-100);
+    font-size: 0.68rem;
+  }
+  .hk-request-grid > .hk-request-card .hk-status {
+    flex: none;
+    padding: 2px 8px;
+    font-size: 0.66rem;
+  }
+  .hk-request-grid > .hk-request-card h3 {
+    grid-area: title;
+    align-self: end;
+    overflow: hidden;
+    font-size: 0.95rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-need {
+    grid-area: need;
+    align-self: start;
+    font-size: 0.72rem;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-price {
+    grid-area: price;
+    display: grid;
+    grid-template-columns: auto;
+    gap: 2px;
+    margin: 0;
+    padding: 0 0 0 10px;
+    border: 0;
+    border-left: 1px solid var(--hk-line);
+    border-radius: 0;
+    background: none;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-price > div + div {
+    padding: 0;
+    border: 0;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-price > div:first-child small {
+    display: none;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-price strong {
+    font-size: 1rem;
+    white-space: nowrap;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-price small {
+    font-size: 0.62rem;
+    white-space: nowrap;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-price b {
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  .hk-request-grid > .hk-request-card .hk-card-foot {
+    display: none;
+  }
+}
+
+/* ---------- Header: five links ("กำลังหากลุ่ม" added) still fit on small laptops ---------- */
+@media (min-width: 960px) and (max-width: 1099px) {
+  .header-inner {
+    padding: 0 20px;
+    gap: 12px;
+  }
+  .desktop-nav {
+    gap: 2px;
+    margin-left: 12px;
+  }
+  .desktop-nav .nav-link {
+    padding: 10px 10px;
+  }
+}
