@@ -198,7 +198,6 @@ const labels = {
     "This group uses Supabase, but orders and payments are still demo only, so this step is unavailable.",
   "รายการสินค้าและราคามาจาก Supabase; รูปกลุ่มและสินค้าเพิ่มเองยังไม่รองรับในโหมดนี้":
     "Products and prices come from Supabase. Group photos and custom products are not supported in this mode.",
-  "ยังไม่ได้เปิดใช้ Google OAuth": "Google OAuth is not enabled.",
   คำเชิญไม่ถูกต้องหรือหมดอายุ: "This invitation is invalid or expired.",
   กลุ่มเต็มแล้ว: "This group is full.",
   "ยอดมีการเปลี่ยน กรุณาโหลดข้อมูลล่าสุด":
@@ -211,7 +210,6 @@ const labels = {
     "Only the group owner can transfer leadership.",
   ลบห้อง: "Delete group",
   เตะออก: "Remove",
-  "ยืนยันเตะสมาชิก {name} ออกจากห้อง?": "Remove {name} from this group?",
   ไม่พบกลุ่ม: "Group not found",
   คัดลอกลิงก์ไม่สำเร็จ: "Could not copy the invitation link",
   "ยืนยันลบห้อง {name}?": "Delete group {name}?",
@@ -229,11 +227,7 @@ const labels = {
     "Chat history and approvals for this group cannot be recovered.",
   ห้องถูกลบ: "Group deleted",
   "เจ้าของห้องได้ทำการลบห้อง {name}": "The room owner deleted group {name}",
-  "ยืนยันลบห้อง {name}? ลบได้เฉพาะห้องที่ไม่มีสมาชิกคนอื่นอยู่":
-    "Delete {name}? You can delete a group only when no other members are in it.",
-  "นำสมาชิกออกจากห้องแล้ว ยอดและการยืนยันถูกอัปเดต":
-    "Member removed. Totals and approvals have been updated.",
-  ลบห้องแล้ว: "Group deleted",
+      ลบห้องแล้ว: "Group deleted",
   ลบห้องได้เฉพาะเมื่อไม่มีสมาชิกคนอื่นอยู่:
     "A group can be deleted only when no other members are in it.",
   "ฐานข้อมูลยังไม่มีระบบจัดการห้อง กรุณารัน migration ล่าสุดของ Supabase":
@@ -359,7 +353,6 @@ const labels = {
   "โปรดเข้าสู่ระบบด้วย Google ผ่านปุ่ม Supabase Auth":
     "Use the Google sign-in button for Supabase Auth.",
   "ยังไม่ได้ตั้งค่า Supabase": "Supabase is not configured.",
-  "เกิดข้อผิดพลาด กรุณาลองใหม่": "Something went wrong. Please try again.",
   ตั้งค่าบัญชี: "Account settings",
   "บัญชีจำลอง · เก็บข้อมูลในเบราว์เซอร์นี้":
     "Demo account · Data stays in this browser",
@@ -417,7 +410,6 @@ const labels = {
   สำเร็จ: "Successful",
   สถานะ: "Status",
   "QR สำหรับยอมรับยอดจำลอง": "QR code for demo amount acceptance",
-  ยอดที่ยืนยัน: "Confirmed amount",
   "การยืนยันนี้เป็นการยอมรับจำนวนเงินจำลองเท่านั้น ไม่มีการชำระหรือเก็บเงินจริง":
     "This only accepts a demo amount. No payment is made or money collected.",
   รหัสอ้างอิง: "Reference",
@@ -485,18 +477,15 @@ const labels = {
   แพ็กเกจสมาชิก: "Subscription plans",
   "Plus · 49 บาท/เดือน": "Plus · 49 THB/month",
   "Free · ใช้งานฟรี": "Free · Free to use",
-  แพ็กเกจ: "Plans",
   เปิดกลุ่ม: "Open group",
   ปิดเมนู: "Close menu",
   เปิดเมนู: "Open menu",
   "Plus เปิดใช้งานใน Mockup แล้ว ไม่มีการเรียกเก็บเงิน":
     "Plus is activated in mockup mode. No real billing.",
   "เปลี่ยนเป็น Free แล้ว": "Switched to Free plan",
-  หมวดหมู่: "Categories",
   เลื่อนหมวดหมู่ไปซ้าย: "Scroll categories left",
   เลื่อนหมวดหมู่ไปขวา: "Scroll categories right",
   กลุ่มที่เข้าร่วมได้: "Groups accepting members",
-  "{count} กลุ่ม": "{count} groups",
   "ยอดเป็นประมาณการก่อนเข้าร่วม และจะคำนวณใหม่เมื่อจำนวนสมาชิกเปลี่ยน":
     "Shares are estimates and recalculate when membership changes.",
   "ลองค้นหาอีกครั้ง หรือเริ่มกลุ่มสำหรับสินค้าที่สนใจ":
@@ -526,7 +515,6 @@ const labels = {
   เปลี่ยนรูป: "Change photo",
   ลบรูป: "Remove photo",
   เกี่ยวกับฉัน: "Bio",
-  ยกเลิก: "Cancel",
   "JPG, PNG, WebP ไม่เกิน 5 MB · บันทึกเฉพาะในเครื่อง":
     "JPG, PNG, WebP, max 5 MB · Stored locally only",
   "JPG, PNG, WebP ไม่เกิน 5 MB · บันทึกกับโปรไฟล์":
@@ -805,7 +793,6 @@ const labels = {
   ค้นหาสินค้าหรือบริการที่เหมาะกับกลุ่มของคุณ:
     "Find products or services for your group.",
   "ค้นหาสินค้า บริการ หรือหมวดหมู่": "Search products, services or categories",
-  ผลการค้นหา: "Search results",
   ยังไม่พบรายการที่ตรงกัน: "No matching listings",
   "ลองใช้คำค้นอื่น หรือดูทุกหมวด":
     "Try another search or browse all categories.",
@@ -841,7 +828,6 @@ const labels = {
   ราคาสินค้ารวม: "Total product price",
   ยังไม่รวมค่าส่งที่แต่ละกลุ่มกำหนด:
     "Delivery fees set by each group are not included.",
-  ติดต่อผู้ขาย: "Contact seller",
   กลุ่มที่เปิดรับ: "Open groups",
   เลือกกลุ่มที่เหมาะกับจำนวนคนและค่าใช้จ่าย:
     "Choose a group with the right size and costs.",
@@ -869,9 +855,7 @@ const labels = {
   "เข้าสู่ระบบเพื่อใช้งานบัญชี แชต และการแจ้งเตือน":
     "Sign in to use your account, chats, and notifications.",
   รูปแบบกลุ่ม: "Group type",
-  หารของ: "Share a purchase",
   ของมือ2: "Second hand",
-  ชื่อสินค้า: "Item name",
   "เช่น เก้าอี้ทำงานมือสอง": "e.g. Second hand office chair",
   "พิมพ์รายละเอียดสินค้า เช่น สภาพสินค้า ตำหนิ หรือสิ่งที่รวมมาด้วย":
     "Describe the item, including its condition, flaws, or what is included",
@@ -949,7 +933,6 @@ const labels = {
   "แก้ไขข้อมูลที่สมาชิกเห็นในกลุ่ม": "Edit the group information members can see.",
   "สมาชิกขั้นต่ำ": "Minimum members",
   "วันปิดรับสมาชิก": "Member deadline",
-  "ค่าส่งต่อคน (บาท)": "Delivery per member (THB)",
   "การมองเห็นกลุ่ม": "Group visibility",
   สาธารณะ: "Public",
   ส่วนตัว: "Private",
@@ -1105,7 +1088,6 @@ const labels = {
     "Photo added. The first photo is the cover.",
   "เพิ่มรูปสินค้าอย่างน้อย 1 รูป": "Add at least one item photo",
   "เพิ่มรูปได้สูงสุด 6 รูป": "You can add up to 6 photos",
-  ข้อมูลสินค้า: "Item details",
   "ระบุชื่อ หมวดหมู่ และรายละเอียดของสินค้า":
     "Add the item name, category, and description.",
   "เช่น เสื้อแจ็กเก็ตยีนส์มือสอง": "e.g. Second hand denim jacket",
