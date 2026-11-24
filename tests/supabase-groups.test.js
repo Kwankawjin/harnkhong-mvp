@@ -178,3 +178,15 @@ test("group loader handles an empty catalog and propagates database errors", asy
   error = failure;
   await assert.rejects(loadSupabaseGroups(client), failure);
 });
+
+test("invite link RPC returns every group column the mapping needs (link-only groups)", async () => {
+  const { readdirSync, readFileSync } = await import("node:fs");
+  const dir = new URL("../supabase/migrations/", import.meta.url);
+  const latest = readdirSync(dir)
+    .sort()
+    .filter((file) => readFileSync(new URL(file, dir), "utf8").includes("function private.resolve_group_invite"))
+    .pop();
+  const sql = readFileSync(new URL(latest, dir), "utf8");
+  for (const column of ["pricing_mode", "billing_mode", "capacity", "total_satang", "service_satang", "details", "pay_day", "admin_approved_revision"])
+    assert.match(sql, new RegExp(`'${column}'`), `resolve_group_invite is missing ${column}`);
+});
