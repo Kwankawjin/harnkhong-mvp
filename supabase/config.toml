@@ -7,6 +7,9 @@ project_id = "harnkhong-mvp"
 [functions.admin-api]
 verify_jwt = true
 
+[functions.push]
+verify_jwt = true
+
 [api]
 enabled = true
 # Port to use for the API URL.

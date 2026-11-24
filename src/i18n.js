@@ -2636,6 +2636,31 @@ Object.assign(labels, {
   "ล้างข้อมูลทดสอบทั้งหมดในเบราว์เซอร์นี้ใช่ไหม?": "Clear all test data in this browser?",
 });
 
+// Push notifications on this device (PWA / Web Push).
+Object.assign(labels, {
+  "กำลังตรวจสอบอุปกรณ์นี้…": "Checking this device…",
+  "เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือนแบบพุช การแจ้งเตือนทั้งหมดยังแสดงในหน้านี้": "This browser doesn't support push notifications. Every notification still shows on this page.",
+  "บน iPhone/iPad (iOS 16.4 ขึ้นไป) ให้กดปุ่มแชร์ใน Safari แล้วเลือก “เพิ่มไปยังหน้าจอโฮม” จากนั้นเปิด HarnKhong จากไอคอนบนหน้าจอโฮมแล้วกลับมาที่หน้านี้": "On iPhone/iPad (iOS 16.4 or later), tap Share in Safari and choose “Add to Home Screen”, then open HarnKhong from the Home Screen icon and come back to this page.",
+  "เบราว์เซอร์ปิดสิทธิ์แจ้งเตือนของเว็บนี้ไว้ เปิดได้ในการตั้งค่าเบราว์เซอร์หรือการตั้งค่าแจ้งเตือนของเครื่อง แล้วกลับมากดเปิดอีกครั้ง": "Notifications are blocked for this site. Allow them in your browser or device notification settings, then turn them on here again.",
+  "รับแจ้งเตือนก่อนครบกำหนดชำระ 1 วันและในวันครบกำหนด แม้ไม่ได้เปิดเว็บ": "Get reminders 1 day before and on the due date, even when the site is closed.",
+  "เปิดแจ้งเตือนบนอุปกรณ์นี้": "Turn on notifications on this device",
+  "อุปกรณ์นี้จะได้รับแจ้งเตือนแม้ไม่ได้เปิดเว็บ": "This device gets notifications even when the site is closed.",
+  "ส่งแจ้งเตือนทดสอบ": "Send a test notification",
+  "ปิดบนอุปกรณ์นี้": "Turn off on this device",
+  "เปิดแจ้งเตือนบนอุปกรณ์นี้แล้ว": "Notifications are on for this device",
+  "แจ้งเตือนบนโทรศัพท์": "Notifications on your phone",
+  "ปิดแจ้งเตือนบนอุปกรณ์นี้แล้ว": "Notifications turned off on this device",
+  "ส่งแจ้งเตือนทดสอบแล้ว": "Test notification sent",
+  "ส่งไม่สำเร็จ ลองปิดแล้วเปิดแจ้งเตือนบนอุปกรณ์นี้ใหม่": "Couldn't send. Try turning notifications off and on again on this device.",
+  "เชื่อมต่อระบบแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่": "Couldn't reach the notification service. Please try again.",
+  "บน iPhone/iPad ต้องเพิ่ม HarnKhong ลงหน้าจอโฮมแล้วเปิดจากไอคอนก่อน": "On iPhone/iPad, add HarnKhong to the Home Screen and open it from the icon first.",
+  "เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือนแบบพุช": "This browser doesn't support push notifications.",
+  "เบราว์เซอร์ปิดสิทธิ์แจ้งเตือนของเว็บนี้ไว้ เปิดได้ในการตั้งค่าเบราว์เซอร์": "Notifications are blocked for this site. Allow them in your browser settings.",
+  "ยังไม่ได้อนุญาตการแจ้งเตือน กดเปิดใหม่ได้ทุกเมื่อ": "Notifications weren't allowed. You can turn them on any time.",
+  "ระบบแจ้งเตือนยังไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง": "Notifications aren't available yet. Please try again later.",
+  "บันทึกอุปกรณ์ไม่สำเร็จ กรุณาลองใหม่": "Couldn't save this device. Please try again.",
+});
+
 export const messages = {
   th: {
     ...Object.fromEntries(Object.keys(labels).map((key) => [key, key])),

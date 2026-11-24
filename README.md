@@ -85,6 +85,25 @@ npm run preview
 
 ทดสอบ UI: สมัครด้วยอีเมลทั่วไป → กรอกที่อยู่ → แก้โปรไฟล์แล้วรีโหลด → สร้างกลุ่มพร้อมรูป/เปลี่ยนภาพปก → สมาชิกครบและยืนยันยอด → เปิด QR/แจ้งชำระ → ตรวจว่ายังไม่ถูกยืนยันการชำระเอง ทดลองซ้ำด้วย TH/EN และหน้าจอมือถือ การดาวน์โหลด PNG ยังไม่ยืนยันการบันทึกไฟล์ใน in-app browser
 
+## แจ้งเตือนบนโทรศัพท์ (PWA + Web Push)
+
+ติดตั้งเป็นแอปได้ (Add to Home Screen) และส่งแจ้งเตือนได้แม้ไม่ได้เปิดเว็บ ไม่ใช้ Firebase
+
+- ไฟล์ฝั่งเว็บ: `public/manifest.webmanifest`, `public/sw.js` (รับ push และเปิดหน้าที่เกี่ยวข้องเมื่อกด ไม่ cache หน้าเว็บ), `public/icons/`, `src/push.js` ปุ่มเปิด/ปิดอยู่บนหน้า **การแจ้งเตือน** ขออนุญาตเฉพาะเมื่อผู้ใช้กดเอง
+- ฝั่ง server: ตาราง `push_subscriptions` (แยกตามผู้ใช้และอุปกรณ์ สูงสุด 10 เครื่อง/บัญชี เขียนผ่าน RPC เท่านั้น) และ Edge Function `push` (ส่งด้วย VAPID + aes128gcm ไม่มี dependency เพิ่ม)
+- iPhone/iPad ต้องใช้ iOS 16.4 ขึ้นไป และต้องเปิดจากไอคอนบนหน้าจอโฮม; Android ใช้ได้ใน Chrome ทันที
+
+ตั้งค่าครั้งแรก (ทำครั้งเดียว ห้าม commit private key และห้ามใส่ใน Vercel/`VITE_`):
+
+```bash
+node scripts/generate-vapid-keys.mjs          # ได้ VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT
+npx supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:harnkhong@gmail.com
+npx supabase db push                          # migrations 20261124090000 และ 20261124100000
+npx supabase functions deploy push
+```
+
+ถ้าเปลี่ยนคู่ key ภายหลัง ทุกอุปกรณ์ต้องกดเปิดแจ้งเตือนใหม่
+
 ## โครงสร้าง
 
 - `src/domain.js` ตรวจข้อมูลสร้างกลุ่ม ความจุ ผลรวมเงินสตางค์ สมาชิก revision และการยืนยัน

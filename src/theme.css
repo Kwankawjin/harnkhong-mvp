@@ -2437,6 +2437,57 @@ body:has(.chat-workspace) .site-footer {
 :root[data-theme="dark"] .note-item.tone-urgent .note-text b {
   color: #ff9d90;
 }
+/* Push notifications on this device (notification page) */
+.push-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-xs);
+}
+.push-card.is-on {
+  border-color: var(--line-strong);
+}
+.push-card-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--blue-light);
+  color: var(--blue);
+}
+.push-card-text {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.push-card-text h2 {
+  margin: 0 0 2px;
+  font-size: 0.98rem;
+  color: var(--ink);
+}
+.push-card-text p {
+  margin: 0;
+  color: var(--text-sub);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+.push-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 560px) {
+  .push-card-actions,
+  .push-card-actions .button {
+    width: 100%;
+  }
+}
 .note-footnote {
   margin: 0;
   color: var(--hk-muted);
