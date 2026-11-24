@@ -709,3 +709,17 @@ begin
   reset role;
 end $$;
 rollback;
+
+-- hk_sync runs the expiry at most once per 30 seconds.
+begin;
+do $$
+declare t1 timestamptz; t2 timestamptz;
+begin
+  update private.hk_sync_state set last_run = '-infinity';
+  perform public.hk_sync();
+  select last_run into t1 from private.hk_sync_state;
+  perform public.hk_sync();
+  select last_run into t2 from private.hk_sync_state;
+  assert t1 > now() - interval '1 minute' and t1 = t2, 'the second call within 30 seconds is skipped';
+end $$;
+rollback;
