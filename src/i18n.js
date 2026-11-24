@@ -1604,6 +1604,7 @@ const labels = {
   "ยืนยันยอดส่วนแบ่งแล้ว": "Share confirmed",
   "กรุณาเลือกวันที่ต้องจ่ายทุกเดือน (1–28)": "Please choose the day to pay every month (1–28)",
   "กรุณาระบุจำนวนสินค้า 1 ถึง 9999 ชิ้น": "Please enter a quantity from 1 to 9999",
+  "แชทสำหรับสมาชิกในกลุ่มเท่านั้น": "Chat for group members only",
 };
 
 Object.assign(labels, {

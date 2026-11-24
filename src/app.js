@@ -3143,7 +3143,7 @@ function groupChatPage(id) {
           <h1>${escape(g.name)}</h1>
           <span class="group-chat-badge">${icon("users", 14)} ${g.members.length}/${g.capacity}</span>
         </div>
-        <small>${t("แชทจำลองสำหรับสมาชิกในกลุ่ม")}</small>
+        <small>${t(supabaseConfigured ? "แชทสำหรับสมาชิกในกลุ่มเท่านั้น" : "แชทจำลองสำหรับสมาชิกในกลุ่ม")}</small>
       </div>
       ${a(destination, `${icon("info", 18)} <span>${t("ดูกลุ่ม")}</span>`, "button subtle group-chat-view-btn")}
     </div>

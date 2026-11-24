@@ -555,7 +555,13 @@ async function getSectionContent(section) {
     return payoutsContent(rows);
   }
   if (section === "dashboard") {
-    const [data, work] = await Promise.all([invoke("overview", { rangeDays: dashboardRangeDays }), loadWorkCounts()]);
+    const [data, work] = await Promise.all([
+      currentClient.rpc("admin_overview", { p_days: dashboardRangeDays }).then(({ data: overview, error }) => {
+        if (error) throw new Error(billingErrorMessage(error));
+        return overview;
+      }),
+      loadWorkCounts(),
+    ]);
     return dashboardContent(data, work);
   }
   if (section === "payments") {
@@ -575,8 +581,9 @@ async function getSectionContent(section) {
     return disputesContent(data || []);
   }
   if (section === "users") {
-    const { rows } = await invoke("users");
-    return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>สมาชิกทั้งหมด</h2><p>ทุกบัญชีที่สมัครเข้ามา</p></div></div>${table(["ชื่อที่แสดง", "อีเมล", "สถานะบัญชี", "สมัครเมื่อ"], rows.map((user) => `<tr><td><strong>${escapeHtml(user.display_name || "ยังไม่ตั้งชื่อ")}</strong></td><td>${escapeHtml(user.email || "—")}</td><td>${user.email_confirmed_at ? '<span class="admin-status good">ยืนยันอีเมลแล้ว</span>' : '<span class="admin-status pending">ยังไม่ยืนยัน</span>'}</td><td>${formatDate(user.created_at)}</td></tr>`).join(""), "ยังไม่มีสมาชิก")}</section>`;
+    const { data: rows, error } = await currentClient.rpc("admin_users", { p_limit: 500 });
+    if (error) throw new Error(billingErrorMessage(error));
+    return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>สมาชิกทั้งหมด</h2><p>ทุกบัญชีที่สมัครเข้ามา</p></div></div>${table(["ชื่อที่แสดง", "อีเมล", "สถานะบัญชี", "สมัครเมื่อ"], (rows || []).map((user) => `<tr><td><strong>${escapeHtml(user.display_name || "ยังไม่ตั้งชื่อ")}</strong></td><td>${escapeHtml(user.email || "—")}</td><td>${user.email_confirmed_at ? '<span class="admin-status good">ยืนยันอีเมลแล้ว</span>' : '<span class="admin-status pending">ยังไม่ยืนยัน</span>'}</td><td>${formatDate(user.created_at)}</td></tr>`).join(""), "ยังไม่มีสมาชิก")}</section>`;
   }
   if (section === "groups") {
     const { rows } = await loadAdminGroups();
@@ -751,7 +758,8 @@ document.addEventListener("click", async (event) => {
     button.disabled = true;
     button.textContent = "กำลังบันทึก…";
     try {
-      await invoke("confirm-group-revision", { groupId, revision });
+      const { error } = await currentClient.rpc("confirm_group_revision", { p_group: groupId, p_revision: revision });
+      if (error) throw new Error(error.code === "40001" || error.code === "23514" ? "สมาชิกยังยืนยันไม่ครบ หรือกลุ่มมีการเปลี่ยนยอดแล้ว" : billingErrorMessage(error));
       feedback = "ยืนยันยอดรอบกลุ่มแล้ว";
     } catch (error) {
       feedback = error.message || "ยืนยันยอดรอบกลุ่มไม่สำเร็จ";

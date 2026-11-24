@@ -617,3 +617,29 @@ begin
   assert extract(day from d) = 5 and d >= (now() at time zone 'Asia/Bangkok')::date + 3, 'cycle one starts on the pay day, at least 3 days out';
 end $$;
 rollback;
+
+-- Admin overview and member list RPCs.
+begin;
+do $$
+declare
+  admin uuid := gen_random_uuid();
+  v jsonb;
+begin
+  insert into auth.users(id, aud, role, email, raw_app_meta_data) values (admin, 'authenticated', 'authenticated', 'overview@example.invalid', '{"role":"admin"}');
+  perform set_config('request.jwt.claims', json_build_object('sub', admin, 'role', 'authenticated', 'email', 'overview@example.invalid', 'app_metadata', json_build_object('role', 'admin'))::text, true);
+  set local role authenticated;
+  v := public.admin_overview(30);
+  assert jsonb_array_length(v->'analytics'->'groupsByDay') = 30, 'one point per day';
+  assert (v->'stats'->>'groups')::int >= 0 and jsonb_typeof(v->'recentGroups') = 'array', 'overview has stats and recent groups';
+  v := public.admin_users(10);
+  assert exists (select 1 from jsonb_array_elements(v) e where e->>'email' = 'overview@example.invalid'), 'admin sees members';
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', gen_random_uuid(), 'role', 'authenticated', 'app_metadata', '{}'::json)::text, true);
+  set local role authenticated;
+  begin
+    perform public.admin_users();
+    raise exception 'a non-admin listed members';
+  exception when insufficient_privilege then null; end;
+  reset role;
+end $$;
+rollback;
