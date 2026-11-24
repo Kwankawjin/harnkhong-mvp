@@ -46,6 +46,12 @@ function app() {
     window: { addEventListener() {} },
     loadAuthenticatedUser: async (user) => ({ ...user, address: {} }),
     loadSupabaseGroups: () => requests.shift() || Promise.resolve(snapshot()),
+    // Plan, payout account and monthly cycles load alongside groups; none matter here.
+    loadSupabaseSubscription: async () => null,
+    loadSupabasePayoutAccount: async () => null,
+    syncSupabaseCycles: async () => {},
+    currentCycle: (group) => group.cycles?.at(-1) ?? null,
+    passwordRecoveryPending: false,
     resolveSupabaseInvite: async () => null,
     refreshAuthProviders: async () => {},
     supabase: {
@@ -65,6 +71,9 @@ function app() {
     },
     authErrorMessage: (error) => error.message,
     alertMessage: (error) => errors.push(error),
+    // The app shows failures as red/amber toasts now; collect them the same way.
+    alertError: (error) => errors.push(error),
+    alertWarning: (error) => errors.push(error),
   });
   vm.runInContext(sessionSource, context);
   return {
@@ -147,7 +156,10 @@ test("retry recovers the authenticated account after a failed group load", async
   const refresh = c.refreshSupabaseGroups();
   pending.reject(new Error("offline"));
   await assert.rejects(refresh, /offline/);
-  assert.equal(c.state.user, null);
+  // A failed group load keeps the person signed in (be332e9) but drops the groups and shows the error.
+  assert.equal(c.state.user.id, "A");
+  assert.equal(c.state.groups.length, 0);
+  assert.match(c.groupsError?.message || "", /offline/);
   requests.push(Promise.resolve(snapshot("recovered")));
   await c.refreshSupabaseGroups();
   assert.equal(c.state.user.id, "A");
