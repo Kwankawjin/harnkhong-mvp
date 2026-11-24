@@ -43,6 +43,7 @@ function app() {
     t: (text) => text,
     currentCycle: () => null,
     syncSupabaseCycles: async () => {},
+    syncPushSubscription: async () => {},
     loadSupabaseSubscription: async () => null,
     loadSupabasePayoutAccount: async () => null,
     console: { error() {} },

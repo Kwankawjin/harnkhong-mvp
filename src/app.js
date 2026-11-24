@@ -91,6 +91,16 @@ import { testMode,
   saveAuthenticatedAddress,
 } from "./supabase.js";
 import { createAuthSessionSync } from "./auth-session.js";
+import {
+  currentPushStatus,
+  disablePush,
+  enablePush,
+  forgetDeviceForAccount,
+  listenForNotificationClicks,
+  registerServiceWorker,
+  sendTestPush,
+  syncPushSubscription,
+} from "./push.js";
 import { createRequestMarketplace } from "./request-marketplace.js";
 
 const BANK_PAYMENT_QR_SRC = "/images/bank-payment-qr.webp";
@@ -3349,6 +3359,39 @@ function noteItem(n) {
   const kind = NOTE_KINDS.find(([k]) => k === n.kind);
   return `<button type="button" class="note-item ${n.read ? "" : "unread"} ${n.tone ? `tone-${n.tone}` : ""}" data-action="open-note" data-id="${escape(n.id)}" data-href="${escape(n.href || "/notifications")}"${n.localId ? ` data-local="${escape(n.localId)}"` : ""}><span class="note-icon kind-${n.kind}">${icon(n.tone === "urgent" ? "alert-circle" : kind?.[2] || "bell", 20)}</span><span class="note-text"><b>${escape(n.title)}</b><small>${escape(n.body || "")}</small>${n.at && n.kind !== "payment" ? `<time>${escape(dateTime(n.at))}</time>` : ""}</span>${n.read ? "" : '<i class="note-dot" aria-hidden="true"></i>'}</button>`;
 }
+/* ---------- Push notifications on this device (Web Push / PWA) ---------- */
+let pushState = "checking";
+let pushBusy = false;
+async function refreshPushState() {
+  const next = await currentPushStatus().catch(() => "unsupported");
+  if (next === pushState) return;
+  pushState = next;
+  if (location.pathname === "/notifications") render();
+}
+const PUSH_ERRORS = {
+  push_needs_install: "บน iPhone/iPad ต้องเพิ่ม HarnKhong ลงหน้าจอโฮมแล้วเปิดจากไอคอนก่อน",
+  push_unsupported: "เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือนแบบพุช",
+  push_denied: "เบราว์เซอร์ปิดสิทธิ์แจ้งเตือนของเว็บนี้ไว้ เปิดได้ในการตั้งค่าเบราว์เซอร์",
+  push_dismissed: "ยังไม่ได้อนุญาตการแจ้งเตือน กดเปิดใหม่ได้ทุกเมื่อ",
+  push_not_configured: "ระบบแจ้งเตือนยังไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง",
+  push_save_failed: "บันทึกอุปกรณ์ไม่สำเร็จ กรุณาลองใหม่",
+  push_server_error: "เชื่อมต่อระบบแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่",
+};
+function pushCard() {
+  if (!supabaseConfigured || !state.user) return "";
+  const busy = pushBusy ? " disabled" : "";
+  const button = (action, label, cls) => `<button type="button" class="button ${cls}" data-action="${action}"${busy}>${label}</button>`;
+  const body = {
+    checking: [t("กำลังตรวจสอบอุปกรณ์นี้…"), ""],
+    unsupported: [t("เบราว์เซอร์นี้ไม่รองรับการแจ้งเตือนแบบพุช การแจ้งเตือนทั้งหมดยังแสดงในหน้านี้"), ""],
+    "needs-install": [t("บน iPhone/iPad (iOS 16.4 ขึ้นไป) ให้กดปุ่มแชร์ใน Safari แล้วเลือก “เพิ่มไปยังหน้าจอโฮม” จากนั้นเปิด HarnKhong จากไอคอนบนหน้าจอโฮมแล้วกลับมาที่หน้านี้"), ""],
+    denied: [t("เบราว์เซอร์ปิดสิทธิ์แจ้งเตือนของเว็บนี้ไว้ เปิดได้ในการตั้งค่าเบราว์เซอร์หรือการตั้งค่าแจ้งเตือนของเครื่อง แล้วกลับมากดเปิดอีกครั้ง"), ""],
+    off: [t("รับแจ้งเตือนก่อนครบกำหนดชำระ 1 วันและในวันครบกำหนด แม้ไม่ได้เปิดเว็บ"), button("push-enable", t("เปิดแจ้งเตือนบนอุปกรณ์นี้"), "primary")],
+    on: [t("อุปกรณ์นี้จะได้รับแจ้งเตือนแม้ไม่ได้เปิดเว็บ"), button("push-test", t("ส่งแจ้งเตือนทดสอบ"), "secondary") + button("push-disable", t("ปิดบนอุปกรณ์นี้"), "subtle")],
+  }[pushState] || ["", ""];
+  const heading = pushState === "on" ? t("เปิดแจ้งเตือนบนอุปกรณ์นี้แล้ว") : t("แจ้งเตือนบนโทรศัพท์");
+  return `<section class="push-card${pushState === "on" ? " is-on" : ""}" aria-labelledby="push-card-title"><span class="push-card-icon">${icon("bell", 22)}</span><div class="push-card-text"><h2 id="push-card-title">${heading}</h2><p>${body[0]}</p></div>${body[1] ? `<div class="push-card-actions">${body[1]}</div>` : ""}</section>`;
+}
 function notifications() {
   if (!requireAuth("/notifications"))
     return authRequiredView(
@@ -3363,7 +3406,8 @@ function notifications() {
     .map(([kind, label]) => `<a href="/notifications${kind === "all" ? "" : `?tab=${kind}`}" data-link class="note-tab${tab === kind ? " active" : ""}"${tab === kind ? ' aria-current="page"' : ""}>${t(label)}${count(kind) ? `<i>${count(kind)}</i>` : ""}</a>`)
     .join("");
   const unread = feed.filter((n) => !n.read).length;
-  return `${title(t("การแจ้งเตือน"), t("การชำระเงิน การเปลี่ยนแปลงของกลุ่ม และข่าวจากระบบ"))}<div class="narrow notes-page"><div class="note-toolbar"><nav class="note-tabs" aria-label="${t("หมวดการแจ้งเตือน")}">${tabs}</nav>${unread ? `<button type="button" class="button subtle note-read-all" data-action="read-all-notes">${t("อ่านทั้งหมด")}</button>` : ""}</div>${shown.length ? `<div class="note-list">${shown.map(noteItem).join("")}</div>` : `<div class="empty"><h2>${t("ยังไม่มีการแจ้งเตือน")}</h2><p>${t(tab === "payment" ? "ไม่มียอดค้างชำระ เมื่อกลุ่มพร้อมจ่ายจะแจ้งที่นี่" : "เมื่อมีความเคลื่อนไหว รายการจะปรากฏที่นี่")}</p>${a("/explore", t("สำรวจกลุ่ม"), "button secondary")}</div>`}<p class="note-footnote">${t("แจ้งเตือนการชำระล่วงหน้า 1 วันและในวันครบกำหนด ประวัติรอบเก็บไว้ {days} วัน", { days: HISTORY_KEEP_DAYS })}</p></div>`;
+  if (pushState === "checking") void refreshPushState();
+  return `${title(t("การแจ้งเตือน"), t("การชำระเงิน การเปลี่ยนแปลงของกลุ่ม และข่าวจากระบบ"))}<div class="narrow notes-page">${pushCard()}<div class="note-toolbar"><nav class="note-tabs" aria-label="${t("หมวดการแจ้งเตือน")}">${tabs}</nav>${unread ? `<button type="button" class="button subtle note-read-all" data-action="read-all-notes">${t("อ่านทั้งหมด")}</button>` : ""}</div>${shown.length ? `<div class="note-list">${shown.map(noteItem).join("")}</div>` : `<div class="empty"><h2>${t("ยังไม่มีการแจ้งเตือน")}</h2><p>${t(tab === "payment" ? "ไม่มียอดค้างชำระ เมื่อกลุ่มพร้อมจ่ายจะแจ้งที่นี่" : "เมื่อมีความเคลื่อนไหว รายการจะปรากฏที่นี่")}</p>${a("/explore", t("สำรวจกลุ่ม"), "button secondary")}</div>`}<p class="note-footnote">${t("แจ้งเตือนการชำระล่วงหน้า 1 วันและในวันครบกำหนด ประวัติรอบเก็บไว้ {days} วัน", { days: HISTORY_KEEP_DAYS })}</p></div>`;
 }
 function subscriptionStatusSection(sub, { current, pending, active, endsAt, daysLeft }) {
   const payments = sub?.payments || [];
@@ -6470,9 +6514,36 @@ document.addEventListener("click", async (e) => {
       n.read = true;
       save();
       go(n.href);
+    } else if (action === "push-enable" || action === "push-disable" || action === "push-test") {
+      if (pushBusy) return;
+      pushBusy = true;
+      render();
+      try {
+        if (action === "push-enable") {
+          pushState = await enablePush(supabase);
+          alertMessage(t("เปิดแจ้งเตือนบนอุปกรณ์นี้แล้ว"));
+        } else if (action === "push-disable") {
+          pushState = await disablePush(supabase);
+          alertMessage(t("ปิดแจ้งเตือนบนอุปกรณ์นี้แล้ว"));
+        } else {
+          const report = await sendTestPush(supabase);
+          if (report?.sent) alertMessage(t("ส่งแจ้งเตือนทดสอบแล้ว"));
+          else alertMessage(t("ส่งไม่สำเร็จ ลองปิดแล้วเปิดแจ้งเตือนบนอุปกรณ์นี้ใหม่"), "warning");
+        }
+      } catch (err) {
+        console.warn("push", err);
+        alertMessage(t(PUSH_ERRORS[err?.code] || "เชื่อมต่อระบบแจ้งเตือนไม่สำเร็จ กรุณาลองใหม่"), "error");
+        pushState = "checking";
+      } finally {
+        pushBusy = false;
+        render();
+      }
+      return;
     } else if (action === "logout") {
       authSessionSync?.invalidate();
       if (supabaseConfigured) {
+        await forgetDeviceForAccount(supabase);
+        pushState = "checking";
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
       }
@@ -7384,7 +7455,7 @@ document.addEventListener("submit", async (e) => {
       if (!supabaseConfigured) {
         const plan = effectivePlan(state.subscriptions?.[state.user.id]);
         // Seeded demo groups do not count; only groups this person opened with the form.
-        const open = state.groups.filter((g) => g.openedWithForm && g.ownerId === state.user.id && g.status !== "cancelled").length;
+        const open = state.groups.filter((g) => g.openedWithForm && g.ownerId === state.user.id && g.status !== "cancelled" && !g.closedAt).length;
         if (open >= groupLimit(state.subscriptions?.[state.user.id]))
           throw new Error(plan === "plus" ? t("เปิดกลุ่มได้สูงสุด 5 กลุ่มในแพ็กเกจ Plus") : t("แพ็กเกจ Free เปิดกลุ่มได้ 2 กลุ่ม อัปเกรดเป็น Plus เพื่อเปิดได้ 5 กลุ่ม"));
       }
@@ -8007,6 +8078,7 @@ if (supabaseConfigured) {
       };
       groupsLoading = false;
       groupsError = null;
+      if (result.user) void syncPushSubscription(supabase);
       if (passwordRecoveryPending) {
         passwordRecoveryPending = false;
         authModalActive = true;
@@ -8084,6 +8156,9 @@ if (typeof document !== "undefined") {
     { passive: true },
   );
   window.addEventListener("popstate", render);
+  // PWA: register the service worker (no permission prompt) and open pages from tapped notifications.
+  void registerServiceWorker();
+  listenForNotificationClicks((path) => go(path));
 }
 if (testMode) {
   requestMarketplace.seedTestData(TEST_USERS);
