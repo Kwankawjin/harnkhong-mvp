@@ -1588,6 +1588,7 @@ const labels = {
   "กรุณาระบุจำนวนสินค้า 1 ถึง 9999 ชิ้น": "Please enter a quantity from 1 to 9999",
   "แชทสำหรับสมาชิกในกลุ่มเท่านั้น": "Chat for group members only",
   "เร็วๆ นี้": "Coming soon",
+  "เปลี่ยนวันจ่ายได้ก่อนเริ่มรอบแรกเท่านั้น": "The pay day can change only before the first cycle starts",
 };
 
 Object.assign(labels, {

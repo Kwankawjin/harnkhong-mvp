@@ -496,3 +496,9 @@ export async function openPayoutSlip(path) {
   if (error) throw error;
   return data.signedUrl;
 }
+
+/** Change a monthly group's pay day (owner only, before the first cycle starts). */
+export async function setSupabaseGroupPayDay(groupId, payDay) {
+  const { error } = await supabase.rpc("set_group_pay_day", { p_group: groupId, p_pay_day: payDay });
+  if (error) throw error;
+}

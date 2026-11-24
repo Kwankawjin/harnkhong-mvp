@@ -130,6 +130,7 @@ import {
   approveSupabaseGroup,
   reportSupabaseGroupPayment,
   updateSupabaseGroupDetails,
+  setSupabaseGroupPayDay,
   transferSupabaseGroup,
   removeSupabaseGroupMember,
   getSupabaseInvite,
@@ -6636,7 +6637,7 @@ document.addEventListener("click", async (e) => {
       if (!g || g.ownerId !== state.user?.id) throw Error(t("เฉพาะหัวหน้ากลุ่มแก้ไขได้"));
       const dialog = document.createElement("dialog");
       dialog.className = "form-dialog edit-group-dialog";
-      dialog.innerHTML = `<form id="edit-group-form" data-id="${escape(id)}"><div class="dialog-heading"><div><h2>${t("แก้ไขกลุ่ม")}</h2><p>${t("แก้ไขข้อมูลที่สมาชิกเห็นในกลุ่ม")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><label>${t("ชื่อกลุ่ม")}<input name="name" required maxlength="70" value="${escape(g.name)}"/></label><label>${t("สมาชิกขั้นต่ำ")}<input name="minimumMembers" type="number" min="2" max="${g.capacity}" required value="${Number(details.minimumMembers || 2)}"/></label>${g.billing === "monthly" ? `<p class="field-help">${t("จ่ายทุกวันที่ {day} ของเดือน", { day: g.payDay || "—" })}</p>` : `<label>${t("วันปิดรับสมาชิก")}<input name="closesAt" type="date" required value="${escape(details.closesAt || "")}"/></label>`}<label>${t("ค่าส่งต่อคน (บาท)")}<input name="delivery" inputmode="decimal" required value="${bahtInput(g.costs.delivery)}"/></label><label>${t("การมองเห็นกลุ่ม")}<select name="visibilityMode"><option value="public" ${details.visibilityMode === "public" || (!details.visibilityMode && g.visibility === "public") ? "selected" : ""}>${t("สาธารณะ")}</option><option value="link" ${details.visibilityMode === "link" || (!details.visibilityMode && g.visibility === "link") ? "selected" : ""}>${t("เฉพาะผู้มีลิงก์")}</option><option value="private" ${details.visibilityMode === "private" ? "selected" : ""}>${t("ส่วนตัว")}</option></select></label><label>${t("หมายเหตุถึงสมาชิก")}<textarea name="memberNote" maxlength="500">${escape(details.memberNote || "")}</textarea></label><div data-dialog-feedback class="dialog-feedback" role="alert" hidden></div><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("บันทึกการแก้ไข")}</button></div></form>`;
+      dialog.innerHTML = `<form id="edit-group-form" data-id="${escape(id)}"><div class="dialog-heading"><div><h2>${t("แก้ไขกลุ่ม")}</h2><p>${t("แก้ไขข้อมูลที่สมาชิกเห็นในกลุ่ม")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><label>${t("ชื่อกลุ่ม")}<input name="name" required maxlength="70" value="${escape(g.name)}"/></label><label>${t("สมาชิกขั้นต่ำ")}<input name="minimumMembers" type="number" min="2" max="${g.capacity}" required value="${Number(details.minimumMembers || 2)}"/></label>${g.billing === "monthly" ? (g.cycles?.length ? `<p class="field-help">${t("จ่ายทุกวันที่ {day} ของเดือน", { day: g.payDay || "—" })} · ${t("เปลี่ยนวันจ่ายได้ก่อนเริ่มรอบแรกเท่านั้น")}</p>` : `<label>${t("จ่ายทุกวันที่")}<select name="payDay" required>${Array.from({ length: 28 }, (_, i) => `<option value="${i + 1}" ${Number(g.payDay) === i + 1 ? "selected" : ""}>${t("วันที่ {day} ของทุกเดือน", { day: i + 1 })}</option>`).join("")}</select></label>`) : `<label>${t("วันปิดรับสมาชิก")}<input name="closesAt" type="date" required value="${escape(details.closesAt || "")}"/></label>`}<label>${t("ค่าส่งต่อคน (บาท)")}<input name="delivery" inputmode="decimal" required value="${bahtInput(g.costs.delivery)}"/></label><label>${t("การมองเห็นกลุ่ม")}<select name="visibilityMode"><option value="public" ${details.visibilityMode === "public" || (!details.visibilityMode && g.visibility === "public") ? "selected" : ""}>${t("สาธารณะ")}</option><option value="link" ${details.visibilityMode === "link" || (!details.visibilityMode && g.visibility === "link") ? "selected" : ""}>${t("เฉพาะผู้มีลิงก์")}</option><option value="private" ${details.visibilityMode === "private" ? "selected" : ""}>${t("ส่วนตัว")}</option></select></label><label>${t("หมายเหตุถึงสมาชิก")}<textarea name="memberNote" maxlength="500">${escape(details.memberNote || "")}</textarea></label><div data-dialog-feedback class="dialog-feedback" role="alert" hidden></div><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("บันทึกการแก้ไข")}</button></div></form>`;
       document.body.append(dialog);
       dialog.addEventListener("close", () => dialog.remove(), { once: true });
       dialog.showModal();
@@ -6700,12 +6701,17 @@ document.addEventListener("submit", async (e) => {
       visibilityMode,
       memberNote: String(data.get("memberNote") || "").trim(),
     };
+    // A monthly group's pay day can change until its first cycle starts.
+    const payDay = data.get("payDay") ? Number(data.get("payDay")) : null;
+    const payDayChanged = g.billing === "monthly" && !g.cycles?.length && payDay && payDay !== Number(g.payDay);
+    if (payDayChanged && !(Number.isInteger(payDay) && payDay >= 1 && payDay <= 28)) throw Error(t("กรุณาเลือกวันที่ต้องจ่ายทุกเดือน (1–28)"));
     if (supabaseConfigured) {
+      if (payDayChanged) await setSupabaseGroupPayDay(groupId, payDay);
       await updateSupabaseGroupDetails(groupId, { name, details, visibility: visibilityMode === "public" ? "public" : "link", delivery });
       if (!(await refreshSupabaseGroups(activeSupabaseSession))) return;
     } else {
       const next = changeCosts(g, state.user.id, { delivery });
-      Object.assign(next, { name, details, visibility: visibilityMode === "public" ? "public" : "link" });
+      Object.assign(next, { name, details, visibility: visibilityMode === "public" ? "public" : "link" }, payDayChanged ? { payDay } : {});
       updateGroup(next);
       render();
     }
@@ -6715,7 +6721,7 @@ document.addEventListener("submit", async (e) => {
     const feedback = f.querySelector("[data-dialog-feedback]");
     if (feedback) {
       feedback.hidden = false;
-      feedback.textContent = errorMessage(error);
+      feedback.textContent = error?.code && messages[locale][error.code] ? errorMessage(error) : authErrorMessage(error);
     }
   } finally {
     if (button?.isConnected) button.disabled = false;
@@ -7803,6 +7809,8 @@ document.addEventListener("input", (e) => {
 function authErrorMessage(error) {
   const code = error?.code || "";
   const message = String(error?.message || "").toLowerCase();
+  if (message.includes("cycle_started")) return t("เปลี่ยนวันจ่ายได้ก่อนเริ่มรอบแรกเท่านั้น");
+  if (message.includes("invalid_pay_day")) return t("กรุณาเลือกวันที่ต้องจ่ายทุกเดือน (1–28)");
   if (code === "PGRST204" || code === "42703" || message.includes("column groups.details") || message.includes("column products.details"))
     return t("ฐานข้อมูลยังไม่รองรับข้อมูลกลุ่มใหม่ กรุณาติดตั้ง migration ล่าสุดแล้วโหลดหน้านี้ใหม่");
   if (error?.code === "secondhandListingDeleteNotAllowed")

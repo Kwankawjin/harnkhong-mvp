@@ -643,3 +643,27 @@ begin
   reset role;
 end $$;
 rollback;
+
+-- The owner changes a monthly pay day before the first cycle, not after.
+begin;
+do $$
+declare
+  owner uuid := gen_random_uuid();
+  g uuid;
+  product jsonb := '{"type":"digital","title":"Spotify","category":"แอปพลิเคชันและเว็บไซต์"}';
+begin
+  insert into auth.users(id, aud, role, email) values (owner, 'authenticated', 'authenticated', 'payday2@example.invalid');
+  insert into public.profiles(id, display_name) values (owner, 'Owner') on conflict (id) do update set display_name = excluded.display_name;
+  perform set_config('request.jwt.claim.sub', owner::text, true);
+  set local role authenticated;
+  g := public.create_group_from_form(gen_random_uuid(), 'Change day', array['x'], '[]'::jsonb, 'public', 2, 0, 10000, product, '{"minimumMembers":2,"billing":"monthly","payDay":5}');
+  perform public.set_group_pay_day(g, 20);
+  perform public.start_group_cycle(g);
+  begin
+    perform public.set_group_pay_day(g, 10);
+    raise exception 'pay day changed after the first cycle';
+  exception when check_violation then null; end;
+  reset role;
+  assert (select pay_day = 20 from public.groups where id = g), 'the change before the cycle stuck';
+end $$;
+rollback;
