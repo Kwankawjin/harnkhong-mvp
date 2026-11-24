@@ -3413,7 +3413,10 @@ function pricingCard({ index, name, price, popular = false, tagline, features, c
     <div class="hk-plan-price"><strong><span aria-hidden="true">฿</span><span data-count-to="${Number(price)}">${Number(price)}</span><span class="sr-only">${money(price * 100)}</span></strong><span>/ ${t("เดือน")}</span></div>
     <p class="hk-plan-billing">${price ? t("ชำระรายเดือน") : t("ไม่มีค่าใช้จ่าย")}</p>
     <p class="hk-plan-tagline">${escape(tagline)}</p>
-    <ul class="hk-plan-features">${features.map((feature) => `<li>${icon("check", 16)}<span>${escape(feature)}</span></li>`).join("")}</ul>
+    <ul class="hk-plan-features">${features.map((feature) => {
+      const { label, soon } = typeof feature === "string" ? { label: feature } : feature;
+      return `<li${soon ? ' class="is-soon"' : ""}>${icon(soon ? "clock" : "check", 16)}<span>${escape(label)}${soon ? ` <span class="plan-soon">${t("เร็วๆ นี้")}</span>` : ""}</span></li>`;
+    }).join("")}</ul>
     <hr/>
     ${action}
     <p class="hk-plan-note">${escape(note)}</p>
@@ -3456,12 +3459,14 @@ function subscriptionPage() {
       t("{count} กลุ่ม", { count: 5 }),
     ],
     [t("แจ้งเตือนวันครบกำหนด"), true, true],
-    [t("แจ้งเตือนซ้ำแบบกำหนดเอง"), false, true],
-    [t("รายงานค่าใช้จ่าย"), t("พื้นฐาน"), t("ละเอียด")],
-    [t("ส่งออก CSV"), false, true],
-    [t("สร้างกลุ่มจากข้อมูลเดิม"), false, true],
-    [t("AI วิเคราะห์ค่าใช้จ่าย"), false, t("จำกัดโควตา")],
+    // Plus extras not built yet are listed as coming soon, so nobody pays for them expecting them now.
+    [t("แจ้งเตือนซ้ำแบบกำหนดเอง"), false, true, true],
+    [t("รายงานค่าใช้จ่าย"), t("พื้นฐาน"), t("ละเอียด"), true],
+    [t("ส่งออก CSV"), false, true, true],
+    [t("สร้างกลุ่มจากข้อมูลเดิม"), false, true, true],
+    [t("AI วิเคราะห์ค่าใช้จ่าย"), false, t("จำกัดโควตา"), true],
   ];
+  const soonTag = `<span class="plan-soon">${t("เร็วๆ นี้")}</span>`;
   const mark = (value) =>
     value === true
       ? `<span class="subscription-check" aria-label="${t("รวมในแพ็กเกจ")}">✓</span>`
@@ -3487,7 +3492,7 @@ function subscriptionPage() {
         price: 49,
         popular: true,
         tagline: t("เครื่องมือเพิ่มเติมเพื่อจัดการกลุ่มได้มากขึ้น"),
-        features: features.map(([label, , plus]) => (plus === true ? label : `${label} ${plus}`)),
+        features: features.map(([label, , plus, soon]) => ({ label: plus === true ? label : `${label} ${plus}`, soon })),
         current: current === "plus",
         action: !state.user
           ? a("/login", t("เข้าสู่ระบบเพื่อสมัคร Plus"), "button primary full")
@@ -3500,7 +3505,7 @@ function subscriptionPage() {
       })}
     </div>
     ${state.user ? subscriptionStatusSection(sub, { current, pending, active, endsAt, daysLeft }) : ""}
-    <section class="subscription-comparison"><h2>${t("เปรียบเทียบแพ็กเกจ")}</h2><div class="subscription-table-wrap"><table class="subscription-table"><thead><tr><th scope="col">${t("ฟีเจอร์")}</th><th scope="col">Free</th><th scope="col">Plus</th></tr></thead><tbody>${features.map(([label, free, plus]) => `<tr><th scope="row">${escape(label)}</th><td>${mark(free)}</td><td>${mark(plus)}</td></tr>`).join("")}</tbody></table></div></section>
+    <section class="subscription-comparison"><h2>${t("เปรียบเทียบแพ็กเกจ")}</h2><div class="subscription-table-wrap"><table class="subscription-table"><thead><tr><th scope="col">${t("ฟีเจอร์")}</th><th scope="col">Free</th><th scope="col">Plus</th></tr></thead><tbody>${features.map(([label, free, plus, soon]) => `<tr><th scope="row">${escape(label)}${soon ? ` ${soonTag}` : ""}</th><td>${mark(free)}</td><td>${mark(plus)}</td></tr>`).join("")}</tbody></table></div></section>
     ${promoSection()}
   </section>`;
 }

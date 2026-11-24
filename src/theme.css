@@ -3086,3 +3086,20 @@ body.has-test-banner {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* Plan features that are not built yet */
+.plan-soon {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--hk-sun-soft);
+  color: var(--hk-sun-ink);
+  font-size: 0.7rem;
+  font-weight: 700;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.hk-plan-features li.is-soon {
+  opacity: 0.8;
+}
