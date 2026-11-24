@@ -1,12 +1,9 @@
 import "./style.css";
 import "./theme.css";
 import "./mobile.css";
-import * as React from "react";
-import { createRoot } from "react-dom/client";
-import DoodleCrewFooter from "../components/ui/doodle-crew-footer.tsx";
-import LanyardBadge from "../components/ui/lanyard-badge.tsx";
 import { paymentReminders, recentCycleHistory, cycleChanges, HISTORY_KEEP_DAYS } from "./reminders.js";
-import QRCode from "qrcode";
+// The QR generator is only needed on payment screens, so it loads when first used.
+const loadQRCode = () => import("qrcode").then((module) => module.default || module);
 import {
   demoAccount,
   editProfile,
@@ -98,6 +95,29 @@ const BANK_PAYMENT_RECIPIENT = "จิณห์นิภา บรรจบส�
 
 let doodleFooterRoot = null;
 let profileBadgeRoot = null;
+// React, the footer and the badge arrive in a separate chunk (src/react-ui.js) after first paint.
+let React = null;
+let createRoot = null;
+let DoodleCrewFooter = null;
+let LanyardBadge = null;
+let reactUiPromise = null;
+let renderGeneration = 0;
+function loadReactUi() {
+  reactUiPromise ||= import("./react-ui.js").then((ui) => {
+    ({ React, createRoot, DoodleCrewFooter, LanyardBadge } = ui);
+    return ui;
+  });
+  return reactUiPromise;
+}
+/** Mount once React has loaded, unless the page re-rendered or the element went away meanwhile. */
+function whenReactUi(mount, callback) {
+  const generation = renderGeneration;
+  loadReactUi()
+    .then(() => {
+      if (generation === renderGeneration && mount.isConnected) callback();
+    })
+    .catch((error) => console.error("Could not load the interactive footer or badge", error));
+}
 let adminPageModule = null;
 let adminPageModulePromise = null;
 import { loadGroupMessages, sendGroupMessage } from "./group-chat.js";
@@ -1165,7 +1185,7 @@ async function refreshSecondhandCheckoutQr(form) {
   const amount = Number(form.dataset.price) * quantity + shippingFee;
   qr.dataset.amount = String(amount);
   try {
-    qr.src = await QRCode.toDataURL(
+    qr.src = await (await loadQRCode()).toDataURL(
       demoAcceptUrl(qr.dataset.reference, amount, {
         expires: Number(qr.dataset.expires),
         secondhandListing: form.dataset.id,
@@ -2710,7 +2730,7 @@ async function initializeSecondhandPendingQr() {
   const qr = document.querySelector("#secondhand-pending-demo-qr");
   if (!qr) return;
   try {
-    qr.src = await QRCode.toDataURL(
+    qr.src = await (await loadQRCode()).toDataURL(
       demoAcceptUrl(qr.dataset.reference, qr.dataset.amount, {
         expires: Number(qr.dataset.expires),
         secondhandListing: qr.dataset.listingId,
@@ -4537,6 +4557,7 @@ function render() {
   // Request Marketplace pages light up "กำลังหากลุ่ม".
   const requestArea = /^\/(requests(\/|$)|my-requests$|my-offers$)/.test(location.pathname);
 
+  renderGeneration += 1;
   doodleFooterRoot?.unmount();
   doodleFooterRoot = null;
   profileBadgeRoot?.unmount();
@@ -4582,7 +4603,7 @@ function render() {
 
   if (["/profile", "/profile/me"].includes(location.pathname) && state.user) {
     const badgeMount = document.querySelector("#profile-lanyard-badge");
-    if (badgeMount) {
+    if (badgeMount) whenReactUi(badgeMount, () => {
       profileBadgeRoot = createRoot(badgeMount);
       profileBadgeRoot.render(
         React.createElement(LanyardBadge, {
@@ -4600,7 +4621,7 @@ function render() {
           ariaLabel: t("แตะหรือกด Enter ที่บัตรเพื่อพลิกดูอีกด้าน"),
         }),
       );
-    }
+    });
   }
 
   initializeListingEditor();
@@ -4672,6 +4693,7 @@ function render() {
           ]
         : []),
     ];
+    whenReactUi(footerMount, () => {
     doodleFooterRoot = createRoot(footerMount);
     doodleFooterRoot.render(
       React.createElement(DoodleCrewFooter, {
@@ -4722,6 +4744,7 @@ function render() {
         className: "harnkhong-doodle-footer",
       }),
     );
+    });
   }
 
   startHeroHeadlineLoop();
@@ -5922,7 +5945,7 @@ document.addEventListener("click", async (e) => {
       const url = demoAcceptUrl(qr.dataset.reference, qr.dataset.amount, {
         expires,
       });
-      qr.src = await QRCode.toDataURL(url.href, {
+      qr.src = await (await loadQRCode()).toDataURL(url.href, {
         errorCorrectionLevel: "M",
         margin: 2,
         width: 420,
