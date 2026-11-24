@@ -10,6 +10,7 @@ const navItems = [
   ["reports", "รายงานปัญหา", "flag", "งานที่ต้องทำ"],
   ["groups", "กลุ่มทั้งหมด", "groups", "ข้อมูล"],
   ["users", "สมาชิก", "users", "ข้อมูล"],
+  ["announcements", "ประกาศถึงทุกคน", "flag", "ข้อมูล"],
   ["settings", "ตั้งค่า", "settings", "ระบบ"],
 ];
 // Old links (#/billing) now live on the slips page.
@@ -529,6 +530,12 @@ function appReportsContent(rows) {
 }
 
 async function getSectionContent(section) {
+  if (section === "announcements") {
+    const { data, error } = await currentClient.rpc("admin_announcements");
+    if (error) throw new Error(billingErrorMessage(error));
+    const rows = (data || []).map((row) => `<tr><td><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.body || "")}</small></td><td>${formatDate(row.created_at)}</td><td>${row.expires_at ? formatDate(row.expires_at) : "ไม่หมดอายุ"}</td><td><button type="button" class="admin-danger" data-admin-action="delete-announcement" data-id="${escapeHtml(row.id)}">ลบ</button></td></tr>`).join("");
+    return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>ประกาศถึงทุกคน</h2><p>ขึ้นในแท็บ "อัปเดตระบบ" ของทุกบัญชีที่เข้าสู่ระบบ</p></div></div><div class="admin-announcement-form"><label>หัวข้อ<input data-announcement-title maxlength="120" placeholder="เช่น ปิดปรับปรุงระบบคืนนี้ 23:00–24:00"/></label><label>รายละเอียด <small>ไม่บังคับ</small><textarea data-announcement-body maxlength="1000" rows="3" placeholder="รายละเอียดที่สมาชิกควรรู้"></textarea></label><label>แสดงนาน<select data-announcement-days><option value="">จนกว่าจะลบ</option><option value="1">1 วัน</option><option value="3">3 วัน</option><option value="7" selected>7 วัน</option><option value="30">30 วัน</option></select></label><button type="button" class="admin-primary" data-admin-action="post-announcement">ประกาศ</button></div>${table(["ประกาศ", "ประกาศเมื่อ", "หมดอายุ", ""], rows, "ยังไม่มีประกาศ")}</section>`;
+  }
   if (section === "reports") {
     const { data, error } = await currentClient.rpc("admin_app_problem_reports");
     if (error) {
@@ -749,6 +756,41 @@ document.addEventListener("click", async (event) => {
       feedback = permission === "granted" ? "เปิดแจ้งเตือนสมาชิกยืนยันยอดแล้ว" : "เบราว์เซอร์ไม่ได้รับอนุญาตให้แจ้งเตือน";
     }
     mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+  } else if (action === "post-announcement") {
+    if (busy) return;
+    const title = String(document.querySelector("[data-announcement-title]")?.value || "").trim();
+    const body = String(document.querySelector("[data-announcement-body]")?.value || "").trim();
+    const days = document.querySelector("[data-announcement-days]")?.value;
+    if (title.length < 2) {
+      feedback = "กรุณาใส่หัวข้ออย่างน้อย 2 ตัวอักษร";
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+      return;
+    }
+    busy = true;
+    button.disabled = true;
+    try {
+      const { error } = await currentClient.rpc("admin_post_announcement", { p_title: title, p_body: body, p_days: days ? Number(days) : null });
+      if (error) throw new Error(billingErrorMessage(error));
+      feedback = "ประกาศแล้ว สมาชิกจะเห็นในแท็บอัปเดตระบบ";
+    } catch (error) {
+      feedback = error.message || "ประกาศไม่สำเร็จ";
+    } finally {
+      busy = false;
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+    }
+  } else if (action === "delete-announcement") {
+    if (busy || !confirm("ลบประกาศนี้?")) return;
+    busy = true;
+    try {
+      const { error } = await currentClient.rpc("admin_delete_announcement", { p_id: button.dataset.id });
+      if (error) throw new Error(billingErrorMessage(error));
+      feedback = "ลบประกาศแล้ว";
+    } catch (error) {
+      feedback = error.message || "ลบไม่สำเร็จ";
+    } finally {
+      busy = false;
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+    }
   } else if (action === "confirm-group-revision") {
     const groupId = button.dataset.groupId;
     const revision = Number(button.dataset.revision);

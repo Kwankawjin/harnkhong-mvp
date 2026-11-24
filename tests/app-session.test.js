@@ -44,6 +44,8 @@ function app() {
     currentCycle: () => null,
     syncSupabaseCycles: async () => {},
     loadSupabaseSubscription: async () => null,
+    loadSupabaseAnnouncements: async () => [],
+    loadSupabaseNoteReads: async () => [],
     loadSupabasePayoutAccount: async () => null,
     console: { error() {} },
     requestMarketplace: { onSessionChange() {}, seedTestData() {} },

@@ -502,3 +502,29 @@ export async function setSupabaseGroupPayDay(groupId, payDay) {
   const { error } = await supabase.rpc("set_group_pay_day", { p_group: groupId, p_pay_day: payDay });
   if (error) throw error;
 }
+
+/** Current admin announcements (newest first); none before migration 20261124110000. */
+export async function loadSupabaseAnnouncements() {
+  const { data, error } = await supabase
+    .from("system_announcements")
+    .select("id,title,body,created_at,expires_at")
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) return [];
+  return data || [];
+}
+
+/** Notification ids this person has read on any device. */
+export async function loadSupabaseNoteReads() {
+  const { data, error } = await supabase.from("notification_reads").select("note_id").limit(1000);
+  if (error) return [];
+  return (data || []).map((row) => row.note_id);
+}
+
+export async function markSupabaseNotesRead(ids) {
+  if (!ids.length) return;
+  for (let i = 0; i < ids.length; i += 200) {
+    const { error } = await supabase.rpc("mark_notifications_read", { p_ids: ids.slice(i, i + 200) });
+    if (error) throw error;
+  }
+}

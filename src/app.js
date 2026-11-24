@@ -131,6 +131,9 @@ import {
   reportSupabaseGroupPayment,
   updateSupabaseGroupDetails,
   setSupabaseGroupPayDay,
+  loadSupabaseAnnouncements,
+  loadSupabaseNoteReads,
+  markSupabaseNotesRead,
   transferSupabaseGroup,
   removeSupabaseGroupMember,
   getSupabaseInvite,
@@ -3252,11 +3255,14 @@ const CYCLE_EVENT_TEXT = {
 };
 const readNotesKey = () => `harnkhong-read-notes:${state.user?.id || ""}`;
 function readNoteIds() {
+  let local = [];
   try {
-    return new Set(JSON.parse(localStorage.getItem(readNotesKey()) || "[]"));
+    local = JSON.parse(localStorage.getItem(readNotesKey()) || "[]");
   } catch {
-    return new Set();
+    /* no local marks */
   }
+  // Marks saved on the account (any device) count too.
+  return new Set([...local, ...(state.remoteNoteReads || [])]);
 }
 function markNotesRead(ids) {
   requestMarketplace.markRead(ids);
@@ -3265,7 +3271,12 @@ function markNotesRead(ids) {
   try {
     localStorage.setItem(readNotesKey(), JSON.stringify([...read].slice(-600)));
   } catch {
-    /* private mode: read marks just do not stick */
+    /* private mode: the account copy below still keeps them */
+  }
+  if (supabaseConfigured && state.user) {
+    const fresh = ids.filter((id) => !(state.remoteNoteReads || []).includes(id));
+    state.remoteNoteReads = [...(state.remoteNoteReads || []), ...fresh];
+    void markSupabaseNotesRead(fresh).catch((error) => console.error("Could not save read marks", error));
   }
 }
 /** The text and colour of a payment reminder, by how close its due date is. */
@@ -3325,6 +3336,9 @@ function notificationFeed() {
       items.push({ id: `plus:ending:${endsAt}`, kind: "system", tone: "soon", title: t("Plus ใกล้หมดอายุ"), body: t("เหลืออีก {days} วัน ต่ออายุได้ที่หน้าแพ็กเกจ", { days: Math.max(0, daysLeft) }), href: "/subscription", at: new Date(now).toISOString() });
     if (sub.status === "expired")
       items.push({ id: `plus:expired:${endsAt}`, kind: "system", title: t("Plus หมดอายุแล้ว"), body: t("บัญชีกลับเป็น Free สมัครใหม่ได้ทุกเมื่อ"), href: "/subscription", at: endsAt });
+  }
+  for (const note of state.remoteAnnouncements || []) {
+    items.push({ id: `ann:${note.id}`, kind: "system", title: note.title, body: note.body, href: "/notifications?tab=system", at: note.created_at });
   }
   const waiver = myFeeWaiverUntil(me);
   if (waiver)
@@ -6507,6 +6521,8 @@ document.addEventListener("click", async (e) => {
       }
       state.user = null;
       state.groups = supabaseConfigured ? [] : state.groups;
+      state.remoteNoteReads = [];
+      state.remoteAnnouncements = [];
       state.profiles = supabaseConfigured ? {} : state.profiles;
       save();
       if (supabaseConfigured) await syncSupabaseSession(null);
@@ -7964,6 +7980,9 @@ async function fetchSupabaseState(authUser) {
     }
     snapshot.subscription = authUser ? await loadSupabaseSubscription().catch(() => null) : null;
     snapshot.payoutAccount = authUser ? await loadSupabasePayoutAccount(authUser.id).catch(() => null) : null;
+    [snapshot.announcements, snapshot.noteReads] = authUser
+      ? await Promise.all([loadSupabaseAnnouncements().catch(() => []), loadSupabaseNoteReads().catch(() => [])])
+      : [[], []];
   } catch (error) {
     const loadError = new Error(error?.message || t("โหลดข้อมูลกลุ่มไม่สำเร็จ"), {
       cause: error,
@@ -8040,6 +8059,8 @@ if (supabaseConfigured) {
         remoteSellers: result.snapshot.sellers,
         remoteSubscription: result.snapshot.subscription || null,
         remotePayoutAccount: result.snapshot.payoutAccount || null,
+        remoteAnnouncements: result.snapshot.announcements || [],
+        remoteNoteReads: result.snapshot.noteReads || [],
       };
       groupsLoading = false;
       groupsError = null;

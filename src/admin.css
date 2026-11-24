@@ -275,3 +275,8 @@ body.admin-mode #app { min-height: 100vh; }
 .admin-report-topic { display: inline-block; margin-bottom: 4px; padding: 2px 8px; border-radius: 6px; background: #fff0ef; color: #a32a21; font-size: 12px; font-weight: 700; }
 .admin-report-message { margin: 0 0 4px; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 520px; }
 .admin-report-ua { display: block; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .7; }
+
+.admin-announcement-form { display: grid; gap: 12px; padding: 16px 20px; border-bottom: 1px solid #e3ebf5; }
+.admin-announcement-form label { display: grid; gap: 6px; font-weight: 600; font-size: 0.88rem; }
+.admin-announcement-form input, .admin-announcement-form textarea, .admin-announcement-form select { font: inherit; padding: 10px 12px; border: 1px solid #cfdceb; border-radius: 10px; }
+.admin-announcement-form .admin-primary { justify-self: start; }

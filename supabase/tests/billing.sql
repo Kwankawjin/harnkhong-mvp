@@ -667,3 +667,45 @@ begin
   assert (select pay_day = 20 from public.groups where id = g), 'the change before the cycle stuck';
 end $$;
 rollback;
+
+-- Announcements: admins post, everyone signed in reads, expired ones disappear. Read marks are private.
+begin;
+do $$
+declare
+  admin uuid := gen_random_uuid();
+  member uuid := gen_random_uuid();
+  other uuid := gen_random_uuid();
+  a uuid;
+  n int;
+begin
+  insert into auth.users(id, aud, role, email) select id, 'authenticated', 'authenticated', id::text || '@example.invalid' from unnest(array[admin, member, other]) id;
+  perform set_config('request.jwt.claims', json_build_object('sub', member, 'role', 'authenticated', 'app_metadata', '{}'::json)::text, true);
+  perform set_config('request.jwt.claim.sub', member::text, true);
+  set local role authenticated;
+  begin
+    perform public.admin_post_announcement('Nope', '', null);
+    raise exception 'a member posted an announcement';
+  exception when insufficient_privilege then null; end;
+  reset role;
+  perform set_config('request.jwt.claims', json_build_object('sub', admin, 'role', 'authenticated', 'app_metadata', json_build_object('role', 'admin'))::text, true);
+  perform set_config('request.jwt.claim.sub', admin::text, true);
+  set local role authenticated;
+  a := public.admin_post_announcement('ปิดปรับปรุงคืนนี้', '23:00–24:00', 7);
+  reset role;
+  insert into public.system_announcements (title, expires_at) values ('expired one', now() - interval '1 hour');
+  perform set_config('request.jwt.claim.sub', member::text, true);
+  set local role authenticated;
+  select count(*) into n from public.system_announcements;
+  assert n = 1, 'members see current announcements only, got ' || n;
+  perform public.mark_notifications_read(array['ann:' || a::text, 'pay:x']);
+  perform public.mark_notifications_read(array['pay:x']);
+  select count(*) into n from public.notification_reads;
+  assert n = 2, 'read marks saved once each, got ' || n;
+  reset role;
+  perform set_config('request.jwt.claim.sub', other::text, true);
+  set local role authenticated;
+  select count(*) into n from public.notification_reads;
+  assert n = 0, 'nobody sees someone else''s read marks';
+  reset role;
+end $$;
+rollback;
