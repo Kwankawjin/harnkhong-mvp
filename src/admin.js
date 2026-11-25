@@ -505,7 +505,7 @@ function disputesContent(rows) {
     const actions = open
       ? `<div class="admin-row-actions"><button type="button" class="admin-primary" data-admin-action="resolve-dispute" data-outcome="released" data-dispute-id="${escapeHtml(row.id)}" data-label="${escapeHtml(row.member_name)} · ${escapeHtml(row.group_name)}">ปล่อยเงินให้เจ้าของ</button><button type="button" class="admin-danger" data-admin-action="resolve-dispute" data-outcome="refunded" data-dispute-id="${escapeHtml(row.id)}" data-label="${escapeHtml(row.member_name)} · ${escapeHtml(row.group_name)}">คืนเงินสมาชิก</button></div>`
       : `<small>${escapeHtml(row.resolution_note || "")}</small>`;
-    return `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>${row.cycle_number ? `รอบที่ ${escapeHtml(row.cycle_number)} · ` : ""}เจ้าของ ${escapeHtml(row.owner_name)}</small><small>${row.shipped_at ? `แจ้งส่งของ ${formatDate(row.shipped_at)}` : "ยังไม่แจ้งส่งของ"}</small></td><td><strong>${escapeHtml(row.member_name)}</strong><small>${escapeHtml(row.member_email)}</small></td><td>${escapeHtml(row.reason)}<small>${formatDate(row.created_at)}</small></td><td><span class="admin-status ${open ? "bad" : "good"}">${escapeHtml(disputeStatus[row.status] || row.status)}</span></td><td>${actions}</td></tr>`;
+    return `<tr><td><strong>${escapeHtml(row.group_name)}</strong><small>${row.cycle_number ? `รอบที่ ${escapeHtml(row.cycle_number)} · ` : ""}เจ้าของ ${escapeHtml(row.owner_name)}</small><small>${row.shipped_at ? `แจ้งส่งของ ${formatDate(row.shipped_at)}` : "ยังไม่แจ้งส่งของ"}</small></td><td><strong>${escapeHtml(row.member_name)}</strong><small>${escapeHtml(row.member_email)}</small></td><td>${escapeHtml(row.reason)}${(row.photo_urls || []).length ? `<div class="admin-dispute-photos">${row.photo_urls.map((url, i) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHtml(url)}" alt="รูปที่ ${i + 1} จาก ${escapeHtml(row.member_name)}"/></a>`).join("")}</div>` : ""}<small>${formatDate(row.created_at)}</small></td><td><span class="admin-status ${open ? "bad" : "good"}">${escapeHtml(disputeStatus[row.status] || row.status)}</span></td><td>${actions}</td></tr>`;
   }).join("");
   const openCount = rows.filter((row) => row.status === "open").length;
   return `${howTo(["ระหว่างที่มีเรื่องเปิดอยู่ เงินของกลุ่มนั้นถูก <b>พักไว้</b> และไม่ยืนยันรับของอัตโนมัติ", "คุยกับทั้งสมาชิกและเจ้าของกลุ่ม ขอรูปหรือหลักฐาน", "ตัดสิน: <b>ปล่อยเงินให้เจ้าของ</b> หรือ <b>คืนเงินสมาชิก</b> (โอนคืนนอกแอปก่อน แล้วจดเลขอ้างอิง)"])}<section class="admin-panel"><div class="admin-panel-heading"><div><h2>รอตัดสิน ${openCount ? `<span class="admin-count">${openCount}</span>` : ""}</h2><p>เรื่องที่สมาชิกหรือผู้ซื้อแจ้งเข้ามา</p></div></div>${table(["กลุ่ม", "ผู้แจ้ง", "ปัญหา", "สถานะ", "ตัดสิน"], body, "ไม่มีเรื่องค้าง 🎉")}</section>`;
@@ -590,7 +590,14 @@ async function getSectionContent(section) {
   if (section === "disputes") {
     const { data, error } = await currentClient.rpc("admin_disputes");
     if (error) throw new Error(billingErrorMessage(error));
-    return disputesContent(data || []);
+    // Photos are private: sign each one for 10 minutes.
+    const rows = await Promise.all((data || []).map(async (row) => {
+      const paths = row.photo_paths || [];
+      if (!paths.length) return { ...row, photo_urls: [] };
+      const { data: signed } = await currentClient.storage.from("dispute-photos").createSignedUrls(paths, 600);
+      return { ...row, photo_urls: (signed || []).map((item) => item.signedUrl).filter(Boolean) };
+    }));
+    return disputesContent(rows);
   }
   if (section === "users") {
     const { data: rows, error } = await currentClient.rpc("admin_users", { p_limit: 500 });

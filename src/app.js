@@ -2427,9 +2427,35 @@ function appProblemDialog() {
   const topics = ["ใช้งานแอปไม่ได้ / มีบัค", "ปัญหาการชำระเงิน", "ปัญหากับกลุ่มหรือสมาชิก", "บัญชีและการเข้าสู่ระบบ", "อื่น ๆ"];
   return `<dialog id="app-problem-dialog" class="form-dialog problem-dialog app-problem-dialog" aria-labelledby="app-problem-title"><form method="dialog" id="app-problem-form"><div class="dialog-heading"><div><h2 id="app-problem-title">${t("รายงานปัญหา")}</h2><p>${t("แจ้งทีมงานเมื่อเจอปัญหาในการใช้งาน ทีมงานจะตรวจสอบและติดต่อกลับ")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><fieldset class="problem-reasons">${topics.map((topic, i) => `<label><input type="radio" name="topic" value="${escape(topic)}" ${i === 0 ? "checked" : ""}/><span>${t(topic)}</span></label>`).join("")}</fieldset><label>${t("รายละเอียด")}<textarea name="message" minlength="5" maxlength="1000" required placeholder="${t("เช่น กดปุ่มยืนยันยอดแล้วไม่มีอะไรเกิดขึ้น / หน้าไหน ทำอะไรอยู่")}"></textarea></label><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button danger">${t("ส่งรายงาน")}</button></div></form></dialog>`;
 }
+/** Photos chosen in the problem dialog, checked: at most 3 images, each 8 MB or less. */
+const PROBLEM_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+function problemPhotos(form) {
+  const files = [...(form.querySelector("[data-problem-photos]")?.files || [])];
+  if (files.length > 3 || files.some((file) => !PROBLEM_PHOTO_TYPES.includes(file.type) || file.size > 8 * 1024 * 1024))
+    throw Object.assign(new Error(), { code: "invalidSlip" });
+  return files;
+}
+/** Thumbnails and a count under the photo picker; drops the choice if it breaks the limits. */
+function previewProblemPhotos(input) {
+  const box = input.closest(".problem-photos"),
+    previews = box?.querySelector("[data-problem-previews]"),
+    status = box?.querySelector("[data-problem-photos-status]"),
+    files = [...(input.files || [])];
+  previews?.querySelectorAll("img").forEach((img) => URL.revokeObjectURL(img.src));
+  if (previews) previews.innerHTML = "";
+  if (files.length > 3 || files.some((file) => !PROBLEM_PHOTO_TYPES.includes(file.type) || file.size > 8 * 1024 * 1024)) {
+    input.value = "";
+    if (status) status.textContent = t("แนบได้สูงสุด 3 รูป เป็นไฟล์ JPG, PNG หรือ WebP ไม่เกิน 8 MB ต่อรูป");
+    status?.classList.add("is-error");
+    return;
+  }
+  status?.classList.remove("is-error");
+  if (status) status.textContent = files.length ? t("เลือกแล้ว {count} รูป", { count: files.length }) : t("สูงสุด 3 รูป · JPG, PNG, WebP ไม่เกิน 8 MB ต่อรูป");
+  files.forEach((file) => previews?.insertAdjacentHTML("beforeend", `<img src="${URL.createObjectURL(file)}" alt=""/>`));
+}
 /** Dialog for reporting a problem; the submit button carries the same data attributes. */
-function problemDialog(attrs) {
-  return `<dialog id="problem-dialog" class="form-dialog problem-dialog" aria-labelledby="problem-title"><form method="dialog" id="problem-form" ${attrs}><div class="dialog-heading"><div><h2 id="problem-title">${t("แจ้งปัญหา")}</h2><p>${t("ตัวกลางจะพักเงินไว้ก่อน แล้วทีมงานจะติดต่อทั้งสองฝ่ายเพื่อตรวจสอบ")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><fieldset class="problem-reasons">${["ยังไม่ได้รับของ", "ของไม่ตรงตามที่ตกลง", "ของเสียหาย / ใช้งานไม่ได้", "ได้ไม่ครบจำนวน"].map((reason, i) => `<label><input type="radio" name="reasonType" value="${escape(reason)}" ${i === 0 ? "checked" : ""}/><span>${t(reason)}</span></label>`).join("")}</fieldset><label>${t("รายละเอียด")}<textarea name="reasonDetail" maxlength="800" placeholder="${t("เช่น สั่งไป 2 ชิ้น ได้มา 1 ชิ้น / รูปที่ได้รับ")}"></textarea></label><div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("ส่งเรื่องให้ตัวกลาง")}</button></div></form></dialog>`;
+function problemDialog(attrs, { photos = true } = {}) {
+  return `<dialog id="problem-dialog" class="form-dialog problem-dialog" aria-labelledby="problem-title"><form method="dialog" id="problem-form" ${attrs}><div class="dialog-heading"><div><h2 id="problem-title">${t("แจ้งปัญหา")}</h2><p>${t("ตัวกลางจะพักเงินไว้ก่อน แล้วทีมงานจะติดต่อทั้งสองฝ่ายเพื่อตรวจสอบ")}</p></div><button type="button" class="dialog-close" data-action="close-dialog" aria-label="${t("ปิด")}">✕</button></div><fieldset class="problem-reasons">${["ยังไม่ได้รับของ", "ของไม่ตรงตามที่ตกลง", "ของเสียหาย / ใช้งานไม่ได้", "ได้ไม่ครบจำนวน"].map((reason, i) => `<label><input type="radio" name="reasonType" value="${escape(reason)}" ${i === 0 ? "checked" : ""}/><span>${t(reason)}</span></label>`).join("")}</fieldset><label>${t("รายละเอียด")}<textarea name="reasonDetail" maxlength="800" placeholder="${t("เช่น สั่งไป 2 ชิ้น ได้มา 1 ชิ้น / รูปที่ได้รับ")}"></textarea></label>${photos ? `<div class="problem-photos"><span class="problem-photos-label">${t("แนบรูป (ไม่บังคับ)")}</span><label class="problem-photos-pick">${icon("plus", 18)}<span>${t("เพิ่มรูป")}</span><input type="file" name="photos" accept="image/jpeg,image/png,image/webp" multiple data-problem-photos/></label><div class="problem-photo-previews" data-problem-previews></div><small data-problem-photos-status>${t("สูงสุด 3 รูป · JPG, PNG, WebP ไม่เกิน 8 MB ต่อรูป")}</small></div>` : ""}<div class="dialog-actions"><button type="button" class="button outline" data-action="close-dialog">${t("ยกเลิก")}</button><button type="submit" class="button primary">${t("ส่งเรื่องให้ตัวกลาง")}</button></div></form></dialog>`;
 }
 const SALE_STATUS = {
   ordered: ["รอโอนเงิน", "is-waiting"],
@@ -5346,6 +5372,10 @@ document.addEventListener("change", async (e) => {
     isGroup = input.id === "group-images",
     isAvatar = input.id === "profile-avatar",
     isListing = input.id === "listing-images";
+  if (input.matches?.("[data-problem-photos]")) {
+    previewProblemPhotos(input);
+    return;
+  }
   if (input.matches?.("[data-payment-slip-input]")) {
     const panel = input.closest(".cycle-pay, .group-payment-panel, .checkout-pay-panel"),
       submit = panel?.querySelector("[data-slip-submit]"),
@@ -6346,7 +6376,8 @@ document.addEventListener("click", async (e) => {
     } else if (action === "report-problem") {
       document.querySelector("#problem-dialog")?.remove();
       const attrs = [["id", btn.dataset.id], ["cycle", btn.dataset.cycle]].filter(([, v]) => v).map(([k, v]) => `data-${k}="${escape(v)}"`).join(" ");
-      document.body.insertAdjacentHTML("beforeend", problemDialog(attrs));
+      const problemGroup = group(btn.dataset.id);
+      document.body.insertAdjacentHTML("beforeend", problemDialog(attrs, { photos: supabaseConfigured && !(problemGroup && saleMode(problemGroup)) }));
       const dialog = document.querySelector("#problem-dialog");
       dialog.addEventListener("close", () => dialog.remove(), { once: true });
       dialog.showModal();
@@ -6970,16 +7001,23 @@ document.addEventListener("submit", async (e) => {
         notice(t("ผู้ซื้อแจ้งปัญหา"), t("{name} แจ้งปัญหาคำสั่งซื้อ “{title}”: {reason}", { name: state.user.name, title: current.name, reason }), `/groups/${id}`, current.ownerId);
       } else {
         if (!supabaseConfigured) throw new Error(t("ใช้ได้เมื่อเชื่อมต่อระบบชำระเงินจริง"));
-        await reportSupabaseProblem(id, cycleNumber, reason);
+        const photos = problemPhotos(f);
+        const submit = f.querySelector('button[type="submit"]');
+        if (submit) { submit.disabled = true; submit.textContent = photos.length ? t("กำลังอัปโหลดรูป…") : t("กำลังส่ง…"); }
+        await reportSupabaseProblem(id, cycleNumber, reason, state.user.id, photos);
         if (!(await refreshSupabaseGroups(actionSession))) return;
       }
       f.closest("dialog")?.close();
       render();
       alertMessage(t("ส่งเรื่องแล้ว ตัวกลางพักเงินไว้และทีมงานจะติดต่อกลับ"));
     } catch (err) {
+      const submit = f.querySelector('button[type="submit"]');
+      if (submit) { submit.disabled = false; submit.textContent = t("ส่งเรื่องให้ตัวกลาง"); }
       const message = String(err?.message || "");
       alertError(message.includes("already_received") ? t("ยืนยันรับของไปแล้ว แจ้งปัญหาไม่ได้ ติดต่อทีมงานผ่านแชทแทน")
         : message.includes("problem_already_reported") ? t("คุณแจ้งปัญหานี้ไปแล้ว ทีมงานกำลังตรวจสอบ")
+        : message.includes("p_photo_paths") || message.includes("PGRST202") ? t("ระบบยังไม่รองรับการแนบรูป ลองส่งโดยไม่แนบรูป หรือแจ้งทีมงาน")
+        : err?.code === "invalidSlip" || message.includes("invalid_photo") || message.includes("too_many_photos") ? t("แนบได้สูงสุด 3 รูป เป็นไฟล์ JPG, PNG หรือ WebP ไม่เกิน 8 MB ต่อรูป")
         : supabaseConfigured ? authErrorMessage(err) : errorMessage(err));
     }
     return;

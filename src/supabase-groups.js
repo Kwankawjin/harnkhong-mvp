@@ -418,10 +418,24 @@ export async function markSupabaseShipped(groupId, cycleNumber = null, note = ""
   return data;
 }
 /** Member: something is wrong with the order. Freezes the payout until an admin settles it. */
-export async function reportSupabaseProblem(groupId, cycleNumber, reason) {
-  const { data, error } = await supabase.rpc("report_group_problem", { p_group: groupId, p_cycle_number: cycleNumber, p_reason: reason });
-  if (error) throw error;
-  return data;
+/** "แจ้งปัญหา": up to 3 photos go to the private dispute-photos bucket first, then the report. */
+export async function reportSupabaseProblem(groupId, cycleNumber, reason, userId = null, photos = []) {
+  const paths = [];
+  try {
+    for (const file of photos) {
+      const ext = slipExtension(file);
+      if (!ext) throw Object.assign(new Error("invalid photo"), { code: "invalidSlip" });
+      paths.push(await uploadSlip("dispute-photos", `${userId}/${groupId}/${crypto.randomUUID()}.${ext}`, file));
+    }
+    const args = { p_group: groupId, p_cycle_number: cycleNumber, p_reason: reason };
+    if (paths.length) args.p_photo_paths = paths;
+    const { data, error } = await supabase.rpc("report_group_problem", args);
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    if (paths.length) await supabase.storage.from("dispute-photos").remove(paths);
+    throw error;
+  }
 }
 /** "รายงานปัญหา" from the account page; goes to the admin queue. */
 export async function submitSupabaseAppProblem(topic, message) {

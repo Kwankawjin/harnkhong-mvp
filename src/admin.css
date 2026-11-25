@@ -280,3 +280,6 @@ body.admin-mode #app { min-height: 100vh; }
 .admin-announcement-form label { display: grid; gap: 6px; font-weight: 600; font-size: 0.88rem; }
 .admin-announcement-form input, .admin-announcement-form textarea, .admin-announcement-form select { font: inherit; padding: 10px 12px; border: 1px solid #cfdceb; border-radius: 10px; }
 .admin-announcement-form .admin-primary { justify-self: start; }
+
+.admin-dispute-photos { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.admin-dispute-photos img { width: 64px; height: 64px; object-fit: cover; border: 1px solid #dce5f1; border-radius: 8px; }

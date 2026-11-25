@@ -2779,6 +2779,57 @@ body.has-test-banner {
   gap: 6px;
   font-weight: 500;
 }
+.problem-photos {
+  display: grid;
+  gap: 8px;
+}
+.problem-photos-label {
+  font-weight: 500;
+}
+.problem-photos-pick {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px dashed var(--hk-sky-300);
+  border-radius: var(--hk-radius-control);
+  color: var(--hk-blue);
+  font-weight: 600;
+  cursor: pointer;
+}
+.problem-photos-pick:focus-within {
+  outline: 2px solid var(--hk-blue);
+  outline-offset: 2px;
+}
+.problem-photos-pick input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.problem-photo-previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.problem-photo-previews:empty {
+  display: none;
+}
+.problem-photo-previews img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border: 1px solid var(--hk-line);
+  border-radius: 10px;
+}
+.problem-photos small {
+  color: var(--hk-muted);
+  font-size: 0.8rem;
+}
+.problem-photos small.is-error {
+  color: #b3261e;
+}
 .problem-dialog .dialog-actions {
   display: flex;
   justify-content: flex-end;
