@@ -2323,7 +2323,8 @@ function groupPage(id) {
   if (monthly) {
     const view = monthlyGroupView(g, id, { isMember, isOwner, full, locked, estimate });
     return groupPageLayout({ g, p, id, groupDetails, groupCategory, groupCategories, status, full, remaining, isMember, isOwner, locked, costs, sum, seatMode, monthly,
-      summaryCard: view.summary, paymentSection: view.panel, paymentStatusCard: "", alloc, me, adminApproved });
+      // The cycle panel sits under the summary card (after "leave group"), not in the main column.
+      summaryCard: view.summary, paymentSection: "", paymentStatusCard: view.panel, alloc, me, adminApproved });
   }
   const summaryCard = ownerSeat
     ? payoutCard({
