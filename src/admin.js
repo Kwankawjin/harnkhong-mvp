@@ -532,7 +532,12 @@ function appReportsContent(rows) {
 async function getSectionContent(section) {
   if (section === "announcements") {
     const { data, error } = await currentClient.rpc("admin_announcements");
-    if (error) throw new Error(billingErrorMessage(error));
+    if (error) {
+      const message = String(error.message || "");
+      throw new Error(error.code === "PGRST202" || message.includes("Could not find the function")
+        ? "ฐานข้อมูลยังไม่มีระบบประกาศ กรุณารัน migration 20261124110000_announcements_and_note_reads.sql ใน Supabase SQL Editor"
+        : billingErrorMessage(error));
+    }
     const rows = (data || []).map((row) => `<tr><td><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.body || "")}</small></td><td>${formatDate(row.created_at)}</td><td>${row.expires_at ? formatDate(row.expires_at) : "ไม่หมดอายุ"}</td><td><button type="button" class="admin-danger" data-admin-action="delete-announcement" data-id="${escapeHtml(row.id)}">ลบ</button></td></tr>`).join("");
     return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>ประกาศถึงทุกคน</h2><p>ขึ้นในแท็บ "อัปเดตระบบ" ของทุกบัญชีที่เข้าสู่ระบบ</p></div></div><div class="admin-announcement-form"><label>หัวข้อ<input data-announcement-title maxlength="120" placeholder="เช่น ปิดปรับปรุงระบบคืนนี้ 23:00–24:00"/></label><label>รายละเอียด <small>ไม่บังคับ</small><textarea data-announcement-body maxlength="1000" rows="3" placeholder="รายละเอียดที่สมาชิกควรรู้"></textarea></label><label>แสดงนาน<select data-announcement-days><option value="">จนกว่าจะลบ</option><option value="1">1 วัน</option><option value="3">3 วัน</option><option value="7" selected>7 วัน</option><option value="30">30 วัน</option></select></label><button type="button" class="admin-primary" data-admin-action="post-announcement">ประกาศ</button></div>${table(["ประกาศ", "ประกาศเมื่อ", "หมดอายุ", ""], rows, "ยังไม่มีประกาศ")}</section>`;
   }
