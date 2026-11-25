@@ -1,0 +1,368 @@
+/* Dark mode, unified.
+ * One night palette for both token sets (style.css legacy + theme.css hk-*),
+ * loaded last so it settles the older teal/near-black values, plus fixes for
+ * surfaces that were hard-coded light and stayed white in dark mode. */
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces: deep navy, three steps up from the page */
+  --dk-page: #0b1322;
+  --dk-surface: #111c2e;
+  --dk-raised: #16243a;
+  --dk-inset: #0e1828;
+  --dk-line: #22334d;
+  --dk-line-strong: #30476a;
+
+  /* Text */
+  --dk-heading: #f0f5fc;
+  --dk-ink: #dbe5f2;
+  --dk-muted: #9badc5;
+
+  /* Accents */
+  --dk-blue: #6ea8ff;
+  --dk-blue-hover: #94c0ff;
+  --dk-blue-soft: #15294a;
+  --dk-green: #4fd6a6;
+  --dk-green-soft: #0f3029;
+  --dk-amber: #f6c25e;
+  --dk-amber-soft: #2f2511;
+  --dk-amber-line: #5c4720;
+  --dk-red: #ff8f96;
+  --dk-red-soft: #3a1c24;
+  --dk-violet: #b39cff;
+  --dk-violet-soft: #241c42;
+
+  /* theme.css tokens */
+  --hk-sky-50: var(--dk-page);
+  --hk-sky-100: var(--dk-raised);
+  --hk-sky-200: #1d3150;
+  --hk-sky-300: #2d4a74;
+  --hk-blue: var(--dk-blue);
+  --hk-blue-hover: var(--dk-blue-hover);
+  --hk-navy: var(--dk-heading);
+  --hk-deep: #1b4a92;
+  --hk-deep-2: #12305e;
+  --hk-ink: var(--dk-ink);
+  --hk-muted: var(--dk-muted);
+  --hk-line: var(--dk-line);
+  --hk-paper: var(--dk-surface);
+  --hk-sun-soft: var(--dk-amber-soft);
+  --hk-sun-ink: #ffd27a;
+  --hk-shadow-color: 2 6 14;
+
+  /* style.css tokens */
+  --field-edge: #4a6488;
+  --navy: var(--dk-heading);
+  --navy-dark: var(--dk-heading);
+  --blue: var(--dk-blue);
+  --blue-hover: var(--dk-blue-hover);
+  --blue-light: var(--dk-blue-soft);
+  --turq: var(--dk-green);
+  --turq-light: var(--dk-green-soft);
+  --amber: var(--dk-amber);
+  --amber-light: var(--dk-amber-soft);
+  --rose: var(--dk-red);
+  --rose-light: var(--dk-red-soft);
+  --bg-page: var(--dk-page);
+  --bg-card: var(--dk-surface);
+  --ink: var(--dk-ink);
+  --text-sub: var(--dk-muted);
+  --line: var(--dk-line);
+  --line-strong: var(--dk-line-strong);
+  --shadow-xs: 0 1px 2px rgb(2 6 14 / 0.3);
+  --shadow-sm: 0 4px 14px rgb(2 6 14 / 0.32);
+  --shadow-md: 0 10px 28px rgb(2 6 14 / 0.4);
+  --shadow-lg: 0 18px 40px rgb(2 6 14 / 0.45);
+  --shadow-hover: 0 16px 36px rgb(2 6 14 / 0.5);
+}
+
+/* ---------- Page, header, nav ---------- */
+:root[data-theme="dark"] body {
+  background-color: var(--dk-page);
+  background-image:
+    radial-gradient(ellipse 70% 45% at 15% 0%, rgb(46 104 196 / 0.16), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 90% 35%, rgb(46 104 196 / 0.07), transparent 70%);
+  background-attachment: fixed;
+}
+:root[data-theme="dark"] .site-header,
+:root[data-theme="dark"] .site-header.is-scrolled,
+:root[data-theme="dark"] .bottom-nav {
+  background: rgb(11 19 34 / 0.9);
+  border-color: var(--dk-line);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+:root[data-theme="dark"] .nav-link { color: var(--dk-muted); }
+:root[data-theme="dark"] .nav-link:hover { color: var(--dk-heading); background: transparent; }
+:root[data-theme="dark"] .nav-link.active { color: var(--dk-blue); }
+:root[data-theme="dark"] .icon-button,
+:root[data-theme="dark"] .header-chat-btn,
+:root[data-theme="dark"] .header-notifications-btn,
+:root[data-theme="dark"] .theme-toggle,
+:root[data-theme="dark"] .profile-menu-guest {
+  color: var(--dk-ink);
+  background: var(--dk-raised);
+  border-color: var(--dk-line);
+}
+
+/* ---------- Fields ---------- */
+:root[data-theme="dark"] .locale-select,
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  color: var(--dk-ink);
+  background-color: var(--dk-inset);
+  border-color: var(--dk-line-strong);
+}
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder { color: #6f84a2; }
+
+/* ---------- Buttons ---------- */
+/* Solid blue with white text reads better at night than pale blue with dark text. */
+:root[data-theme="dark"] .button.primary,
+:root[data-theme="dark"] .header-create-menu-wrap .header-create-btn.button,
+:root[data-theme="dark"] .button.header-create-btn {
+  color: #fff;
+  background: #2f74e0;
+  border-color: #2f74e0;
+}
+:root[data-theme="dark"] .button.primary:hover,
+:root[data-theme="dark"] .header-create-menu-wrap .header-create-btn.button:hover,
+:root[data-theme="dark"] .button.header-create-btn:hover {
+  background: #3d84f0;
+  border-color: #3d84f0;
+}
+:root[data-theme="dark"] .button.secondary {
+  color: var(--dk-green);
+  background: var(--dk-green-soft);
+  border-color: rgb(79 214 166 / 0.25);
+}
+:root[data-theme="dark"] .button.secondary:hover {
+  color: #7ee6c0;
+  background: #133b33;
+}
+:root[data-theme="dark"] .google-button {
+  color: var(--dk-ink);
+  background: var(--dk-raised);
+  border-color: var(--dk-line-strong);
+}
+
+/* ---------- Home ---------- */
+:root[data-theme="dark"] .home-hero {
+  background-color: #0d1729;
+  background-image:
+    radial-gradient(rgb(110 168 255 / 0.1) 1.2px, transparent 1.2px),
+    radial-gradient(circle at 14% 25%, rgb(46 104 196 / 0.22), transparent 46%),
+    radial-gradient(circle at 84% 40%, rgb(70 120 220 / 0.18), transparent 50%),
+    linear-gradient(160deg, #0f1b30 0%, #0b1322 100%);
+  border-bottom: 1px solid var(--dk-line);
+}
+:root[data-theme="dark"] .home-hero .hero-halo {
+  background: radial-gradient(circle, rgb(70 130 240 / 0.35) 0%, transparent 70%);
+}
+:root[data-theme="dark"] .home-hero .hero-search {
+  color: var(--dk-ink);
+  background: var(--dk-surface);
+  border-color: var(--dk-line-strong);
+  box-shadow: 0 10px 30px rgb(2 6 14 / 0.45);
+}
+:root[data-theme="dark"] .home-hero .hero-search:focus-within {
+  border-color: var(--dk-blue);
+  box-shadow: 0 10px 30px rgb(2 6 14 / 0.45), 0 0 0 3px rgb(110 168 255 / 0.22);
+}
+:root[data-theme="dark"] .home-hero .hero-search input { color: var(--dk-ink); }
+
+:root[data-theme="dark"] .home-discovery-section,
+:root[data-theme="dark"] .home-used-section {
+  background: var(--dk-surface);
+  border-color: var(--dk-line);
+  box-shadow: none;
+}
+:root[data-theme="dark"] .home-section-banner {
+  background:
+    radial-gradient(ellipse at 80% 120%, rgb(110 168 255 / 0.18), transparent 50%),
+    linear-gradient(100deg, #15294a, #112240);
+}
+:root[data-theme="dark"] .hk-home-section .home-section-banner {
+  background:
+    radial-gradient(ellipse at 80% 120%, rgb(246 194 94 / 0.16), transparent 50%),
+    linear-gradient(100deg, #2b2312, #221c10);
+}
+:root[data-theme="dark"] .home-used-section .home-section-banner {
+  background:
+    radial-gradient(ellipse at 80% 120%, rgb(179 156 255 / 0.16), transparent 50%),
+    linear-gradient(100deg, #241c42, #1c1735);
+}
+:root[data-theme="dark"] .home-section-banner h2 { color: var(--dk-heading); }
+:root[data-theme="dark"] .home-section-banner p { color: var(--dk-muted); }
+:root[data-theme="dark"] .home-section-icon {
+  color: var(--dk-blue);
+  background: rgb(255 255 255 / 0.06);
+  filter: none;
+}
+:root[data-theme="dark"] .home-section-icon.market,
+:root[data-theme="dark"] .home-used-section .home-section-icon { color: var(--dk-violet); }
+:root[data-theme="dark"] .hk-home-section .hk-home-icon {
+  color: var(--dk-amber);
+  background: rgb(255 255 255 / 0.06);
+  filter: none;
+}
+:root[data-theme="dark"] .home-used-section .home-filter-pill {
+  color: #cbbdf5;
+  background: var(--dk-violet-soft);
+  border-color: #3a2f66;
+}
+
+/* Product art tiles: keep the hue, drop the brightness */
+:root[data-theme="dark"] .product-art { background: var(--dk-raised); color: var(--dk-heading); }
+:root[data-theme="dark"] .product-art.box { background: #12312d; }
+:root[data-theme="dark"] .product-art.print { background: #16264a; }
+:root[data-theme="dark"] .product-art.clean { background: #1c2e1a; }
+
+/* ---------- Group page ---------- */
+:root[data-theme="dark"] .group-page .summary-card .summary-warning,
+:root[data-theme="dark"] .summary-warning {
+  color: #f3d79b;
+  background: var(--dk-amber-soft);
+  border-color: var(--dk-amber-line);
+}
+:root[data-theme="dark"] .group-page .summary-card .summary-warning .warning-icon { color: var(--dk-amber); }
+:root[data-theme="dark"] .preview-cost { background: var(--dk-green-soft); }
+:root[data-theme="dark"] .opportunity-track { background: var(--dk-raised); }
+
+/* ---------- Account ---------- */
+:root[data-theme="dark"] .account-dashboard {
+  background: transparent;
+  padding-inline: 0;
+}
+:root[data-theme="dark"] .account-summary-tile {
+  background: var(--dk-surface);
+  border-color: var(--dk-line);
+}
+:root[data-theme="dark"] .account-summary-tile .account-summary-icon,
+:root[data-theme="dark"] .account-summary-tile.blue .account-summary-icon {
+  color: var(--dk-blue);
+  background: var(--dk-blue-soft);
+}
+:root[data-theme="dark"] .account-summary-tile.amber .account-summary-icon {
+  color: var(--dk-amber);
+  background: var(--dk-amber-soft);
+}
+:root[data-theme="dark"] .account-shortcut-icon.violet {
+  color: var(--dk-violet);
+  background: var(--dk-violet-soft);
+}
+:root[data-theme="dark"] .account-shortcut .account-shortcut-icon.red {
+  color: var(--dk-red);
+  background: var(--dk-red-soft);
+}
+
+/* ---------- Subscription ---------- */
+:root[data-theme="dark"] .subscription-hero h1,
+:root[data-theme="dark"] .subscription-plan h2,
+:root[data-theme="dark"] .subscription-price { color: var(--dk-heading); }
+:root[data-theme="dark"] .subscription-badge {
+  color: var(--dk-blue);
+  background: var(--dk-blue-soft);
+}
+:root[data-theme="dark"] .subscription-comparison {
+  background: var(--dk-surface);
+  border-color: var(--dk-line);
+  box-shadow: none;
+}
+:root[data-theme="dark"] .subscription-table thead th { background: var(--dk-raised); }
+:root[data-theme="dark"] .subscription-table tbody td:last-child {
+  color: var(--dk-blue);
+  background: rgb(110 168 255 / 0.06);
+}
+:root[data-theme="dark"] .subscription-dash { color: #6f84a2; }
+
+/* ---------- Create group ---------- */
+:root[data-theme="dark"] .category-options { background: var(--dk-inset); }
+:root[data-theme="dark"] .category-option {
+  color: var(--dk-ink);
+  background: var(--dk-raised);
+  border-color: var(--dk-line);
+}
+:root[data-theme="dark"] .selected-categories { background: var(--dk-inset); }
+:root[data-theme="dark"] .product-type-picker > label,
+:root[data-theme="dark"] .visibility-picker > label,
+:root[data-theme="dark"] .delivery-picker > label { background: var(--dk-surface); }
+:root[data-theme="dark"] .product-type-picker > label:has(input:checked),
+:root[data-theme="dark"] .visibility-picker > label:has(input:checked),
+:root[data-theme="dark"] .delivery-picker > label:has(input:checked) {
+  background: var(--dk-blue-soft);
+  border-color: var(--dk-blue);
+  box-shadow: 0 0 0 2px rgb(110 168 255 / 0.15);
+}
+:root[data-theme="dark"] .create-group-form .create-group-dropzone.is-dragging { background: var(--dk-blue-soft); }
+:root[data-theme="dark"] .create-summary-heading { background: var(--dk-raised); }
+:root[data-theme="dark"] .create-summary-product > div:first-child {
+  color: var(--dk-blue);
+  background: var(--dk-raised);
+}
+:root[data-theme="dark"] .create-group-summary dl > .summary-per-person { background: var(--dk-green-soft); }
+:root[data-theme="dark"] .summary-per-person dt,
+:root[data-theme="dark"] .summary-per-person dd { color: var(--dk-green); }
+
+/* Headings had a panel background painted behind them; text sits on the page. */
+:root[data-theme="dark"] .brand,
+:root[data-theme="dark"] .page-heading h1,
+:root[data-theme="dark"] .product-info h1,
+:root[data-theme="dark"] .product-terms h2,
+:root[data-theme="dark"] .profile-main h2,
+:root[data-theme="dark"] .account-stat strong,
+:root[data-theme="dark"] .account-order-action strong,
+:root[data-theme="dark"] .account-empty strong,
+:root[data-theme="dark"] .account-test-tools summary,
+:root[data-theme="dark"] .account-card-heading h2,
+:root[data-theme="dark"] .account-shortcuts h2,
+:root[data-theme="dark"] .chat-head h1 {
+  background: transparent;
+}
+
+/* Form fields: one inset colour everywhere */
+:root[data-theme="dark"] select:not(.hero-search select),
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] .search-bar,
+:root[data-theme="dark"] .form-panel input,
+:root[data-theme="dark"] .form-panel select,
+:root[data-theme="dark"] .form-panel textarea,
+:root[data-theme="dark"] .chat-input input,
+:root[data-theme="dark"] .auth-form input,
+:root[data-theme="dark"] .auth-form textarea {
+  color: var(--dk-ink);
+  background-color: var(--dk-inset);
+  border-color: var(--dk-line-strong);
+}
+:root[data-theme="dark"] input:focus-visible,
+:root[data-theme="dark"] select:focus-visible,
+:root[data-theme="dark"] textarea:focus-visible {
+  border-color: var(--dk-blue);
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(110 168 255 / 0.2);
+}
+
+/* Filled-blue surfaces with white text need a deeper blue than the text accent. */
+:root[data-theme="dark"] .search-bar button,
+:root[data-theme="dark"] .create-stepper button.active span {
+  color: #fff;
+  background: #2f74e0;
+  border-color: #2f74e0;
+}
+:root[data-theme="dark"] .auth-welcome {
+  color: #fff;
+  background:
+    radial-gradient(ellipse at 20% 0%, rgb(110 168 255 / 0.28), transparent 60%),
+    linear-gradient(160deg, #1d4f9e, #13336a);
+}
+:root[data-theme="dark"] .product-art small {
+  color: var(--dk-ink);
+  background: rgb(11 19 34 / 0.85);
+}
+:root[data-theme="dark"] .summary-warning span,
+:root[data-theme="dark"] .summary-warning b { color: #f3d79b; }
+:root[data-theme="dark"] .subscription-table thead th:last-child { color: var(--dk-blue); }
+:root[data-theme="dark"] legend b,
+:root[data-theme="dark"] label b { color: var(--dk-red); }

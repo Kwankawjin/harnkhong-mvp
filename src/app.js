@@ -1,6 +1,7 @@
 import "./style.css";
 import "./theme.css";
 import "./mobile.css";
+import "./dark.css";
 import { paymentReminders, recentCycleHistory, cycleChanges, HISTORY_KEEP_DAYS } from "./reminders.js";
 // The QR generator is only needed on payment screens, so it loads when first used.
 const loadQRCode = () => import("qrcode").then((module) => module.default || module);
