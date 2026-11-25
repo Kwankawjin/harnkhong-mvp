@@ -4062,13 +4062,11 @@ function memberProfilePage(memberId) {
       t("โปรไฟล์สมาชิก"),
       t("เข้าสู่ระบบเพื่อดูโปรไฟล์สมาชิกในกลุ่ม"),
     );
-  if (
-    !currentGroup ||
-    !state.user ||
-    !currentGroup.members.includes(state.user.id) ||
-    !currentGroup.members.includes(memberId)
-  )
+  // The group page lists members to anyone who can open the group, so the
+  // profile only needs the person to be in that group, not the viewer.
+  if (!currentGroup || !state.user || !currentGroup.members.includes(memberId))
     return notFound();
+  const viewerIsMember = currentGroup.members.includes(state.user.id);
   const profile =
     memberId === state.user.id
       ? state.user
@@ -4084,7 +4082,7 @@ function memberProfilePage(memberId) {
       <header class="member-profile-heading"><span class="avatar large">${avatar}</span><div><span class="member-profile-kicker">${t("สมาชิกในกลุ่ม")}</span><h1>${escape(memberName)}</h1><p>${escape(currentGroup.name)}</p></div></header>
       <section class="member-profile-bio"><h2>${t("เกี่ยวกับฉัน")}</h2><p>${escape(profile.bio || t("ยังไม่ได้เพิ่มคำแนะนำตัว"))}</p></section>
       <div class="member-profile-rating"><span>${t("เรตโปรไฟล์")}</span><div><strong>— / 5</strong><small>${t("ยังไม่มีรีวิว")}</small></div></div>
-      <footer class="member-profile-actions">${a(`/groups/${encodeURIComponent(currentGroup.id)}/chat`, `${icon("chat", 18)} ${t("แชทกลุ่ม")}`, "button primary")}${a(`/groups/${encodeURIComponent(currentGroup.id)}`, t("ดูกลุ่ม"), "button outline")}</footer>
+      <footer class="member-profile-actions">${viewerIsMember ? a(`/groups/${encodeURIComponent(currentGroup.id)}/chat`, `${icon("chat", 18)} ${t("แชทกลุ่ม")}`, "button primary") : ""}${a(`/groups/${encodeURIComponent(currentGroup.id)}`, t("ดูกลุ่ม"), viewerIsMember ? "button outline" : "button primary")}</footer>
     </article>
   </section>`;
 }
