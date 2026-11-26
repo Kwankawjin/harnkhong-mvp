@@ -369,3 +369,4 @@
 :root[data-theme="dark"] .payday-cell { background: var(--dk-surface); border-color: var(--dk-line); color: inherit; }
 :root[data-theme="dark"] .payday-cell:has(input:checked) { background: var(--dk-blue); border-color: var(--dk-blue); color: #fff; }
 :root[data-theme="dark"] .payday-cell.is-unavailable { background: transparent; }
+:root[data-theme="dark"] .profile-dropdown-reload { background: var(--dk-blue-soft); border-color: var(--dk-line); color: var(--dk-blue); }

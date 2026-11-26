@@ -380,6 +380,9 @@ body.mobile-menu-open {
   animation: menu-pop 0.16s ease-out;
 }
 .profile-dropdown-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   padding: 10px 12px 12px;
   margin-bottom: 5px;
   border-bottom: 1px solid var(--line);
@@ -14492,3 +14495,23 @@ textarea,
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* Reload button beside the account name in the profile menu */
+.profile-dropdown-identity { flex: 1 1 auto; min-width: 0; }
+.profile-dropdown-reload {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--line, #dce8f4);
+  border-radius: 50%;
+  background: var(--blue-light, #e6f1fd);
+  color: var(--blue, #0868d8);
+  cursor: pointer;
+}
+.profile-dropdown-reload:hover { border-color: var(--blue, #0868d8); }
+.profile-dropdown-reload.is-spinning svg { animation: reload-spin 0.7s linear infinite; }
+@keyframes reload-spin { to { transform: rotate(360deg); } }
