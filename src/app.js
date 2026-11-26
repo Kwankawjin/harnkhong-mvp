@@ -3,6 +3,10 @@ import "./theme.css";
 import "./mobile.css";
 import "./dark.css";
 import { paymentReminders, recentCycleHistory, cycleChanges, HISTORY_KEEP_DAYS } from "./reminders.js";
+import { installDraftAutosave, restoreDrafts, clearDraft, clearAllDrafts, setDraftExtra, getDraftExtra } from "./drafts.js";
+
+const CREATE_DRAFT = "create-group";
+installDraftAutosave();
 // The QR generator is only needed on payment screens, so it loads when first used.
 const loadQRCode = () => import("qrcode").then((module) => module.default || module);
 import {
@@ -668,14 +672,7 @@ function go(path) {
   requestMarketplace.onNavigate(path.split("?")[0]);
   profileMenuOpen = false;
   listingMenuOpen = false;
-  // Leaving or entering the create form starts it blank.
-  if (
-    (location.pathname === "/groups/create") !==
-    (path.split("?")[0] === "/groups/create")
-  ) {
-    groupImages = [];
-    selectedCreateCategories = [];
-  }
+  // The create form keeps what was typed when you leave it (see drafts.js); it clears after a successful create.
   if (!/^\/seller\/products\/[^/]+\/edit$/.test(path)) listingImages = [];
   history.pushState({}, "", path);
   render();
@@ -2575,6 +2572,9 @@ function createPage() {
     requestedListing = allListings.find((item) => item.id === requested);
   // The owner fills every field themselves: no sample product, price or category is preset.
   const selected = requestedListing?.id || allListings[0]?.id;
+  if (!selectedCreateCategories.length)
+    selectedCreateCategories = getDraftExtra(CREATE_DRAFT, "categories") || [];
+  if (!groupImages.length) groupImages = getDraftExtra(CREATE_DRAFT, "images") || [];
   const selectedCategory = selectedCreateCategories[0] || "",
     selectedListing =
       allListings.find((item) => item.category === selectedCategory) ||
@@ -2587,7 +2587,7 @@ function createPage() {
     .join("");
   const today = new Date();
   const groupDateMin = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  return `${title(t("สร้างกลุ่มหารของ"), t("ชวนเพื่อนมาหารค่าใช้จ่าย เห็นยอดต่อคนก่อนสร้างกลุ่ม"))}<div class="create-group-layout"><form class="form-panel create-group-form" id="create-form" novalidate>
+  return `${title(t("สร้างกลุ่มหารของ"), t("ชวนเพื่อนมาหารค่าใช้จ่าย เห็นยอดต่อคนก่อนสร้างกลุ่ม"))}<div class="create-group-layout"><form class="form-panel create-group-form" id="create-form" data-draft="${CREATE_DRAFT}" novalidate><p class="draft-notice" data-draft-notice hidden>${icon("check", 18)}<span>${t("กู้ข้อมูลที่กรอกค้างไว้ให้แล้ว")}</span><button type="button" class="draft-notice-clear" data-action="clear-create-draft">${t("ล้างฟอร์ม")}</button></p>
     <input type="hidden" name="requestId" value="${crypto.randomUUID()}"/><input type="hidden" name="listingId" value="${selectedListing?.id || selected || ""}"/><input type="hidden" name="category" value="${escape(selectedCategory)}"/>
     <nav class="create-stepper" aria-label="${t("ขั้นตอนการสร้างกลุ่ม")}">${[[1,"ข้อมูลสินค้า"],[2,"ตั้งค่ากลุ่ม"],[3,"สรุปกลุ่ม"]].map(([step,label])=>`<button type="button" data-action="create-step" data-step="${step}" aria-current="${createGroupStep===step?"step":"false"}" class="${createGroupStep===step?"active":""}"><span>${step}</span>${t(label)}</button>`).join("")}</nav>
     <section class="create-step-panel" data-create-step-panel="1" ${createGroupStep===1?"":"hidden"}>
@@ -4766,7 +4766,15 @@ function render() {
   const demoExpiry = document.querySelector("[data-demo-expiry]");
   if (demoExpiry)
     startDemoCountdown(demoExpiry, Number(demoExpiry.dataset.demoExpiry));
-  if (document.querySelector("#create-form")) {
+  const createForm = document.querySelector("#create-form");
+  if (createForm) {
+    const hadDraft =
+      restoreDrafts(createForm).length ||
+      selectedCreateCategories.length ||
+      groupImages.length;
+    const draftNotice = createForm.querySelector("[data-draft-notice]");
+    if (draftNotice) draftNotice.hidden = !hadDraft;
+    syncCreateCategoryUI();
     updateCreateFormUI();
     updatePreview();
   }
@@ -5432,6 +5440,7 @@ document.addEventListener("change", async (e) => {
     if (!input.isConnected) return;
     if (isGroup) {
       groupImages.push(...images);
+      setDraftExtra(CREATE_DRAFT, "images", groupImages);
       document.querySelector("#image-draft").innerHTML = gallery(
         groupImages,
         true,
@@ -5777,6 +5786,7 @@ document.addEventListener("click", async (e) => {
         if (imagesLoading) return;
         const [cover] = groupImages.splice(index, 1);
         if (cover) groupImages.unshift(cover);
+        setDraftExtra(CREATE_DRAFT, "images", groupImages);
         document.querySelector("#image-draft").innerHTML = gallery(
           groupImages,
           true,
@@ -5932,10 +5942,18 @@ document.addEventListener("click", async (e) => {
     } else if (action === "image-remove") {
       if (imagesLoading) return;
       groupImages.splice(Number(btn.dataset.index), 1);
+      setDraftExtra(CREATE_DRAFT, "images", groupImages);
       document.querySelector("#image-draft").innerHTML = gallery(
         groupImages,
         true,
       );
+    } else if (action === "clear-create-draft") {
+      if (!confirm(t("ล้างข้อมูลที่กรอกไว้ทั้งหมดใช่ไหม?"))) return;
+      clearDraft(CREATE_DRAFT);
+      groupImages = [];
+      selectedCreateCategories = [];
+      createGroupStep = 1;
+      render();
     } else if (action === "toggle-category" || action === "remove-category") {
       const category = btn.dataset.category;
       if (action === "toggle-category")
@@ -5946,6 +5964,7 @@ document.addEventListener("click", async (e) => {
         selectedCreateCategories = selectedCreateCategories.filter(
           (item) => item !== category,
         );
+      setDraftExtra(CREATE_DRAFT, "categories", selectedCreateCategories);
       syncCreateCategoryUI();
     } else if (action === "listing-cover") {
       const [image] = listingImages.splice(Number(btn.dataset.index), 1);
@@ -6558,6 +6577,7 @@ document.addEventListener("click", async (e) => {
       go(n.href);
     } else if (action === "logout") {
       authSessionSync?.invalidate();
+      clearAllDrafts();
       if (supabaseConfigured) {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
@@ -7526,6 +7546,7 @@ document.addEventListener("submit", async (e) => {
         groupImages = [];
         selectedCreateCategories = [];
         createGroupStep = 1;
+        clearDraft(CREATE_DRAFT);
         go(`/groups/${groupId}`);
         alertMessage(t("สร้างกลุ่มแล้ว"));
         return;
@@ -7570,7 +7591,7 @@ document.addEventListener("submit", async (e) => {
       groupImages = [];
       selectedCreateCategories = [];
       createGroupStep = 1;
-
+      clearDraft(CREATE_DRAFT);
       go(`/groups/${g.id}`);
       alertMessage(t("สร้างกลุ่มแล้ว"));
     } catch (err) {

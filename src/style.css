@@ -14523,3 +14523,41 @@ textarea,
 .profile-dropdown-reload:hover { border-color: var(--blue, #0868d8); }
 .profile-dropdown-reload.is-spinning svg { animation: reload-spin 0.7s linear infinite; }
 @keyframes reload-spin { to { transform: rotate(360deg); } }
+
+/* Create group: notice shown when a saved draft was filled back in */
+.draft-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: var(--hk-radius-control);
+  background: var(--hk-sky-50);
+  border: 1px solid var(--hk-sky-200);
+  color: var(--hk-ink);
+  font-size: 0.92rem;
+}
+.draft-notice[hidden] {
+  display: none;
+}
+.draft-notice svg {
+  flex: none;
+  color: var(--hk-blue);
+}
+.draft-notice span {
+  flex: 1 1 auto;
+}
+.draft-notice-clear {
+  flex: none;
+  border: 0;
+  background: none;
+  color: var(--hk-blue);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+.draft-notice-clear:hover {
+  background: var(--hk-sky-100);
+}
