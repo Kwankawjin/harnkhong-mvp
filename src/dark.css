@@ -366,3 +366,6 @@
 :root[data-theme="dark"] .subscription-table thead th:last-child { color: var(--dk-blue); }
 :root[data-theme="dark"] legend b,
 :root[data-theme="dark"] label b { color: var(--dk-red); }
+:root[data-theme="dark"] .payday-cell { background: var(--dk-surface); border-color: var(--dk-line); color: inherit; }
+:root[data-theme="dark"] .payday-cell:has(input:checked) { background: var(--dk-blue); border-color: var(--dk-blue); color: #fff; }
+:root[data-theme="dark"] .payday-cell.is-unavailable { background: transparent; }
