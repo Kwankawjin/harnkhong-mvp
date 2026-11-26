@@ -3,6 +3,7 @@ import "./theme.css";
 import "./mobile.css";
 import "./dark.css";
 import { paymentReminders, recentCycleHistory, cycleChanges, HISTORY_KEEP_DAYS } from "./reminders.js";
+import { parseGroupLink } from "./group-link.js";
 // The QR generator is only needed on payment screens, so it loads when first used.
 const loadQRCode = () => import("qrcode").then((module) => module.default || module);
 import {
@@ -2905,7 +2906,7 @@ function myGroups() {
   const upcomingBox = upcoming.length
     ? `<section class="next-month-summary"><small>${t("รอบถัดไปของกลุ่มรายเดือน")}</small><strong>${money(upcoming.reduce((sum, { f }) => sum + f.amount, 0))}</strong><span class="next-month-sub">${t("รวม {count} กลุ่ม · ใกล้สุด {date}", { count: upcoming.length, date: shortDate(upcoming[0].f.startsAt) })}</span><dl class="owner-payout-lines">${upcoming.map(({ g, f }) => `<div><dt>${a(`/groups/${g.id}`, escape(g.name))} · ${shortDate(f.startsAt)}${f.changed ? ` <em>${t("ยอดเปลี่ยน")}</em>` : ""}</dt><dd>${money(f.amount)}</dd></div>`).join("")}</dl></section>`
     : "";
-  return `${title(t("กลุ่มของฉัน"), t("ติดตามสมาชิกและยอดที่ต้องยืนยันในแต่ละกลุ่ม"))}${upcomingBox}<div class="section-header"><h2>${t("{count} กลุ่ม", { count: gs.length })}</h2>${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่ม")}`, "button secondary")}</div>${gs.length ? `<div class="group-grid">${gs.map(groupCard).join("")}</div>` : `<div class="empty"><h2>${t("ยังไม่มีกลุ่มที่เข้าร่วม")}</h2><p>${t("ลองสำรวจสินค้าที่อยากหารก่อน")}</p>${a("/explore", t("ไปสำรวจ"), "button primary")}</div>`}${past.length ? `<details class="group-history-list"><summary>${t("ประวัติ · กลุ่มที่จบแล้ว ({count})", { count: past.length })}</summary><ul>${past.map((g) => `<li>${a(`/groups/${g.id}`, `<span><b>${escape(g.name)}</b><small>${g.closedAt ? t("ปิดกลุ่ม {date}", { date: shortDate(g.closedAt) }) : t("ซ่อนจากรายการ")}</small></span>${icon("arrow", 16)}`)}</li>`).join("")}</ul></details>` : ""}`;
+  return `${title(t("กลุ่มของฉัน"), t("ติดตามสมาชิกและยอดที่ต้องยืนยันในแต่ละกลุ่ม"))}${upcomingBox}<div class="section-header my-groups-header"><h2>${t("{count} กลุ่ม", { count: gs.length })}</h2><div class="my-groups-actions"><form class="group-link-form" id="group-link-form" novalidate><label class="sr-only" for="group-link-input">${t("วางลิงก์กลุ่ม")}</label><span class="group-link-icon" aria-hidden="true">${icon("link", 18)}</span><input id="group-link-input" name="link" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${t("วางลิงก์กลุ่มที่เพื่อนส่งมา")}"/><button class="button primary" type="submit">${t("เปิดกลุ่ม")}</button></form>${a("/groups/create", `${icon("plus", 18)} ${t("สร้างกลุ่ม")}`, "button secondary")}</div></div><p id="group-link-error" class="group-link-error" role="alert" hidden></p>${gs.length ? `<div class="group-grid">${gs.map(groupCard).join("")}</div>` : `<div class="empty"><h2>${t("ยังไม่มีกลุ่มที่เข้าร่วม")}</h2><p>${t("ลองสำรวจสินค้าที่อยากหารก่อน")}</p>${a("/explore", t("ไปสำรวจ"), "button primary")}</div>`}${past.length ? `<details class="group-history-list"><summary>${t("ประวัติ · กลุ่มที่จบแล้ว ({count})", { count: past.length })}</summary><ul>${past.map((g) => `<li>${a(`/groups/${g.id}`, `<span><b>${escape(g.name)}</b><small>${g.closedAt ? t("ปิดกลุ่ม {date}", { date: shortDate(g.closedAt) }) : t("ซ่อนจากรายการ")}</small></span>${icon("arrow", 16)}`)}</li>`).join("")}</ul></details>` : ""}`;
 }
 function getGroupMessages(groupId) {
   const defaultGroupMessages = {
@@ -6508,6 +6509,8 @@ document.addEventListener("click", async (e) => {
         location.href,
       );
       if (token) inviteUrl.searchParams.set("invite", token);
+      // LINE opens links in its own browser, which has no HarnKhong login; this asks it to use Safari/Chrome.
+      inviteUrl.searchParams.set("openExternalBrowser", "1");
       const value = inviteUrl.href;
       let copied = false;
       if (navigator.clipboard?.writeText) {
@@ -6730,6 +6733,23 @@ document.addEventListener("click", async (e) => {
 });
 document.addEventListener("submit", (e) => {
   requestMarketplace.onSubmit(e);
+});
+document.addEventListener("submit", (e) => {
+  const f = e.target;
+  if (f.id !== "group-link-form") return;
+  e.preventDefault();
+  const input = f.querySelector("input[name=link]");
+  const error = document.getElementById("group-link-error");
+  const path = parseGroupLink(input?.value);
+  if (!path) {
+    if (error) {
+      error.textContent = t("ลิงก์นี้ไม่ใช่ลิงก์กลุ่ม ลองคัดลอกลิงก์เชิญจากเพื่อนมาวางใหม่");
+      error.hidden = false;
+    }
+    input?.focus();
+    return;
+  }
+  go(path);
 });
 document.addEventListener("submit", async (e) => {
   const f = e.target;

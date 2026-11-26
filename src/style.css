@@ -14523,3 +14523,81 @@ textarea,
 .profile-dropdown-reload:hover { border-color: var(--blue, #0868d8); }
 .profile-dropdown-reload.is-spinning svg { animation: reload-spin 0.7s linear infinite; }
 @keyframes reload-spin { to { transform: rotate(360deg); } }
+
+/* My groups: paste a group link next to "create group" */
+.my-groups-header {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.my-groups-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 420px;
+  justify-content: flex-end;
+  max-width: 720px;
+}
+.group-link-form {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 5px 5px 40px;
+  border: 1px solid var(--hk-line);
+  border-radius: var(--hk-radius-control);
+  background: var(--hk-paper);
+  box-shadow: var(--hk-shadow-sm);
+  transition: border-color var(--hk-fast) var(--hk-ease), box-shadow var(--hk-fast) var(--hk-ease);
+}
+.group-link-form:focus-within {
+  border-color: var(--hk-blue);
+  box-shadow: 0 0 0 3px rgb(22 96 196 / 0.15);
+}
+.group-link-icon {
+  position: absolute;
+  left: 13px;
+  display: inline-flex;
+  color: var(--hk-muted);
+}
+.group-link-form input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--hk-ink);
+  font: inherit;
+  font-size: 16px; /* stops iOS zooming on focus */
+  padding: 8px 0;
+}
+.group-link-form .button {
+  flex: none;
+  padding-block: 9px;
+}
+.my-groups-actions > .button {
+  flex: none;
+}
+.group-link-error {
+  margin: -10px 0 18px;
+  color: #c2410c;
+  font-size: 0.92rem;
+  text-align: right;
+}
+@media (max-width: 640px) {
+  .my-groups-actions {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+  }
+  .group-link-form {
+    flex-basis: 100%;
+  }
+  .my-groups-actions > .button {
+    width: 100%;
+    justify-content: center;
+  }
+  .group-link-error {
+    text-align: left;
+  }
+}
