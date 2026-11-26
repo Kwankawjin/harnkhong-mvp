@@ -4827,15 +4827,11 @@ const formCosts = (d) => ({
   mode: SEAT_MODE,
 });
 window.addEventListener("resize", updateFilterCarousel, { passive: true });
-// Monthly pay day as a calendar-style grid of days. 29–31 are shown but not selectable,
-// because some months don't have them.
+// Monthly pay day: type a day (1–28) or drag the slider; the two stay in sync.
 function payDayGrid(selected, disabled = false) {
-  const cells = Array.from({ length: 31 }, (_, i) => {
-    const day = i + 1;
-    if (day > 28) return `<span class="payday-cell is-unavailable" aria-hidden="true">${day}</span>`;
-    return `<label class="payday-cell"><input type="radio" name="payDay" value="${day}" ${selected === day ? "checked" : ""} ${disabled ? "disabled" : ""} required aria-label="${t("วันที่ {day} ของทุกเดือน", { day })}"/><span>${day}</span></label>`;
-  }).join("");
-  return `<div class="payday-grid" role="radiogroup">${cells}</div>`;
+  const value = selected >= 1 && selected <= 28 ? selected : "";
+  const dis = disabled ? "disabled" : "";
+  return `<div class="payday-control"><div class="payday-input-row"><input class="payday-number" name="payDay" type="number" inputmode="numeric" min="1" max="28" step="1" value="${value}" placeholder="—" required ${dis} data-payday-number aria-label="${t("จ่ายทุกวันที่")}"/><span>${t("ของทุกเดือน")}</span></div><input class="payday-range" type="range" min="1" max="28" step="1" value="${value || 1}" ${dis} data-payday-range aria-label="${t("เลื่อนเพื่อเลือกวันที่")}"/><div class="payday-ticks" aria-hidden="true">${[1, 7, 14, 21, 28].map((d) => `<span>${d}</span>`).join("")}</div></div>`;
 }
 function updateCreateFormUI() {
   const form = document.querySelector("#create-form");
@@ -6917,6 +6913,34 @@ document.addEventListener("submit", async (e) => {
       );
     }
     return;
+  }
+});
+document.addEventListener("input", (e) => {
+  const range = e.target.closest?.("[data-payday-range]");
+  if (range) {
+    const number = range.closest(".payday-control")?.querySelector("[data-payday-number]");
+    if (number && number.value !== range.value) {
+      number.value = range.value;
+      number.dispatchEvent(new Event("input", { bubbles: true }));
+      number.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return;
+  }
+  const number = e.target.closest?.("[data-payday-number]");
+  if (number) {
+    const day = Number(number.value);
+    const slider = number.closest(".payday-control")?.querySelector("[data-payday-range]");
+    if (slider && Number.isInteger(day) && day >= 1 && day <= 28) slider.value = String(day);
+  }
+});
+document.addEventListener("change", (e) => {
+  const number = e.target.closest?.("[data-payday-number]");
+  if (!number || number.value === "") return;
+  const day = Math.min(28, Math.max(1, Math.round(Number(number.value) || 1)));
+  if (String(day) !== number.value) {
+    number.value = String(day);
+    const slider = number.closest(".payday-control")?.querySelector("[data-payday-range]");
+    if (slider) slider.value = String(day);
   }
 });
 document.addEventListener("input", (e) => requestMarketplace.onInput(e));

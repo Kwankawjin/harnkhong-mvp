@@ -14449,51 +14449,59 @@ textarea,
   color: var(--text-sub, #536d87);
   font-size: 0.75rem;
 }
-.payday-grid {
+.payday-control {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 6px;
-  max-width: 360px;
+  gap: 12px;
+  max-width: 420px;
 }
-.payday-cell {
-  position: relative;
-  display: grid;
-  place-items: center;
-  aspect-ratio: 1;
-  min-height: 0;
-  margin: 0;
-  border: 1px solid var(--line, #dce8f4);
-  border-radius: 10px;
-  background: #fff;
+.payday-input-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.payday-input-row span {
   color: var(--ink, #123760);
-  font-size: 0.9rem;
+  font-size: 1.05rem;
   font-weight: 600;
-  cursor: pointer;
-  user-select: none;
 }
-.payday-cell input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
+.payday-picker .payday-number {
+  display: block;
+  flex: 0 0 auto;
   margin: 0;
-  opacity: 0;
+  width: 96px;
+  min-height: 64px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong, #cfe4fb);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--blue, #0868d8);
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+.payday-picker .payday-number::-webkit-outer-spin-button,
+.payday-picker .payday-number::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.payday-picker .payday-number:focus { border-color: var(--blue, #0868d8); outline: none; box-shadow: 0 0 0 3px rgb(8 104 216 / 15%); }
+.payday-picker .payday-range {
+  display: block;
+  width: 100%;
+  background: transparent;
+  min-height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  accent-color: var(--blue, #0868d8);
   cursor: pointer;
 }
-.payday-cell:hover { border-color: var(--line-strong, #a9cdf6); }
-.payday-cell:has(input:checked) {
-  border-color: var(--blue, #0868d8);
-  background: var(--blue, #0868d8);
-  color: #fff;
-}
-.payday-cell:has(input:focus-visible) { outline: 2px solid var(--blue, #0868d8); outline-offset: 2px; }
-.payday-cell.is-unavailable {
-  border-style: dashed;
-  background: transparent;
+.payday-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: -6px;
+  padding: 0 4px;
   color: var(--text-sub, #536d87);
-  opacity: 0.45;
-  cursor: not-allowed;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 /* Reload button beside the account name in the profile menu */
