@@ -2,6 +2,10 @@ import { assertSatang } from "./domain.js";
 
 // Thai source text is the key for UI copy; stored/user-entered content is never translated.
 const labels = {
+  "วางลิงก์กลุ่ม": "Paste a group link",
+  "วางลิงก์กลุ่มที่เพื่อนส่งมา": "Paste a group link from a friend",
+  "เปิดกลุ่ม": "Open group",
+  "ลิงก์นี้ไม่ใช่ลิงก์กลุ่ม ลองคัดลอกลิงก์เชิญจากเพื่อนมาวางใหม่": "That isn't a group link. Copy the invite link from your friend and paste it again.",
   "โอนให้คุณแล้ว": "Paid to you",
   "ดูสลิป": "View slip",
   "ยังไม่มีบัญชีรับเงิน": "No payout account yet",
