@@ -14426,3 +14426,69 @@ textarea,
 .chat-search {
   border-color: var(--field-edge);
 }
+
+/* Monthly pay day: calendar-style day grid */
+.payday-picker {
+  min-width: 0;
+  margin: 0 0 20px;
+  padding: 0;
+  border: 0;
+}
+.payday-picker legend {
+  margin-bottom: 10px;
+  color: var(--navy, #08366b);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+.payday-picker small {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-sub, #536d87);
+  font-size: 0.75rem;
+}
+.payday-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  max-width: 360px;
+}
+.payday-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-height: 0;
+  margin: 0;
+  border: 1px solid var(--line, #dce8f4);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink, #123760);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+.payday-cell input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.payday-cell:hover { border-color: var(--line-strong, #a9cdf6); }
+.payday-cell:has(input:checked) {
+  border-color: var(--blue, #0868d8);
+  background: var(--blue, #0868d8);
+  color: #fff;
+}
+.payday-cell:has(input:focus-visible) { outline: 2px solid var(--blue, #0868d8); outline-offset: 2px; }
+.payday-cell.is-unavailable {
+  border-style: dashed;
+  background: transparent;
+  color: var(--text-sub, #536d87);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
