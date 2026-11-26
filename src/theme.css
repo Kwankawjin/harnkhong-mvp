@@ -3116,3 +3116,35 @@ body.has-test-banner {
 .hk-plan-features li.is-soon {
   opacity: 0.8;
 }
+
+/* Group chat bubbles: size to the text like IG/Messenger instead of
+   collapsing to one character per line. The row hugs its content up to
+   75% of the chat width, and words only break when they truly overflow. */
+:root .group-msg-row {
+  width: max-content;
+  max-width: 75%;
+}
+:root .group-msg-col {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+}
+:root .group-msg-col .bubble,
+:root .chat-workspace .group-msg-col .bubble {
+  width: auto;
+  max-width: 100%;
+  align-self: flex-start;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-break: auto;
+}
+:root .group-msg-row.mine .group-msg-col .bubble {
+  align-self: flex-end;
+}
+@media (max-width: 760px) {
+  :root .group-msg-row,
+  :root .chat-workspace .group-msg-row {
+    max-width: 80%;
+  }
+}
