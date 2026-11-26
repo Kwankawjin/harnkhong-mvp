@@ -2,6 +2,9 @@ import { assertSatang } from "./domain.js";
 
 // Thai source text is the key for UI copy; stored/user-entered content is never translated.
 const labels = {
+  "กู้ข้อมูลที่กรอกค้างไว้ให้แล้ว": "We kept what you typed last time",
+  "ล้างฟอร์ม": "Clear form",
+  "ล้างข้อมูลที่กรอกไว้ทั้งหมดใช่ไหม?": "Clear everything you've typed?",
   "โอนให้คุณแล้ว": "Paid to you",
   "ดูสลิป": "View slip",
   "ยังไม่มีบัญชีรับเงิน": "No payout account yet",

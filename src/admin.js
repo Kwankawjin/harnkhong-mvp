@@ -1,4 +1,7 @@
 import "./admin.css";
+import { installDraftAutosave, restoreDrafts, clearDraft, clearAllDrafts } from "./drafts.js";
+
+installDraftAutosave();
 
 // Menu in the order the work happens: confirm totals → check slips → settle problems → pay owners.
 const navItems = [
@@ -327,6 +330,7 @@ function shell(content, { user, section, login = false } = {}) {
   root.innerHTML = login
     ? `<main class="admin-login-wrap"><section class="admin-login"><a class="admin-brand" href="/"><img src="/images/harnkhong-logo.png" alt=""/><strong>HarnKhong</strong></a><h1>เข้าสู่ระบบผู้ดูแล</h1><p>สำหรับผู้ดูแลระบบเท่านั้น</p><button type="button" class="admin-google-button" data-admin-action="google-login" ${busy ? "disabled" : ""}><span class="admin-google-mark" aria-hidden="true">G</span>เข้าสู่ระบบด้วย Google</button><p class="admin-login-hint">ระบบให้สิทธิ์เฉพาะอีเมลผู้ดูแลที่กำหนดไว้เท่านั้น</p><div class="admin-login-divider"><span>หรือใช้อีเมลและรหัสผ่าน</span></div><form id="admin-login-form"><label>อีเมล<input type="email" name="email" autocomplete="username" required/></label><label>รหัสผ่าน<input type="password" name="password" autocomplete="current-password" required/></label><button class="admin-primary" type="submit" ${busy ? "disabled" : ""}>${busy ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}</button>${feedback ? `<p class="admin-feedback" role="alert">${escapeHtml(feedback)}</p>` : ""}</form><a class="admin-return" href="/">กลับไปหน้าเว็บไซต์</a></section></main>`
     : `<div class="admin-layout"><aside class="admin-sidebar"><a class="admin-brand" href="/"><img src="/images/harnkhong-logo.png" alt=""/><strong>HarnKhong</strong><small>ADMIN</small></a><nav aria-label="เมนูผู้ดูแล">${navItems.map(([key, label, icon, group], index) => `${group && group !== navItems[index - 1]?.[3] ? `<p class="admin-nav-group">${group}</p>` : ""}<a href="/admin#/${key}" class="admin-nav-link ${section === key ? "active" : ""}" ${section === key ? 'aria-current="page"' : ""}><span>${adminIcon(icon)}</span>${label}${workCounts[key] ? `<b class="admin-nav-badge" aria-label="ค้าง ${workCounts[key]} รายการ">${workCounts[key]}</b>` : ""}</a>`).join("")}</nav><div class="admin-sidebar-bottom"><span class="admin-online-dot"></span>เชื่อมต่อระบบแล้ว</div></aside><main class="admin-main"><header class="admin-topbar"><div><span class="admin-crumb">HarnKhong / Admin</span><h1>${sectionTitle(section)}</h1></div><div class="admin-account"><span class="admin-account-avatar">${escapeHtml((user?.email || "A").slice(0, 1).toUpperCase())}</span><span><strong>${escapeHtml(user?.email || "ผู้ดูแล")}</strong><small>ผู้ดูแลระบบ</small></span><button type="button" data-admin-action="logout" class="admin-logout">ออกจากระบบ</button></div></header><div class="admin-content">${content}</div></main></div><div class="admin-toast" role="status" aria-live="polite">${escapeHtml(feedback)}</div>`;
+  restoreDrafts(root);
 }
 
 function loading(title = "กำลังโหลดข้อมูล…") {
@@ -539,7 +543,7 @@ async function getSectionContent(section) {
         : billingErrorMessage(error));
     }
     const rows = (data || []).map((row) => `<tr><td><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.body || "")}</small></td><td>${formatDate(row.created_at)}</td><td>${row.expires_at ? formatDate(row.expires_at) : "ไม่หมดอายุ"}</td><td><button type="button" class="admin-danger" data-admin-action="delete-announcement" data-id="${escapeHtml(row.id)}">ลบ</button></td></tr>`).join("");
-    return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>ประกาศถึงทุกคน</h2><p>ขึ้นในแท็บ "อัปเดตระบบ" ของทุกบัญชีที่เข้าสู่ระบบ</p></div></div><div class="admin-announcement-form"><label>หัวข้อ<input data-announcement-title maxlength="120" placeholder="เช่น ปิดปรับปรุงระบบคืนนี้ 23:00–24:00"/></label><label>รายละเอียด <small>ไม่บังคับ</small><textarea data-announcement-body maxlength="1000" rows="3" placeholder="รายละเอียดที่สมาชิกควรรู้"></textarea></label><label>แสดงนาน<select data-announcement-days><option value="">จนกว่าจะลบ</option><option value="1">1 วัน</option><option value="3">3 วัน</option><option value="7" selected>7 วัน</option><option value="30">30 วัน</option></select></label><button type="button" class="admin-primary" data-admin-action="post-announcement">ประกาศ</button></div>${table(["ประกาศ", "ประกาศเมื่อ", "หมดอายุ", ""], rows, "ยังไม่มีประกาศ")}</section>`;
+    return `<section class="admin-panel"><div class="admin-panel-heading"><div><h2>ประกาศถึงทุกคน</h2><p>ขึ้นในแท็บ "อัปเดตระบบ" ของทุกบัญชีที่เข้าสู่ระบบ</p></div></div><div class="admin-announcement-form" data-draft="admin-announcement"><label>หัวข้อ<input data-announcement-title maxlength="120" placeholder="เช่น ปิดปรับปรุงระบบคืนนี้ 23:00–24:00"/></label><label>รายละเอียด <small>ไม่บังคับ</small><textarea data-announcement-body maxlength="1000" rows="3" placeholder="รายละเอียดที่สมาชิกควรรู้"></textarea></label><label>แสดงนาน<select data-announcement-days><option value="">จนกว่าจะลบ</option><option value="1">1 วัน</option><option value="3">3 วัน</option><option value="7" selected>7 วัน</option><option value="30">30 วัน</option></select></label><button type="button" class="admin-primary" data-admin-action="post-announcement">ประกาศ</button></div>${table(["ประกาศ", "ประกาศเมื่อ", "หมดอายุ", ""], rows, "ยังไม่มีประกาศ")}</section>`;
   }
   if (section === "reports") {
     const { data, error } = await currentClient.rpc("admin_app_problem_reports");
@@ -740,6 +744,7 @@ document.addEventListener("click", async (event) => {
     groupApprovalMonitorTimer = null;
     seenPaymentReportIds = null;
     seenGroupApprovalCounts = null;
+    clearAllDrafts();
     await currentClient.auth.signOut();
     feedback = "ออกจากระบบแล้ว";
     renderLogin();
@@ -776,6 +781,7 @@ document.addEventListener("click", async (event) => {
     try {
       const { error } = await currentClient.rpc("admin_post_announcement", { p_title: title, p_body: body, p_days: days ? Number(days) : null });
       if (error) throw new Error(billingErrorMessage(error));
+      clearDraft("admin-announcement");
       feedback = "ประกาศแล้ว สมาชิกจะเห็นในแท็บอัปเดตระบบ";
     } catch (error) {
       feedback = error.message || "ประกาศไม่สำเร็จ";
