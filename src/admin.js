@@ -11,6 +11,7 @@ const navItems = [
   ["groups", "กลุ่มทั้งหมด", "groups", "ข้อมูล"],
   ["users", "สมาชิก", "users", "ข้อมูล"],
   ["announcements", "ประกาศถึงทุกคน", "flag", "ข้อมูล"],
+  ["push-test", "ทดลองแจ้งเตือน", "bell", "ระบบ"],
   ["settings", "ตั้งค่า", "settings", "ระบบ"],
 ];
 // Old links (#/billing) now live on the slips page.
@@ -32,6 +33,40 @@ let cachedPaymentReports = [];
 let cachedBilling = { subscriptions: [], cycles: [] };
 let groupSearchQuery = "";
 let groupCategoryFilter = "all";
+// Last values typed on the push test page, kept across re-renders.
+let pushTestDraft = { user: "", template: "", title: "", body: "", url: "/notifications" };
+
+// Every push the site sends today, with sample text, so admin can preview each one on a phone.
+const pushTemplates = [
+  ["การชำระเงิน", "pay-tomorrow", "ครบกำหนดชำระพรุ่งนี้ ⏰", "Netflix Family · รอบที่ 3 · ฿99.00", "/notifications"],
+  ["การชำระเงิน", "pay-today", "คุณต้องชำระเงินภายในวันนี้ ⚠️", "Netflix Family · รอบที่ 3 · ฿99.00", "/notifications"],
+  ["การชำระเงิน", "pay-overdue", "เลยกำหนดชำระมา 3 วันแล้ว กรุณาชำระโดยเร็ว", "Netflix Family · รอบที่ 3 · ฿99.00", "/notifications"],
+  ["การชำระเงิน", "pay-reported", "มีคนชำระเงินแล้ว 💰", "Jin ชำระ ฿99.00 · Netflix Family รอบที่ 3", "/notifications"],
+  ["การชำระเงิน", "slip-ok", "แอดมินยืนยันสลิปแล้ว ✅", "Netflix Family · รอบที่ 3", "/notifications"],
+  ["การชำระเงิน", "slip-bad", "สลิปไม่ผ่าน กรุณาโอนใหม่", "Netflix Family · รอบที่ 3", "/notifications"],
+  ["การชำระเงิน", "payout", "ได้รับเงินจากกลุ่มแล้ว 💸", "Netflix Family · ฿485.10", "/notifications"],
+  ["รอบบิล", "cycle-start", "Netflix Family", "เริ่มรอบที่ 4 แล้ว ยืนยันยอดและชำระเงินได้เลย", "/notifications"],
+  ["รอบบิล", "cycle-paid", "Netflix Family", "รอบที่ 3: สมาชิกชำระครบทุกคนแล้ว", "/notifications"],
+  ["กิจกรรมในกลุ่ม", "joined", "Netflix Family", "Jin เข้าร่วมกลุ่มแล้ว ตรวจยอดใหม่และยืนยันได้เลย", "/notifications"],
+  ["กิจกรรมในกลุ่ม", "left", "Netflix Family", "Jin ออกจากกลุ่มแล้ว ยอดของแต่ละคนอาจเปลี่ยน", "/notifications"],
+  ["กิจกรรมในกลุ่ม", "costs", "Netflix Family", "ยอดหารของกลุ่มมีการเปลี่ยนแปลง ตรวจยอดใหม่และยืนยันได้เลย", "/notifications"],
+  ["กิจกรรมในกลุ่ม", "leader", "Netflix Family", "มีการเปลี่ยนเจ้าของกลุ่ม", "/notifications"],
+  ["กิจกรรมในกลุ่ม", "full", "Netflix Family", "กลุ่มมีสมาชิกครบแล้ว! 🎉", "/notifications"],
+  ["กิจกรรมในกลุ่ม", "closed", "Netflix Family", "กลุ่มถูกปิดแล้ว", "/notifications"],
+  ["กิจกรรมในกลุ่ม", "cancelled", "Netflix Family", "กลุ่มถูกยกเลิกแล้ว", "/notifications"],
+  ["กิจกรรมในกลุ่ม", "removed", "คุณถูกนำออกจากกลุ่ม", "Netflix Family", "/notifications"],
+  ["แชตกลุ่ม", "chat", "Netflix Family", "Jin: โอนแล้วนะ ฝากเช็กด้วย", "/notifications"],
+  ["ระบบหารของ", "offer-new", "มีข้อเสนอใหม่!", "Host เสนอกลุ่ม “Netflix Family” สำหรับ “หาคนหาร Netflix”", "/notifications"],
+  ["ระบบหารของ", "offer-accepted", "ข้อเสนอได้รับการยอมรับ", "ผู้หากลุ่มยอมรับข้อเสนอสำหรับ “หาคนหาร Netflix” ที่นั่งถูกจองไว้ 24 ชั่วโมง", "/notifications"],
+  ["ระบบหารของ", "offer-rejected", "ข้อเสนอไม่ได้รับเลือก", "ผู้หากลุ่มไม่ได้เลือกข้อเสนอของคุณสำหรับ “หาคนหาร Netflix”", "/notifications"],
+  ["ระบบหารของ", "offer-withdrawn", "Host ถอนข้อเสนอ", "Host ถอนข้อเสนอสำหรับ “หาคนหาร Netflix”", "/notifications"],
+  ["ระบบหารของ", "offer-cancelled", "ข้อเสนอถูกยกเลิก", "กลุ่ม “Netflix Family” ไม่ได้เปิดรับแล้ว ข้อเสนอสำหรับ “หาคนหาร Netflix” จึงถูกยกเลิก", "/notifications"],
+  ["ระบบหารของ", "request-cancelled", "ประกาศถูกยกเลิก", "ผู้หากลุ่มยกเลิกประกาศ “หาคนหาร Netflix” แล้ว", "/notifications"],
+  ["ระบบหารของ", "request-expired", "ประกาศหมดอายุ", "ประกาศ “หาคนหาร Netflix” หมดอายุแล้ว", "/notifications"],
+  ["ระบบหารของ", "reservation-expired", "การจองที่นั่งหมดเวลา", "ที่นั่งที่จองไว้สำหรับ “หาคนหาร Netflix” ถูกปล่อยแล้ว", "/notifications"],
+  ["ระบบหารของ", "seeker-joined", "ผู้หากลุ่มเข้าร่วมแล้ว", "ผู้หากลุ่มเข้าร่วมกลุ่ม “Netflix Family” จากประกาศ “หาคนหาร Netflix” แล้ว", "/notifications"],
+  ["ระบบ", "announcement", "ปิดปรับปรุงระบบคืนนี้ 23:00–24:00", "ขออภัยในความไม่สะดวก", "/notifications?tab=system"],
+];
 
 const escapeHtml = (value = "") =>
   String(value).replace(/[&<>"']/g, (char) => ({
@@ -314,6 +349,7 @@ function adminIcon(name) {
     payments: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>',
     users: '<path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM20 8v6M23 11h-6"/>',
     groups: '<circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5v1"/>',
+    bell: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.2.9-1.2 2.1-1.4-.6a8 8 0 0 1-1.7 1l-.2 1.5h-2.4l-.2-1.5a8 8 0 0 1-1.9 0l-.2 1.5H9.1l-.2-1.5a8 8 0 0 1-1.7-1l-1.4.6-1.2-2.1 1.2-.9a7 7 0 0 1 0-2l-1.2-.9 1.2-2.1 1.4.6a8 8 0 0 1 1.7-1l.2-1.5h2.4l.2 1.5a8 8 0 0 1 1.9 0l.2-1.5h2.4l.2 1.5a8 8 0 0 1 1.7 1l1.4-.6 1.2 2.1-1.2.9a7 7 0 0 1 0 1.9Z"/>',
   };
   return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.grid}</svg>`;
@@ -529,7 +565,39 @@ function appReportsContent(rows) {
   ${closed.length ? `<section class="admin-panel admin-panel-muted"><div class="admin-panel-heading"><div><h2>ปิดเรื่องแล้ว</h2></div></div>${table(headers, closed.map(render).join(""))}</section>` : ""}`;
 }
 
+function pushTestContent(targets, log) {
+  const draft = pushTestDraft;
+  if (!draft.user && targets.length) draft.user = String(targets[0].id);
+  const groups = [...new Set(pushTemplates.map(([group]) => group))];
+  const templateOptions = groups.map((group) => `<optgroup label="${escapeHtml(group)}">${pushTemplates.filter(([g]) => g === group).map(([, key, title, body]) => `<option value="${key}" ${draft.template === key ? "selected" : ""}>${escapeHtml(title === "Netflix Family" ? body : title)}</option>`).join("")}</optgroup>`).join("");
+  const targetOptions = targets.map((t) => `<option value="${escapeHtml(t.id)}" ${String(draft.user) === String(t.id) ? "selected" : ""}>${escapeHtml(t.display_name)}${t.is_me ? " (คุณ)" : ""} · ${t.devices} เครื่อง</option>`).join("");
+  const statusOf = (row) => row.sent_at
+    ? '<span class="admin-status good">ส่งแล้ว</span>'
+    : Number(row.attempts) >= 5 ? '<span class="admin-status bad">ส่งไม่สำเร็จ</span>' : '<span class="admin-status pending">รอส่ง</span>';
+  const logRows = (log || []).map((row) => `<tr><td><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.body || "")}</small></td><td>${escapeHtml(row.user_name)}${String(row.tag || "").startsWith("test") ? ' <span class="admin-status pending">ทดสอบ</span>' : ""}</td><td>${statusOf(row)}</td><td>${formatDate(row.created_at)}</td></tr>`).join("");
+  const form = targets.length
+    ? `<div class="admin-announcement-form"><label>ส่งถึง<select data-push-test-user>${targetOptions}</select></label><label>เลือกแบบแจ้งเตือน <small>ไม่บังคับ · เติมข้อความตัวอย่างให้</small><select data-push-test-template><option value="">— พิมพ์เอง —</option>${templateOptions}</select></label><label>หัวข้อ<input data-push-test-title maxlength="120" value="${escapeHtml(draft.title)}" placeholder="เช่น ครบกำหนดชำระพรุ่งนี้ ⏰"/></label><label>ข้อความ<textarea data-push-test-body maxlength="300" rows="2" placeholder="รายละเอียดสั้น ๆ">${escapeHtml(draft.body)}</textarea></label><button type="button" class="admin-primary" data-admin-action="send-test-push">ส่งแจ้งเตือนทดสอบ</button></div>`
+    : `<div class="admin-announcement-form"><p>ยังไม่มีบัญชีไหนเปิดรับแจ้งเตือน ให้เปิดแจ้งเตือนในหน้าเว็บบนมือถือก่อน แล้วกดรีเฟรช</p></div>`;
+  return `${howTo(["เลือกคนที่จะส่ง (เฉพาะบัญชีที่เปิดรับแจ้งเตือนบนมือถือแล้ว)", "เลือกแบบแจ้งเตือนที่อยากดู หรือพิมพ์ข้อความเอง", "กดส่ง แล้วดูที่มือถือ · การส่งทดสอบไม่นับในตัวเลขแจ้งเตือนบนไอคอนแอป"])}
+  <section class="admin-panel"><div class="admin-panel-heading"><div><h2>ส่งแจ้งเตือนทดสอบ</h2><p>ส่งถึงคนเดียว ไม่กระทบกลุ่มหรือข้อมูลจริง</p></div><div class="admin-panel-actions"><button type="button" class="admin-secondary" data-admin-action="reload">รีเฟรช</button></div></div>${form}</section>
+  <section class="admin-panel"><div class="admin-panel-heading"><div><h2>แจ้งเตือนล่าสุด</h2><p>30 รายการล่าสุดที่ระบบส่ง (เก็บย้อนหลัง 7 วัน)</p></div></div>${table(["แจ้งเตือน", "ถึง", "สถานะ", "เวลา"], logRows, "ยังไม่มีแจ้งเตือน")}</section>`;
+}
+
 async function getSectionContent(section) {
+  if (section === "push-test") {
+    const [targets, log] = await Promise.all([
+      currentClient.rpc("admin_push_targets"),
+      currentClient.rpc("admin_push_log", { p_limit: 30 }),
+    ]);
+    const error = targets.error || log.error;
+    if (error) {
+      const message = String(error.message || "");
+      throw new Error(error.code === "PGRST202" || message.includes("Could not find the function")
+        ? "ฐานข้อมูลยังไม่มีระบบทดลองแจ้งเตือน กรุณารัน migration 20261127110000_admin_push_test.sql"
+        : billingErrorMessage(error));
+    }
+    return pushTestContent(targets.data || [], log.data || []);
+  }
   if (section === "announcements") {
     const { data, error } = await currentClient.rpc("admin_announcements");
     if (error) {
@@ -761,6 +829,28 @@ document.addEventListener("click", async (event) => {
       feedback = permission === "granted" ? "เปิดแจ้งเตือนสมาชิกยืนยันยอดแล้ว" : "เบราว์เซอร์ไม่ได้รับอนุญาตให้แจ้งเตือน";
     }
     mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+  } else if (action === "send-test-push") {
+    if (busy) return;
+    const title = pushTestDraft.title.trim();
+    if (!pushTestDraft.user || !title) {
+      feedback = "กรุณาเลือกคนที่จะส่งและใส่หัวข้อ";
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+      return;
+    }
+    busy = true;
+    button.disabled = true;
+    try {
+      const { data, error } = await currentClient.rpc("admin_send_test_push", {
+        p_user: pushTestDraft.user, p_title: title, p_body: pushTestDraft.body.trim(), p_url: pushTestDraft.url || "/notifications",
+      });
+      if (error) throw new Error(String(error.message || "").includes("PUSH_TEST_TOO_SOON") ? "ส่งทดสอบถี่เกินไป รอสักครู่แล้วลองใหม่" : billingErrorMessage(error));
+      feedback = Number(data) > 0 ? `ส่งแล้ว ${data} เครื่อง ดูที่มือถือได้เลย` : "บัญชีนี้ไม่มีเครื่องที่เปิดรับแจ้งเตือน";
+    } catch (error) {
+      feedback = error.message || "ส่งแจ้งเตือนทดสอบไม่สำเร็จ";
+    } finally {
+      busy = false;
+      mountAdminPage({ supabase: currentClient, supabaseConfigured: true });
+    }
   } else if (action === "post-announcement") {
     if (busy) return;
     const title = String(document.querySelector("[data-announcement-title]")?.value || "").trim();
@@ -1036,6 +1126,11 @@ document.addEventListener("click", async (event) => {
 });
 
 document.addEventListener("input", (event) => {
+  const pushField = event.target.closest("[data-push-test-title], [data-push-test-body]");
+  if (pushField) {
+    pushTestDraft[pushField.matches("[data-push-test-title]") ? "title" : "body"] = pushField.value;
+    return;
+  }
   const search = event.target.closest("[data-admin-group-search]");
   if (!search) return;
   groupSearchQuery = search.value;
@@ -1044,6 +1139,24 @@ document.addEventListener("input", (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  const pushUser = event.target.closest("[data-push-test-user]");
+  if (pushUser) {
+    pushTestDraft.user = pushUser.value;
+    return;
+  }
+  const pushTemplate = event.target.closest("[data-push-test-template]");
+  if (pushTemplate) {
+    const found = pushTemplates.find(([, key]) => key === pushTemplate.value);
+    pushTestDraft.template = pushTemplate.value;
+    if (found) {
+      [, , pushTestDraft.title, pushTestDraft.body, pushTestDraft.url] = found;
+      const title = document.querySelector("[data-push-test-title]");
+      const body = document.querySelector("[data-push-test-body]");
+      if (title) title.value = pushTestDraft.title;
+      if (body) body.value = pushTestDraft.body;
+    }
+    return;
+  }
   const category = event.target.closest("[data-admin-group-category]");
   if (category) {
     groupCategoryFilter = category.value || "all";
