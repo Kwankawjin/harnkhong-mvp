@@ -2,6 +2,23 @@ import { assertSatang } from "./domain.js";
 
 // Thai source text is the key for UI copy; stored/user-entered content is never translated.
 const labels = {
+  "รับแจ้งเตือนบนมือถือ": "Get notifications on your phone",
+  "แจ้งเตือนบนมือถือ": "Phone notifications",
+  "บน iPhone/iPad ให้กดปุ่มแชร์ใน Safari แล้วเลือก \"เพิ่มไปยังหน้าจอโฮม\" จากนั้นเปิดหารของจากไอคอนบนหน้าจอโฮม แล้วกลับมาเปิดแจ้งเตือนที่หน้านี้": "On iPhone/iPad, tap Share in Safari and choose \"Add to Home Screen\", open HarnKhong from the Home Screen icon, then turn on notifications on this page",
+  "แจ้งเตือนบนมือถือถูกปิดอยู่": "Phone notifications are blocked",
+  "เปิดอนุญาตการแจ้งเตือนของหารของในการตั้งค่าเครื่องหรือเบราว์เซอร์ แล้วรีเฟรชหน้านี้": "Allow notifications for HarnKhong in your device or browser settings, then refresh this page",
+  "เปิดแจ้งเตือนบนมือถือแล้ว": "Phone notifications are on",
+  "ยอดที่ต้องจ่าย ความเคลื่อนไหวของกลุ่ม แชต และข่าวจากระบบจะเด้งขึ้นที่เครื่องนี้": "Payments due, group activity, chat and system news will pop up on this device",
+  "ให้ยอดที่ต้องจ่าย ความเคลื่อนไหวของกลุ่ม แชต และข่าวจากระบบเด้งขึ้นหน้าจอ แม้ไม่ได้เปิดเว็บอยู่": "Get payments due, group activity, chat and system news on your screen, even when the site is closed",
+  "เปิดแจ้งเตือน": "Turn on",
+  "ทดสอบ": "Test",
+  "ปิดแจ้งเตือน": "Turn off",
+  "ปิดแจ้งเตือนบนเครื่องนี้แล้ว": "Notifications turned off on this device",
+  "ส่งแจ้งเตือนทดสอบแล้ว รอสักครู่": "Test notification sent, it should arrive shortly",
+  "คุณไม่ได้อนุญาตการแจ้งเตือน เปิดได้ในการตั้งค่าเครื่อง": "Notifications were not allowed. You can allow them in your device settings",
+  "ยังไม่ได้เปิดแจ้งเตือน": "Notifications were not turned on",
+  "เครื่องนี้ยังเปิดแจ้งเตือนไม่ได้": "This device can't turn on notifications yet",
+  "ตั้งค่าแจ้งเตือนไม่สำเร็จ ลองใหม่อีกครั้ง": "Could not set up notifications, please try again",
   "โอนให้คุณแล้ว": "Paid to you",
   "ดูสลิป": "View slip",
   "ยังไม่มีบัญชีรับเงิน": "No payout account yet",

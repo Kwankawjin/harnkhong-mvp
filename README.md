@@ -73,6 +73,8 @@ npm run preview
 
 กติกาสถานะ สิทธิ์ วิธีทดสอบ และข้อจำกัด: [ORDER-WORKFLOW.md](docs/ORDER-WORKFLOW.md)
 
+แจ้งเตือนบนมือถือ (Web Push) และขั้นตอนตั้งค่า Supabase: [PUSH-NOTIFICATIONS.md](docs/PUSH-NOTIFICATIONS.md)
+
 ## UI จำลองเพิ่มเติม
 
 - สมัคร/เข้าสู่ระบบแบบสลับแผงตาม Auth Switch; บัญชีเดิมในเบราว์เซอร์ใช้ตัวตนและที่อยู่ที่บันทึกไว้ กรอกข้อมูลสมมติเท่านั้น
