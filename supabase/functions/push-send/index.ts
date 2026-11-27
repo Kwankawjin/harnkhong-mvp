@@ -3,11 +3,12 @@
 // Called by the database (pg_net right after something is queued, and pg_cron every minute
 // as a retry) with the shared secret in the x-push-secret header. It is not for browsers.
 //
-// Secrets (supabase secrets set ...):
-//   VAPID_PUBLIC_KEY   same value as VITE_VAPID_PUBLIC_KEY on the website
-//   VAPID_PRIVATE_KEY
-//   VAPID_SUBJECT      mailto:you@example.com (who push services contact about problems)
-//   PUSH_CRON_SECRET   random string, also saved in Vault as push_cron_secret
+// Keys come from Supabase Vault through public.push_config() (service role only):
+//   vapid_public_key   same value as VITE_VAPID_PUBLIC_KEY on the website
+//   vapid_private_key
+//   vapid_subject      mailto:you@example.com (who push services contact about problems)
+//   push_cron_secret   shared secret the database sends in x-push-secret
+// Edge Function secrets with the upper-case names (VAPID_PUBLIC_KEY, ...) override them.
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided by Supabase.
 import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
@@ -26,17 +27,20 @@ type Device = { id: string; user_id: string; endpoint: string; p256dh: string; a
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
-  if (!sameSecret(req.headers.get("x-push-secret") || "", env("PUSH_CRON_SECRET"))) {
-    return new Response("Forbidden", { status: 403 });
-  }
-  const publicKey = env("VAPID_PUBLIC_KEY");
-  const privateKey = env("VAPID_PRIVATE_KEY");
-  if (!publicKey || !privateKey) return Response.json({ error: "VAPID keys are not set" }, { status: 500 });
-  webpush.setVapidDetails(env("VAPID_SUBJECT") || "mailto:harnkhong@gmail.com", publicKey, privateKey);
-
   const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  const { data: vault } = await db.rpc("push_config");
+  const config = (name: string) =>
+    env(name.toUpperCase()) || String((vault as Record<string, string> | null)?.[name] || "").trim();
+
+  if (!sameSecret(req.headers.get("x-push-secret") || "", config("push_cron_secret"))) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  const publicKey = config("vapid_public_key");
+  const privateKey = config("vapid_private_key");
+  if (!publicKey || !privateKey) return Response.json({ error: "VAPID keys are not set" }, { status: 500 });
+  webpush.setVapidDetails(config("vapid_subject") || "mailto:harnkhong@gmail.com", publicKey, privateKey);
 
   let sent = 0;
   let removed = 0;

@@ -24,21 +24,19 @@
 
 ทำงานอย่างไร: เบราว์เซอร์บันทึกเครื่องไว้ใน `push_subscriptions` → trigger ในฐานข้อมูลใส่แจ้งเตือนลง `private.push_outbox` → ปลุก Edge Function `push-send` (ผ่าน pg_net) → ฟังก์ชันส่งด้วยคีย์ VAPID ส่วน pg_cron ส่งเตือนยอดค้างทุกเช้าและลองส่งซ้ำทุกนาที
 
-1. **Database → Extensions**: เปิด `pg_net` และ `pg_cron`
-2. รัน migration `supabase/migrations/20261127090000_web_push_notifications.sql` (`supabase db push` หรือวางใน SQL Editor)
-3. ตั้ง secrets ของ Edge Function (Dashboard → Edge Functions → Secrets หรือ CLI):
-   ```bash
-   supabase secrets set VAPID_PUBLIC_KEY=<ค่า VITE_VAPID_PUBLIC_KEY ใน .env.production> \
-     VAPID_PRIVATE_KEY=<private key> VAPID_SUBJECT=mailto:harnkhong@gmail.com PUSH_CRON_SECRET=<สุ่มยาวๆ>
-   ```
-4. Deploy ฟังก์ชัน: `supabase functions deploy push-send --no-verify-jwt`
-5. บอกฐานข้อมูลว่าเรียกฟังก์ชันที่ไหน (SQL Editor):
-   ```sql
-   select vault.create_secret('https://<project-ref>.supabase.co/functions/v1/push-send', 'push_function_url');
-   select vault.create_secret('<PUSH_CRON_SECRET เดียวกับข้อ 3>', 'push_cron_secret');
-   ```
-6. ถ้าเปิด pg_cron หลังรัน migration ให้รันบล็อก `do $$ ... cron.schedule ... $$` ท้ายไฟล์ migration ซ้ำอีกครั้ง
-7. Deploy เว็บใหม่ (คีย์สาธารณะ `VITE_VAPID_PUBLIC_KEY` อยู่ใน `.env.production` แล้ว ถ้า Vercel ตั้ง env แยกไว้ให้เพิ่มค่านี้ด้วย)
+ตั้งค่าแล้วบนโปรเจกต์จริง (27 พ.ย. 2026): เปิด `pg_net` กับ `pg_cron`, รัน migration, deploy `push-send` (ปิด verify JWT เพราะใช้ secret ของตัวเอง) และเก็บค่าทั้งหมดใน **Vault**:
+
+| ชื่อใน Vault | ใช้ทำอะไร |
+| --- | --- |
+| `push_function_url` | URL ของ `push-send` ที่ฐานข้อมูลเรียก |
+| `push_cron_secret` | secret ที่ฐานข้อมูลส่งใน header `x-push-secret` |
+| `vapid_public_key` | ต้องตรงกับ `VITE_VAPID_PUBLIC_KEY` ใน `.env.production` |
+| `vapid_private_key` | คีย์ลับสำหรับส่ง push |
+| `vapid_subject` | `mailto:` ที่ผู้ให้บริการ push ติดต่อได้ |
+
+ฟังก์ชันอ่านค่าเหล่านี้ผ่าน `public.push_config()` (เฉพาะ service role) ถ้าตั้ง Edge Function secrets ชื่อตัวพิมพ์ใหญ่ (`VAPID_PUBLIC_KEY` ฯลฯ) จะใช้ค่านั้นแทน
+
+ตั้งโปรเจกต์ใหม่: เปิด `pg_net` + `pg_cron` → รัน migration → `supabase functions deploy push-send --no-verify-jwt` → `select vault.create_secret('<ค่า>', '<ชื่อ>');` ตามตารางข้างบน
 
 ทดสอบ: เปิดแจ้งเตือนในหน้าการแจ้งเตือน แล้วกด **ทดสอบ** ควรเด้งภายในไม่กี่วินาที
 
