@@ -263,6 +263,16 @@ grant execute on function public.push_claim_outbox(integer) to service_role;
 grant execute on function public.push_finish_outbox(bigint[]) to service_role;
 grant execute on function public.push_badge_counts(uuid[]) to service_role;
 
+-- push-send reads its VAPID keys and shared secret from Vault (service role only).
+create or replace function public.push_config()
+returns jsonb language sql stable security definer set search_path = '' as $$
+  select jsonb_object_agg(name, decrypted_secret)
+  from vault.decrypted_secrets
+  where name in ('vapid_public_key', 'vapid_private_key', 'vapid_subject', 'push_cron_secret');
+$$;
+revoke all on function public.push_config() from public, anon, authenticated;
+grant execute on function public.push_config() to service_role;
+
 -- ============================================================ what sends a notification
 create or replace function private.group_member_ids(p_group uuid, p_except uuid default null)
 returns uuid[]
