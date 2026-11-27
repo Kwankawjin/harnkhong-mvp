@@ -7,6 +7,10 @@ project_id = "harnkhong-mvp"
 [functions.admin-api]
 verify_jwt = true
 
+# Called by the database with a shared secret (x-push-secret), not by signed-in people.
+[functions.push-send]
+verify_jwt = false
+
 [api]
 enabled = true
 # Port to use for the API URL.

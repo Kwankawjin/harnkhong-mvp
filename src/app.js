@@ -89,6 +89,7 @@ import { testMode,
   saveAuthenticatedAddress,
 } from "./supabase.js";
 import { createAuthSessionSync } from "./auth-session.js";
+import { createPush } from "./push.js";
 import { createRequestMarketplace } from "./request-marketplace.js";
 
 const BANK_PAYMENT_QR_SRC = "/images/bank-payment-qr.webp";
@@ -3385,6 +3386,47 @@ function noteItem(n) {
   const kind = NOTE_KINDS.find(([k]) => k === n.kind);
   return `<button type="button" class="note-item ${n.read ? "" : "unread"} ${n.tone ? `tone-${n.tone}` : ""}" data-action="open-note" data-id="${escape(n.id)}" data-href="${escape(n.href || "/notifications")}"${n.localId ? ` data-local="${escape(n.localId)}"` : ""}><span class="note-icon kind-${n.kind}">${icon(n.tone === "urgent" ? "alert-circle" : kind?.[2] || "bell", 20)}</span><span class="note-text"><b>${escape(n.title)}</b><small>${escape(n.body || "")}</small>${n.at && n.kind !== "payment" ? `<time>${escape(dateTime(n.at))}</time>` : ""}</span>${n.read ? "" : '<i class="note-dot" aria-hidden="true"></i>'}</button>`;
 }
+/* ---------- Phone notifications (Web Push) ---------- */
+const push = supabaseConfigured
+  ? createPush({
+      supabase,
+      vapidKey: import.meta.env?.VITE_VAPID_PUBLIC_KEY?.trim(),
+      onChange: () => {
+        if (location.pathname === "/notifications") render();
+      },
+    })
+  : null;
+let pushSyncedFor = null;
+let pushBusy = false;
+/** Once per signed-in account: register the service worker and keep this device saved. */
+function syncPushDevice() {
+  const me = state.user?.id;
+  if (!push || !me || pushSyncedFor === me) return;
+  pushSyncedFor = me;
+  void push.refresh().catch((error) => console.error("Could not check phone notifications", error));
+}
+function pushCard() {
+  if (!push) return "";
+  const support = push.support();
+  if (support === "unconfigured" || support === "unsupported") return "";
+  const head = (text, sub) => `<div class="push-card-text"><strong>${text}</strong><small>${sub}</small></div>`;
+  let body;
+  if (support === "install")
+    body = `${head(t("รับแจ้งเตือนบนมือถือ"), t("บน iPhone/iPad ให้กดปุ่มแชร์ใน Safari แล้วเลือก \"เพิ่มไปยังหน้าจอโฮม\" จากนั้นเปิดหารของจากไอคอนบนหน้าจอโฮม แล้วกลับมาเปิดแจ้งเตือนที่หน้านี้"))}`;
+  else if (support === "denied")
+    body = head(t("แจ้งเตือนบนมือถือถูกปิดอยู่"), t("เปิดอนุญาตการแจ้งเตือนของหารของในการตั้งค่าเครื่องหรือเบราว์เซอร์ แล้วรีเฟรชหน้านี้"));
+  else if (push.subscribed)
+    body = `${head(t("เปิดแจ้งเตือนบนมือถือแล้ว"), t("ยอดที่ต้องจ่าย ความเคลื่อนไหวของกลุ่ม แชต และข่าวจากระบบจะเด้งขึ้นที่เครื่องนี้"))}<div class="push-card-actions"><button type="button" class="button subtle" data-action="push-test"${pushBusy ? " disabled" : ""}>${t("ทดสอบ")}</button><button type="button" class="button subtle" data-action="push-disable"${pushBusy ? " disabled" : ""}>${t("ปิดแจ้งเตือน")}</button></div>`;
+  else
+    body = `${head(t("รับแจ้งเตือนบนมือถือ"), t("ให้ยอดที่ต้องจ่าย ความเคลื่อนไหวของกลุ่ม แชต และข่าวจากระบบเด้งขึ้นหน้าจอ แม้ไม่ได้เปิดเว็บอยู่"))}<div class="push-card-actions"><button type="button" class="button primary" data-action="push-enable"${pushBusy ? " disabled" : ""}>${icon("bell", 18)} ${t("เปิดแจ้งเตือน")}</button></div>`;
+  return `<section class="push-card${push.subscribed ? " is-on" : ""}" aria-label="${t("แจ้งเตือนบนมือถือ")}"><span class="push-card-icon">${icon("bell", 22)}</span>${body}</section>`;
+}
+const PUSH_ERRORS = {
+  PUSH_DENIED: "คุณไม่ได้อนุญาตการแจ้งเตือน เปิดได้ในการตั้งค่าเครื่อง",
+  PUSH_DISMISSED: "ยังไม่ได้เปิดแจ้งเตือน",
+  PUSH_NOT_READY: "เครื่องนี้ยังเปิดแจ้งเตือนไม่ได้",
+};
+
 function notifications() {
   if (!requireAuth("/notifications"))
     return authRequiredView(
@@ -3399,7 +3441,8 @@ function notifications() {
     .map(([kind, label]) => `<a href="/notifications${kind === "all" ? "" : `?tab=${kind}`}" data-link class="note-tab${tab === kind ? " active" : ""}"${tab === kind ? ' aria-current="page"' : ""}>${t(label)}${count(kind) ? `<i>${count(kind)}</i>` : ""}</a>`)
     .join("");
   const unread = feed.filter((n) => !n.read).length;
-  return `${title(t("การแจ้งเตือน"), t("การชำระเงิน การเปลี่ยนแปลงของกลุ่ม และข่าวจากระบบ"))}<div class="narrow notes-page"><div class="note-toolbar"><nav class="note-tabs" aria-label="${t("หมวดการแจ้งเตือน")}">${tabs}</nav>${unread ? `<button type="button" class="button subtle note-read-all" data-action="read-all-notes">${t("อ่านทั้งหมด")}</button>` : ""}</div>${shown.length ? `<div class="note-list">${shown.map(noteItem).join("")}</div>` : `<div class="empty"><h2>${t("ยังไม่มีการแจ้งเตือน")}</h2><p>${t(tab === "payment" ? "ไม่มียอดค้างชำระ เมื่อกลุ่มพร้อมจ่ายจะแจ้งที่นี่" : "เมื่อมีความเคลื่อนไหว รายการจะปรากฏที่นี่")}</p>${a("/explore", t("สำรวจกลุ่ม"), "button secondary")}</div>`}<p class="note-footnote">${t("แจ้งเตือนการชำระล่วงหน้า 1 วันและในวันครบกำหนด ประวัติรอบเก็บไว้ {days} วัน", { days: HISTORY_KEEP_DAYS })}</p></div>`;
+  push?.clearBadge();
+  return `${title(t("การแจ้งเตือน"), t("การชำระเงิน การเปลี่ยนแปลงของกลุ่ม และข่าวจากระบบ"))}<div class="narrow notes-page">${pushCard()}<div class="note-toolbar"><nav class="note-tabs" aria-label="${t("หมวดการแจ้งเตือน")}">${tabs}</nav>${unread ? `<button type="button" class="button subtle note-read-all" data-action="read-all-notes">${t("อ่านทั้งหมด")}</button>` : ""}</div>${shown.length ? `<div class="note-list">${shown.map(noteItem).join("")}</div>` : `<div class="empty"><h2>${t("ยังไม่มีการแจ้งเตือน")}</h2><p>${t(tab === "payment" ? "ไม่มียอดค้างชำระ เมื่อกลุ่มพร้อมจ่ายจะแจ้งที่นี่" : "เมื่อมีความเคลื่อนไหว รายการจะปรากฏที่นี่")}</p>${a("/explore", t("สำรวจกลุ่ม"), "button secondary")}</div>`}<p class="note-footnote">${t("แจ้งเตือนการชำระล่วงหน้า 1 วันและในวันครบกำหนด ประวัติรอบเก็บไว้ {days} วัน", { days: HISTORY_KEEP_DAYS })}</p></div>`;
 }
 function subscriptionStatusSection(sub, { current, pending, active, endsAt, daysLeft }) {
   const payments = sub?.payments || [];
@@ -4532,6 +4575,7 @@ function render() {
     return;
   }
   adminPageModule?.unmountAdminPage();
+  syncPushDevice();
   const createGroupRoute = location.pathname === "/groups/create";
   if (
     !/^\/groups\/[^/]+\/chat$/.test(location.pathname) &&
@@ -6543,6 +6587,28 @@ document.addEventListener("click", async (e) => {
         save();
       }
       go(btn.dataset.href || "/notifications");
+    } else if (action === "push-enable" || action === "push-disable" || action === "push-test") {
+      if (!push || pushBusy) return;
+      pushBusy = true;
+      render();
+      try {
+        if (action === "push-enable") {
+          await push.enable();
+          alertMessage(t("เปิดแจ้งเตือนบนมือถือแล้ว"));
+        } else if (action === "push-disable") {
+          await push.disable();
+          alertMessage(t("ปิดแจ้งเตือนบนเครื่องนี้แล้ว"));
+        } else {
+          await push.test();
+          alertMessage(t("ส่งแจ้งเตือนทดสอบแล้ว รอสักครู่"), "info");
+        }
+      } catch (error) {
+        console.error(error);
+        alertMessage(t(PUSH_ERRORS[error?.message] || "ตั้งค่าแจ้งเตือนไม่สำเร็จ ลองใหม่อีกครั้ง"), "error");
+      } finally {
+        pushBusy = false;
+        render();
+      }
     } else if (action === "read-all-notes") {
       const feed = notificationFeed();
       markNotesRead(feed.map((n) => n.id));
@@ -6558,6 +6624,9 @@ document.addEventListener("click", async (e) => {
       go(n.href);
     } else if (action === "logout") {
       authSessionSync?.invalidate();
+      // A signed-out phone should not keep getting this account's notifications.
+      if (push?.subscribed) await push.disable().catch((error) => console.error("Could not remove push device", error));
+      pushSyncedFor = null;
       if (supabaseConfigured) {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;

@@ -2309,6 +2309,48 @@ body:has(.chat-workspace) .site-footer {
   grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
+/* Phone notifications (Web Push) switch at the top of the notifications page */
+.push-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--hk-sky-300);
+  border-radius: 16px;
+  background: var(--hk-sky-50);
+  color: var(--hk-ink);
+}
+.push-card.is-on {
+  border-color: var(--hk-line);
+  background: var(--hk-paper);
+}
+.push-card-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--hk-sun-soft);
+  color: var(--hk-sun-ink);
+}
+.push-card-text {
+  display: grid;
+  flex: 1 1 220px;
+  gap: 2px;
+  min-width: 0;
+}
+.push-card-text small {
+  color: var(--hk-muted);
+  line-height: 1.5;
+}
+.push-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
 .note-toolbar {
   display: flex;
   flex-wrap: wrap;
